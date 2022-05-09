@@ -75,9 +75,11 @@ if __name__ == "__main__":
     done = False
     for _ in range(n_steps):
         # print(f"Observation: {obs}")
-        action = torch.tensor([0.0, 0.02]).repeat(32, 1)
-        agent_actions.append(action[1])
-        obss, rews, dones, info = env.step([action])
+
+        actions = []
+        for i in range(5):
+            actions.append(torch.tensor([0.0, -0.02]).repeat(32, 1))
+        obss, rews, dones, info = env.step(actions)
         #
         # agent_action_forces.append(env.world.entities[0].f_act[1])
         # agent_coll_forces.append(env.world.entities[0].f_coll[1])

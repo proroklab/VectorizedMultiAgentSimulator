@@ -3,12 +3,11 @@ from typing import Callable, Union, List
 import torch
 from torch import Tensor
 
-# physical/external base state of all entites
-from jan_env.vector_env import GRAY, BLUE
-from simulator.utils import SensorType
+from simulator.utils import Color
+from simulator.utils import SensorType, X, Y
 
 
-class TorchVecotrizedObject(object):
+class TorchVectorizedObject(object):
     def __init__(self, batch_dim: int = None, device: torch.device = None):
         # batch dim
         self._batch_dim = batch_dim
@@ -34,20 +33,71 @@ class TorchVecotrizedObject(object):
         self._device = device
 
 
-class EntityState(TorchVecotrizedObject):
+class Shape:
+    pass
+
+
+class Box(Shape):
+    def __init__(self, length: float = 0.3, width: float = 0.1):
+        super().__init__()
+        assert length > 0, f"Length must be > 0, got {length}"
+        assert width > 0, f"Width must be > 0, got {length}"
+        self._length = length
+        self._width = width
+
+    @property
+    def length(self):
+        return self._length
+
+    @property
+    def width(self):
+        return self._width
+
+
+class Sphere(Shape):
+    def __init__(self, radius: float = 0.05):
+        super().__init__()
+        assert radius > 0, f"Radius must be > 0, got {radius}"
+        self._radius = radius
+
+    @property
+    def radius(self):
+        return self._radius
+
+
+class Line(Shape):
+    def __init__(self, length: float = 0.5, width: float = 3):
+        super().__init__()
+        assert length > 0, f"Length must be > 0, got {length}"
+        assert width > 0, f"Width must be > 0, got {length}"
+        self._length = length
+        self._width = width
+
+    @property
+    def length(self):
+        return self._length
+
+    @property
+    def width(self):
+        return self._width
+
+
+class EntityState(TorchVectorizedObject):
     def __init__(self):
         super().__init__()
         # physical position
         self._pos = None
         # physical velocity
         self._vel = None
+        # phyisical rotation -- from -pi to pi
+        self._rot = None
 
     @property
     def pos(self):
         return self._pos
 
     @pos.setter
-    def pos(self, pos: Tensor = None):
+    def pos(self, pos: Tensor):
         assert (
             self._batch_dim is not None and self._device is not None
         ), f"First add an entity to the world before setting its state"
@@ -60,13 +110,18 @@ class EntityState(TorchVecotrizedObject):
             ), f"Position shape must match velocity shape, got {pos.shape} expected {self._vel.shape}"
 
         self._pos = pos.to(self._device)
+        # Initialize rotation with position
+        if self._rot is None:
+            self.rot = torch.zeros(
+                self._batch_dim,
+            )
 
     @property
     def vel(self):
         return self._vel
 
     @vel.setter
-    def vel(self, vel: Tensor = None):
+    def vel(self, vel: Tensor):
         assert (
             self._batch_dim is not None and self._device is not None
         ), f"First add an entity to the world before setting its state"
@@ -79,6 +134,21 @@ class EntityState(TorchVecotrizedObject):
             ), f"Velocity shape must match position shape, got {vel.shape} expected {self._pos.shape}"
 
         self._vel = vel.to(self._device)
+
+    @property
+    def rot(self):
+        return self._rot
+
+    @rot.setter
+    def rot(self, rot: Tensor):
+        assert (
+            self._batch_dim is not None and self._device is not None
+        ), f"First add an entity to the world before setting its state"
+        assert (
+            rot.shape[0] == self._batch_dim
+        ), f"Internal state must match batch dim, got {rot.shape[0]}, expected {self._batch_dim}"
+
+        self._rot = rot.to(self._device)
 
 
 class AgentState(EntityState):
@@ -94,7 +164,7 @@ class AgentState(EntityState):
         return self._c
 
     @c.setter
-    def c(self, c: Tensor = None):
+    def c(self, c: Tensor):
         assert (
             self._batch_dim is not None and self._device is not None
         ), f"First add an entity to the world before setting its state"
@@ -110,7 +180,7 @@ class AgentState(EntityState):
 
 
 # action of an agent
-class Action(TorchVecotrizedObject):
+class Action(TorchVectorizedObject):
     def __init__(self):
         super().__init__()
         # physical action
@@ -123,7 +193,7 @@ class Action(TorchVecotrizedObject):
         return self._u
 
     @u.setter
-    def u(self, u: Tensor = None):
+    def u(self, u: Tensor):
         assert (
             self._batch_dim is not None and self._device is not None
         ), f"First add an agent to the world before setting its action"
@@ -142,7 +212,7 @@ class Action(TorchVecotrizedObject):
         return self._c
 
     @c.setter
-    def c(self, c: Tensor = None):
+    def c(self, c: Tensor):
         assert (
             self._batch_dim is not None and self._device is not None
         ), f"First add an agent to the world before setting its action"
@@ -158,23 +228,21 @@ class Action(TorchVecotrizedObject):
 
 
 # properties and state of physical world entity
-class Entity(TorchVecotrizedObject):
+class Entity(TorchVectorizedObject):
     def __init__(
         self,
         name: str,
-        radius: float = 0.05,
         movable: bool = False,
         collide: bool = True,
         density: float = 25.0,  # Unused for now
         mass: float = 1.0,
+        shape: Shape = Sphere(),
         max_speed: float = None,
-        color: tuple = GRAY,
+        color: Color = Color.GRAY,
     ):
         super().__init__()
         # name
         self._name = name
-        # properties:
-        self._radius = radius
         # entity can move / be pushed
         self._movable = movable
         # entity collides with others
@@ -187,17 +255,19 @@ class Entity(TorchVecotrizedObject):
         self._max_speed = max_speed
         # color
         self._color = color
+        # shape
+        self._shape = shape
         # state
         self._state = EntityState()
 
-    @TorchVecotrizedObject.batch_dim.setter
+    @TorchVectorizedObject.batch_dim.setter
     def batch_dim(self, batch_dim: int):
-        TorchVecotrizedObject.batch_dim.fset(self, batch_dim)
+        TorchVectorizedObject.batch_dim.fset(self, batch_dim)
         self._state.batch_dim = batch_dim
 
-    @TorchVecotrizedObject.device.setter
+    @TorchVectorizedObject.device.setter
     def device(self, device: torch.device):
-        TorchVecotrizedObject.device.fset(self, device)
+        TorchVectorizedObject.device.fset(self, device)
         self._state.device = device
 
     @property
@@ -217,8 +287,8 @@ class Entity(TorchVecotrizedObject):
         return self._collide
 
     @property
-    def radius(self):
-        return self._radius
+    def shape(self):
+        return self._shape
 
     @property
     def max_speed(self):
@@ -228,27 +298,31 @@ class Entity(TorchVecotrizedObject):
     def name(self):
         return self._name
 
+    @property
+    def color(self):
+        return self._color
+
 
 # properties of landmark entities
 class Landmark(Entity):
     def __init__(
         self,
         name: str,
-        radius: float = 0.05,
+        shape: Shape = Sphere(),
         movable: bool = False,
         collide: bool = True,
         density: float = 25.0,  # Unused for now
         mass: float = 1.0,
         max_speed: float = None,
-        color: tuple = GRAY,
+        color: Color = Color.GRAY,
     ):
         super().__init__(
             name,
-            radius,
             movable,
             collide,
             density,  # Unused for now
             mass,
+            shape,
             max_speed,
             color,
         )
@@ -259,13 +333,13 @@ class Agent(Entity):
     def __init__(
         self,
         name: str,
-        radius: float = 0.05,
+        shape: Shape = Sphere(),
         movable: bool = True,
         collide: bool = True,
         density: float = 25.0,  # Unused for now
         mass: float = 1.0,
         max_speed: float = None,
-        color: tuple = BLUE,
+        color: Color = Color.BLUE,
         obs_range: float = None,
         obs_noise: float = None,
         u_noise: float = None,
@@ -278,11 +352,11 @@ class Agent(Entity):
     ):
         super().__init__(
             name,
-            radius,
             movable,
             collide,
             density,  # Unused for now
             mass,
+            shape,
             max_speed,
             color,
         )
@@ -348,7 +422,7 @@ class Agent(Entity):
 
 
 # multiagent world
-class World(TorchVecotrizedObject):
+class World(TorchVectorizedObject):
     def __init__(
         self,
         batch_dim: int,
@@ -379,6 +453,11 @@ class World(TorchVecotrizedObject):
         # contact response parameters
         self._contact_force = 1e2
         self._contact_margin = 1e-3
+
+        # Horizontal unit vector
+        self._normal_vector = (
+            torch.tensor([1.0, 0.0]).repeat(self._batch_dim, 1).to(self._device)
+        )
 
     def add_agent(self, agent: Agent):
         """Only way to add agents to the world"""
@@ -462,13 +541,132 @@ class World(TorchVecotrizedObject):
             for b, entity_b in enumerate(self.entities):
                 if b <= a:
                     continue
-                [f_a, f_b] = self._get_collision_force(entity_a, entity_b)
+                f_a, f_b = self._get_collision_force(entity_a, entity_b)
                 assert not f_a.isnan().any() or not f_b.isnan().any()
-                if f_a is not None:
-                    p_force[:, a] += f_a
-                if f_b is not None:
-                    p_force[:, b] += f_b
+                p_force[:, a] += f_a
+                p_force[:, b] += f_b
         return p_force
+
+    # get collision forces for any contact between two entities
+    def _get_collision_force(self, entity_a, entity_b):
+        if (not entity_a.collide) or (not entity_b.collide):
+            return [None, None]  # not a collider
+        if entity_a is entity_b:
+            return [None, None]  # don't collide against itself
+
+        force_a = torch.zeros(self._batch_dim, self._dim_p).to(self._device)
+        force_b = torch.zeros(self._batch_dim, self._dim_p).to(self._device)
+
+        # Sphere and sphere
+        if isinstance(entity_a.shape, Sphere) and isinstance(entity_b.shape, Sphere):
+            force_a, force_b = self._get_collision_forces(
+                entity_a.state.pos,
+                entity_b.state.pos,
+                dist_min=entity_a.shape.radius + entity_b.shape.radius,
+            )
+        # Sphere and line
+        elif (
+            isinstance(entity_a.shape, Line)
+            and isinstance(entity_b.shape, Sphere)
+            or isinstance(entity_b.shape, Line)
+            and isinstance(entity_a.shape, Sphere)
+        ):
+            line, sphere = (
+                (entity_a, entity_b)
+                if isinstance(entity_b.shape, Sphere)
+                else (entity_b, entity_a)
+            )
+            force_a, force_b = self._line_sphere_collision_forces(
+                sphere.state.pos,
+                sphere.shape.radius,
+                line.state.pos,
+                line.state.rot,
+                line.shape.length,
+            )
+        # Sphere and box
+        elif (
+            isinstance(entity_a.shape, Box)
+            and isinstance(entity_b.shape, Sphere)
+            or isinstance(entity_b.shape, Box)
+            and isinstance(entity_a.shape, Sphere)
+        ):
+            box, sphere = (
+                (entity_a, entity_b)
+                if isinstance(entity_b.shape, Sphere)
+                else (entity_b, entity_a)
+            )
+
+            # Rotate normal vector by the angle of the box
+            rotated_vector = World._rotate_vector(self._normal_vector, box.state.rot)
+            rotated_vector2 = World._rotate_vector(
+                self._normal_vector, box.state.rot + torch.pi / 2
+            )
+            # Middle points of the sides
+            p1 = box.state.pos + rotated_vector * (box.shape.length / 2)
+            p2 = box.state.pos - rotated_vector * (box.shape.length / 2)
+            p3 = box.state.pos + rotated_vector2 * (box.shape.width / 2)
+            p4 = box.state.pos - rotated_vector2 * (box.shape.width / 2)
+
+            for i, p in enumerate([p1, p2, p3, p4]):
+                f_a, f_b = self._line_sphere_collision_forces(
+                    sphere.state.pos,
+                    sphere.shape.radius,
+                    p,
+                    box.state.rot + torch.pi / 2 if i <= 1 else box.state.rot,
+                    box.shape.width if i <= 1 else box.shape.length,
+                )
+                force_a += f_a
+                force_b += f_b
+
+        return (
+            force_a if entity_a.movable else torch.tensor(0.0).to(self._device),
+            force_b if entity_b.movable else torch.tensor(0.0).to(self._device),
+        )
+
+    def _line_sphere_collision_forces(
+        self, sphere_pos, sphere_radius, line_pos, line_rot, line_length
+    ):
+        # Rotate it by the angle of the line
+        rotated_vector = World._rotate_vector(self._normal_vector, line_rot)
+        # Get distance between line and sphere
+        delta_pos = line_pos - sphere_pos
+        # Dot product of distance and line vector
+        dot_p = torch.einsum("bs,bs->b", delta_pos, rotated_vector).unsqueeze(-1)
+        # Coordinates of the closes poinht
+        sign = torch.sign(dot_p)
+        closest_point = (
+            line_pos
+            - sign
+            * torch.min(
+                torch.abs(dot_p),
+                torch.tensor(line_length / 2).to(self._device),
+            )
+            * rotated_vector
+        )
+
+        return self._get_collision_forces(
+            sphere_pos,
+            closest_point,
+            dist_min=sphere_radius,
+        )
+
+    def _get_collision_forces(self, pos_a, pos_b, dist_min):
+        delta_pos = pos_a - pos_b
+        dist = torch.sqrt(torch.sum(delta_pos**2, dim=-1))
+
+        # softmax penetration
+        k = self._contact_margin
+        penetration = (
+            torch.logaddexp(torch.tensor(0.0).to(self._device), -(dist - dist_min) / k)
+            * k
+        )
+        force = (
+            self._contact_force
+            * delta_pos
+            / dist.unsqueeze(-1)
+            * penetration.unsqueeze(-1)
+        )
+        return +force, -force
 
     # integrate physical state
     def _integrate_state(self, p_force):
@@ -489,35 +687,6 @@ class World(TorchVecotrizedObject):
                     )
             entity.state.pos += entity.state.vel * self._dt
 
-    # get collision forces for any contact between two entities
-    def _get_collision_force(self, entity_a, entity_b):
-        if (not entity_a.collide) or (not entity_b.collide):
-            return [None, None]  # not a collider
-        if entity_a is entity_b:
-            return [None, None]  # don't collide against itself
-        # compute actual distance between entities
-        delta_pos = entity_a.state.pos - entity_b.state.pos
-
-        dist = torch.sqrt(torch.sum(delta_pos**2, dim=-1))
-
-        # minimum allowable distance
-        dist_min = entity_a.radius + entity_b.radius
-        # softmax penetration
-        k = self._contact_margin
-        penetration = (
-            torch.logaddexp(torch.tensor(0.0).to(self._device), -(dist - dist_min) / k)
-            * k
-        )
-        force = (
-            self._contact_force
-            * delta_pos
-            / dist.unsqueeze(-1)
-            * penetration.unsqueeze(-1)
-        )
-        force_a = +force if entity_a.movable else None
-        force_b = -force if entity_b.movable else None
-        return [force_a, force_b]
-
     def _update_comm_state(self, agent):
         # set communication state (directly for now)
         if agent.silent:
@@ -529,3 +698,16 @@ class World(TorchVecotrizedObject):
                 else 0.0
             )
             agent.state.c = agent.action.c + noise
+
+    @staticmethod
+    def _rotate_vector(vector: Tensor, angle: Tensor):
+        cos = torch.cos(angle)
+        sin = torch.sin(angle)
+
+        return torch.stack(
+            [
+                vector[:, X] * cos - vector[:, Y] * sin,
+                vector[:, X] * sin + vector[:, Y] * cos,
+            ],
+            dim=-1,
+        )

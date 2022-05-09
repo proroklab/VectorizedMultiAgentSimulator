@@ -5,13 +5,13 @@ Y = 1
 Z = 2
 
 
-class Colors(Enum):
-    RED = (255, 0, 0)
-    GREEN = (0, 255, 0)
-    BLUE = (0, 0, 255)
-    WHITE = (255, 255, 255)
+class Color(Enum):
+    RED = (0.75, 0.25, 0.25)
+    GREEN = (0, 1, 0)
+    BLUE = (0, 0, 1)
+    WHITE = (1, 1, 1)
     BLACK = (0, 0, 0)
-    GRAY = (100, 100, 100)
+    GRAY = (0.25, 0.25, 0.25)
 
 
 class SensorType(Enum):

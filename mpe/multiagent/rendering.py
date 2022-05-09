@@ -2,9 +2,11 @@
 2D rendering framework
 """
 from __future__ import division
+
 import os
-import six
 import sys
+
+import six
 
 if "Apple" in sys.version:
     if "DYLD_FALLBACK_LIBRARY_PATH" in os.environ:
@@ -351,11 +353,11 @@ class PolyLine(Geom):
 
 
 class Line(Geom):
-    def __init__(self, start=(0.0, 0.0), end=(0.0, 0.0)):
+    def __init__(self, start=(0.0, 0.0), end=(0.0, 0.0), width: float = 1):
         Geom.__init__(self)
         self.start = start
         self.end = end
-        self.linewidth = LineWidth(1)
+        self.linewidth = LineWidth(width)
         self.add_attr(self.linewidth)
 
     def render1(self):

@@ -4,9 +4,13 @@ import torch
 from gym import spaces
 from multiagent.multi_discrete import MultiDiscrete
 
+from mpe.multiagent import core
 
 # environment for all agents in the multiagent world
 # currently code assumes that no agents will be created/destroyed at runtime!
+from mpe.multiagent.core import Line, Box
+
+
 class MultiAgentEnv(gym.Env):
     metadata = {"render.modes": ["human", "rgb_array"]}
 
@@ -244,7 +248,8 @@ class MultiAgentEnv(gym.Env):
                     else:
                         word = alphabet[np.argmax(other.state.c)]
                     message += other.name + " to " + agent.name + ": " + word + "   "
-            print(message)
+            if len(message) > 0:
+                print(message)
 
         for i in range(len(self.viewers)):
             # create viewers (if necessary)
@@ -259,17 +264,32 @@ class MultiAgentEnv(gym.Env):
         if self.render_geoms is None:
             # import rendering only if we need it (and don't import for headless machines)
             # from gym.envs.classic_control import rendering
-            from multiagent import rendering
+            from mpe.multiagent import rendering
 
             self.render_geoms = []
             self.render_geoms_xform = []
             for entity in self.world.entities:
-                geom = rendering.make_circle(entity.radius)
+                if isinstance(entity.shape, core.Sphere):
+                    geom = rendering.make_circle(entity.shape.radius)
+                elif isinstance(entity.shape, Line):
+                    geom = rendering.Line(
+                        (-entity.shape.length / 2, 0),
+                        (entity.shape.length / 2, 0),
+                        width=entity.shape.width,
+                    )
+                elif isinstance(entity.shape, Box):
+                    l, r, t, b = (
+                        -entity.shape.length / 2,
+                        entity.shape.length / 2,
+                        entity.shape.width / 2,
+                        -entity.shape.width / 2,
+                    )
+                    geom = rendering.make_polygon([(l, b), (l, t), (r, t), (r, b)])
                 xform = rendering.Transform()
                 if "agent" in entity.name:
-                    geom.set_color(*entity.color, alpha=0.5)
+                    geom.set_color(*entity.color.value, alpha=0.5)
                 else:
-                    geom.set_color(*entity.color)
+                    geom.set_color(*entity.color.value)
                 geom.add_attr(xform)
                 self.render_geoms.append(geom)
                 self.render_geoms_xform.append(xform)
@@ -297,6 +317,7 @@ class MultiAgentEnv(gym.Env):
             # update geometry positions
             for e, entity in enumerate(self.world.entities):
                 self.render_geoms_xform[e].set_translation(*entity.state.pos[0])
+                self.render_geoms_xform[e].set_rotation(entity.state.rot[0])
             # render to display or array
             results.append(self.viewers[i].render(return_rgb_array=mode == "rgb_array"))
 
