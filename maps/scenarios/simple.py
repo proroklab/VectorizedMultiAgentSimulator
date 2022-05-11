@@ -1,8 +1,8 @@
 import torch
 
-from mpe.multiagent.core import Agent, World, Landmark, Sphere, Box
-from mpe.multiagent.scenario import BaseScenario
-from simulator.utils import Color
+from maps.core import Agent, World, Landmark, Sphere, Box
+from maps.scenario import BaseScenario
+from maps.utils import Color
 
 
 class Scenario(BaseScenario):
@@ -27,7 +27,6 @@ class Scenario(BaseScenario):
         return world
 
     def reset_world_at(self, index: int = None):
-        print(f"Resetting with index: {index}")
         for i, agent in enumerate(self.world.agents):
             agent.set_pos(
                 torch.tensor(

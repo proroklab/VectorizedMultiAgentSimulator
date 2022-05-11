@@ -16,8 +16,8 @@ import time
 import numpy as np
 import torch
 
-from mpe.multiagent import scenarios
-from multiagent.environment import VectorEnvWrapper, Environment
+from maps import scenarios
+from maps.environment import VectorEnvWrapper, Environment
 
 
 def make_env(
@@ -25,58 +25,37 @@ def make_env(
     num_envs: int = 32,
     device: str = "cpu",
     continuous_actions: bool = True,
+    rllib_wrapped: bool = False,
 ):
-    """
-    Creates a MultiAgentEnv object as env. This can be used similar to a gym
-    environment by calling env.reset() and env.step().
-    Use env.render() to view the environment on the screen.
-
-    Input:
-        scenario_name   :   name of the scenario from ./scenarios/ to be Returns
-                            (without the .py extension)
-        benchmark       :   whether you want to produce benchmarking data
-                            (usually only done during evaluation)
-
-    Some useful env properties (see environment.py):
-        .observation_space  :   Returns the observation space for each agent
-        .action_space       :   Returns the action space for each agent
-        .n                  :   Returns the number of Agents
-    """
-    from multiagent.environment import Environment
-    import multiagent.scenarios as scenarios
-
     # load scenario from script
     scenario = scenarios.load(scenario_name + ".py").Scenario()
-
-    return VectorEnvWrapper(
-        Environment(
-            scenario,
-            num_envs=num_envs,
-            device=device,
-            continuous_actions=continuous_actions,
-        )
-    )
-
-
-if __name__ == "__main__":
-    num_envs = 400
-    continuous_actions = False
-    init_time = time.time()
-    device = "cpu"
-    wrapped = False
-    n_steps = 800
-    n_agents = 5
-
-    scenario = scenarios.load("simple" + ".py").Scenario()
     env = Environment(
         scenario,
         num_envs=num_envs,
         device=device,
         continuous_actions=continuous_actions,
     )
-    if wrapped:
-        env = VectorEnvWrapper(env)
 
+    return VectorEnvWrapper(env) if rllib_wrapped else env
+
+
+if __name__ == "__main__":
+    num_envs = 400
+    continuous_actions = False
+    device = "cpu"
+    wrapped = False
+    n_steps = 800
+    n_agents = 5
+
+    env = make_env(
+        scenario_name="simple",
+        num_envs=num_envs,
+        device=device,
+        continuous_actions=continuous_actions,
+        rllib_wrapped=wrapped,
+    )
+
+    init_time = time.time()
     for _ in range(n_steps):
         actions = []
         if wrapped:

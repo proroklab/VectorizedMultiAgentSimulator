@@ -8,14 +8,14 @@ from ray import rllib
 from ray.rllib.utils.typing import EnvActionType, EnvObsType, EnvInfoDict
 from torch import Tensor
 
-from mpe.multiagent import core
-from mpe.multiagent.core import Line, Box, TorchVectorizedObject
-from mpe.multiagent.scenario import BaseScenario
-from simulator.utils import Y, X
-
-
 # environment for all agents in the multiagent world
 # currently code assumes that no agents will be created/destroyed at runtime!
+from maps import core
+from maps.core import TorchVectorizedObject, Line, Box
+from maps.scenario import BaseScenario
+from maps.utils import X, Y
+
+
 class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
 
     metadata = {
@@ -176,18 +176,18 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
                 self.world.batch_dim
             )
 
-        print("\nStep results in unwrapped environment")
-        print(
-            f"Actions len (n_agents): {len(actions)}, actions[0] shape (num_envs, agent 0 action shape): {actions[0].shape}, actions[0][0] (action agent 0 env 0): {actions[0][0]}"
-        )
-        print(
-            f"Obs len (n_agents): {len(obs)}, obs[0] shape (num_envs, agent 0 obs shape): {obs[0].shape}, obs[0][0] (obs agent 0 env 0): {obs[0][0]}"
-        )
-        print(
-            f"Rews len (n_agents): {len(rews)}, rews[0] shape (num_envs, 1): {rews[0].shape}, rews[0][0] (agent 0 env 0): {rews[0][0]}"
-        )
-        print(f"Dones len (n_envs): {len(dones)}, dones[0] (done env 0): {dones[0]}")
-        print(f"Info len (n_agents): {len(infos)}, info[0] (infos agent 0): {infos[0]}")
+        # print("\nStep results in unwrapped environment")
+        # print(
+        #     f"Actions len (n_agents): {len(actions)}, actions[0] shape (num_envs, agent 0 action shape): {actions[0].shape}, actions[0][0] (action agent 0 env 0): {actions[0][0]}"
+        # )
+        # print(
+        #     f"Obs len (n_agents): {len(obs)}, obs[0] shape (num_envs, agent 0 obs shape): {obs[0].shape}, obs[0][0] (obs agent 0 env 0): {obs[0][0]}"
+        # )
+        # print(
+        #     f"Rews len (n_agents): {len(rews)}, rews[0] shape (num_envs, 1): {rews[0].shape}, rews[0][0] (agent 0 env 0): {rews[0][0]}"
+        # )
+        # print(f"Dones len (n_envs): {len(dones)}, dones[0] (done env 0): {dones[0]}")
+        # print(f"Info len (n_agents): {len(infos)}, info[0] (infos agent 0): {infos[0]}")
 
         return obs, rews, dones, infos
 
@@ -246,14 +246,14 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
             if self.viewers[i] is None:
                 # import rendering only if we need it (and don't import for headless machines)
                 # from gym.envs.classic_control import rendering
-                from mpe.multiagent import rendering
+                from maps import rendering
 
                 self.viewers[i] = rendering.Viewer(700, 700)
 
         # create rendering geometry
         if self.render_geoms is None:
             # import rendering only if we need it (and don't import for headless machines)
-            from mpe.multiagent import rendering
+            from maps import rendering
 
             self.render_geoms = []
             self.render_geoms_xform = []

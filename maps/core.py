@@ -3,8 +3,7 @@ from typing import Callable, Union, List
 import torch
 from torch import Tensor
 
-from simulator.utils import Color
-from simulator.utils import SensorType, X, Y
+from maps.utils import Color, SensorType, X, Y
 
 
 class TorchVectorizedObject(object):
