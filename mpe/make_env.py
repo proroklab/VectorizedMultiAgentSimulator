@@ -11,12 +11,21 @@ for all agents. Each element of the list should be a numpy array,
 of size (env.world.dim_p + env.world.dim_c, 1). Physical actions precede
 communication actions in this array. See environment.py for more details.
 """
+import time
+
 import numpy as np
 import torch
-from matplotlib import pyplot as plt
+
+from mpe.multiagent import scenarios
+from multiagent.environment import VectorEnvWrapper, Environment
 
 
-def make_env(scenario_name, benchmark=False):
+def make_env(
+    scenario_name,
+    num_envs: int = 32,
+    device: str = "cpu",
+    continuous_actions: bool = True,
+):
     """
     Creates a MultiAgentEnv object as env. This can be used similar to a gym
     environment by calling env.reset() and env.step().
@@ -33,76 +42,63 @@ def make_env(scenario_name, benchmark=False):
         .action_space       :   Returns the action space for each agent
         .n                  :   Returns the number of Agents
     """
-    from multiagent.environment import MultiAgentEnv
+    from multiagent.environment import Environment
     import multiagent.scenarios as scenarios
 
     # load scenario from script
     scenario = scenarios.load(scenario_name + ".py").Scenario()
-    # create world
-    world = scenario.make_world()
-    # create multiagent environment
-    if benchmark:
-        env = MultiAgentEnv(
-            world,
-            scenario.reset_world,
-            scenario.reward,
-            scenario.observation,
-            scenario.benchmark_data,
+
+    return VectorEnvWrapper(
+        Environment(
+            scenario,
+            num_envs=num_envs,
+            device=device,
+            continuous_actions=continuous_actions,
         )
-    else:
-        env = MultiAgentEnv(
-            world, scenario.reset_world, scenario.reward, scenario.observation
-        )
-    return env
+    )
 
 
 if __name__ == "__main__":
-    env = make_env("simple")
-
+    num_envs = 400
+    continuous_actions = False
+    init_time = time.time()
+    device = "cpu"
+    wrapped = False
     n_steps = 800
-    fig, ax = plt.subplots()
-    x = np.arange(n_steps)
-    agent_actions = []
-    agent_action_forces = []
-    agent_coll_forces = []
-    landm_coll_forces = []
-    landm_tot_forces = []
-    agent_tot_forces = []
-    distance = []
-    landm_vels = []
+    n_agents = 5
 
-    obs = env.reset()[0]
-    done = False
+    scenario = scenarios.load("simple" + ".py").Scenario()
+    env = Environment(
+        scenario,
+        num_envs=num_envs,
+        device=device,
+        continuous_actions=continuous_actions,
+    )
+    if wrapped:
+        env = VectorEnvWrapper(env)
+
     for _ in range(n_steps):
-        # print(f"Observation: {obs}")
-
         actions = []
-        for i in range(5):
-            actions.append(torch.tensor([0.0, -0.02]).repeat(32, 1))
-        obss, rews, dones, info = env.step(actions)
-        #
-        # agent_action_forces.append(env.world.entities[0].f_act[1])
-        # agent_coll_forces.append(env.world.entities[0].f_coll[1])
-        # landm_coll_forces.append(env.world.entities[1].f_coll[1])
-        # landm_tot_forces.append(env.world.entities[1].f_tot[1])
-        # agent_tot_forces.append(env.world.entities[0].f_tot[1])
-        # distance.append(
-        #     env.world.entities[0].state.p_pos[1] - env.world.entities[1].state.p_pos[1]
-        # )
-        # landm_vels.append(env.world.entities[1].state.p_vel[1])
-
-        obs = obss[0]
-        rew = rews[0]
-        done = dones[0]
-
-        env.render()
-    # ax.plot(x, agent_actions, label="Agent action")
-    ax.plot(x, agent_action_forces, label="Agent action f")
-    ax.plot(x, agent_coll_forces, label="Agent coll f")
-    ax.plot(x, landm_coll_forces, label="Land call f")
-    # ax.plot(x, landm_tot_forces, label="Land tot f")
-    ax.plot(x, agent_tot_forces, label="Agent tot f")
-    ax.plot(x, distance, label="Distance")
-    ax.plot(x, landm_vels, label="Landm vel")
-    plt.legend()
-    plt.show()
+        if wrapped:
+            for i in range(num_envs):
+                actions_per_env = []
+                for j in range(n_agents):
+                    actions_per_env.append(
+                        np.array([0.0, -0.03] if continuous_actions else [3])
+                    )
+                actions.append(actions_per_env)
+            obs, rews, dones, info = env.vector_step(actions)
+            env.try_render_at(31)
+        else:
+            for i in range(n_agents):
+                actions.append(
+                    torch.tensor(
+                        [0.0, -0.03] if continuous_actions else [3], device=device
+                    ).repeat(num_envs, 1)
+                )
+            obs, rews, dones, info = env.step(actions)
+            env.render(index=0)
+    total_time = time.time() - init_time
+    print(
+        f"It took: {total_time}s for {n_steps} steps of {num_envs} parallel environments on device {device} for {'wrapped' if wrapped else 'unwrapped'} simulator"
+    )
