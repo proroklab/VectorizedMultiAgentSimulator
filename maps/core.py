@@ -171,10 +171,6 @@ class AgentState(EntityState):
         assert (
             c.shape[0] == self._batch_dim
         ), f"Internal state must match batch dim, got {c.shape[0]}, expected {self._batch_dim}"
-        if self._pos is not None:
-            assert (
-                c.shape == self._pos.shape
-            ), f"Communication shape must match position shape, got {c.shape} expected {self._pos.shape}"
 
         self._c = c.to(self._device)
 
@@ -200,10 +196,6 @@ class Action(TorchVectorizedObject):
         assert (
             u.shape[0] == self._batch_dim
         ), f"Action must match batch dim, got {u.shape[0]}, expected {self._batch_dim}"
-        if self._c is not None:
-            assert (
-                u.shape == self._c.shape
-            ), f"Physiscal action shape must match communication action shape, got {u.shape} expected {self._c.shape}"
 
         self._u = u.to(self._device)
 
@@ -219,10 +211,6 @@ class Action(TorchVectorizedObject):
         assert (
             c.shape[0] == self._batch_dim
         ), f"Action must match batch dim, got {c.shape[0]}, expected {self._batch_dim}"
-        if self._u is not None:
-            assert (
-                c.shape == self._u.shape
-            ), f"Physiscal action shape must match communication action shape, got {c.shape} expected {self._u.shape}"
 
         self._c = c.to(self._device)
 
@@ -378,7 +366,7 @@ class Agent(Entity):
         obs_noise: float = None,
         u_noise: float = None,
         u_range: float = 1.0,
-        u_multiplier: float = 5.0,
+        u_multiplier: float = 1.0,
         action_script: Callable = None,
         sensors: Union[SensorType, List[SensorType]] = None,
         c_noise: float = None,
@@ -456,6 +444,10 @@ class Agent(Entity):
     def u_noise(self):
         return self._u_noise
 
+    @property
+    def c_noise(self):
+        return self._c_noise
+
 
 # multiagent world
 class World(TorchVectorizedObject):
@@ -523,7 +515,7 @@ class World(TorchVectorizedObject):
 
     @property
     def dim_c(self):
-        return self._dim_p
+        return self._dim_c
 
     # return all entities in the world
     @property
@@ -603,17 +595,15 @@ class World(TorchVectorizedObject):
     # get collision forces for any contact between two entities
     # collisions among lines and boxes or these objects among themselves will be ignored
     def _get_collision_force(self, entity_a, entity_b):
-        if (not entity_a.collide) or (not entity_b.collide):
-            return [None, None]  # not a collider
-        if entity_a is entity_b:
-            return [None, None]  # don't collide against itself
-
         force_a = torch.zeros(
             self._batch_dim, self._dim_p, device=self.device, dtype=torch.float64
         )
         force_b = torch.zeros(
             self._batch_dim, self._dim_p, device=self.device, dtype=torch.float64
         )
+
+        if (not entity_a.collide) or (not entity_b.collide) or entity_a is entity_b:
+            return force_a, force_b
 
         # Sphere and sphere
         if isinstance(entity_a.shape, Sphere) and isinstance(entity_b.shape, Sphere):
@@ -753,7 +743,16 @@ class World(TorchVectorizedObject):
                         )
                         * entity.max_speed
                     )
-            entity.state.pos += entity.state.vel * self._dt
+            new_pos = entity.state.pos + entity.state.vel * self._dt
+            if self._x_semidim is not None:
+                new_pos[:, X] = torch.clamp(
+                    new_pos[:, X], -self._x_semidim, self._x_semidim
+                )
+            if self._y_semidim is not None:
+                new_pos[:, Y] = torch.clamp(
+                    new_pos[:, Y], -self._y_semidim, self._y_semidim
+                )
+            entity.state.pos = new_pos
 
     def _update_comm_state(self, agent):
         # set communication state (directly for now)

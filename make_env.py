@@ -26,6 +26,7 @@ def make_env(
     device: str = "cpu",
     continuous_actions: bool = True,
     rllib_wrapped: bool = False,
+    **kwargs,
 ):
     # load scenario from script
     scenario = scenarios.load(scenario_name + ".py").Scenario()
@@ -34,18 +35,19 @@ def make_env(
         num_envs=num_envs,
         device=device,
         continuous_actions=continuous_actions,
+        **kwargs,
     )
 
     return VectorEnvWrapper(env) if rllib_wrapped else env
 
 
 if __name__ == "__main__":
-    num_envs = 400
-    continuous_actions = False
+    num_envs = 32
+    continuous_actions = True
     device = "cpu"
-    wrapped = False
+    wrapped = True
     n_steps = 800
-    n_agents = 5
+    n_agents = 1
 
     env = make_env(
         scenario_name="simple",
@@ -53,30 +55,35 @@ if __name__ == "__main__":
         device=device,
         continuous_actions=continuous_actions,
         rllib_wrapped=wrapped,
+        n_agents=n_agents,
     )
 
+    frame_list = np.empty((n_steps, n_agents), dtype=object)
     init_time = time.time()
-    for _ in range(n_steps):
+    for s in range(n_steps):
         actions = []
         if wrapped:
             for i in range(num_envs):
                 actions_per_env = []
                 for j in range(n_agents):
                     actions_per_env.append(
-                        np.array([0.0, -0.03] if continuous_actions else [3])
+                        np.array([0.0, -1.0] if continuous_actions else [3])
                     )
                 actions.append(actions_per_env)
             obs, rews, dones, info = env.vector_step(actions)
-            env.try_render_at(31)
+            env.try_render_at()
+
         else:
             for i in range(n_agents):
                 actions.append(
                     torch.tensor(
-                        [0.0, -0.03] if continuous_actions else [3], device=device
+                        [0.0, -1.0] if continuous_actions else [3],
+                        device=device,
                     ).repeat(num_envs, 1)
                 )
             obs, rews, dones, info = env.step(actions)
-            env.render(index=0)
+            env.render()
+
     total_time = time.time() - init_time
     print(
         f"It took: {total_time}s for {n_steps} steps of {num_envs} parallel environments on device {device} for {'wrapped' if wrapped else 'unwrapped'} simulator"

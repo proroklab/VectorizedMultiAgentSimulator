@@ -56,6 +56,7 @@ def get_display(spec):
 
 class Viewer(object):
     def __init__(self, width, height, display=None):
+
         display = get_display(display)
 
         self.width = width
@@ -64,8 +65,10 @@ class Viewer(object):
         self.window = pyglet.window.Window(width=width, height=height, display=display)
         self.window.on_close = self.window_closed_by_user
         self.geoms = []
+        self.text_lines = []
         self.onetime_geoms = []
         self.transform = Transform()
+        self.max_size = 1
 
         glEnable(GL_BLEND)
         # glEnable(GL_MULTISAMPLE)
@@ -80,6 +83,19 @@ class Viewer(object):
 
     def window_closed_by_user(self):
         self.close()
+
+    def set_max_size(self, current_size):
+        max_size = self.max_size = max(current_size, self.max_size)
+        left = -max_size
+        right = max_size
+        bottom = -max_size
+        top = max_size
+        assert right > left and top > bottom
+        scalex = self.width / (right - left)
+        scaley = self.height / (top - bottom)
+        self.transform = Transform(
+            translation=(-left * scalex, -bottom * scaley), scale=(scalex, scaley)
+        )
 
     def set_bounds(self, left, right, bottom, top):
         assert right > left and top > bottom
@@ -106,11 +122,18 @@ class Viewer(object):
         for geom in self.onetime_geoms:
             geom.render()
         self.transform.disable()
+
+        pyglet.gl.glMatrixMode(pyglet.gl.GL_PROJECTION)
+        pyglet.gl.glLoadIdentity()
+        gluOrtho2D(0, self.window.width, 0, self.window.height)
+        for geom in self.text_lines:
+            geom.render()
+
         arr = None
         if return_rgb_array:
             buffer = pyglet.image.get_buffer_manager().get_color_buffer()
             image_data = buffer.get_image_data()
-            arr = np.fromstring(image_data.data, dtype=np.uint8, sep="")
+            arr = np.frombuffer(image_data.get_data(), dtype=np.uint8)
             # In https://github.com/openai/gym-http-api/issues/2, we
             # discovered that someone using Xmonad on Arch was having
             # a window of size 598 x 398, though a 600 x 400 window
@@ -249,6 +272,40 @@ class LineWidth(Attr):
 
     def enable(self):
         glLineWidth(self.stroke)
+
+
+class TextLine:
+    def __init__(self, window, idx):
+        self.idx = idx
+        self.window = window
+        pyglet.font.add_file(os.path.join(os.path.dirname(__file__), "secrcode.ttf"))
+        self.label = None
+        self.set_text("")
+
+    def render(self):
+        if self.label is not None:
+            self.label.draw()
+
+    def set_text(self, text):
+        if pyglet.font.have_font("Courier"):
+            font = "Courier"
+        elif pyglet.font.have_font("Secret Code"):
+            font = "Secret Code"
+        else:
+            return
+
+        self.label = pyglet.text.Label(
+            text,
+            font_name=font,
+            color=(0, 0, 0, 255),
+            font_size=20,
+            x=0,
+            y=self.idx * 40 + 20,
+            anchor_x="left",
+            anchor_y="bottom",
+        )
+
+        self.label.draw()
 
 
 class Point(Geom):
