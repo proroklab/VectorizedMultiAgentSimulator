@@ -1,7 +1,12 @@
-import imp
+import importlib
 import os.path as osp
 
 
-def load(name):
+def load(name: str):
+    if name.startswith("simple"):
+        name = "mpe/" + name
     pathname = osp.join(osp.dirname(__file__), name)
-    return imp.load_source('', pathname)
+    spec = importlib.util.spec_from_file_location('', pathname)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
