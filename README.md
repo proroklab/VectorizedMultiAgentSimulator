@@ -30,7 +30,7 @@ Here is an example:
         device="cuda",
         continuous_actions=True,
         rllib_wrapped=False,
-        **kwargs # Additional arguments you want to pass to the scenarion initialization
+        **kwargs # Additional arguments you want to pass to the scenario initialization
     )
 ```
 A further example that you can run is available in the `make_env` main function.
@@ -63,7 +63,7 @@ To render the environment, just call the `render` or the `try_render_at` functio
 
 Example:
 ```
-env.try_render_at(
+env.render(
     mode="rgb_array", # Rgb array returns image, "human" renders in display
     agent_index_focus=4, # If None keep all agents in camera, else focus camera on specific agent
     index=0 # Index of batched environment to render
@@ -102,4 +102,4 @@ Xvfb :99 -screen 0 1400x900x24 > /dev/null 2>&1 &
 
 - [ ] Implement resampling of random position until valid
 - [ ] Rewrite all MPE scenarios
-- [ ] Implement new custom MPE environments
+- [ ] Implement new custom MAPS scenarios
