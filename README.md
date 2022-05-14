@@ -4,6 +4,8 @@ Welcome to MAPS!
 
 This repository cintains the code for the Multi Agent Prticle Simulator (MAPS)
 
+ <img src="media/maps_simple_2.gif" align="right" alt="drawing" width="200"/>  
+
 MAPS is a vecotrized simulator designed for simulating agents and entities in a 2D particle world.
 Its primary use is Multi Agent Reinforcement Learning (MARL) as it provides OpenAI gym interfaces
 for all scenarios. It simulates basic body dynamics and elastic collisions. The implementation 
@@ -55,7 +57,23 @@ To know how, just read the documentation of `BaseScenario` and look at the implm
 
 ## Rnedering
 
-![](media/maps_simple.gif =250x)
+To render the environment, just call the `render` or the `try_render_at` functions (depending on environment wrapping).
+
+Example:
+```
+env.try_render_at(
+    mode="rgb_array", # Rgb array returns image, "human" renders in display
+    agent_index_focus=4, # If None keep all agents in camera, else focus camera on specific agent
+    index=0 # Index of batched environment to render
+)
+```
+
+|                                    Gif                                     |                             Agent focus                             |
+|:--------------------------------------------------------------------------:|:-------------------------------------------------------------------:|
+|        <img src="media/maps_simple.gif" alt="drawing" width="260"/>        | With ` agent_index_focus=None` the camera keeps focus on all agents |
+| <img src="media/maps_simple_focus_agent_0.gif" alt="drawing" width="260"/> |       With ` agent_index_focus=0` the camera follows agent 0        |
+| <img src="media/maps_simple_focus_agent_4.gif" alt="drawing" width="260"/> |       With ` agent_index_focus=4` the camera follows agent 4        |
+
 ### Rendering on server machines
 To render in machines without a display use `mode=rgb_array` and the following
 ```
