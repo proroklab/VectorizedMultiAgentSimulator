@@ -8,14 +8,14 @@ from ray import rllib
 from ray.rllib.utils.typing import EnvActionType, EnvObsType, EnvInfoDict
 from torch import Tensor
 
-# environment for all agents in the multiagent world
-# currently code assumes that no agents will be created/destroyed at runtime!
 from maps import core
 from maps.core import TorchVectorizedObject, Line, Box, Agent
 from maps.scenario import BaseScenario
 from maps.utils import X, Y
 
 
+# environment for all agents in the multiagent world
+# currently code assumes that no agents will be created/destroyed at runtime!
 class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
 
     metadata = {
