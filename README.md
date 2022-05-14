@@ -47,6 +47,7 @@ running MARL training at scale with multi-agent collisions and interactions.
 - **Customizable**: When creating a new scenario of your own, the world, agent and landmarks are highly
 customizable. Examples are: _world damping, simulation timestep, non-differentiable communication, agent sensors, masses and densities_.
 - **Easy to extend**: You can define your own scenario in minutes. Have a look at the dedicated section in this document.
+- **Non-differentiable communication**: Scenarios can require agents to perform discrete or continuous communication actions.
 
 ## Creating a new scenario
 
