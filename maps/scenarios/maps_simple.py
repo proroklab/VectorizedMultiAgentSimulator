@@ -10,7 +10,7 @@ class Scenario(BaseScenario):
         n_agents = kwargs.get("n_agents", 5)
 
         # Make world
-        world = World(batch_dim, device, dt=0.1, damping=0.25)
+        world = World(batch_dim, device, dt=0.1, damping=0.05)
         # Add agents
         for i in range(n_agents):
             agent = Agent(name=f"agent {i}", shape=Sphere(radius=0.04))
