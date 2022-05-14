@@ -4,7 +4,7 @@ Welcome to MAPS!
 
 This repository cintains the code for the Multi Agent Prticle Simulator (MAPS)
 
- <img src="media/maps_simple_2.gif" align="right" alt="drawing" width="200"/>  
+ <img src="media/maps_simple_2.gif" align="right" alt="drawing" width="300"/>  
 
 MAPS is a vecotrized simulator designed for simulating agents and entities in a 2D particle world.
 Its primary use is Multi Agent Reinforcement Learning (MARL) as it provides OpenAI gym interfaces
