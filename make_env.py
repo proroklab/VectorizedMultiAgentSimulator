@@ -11,10 +11,12 @@ for all agents. Each element of the list should be a numpy array,
 of size (env.world.dim_p + env.world.dim_c, 1). Physical actions precede
 communication actions in this array. See environment.py for more details.
 """
+import os
 import time
 
 import numpy as np
 import torch
+from PIL import Image
 
 from maps import scenarios
 from maps.environment import VectorEnvWrapper, Environment
@@ -42,15 +44,18 @@ def make_env(
 
 
 if __name__ == "__main__":
+    scenario_name = "maps_simple"
     num_envs = 32
     continuous_actions = True
     device = "cpu"
     wrapped = True
-    n_steps = 800
-    n_agents = 1
+    n_steps = 200
+    n_agents = 5
+
+    simple_2d_action = [0.0, -1.0] if continuous_actions else [3] # Smaple action tell each agent to go down
 
     env = make_env(
-        scenario_name="simple",
+        scenario_name=scenario_name,
         num_envs=num_envs,
         device=device,
         continuous_actions=continuous_actions,
@@ -58,31 +63,45 @@ if __name__ == "__main__":
         n_agents=n_agents,
     )
 
-    frame_list = np.empty((n_steps, n_agents), dtype=object)
+    frame_list = [] # For creating a gif
     init_time = time.time()
     for s in range(n_steps):
         actions = []
-        if wrapped:
+        if wrapped: # Rllib interface
             for i in range(num_envs):
                 actions_per_env = []
                 for j in range(n_agents):
                     actions_per_env.append(
-                        np.array([0.0, -1.0] if continuous_actions else [3])
+                        np.array(simple_2d_action)
                     )
                 actions.append(actions_per_env)
             obs, rews, dones, info = env.vector_step(actions)
-            env.try_render_at()
+            frame_list.append(Image.fromarray(env.try_render_at(mode="rgb_array", agent_index_focus=None))) # Can give the camera an agent index to focus on
 
-        else:
+        else: # Same as before, with faster MAPS interface
             for i in range(n_agents):
                 actions.append(
                     torch.tensor(
-                        [0.0, -1.0] if continuous_actions else [3],
+                        simple_2d_action,
                         device=device,
                     ).repeat(num_envs, 1)
                 )
             obs, rews, dones, info = env.step(actions)
-            env.render()
+            frame_list.append(Image.fromarray(env.render(mode="rgb_array", agent_index_focus=None))) # Can give the camera an agent index to focus on
+
+    gif_name = scenario_name + ".gif"
+
+    # Produce a gif
+    frame_list[0].save(
+        gif_name,
+        save_all=True,
+        append_images=frame_list[1:],
+        duration=3,
+        loop=0,
+    )
+    # Requires software to bi installed to convert the gif in faster format
+    os.system(f"convert -delay 1x30 -loop 0 {gif_name} {gif_name}")
+
 
     total_time = time.time() - init_time
     print(
