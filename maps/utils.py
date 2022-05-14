@@ -7,11 +7,11 @@ Z = 2
 
 class Color(Enum):
     RED = (0.75, 0.25, 0.25)
-    GREEN = (0, 1, 0)
-    BLUE = (0, 0, 1)
-    WHITE = (1, 1, 1)
-    BLACK = (0, 0, 0)
+    GREEN = (0.25, 0.75, 0.25)
+    BLUE = (0.25, 0.25, 0.75)
+    WHITE = (0.75, 0.75, 0.75)
     GRAY = (0.25, 0.25, 0.25)
+    BLACK = (0.15, 0.15, 0.15)
 
 
 class SensorType(Enum):

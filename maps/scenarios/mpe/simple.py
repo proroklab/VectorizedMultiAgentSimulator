@@ -12,14 +12,13 @@ class Scenario(BaseScenario):
         world = World(batch_dim, device)
         # Add agents
         for i in range(1):
-            agent = Agent(name=f"agent {i}", silent=True, collide=False)
+            agent = Agent(name=f"agent {i}", collide=False, color=Color.GRAY)
             world.add_agent(agent)
         # Add landmarks
         for i in range(1):
             landmark = Landmark(
                 name=f"landmark {i}",
                 collide=False,
-                movable=False,
                 color=Color.RED,
             )
             world.add_landmark(landmark)

@@ -290,6 +290,10 @@ class Entity(TorchVectorizedObject):
     def color(self):
         return self._color
 
+    @color.setter
+    def color(self, color: Color):
+        self._color = color
+
     def _spawn(self, dim_p: int):
         self.state.pos = torch.zeros(
             self.batch_dim, dim_p, device=self.device, dtype=torch.float64
@@ -370,7 +374,7 @@ class Agent(Entity):
         action_script: Callable = None,
         sensors: Union[SensorType, List[SensorType]] = None,
         c_noise: float = None,
-        silent=True,
+        silent: bool = True,
     ):
         super().__init__(
             name,
@@ -482,6 +486,7 @@ class World(TorchVectorizedObject):
         self._contact_force = 1e2
         self._contact_margin = 1e-3
 
+        self._collidable_pairs = [{Sphere, Sphere}, {Sphere, Box}, {Sphere, Line}]
         # Horizontal unit vector
         self._normal_vector = torch.tensor(
             [1.0, 0.0], dtype=torch.float64, device=self.device
@@ -584,13 +589,20 @@ class World(TorchVectorizedObject):
         # simple (but inefficient) collision response
         for a, entity_a in enumerate(self.entities):
             for b, entity_b in enumerate(self.entities):
-                if b <= a:
+                if b <= a or not self._collides(entity_a, entity_b):
                     continue
                 f_a, f_b = self._get_collision_force(entity_a, entity_b)
                 assert not f_a.isnan().any() or not f_b.isnan().any()
                 p_force[:, a] += f_a
                 p_force[:, b] += f_b
         return p_force
+
+    def _collides(self, a: Entity, b: Entity) -> bool:
+        a_shape = a.shape
+        b_shape = b.shape
+        if {a_shape.__class__, b_shape.__class__} in self._collidable_pairs:
+            return True
+        return False
 
     # get collision forces for any contact between two entities
     # collisions among lines and boxes or these objects among themselves will be ignored
@@ -688,7 +700,7 @@ class World(TorchVectorizedObject):
         delta_pos = line_pos - sphere_pos
         # Dot product of distance and line vector
         dot_p = torch.einsum("bs,bs->b", delta_pos, rotated_vector).unsqueeze(-1)
-        # Coordinates of the closes poinht
+        # Coordinates of the closes point
         sign = torch.sign(dot_p)
         closest_point = (
             line_pos
