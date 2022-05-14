@@ -93,6 +93,10 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         self.viewer = None
 
     def reset(self, seed: int = None):
+        """
+        Resets the environment in a vectorized way
+        Returns observations for all envs and agents
+        """
         # Seed will be none at first call of this fun from constructor
         if seed is not None:
             self.seed(seed)
@@ -105,6 +109,10 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         return obs
 
     def reset_at(self, index: int = None):
+        """
+        Resets the environment at index
+        Returns observations for all agents in that environment
+        """
         self._check_batch_index(index)
         self.scenario.reset_world_at(index)
         obs = []
@@ -122,17 +130,12 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
     def step(self, actions: List):
         """Performs a vectorized step on all sub environments using `actions`.
         Args:
-            actions: Should be a list on len 'self.n_agents' of which each element has shape '(self.num_envs, action_size_of_agent)'.
-
-            For compatibility purposes, we also allow actions to be a list of len 'self.num_envs' of which each element is
-            a list of len 'self.n_agents' of which each element has shape '(action_size_of_agent,)'.
-            Conversion of this second type is handled automatically, however it can be expensive, thus the first method
-            is suggested.
+            actions: Is a list on len 'self.n_agents' of which each element is a torch.Tensor of shape '(self.num_envs, action_size_of_agent)'.
         Returns:
-            obs (List[any]): New observations for each sub-env.
-            rewards (List[any]): Reward values for each sub-env.
-            dones (List[any]): Done values for each sub-env.
-            infos (List[any]): Info values for each sub-env.
+            obs: List on len 'self.n_agents' of which each element is a torch.Tensor of shape '(self.num_envs, obs_size_of_agent)'
+            rewards: List on len 'self.n_agents' of which each element is a torch.Tensor of shape '(self.num_envs)'
+            dones: Tensor of len 'self.num_envs' of which each element is a bool
+            infos : List on len 'self.n_agents' of which each element is a dictionary for which each key is a metric and the value is a tensor of shape '(self.num_envs, metric_size_per_agent)'
         """
         for i in range(len(actions)):
             assert (
