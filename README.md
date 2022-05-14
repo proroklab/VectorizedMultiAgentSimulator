@@ -2,23 +2,23 @@
  
 Welcome to MAPS!
 
-This repository cintains the code for the Multi Agent Prticle Simulator (MAPS)
+This repository contains the code for the Multi Agent Particle Simulator (MAPS)
 
- <img src="media/maps_simple_2.gif" align="right" alt="drawing" width="300"/>  
+<img src="media/maps_simple_2.gif" align="right" alt="drawing" width="300"/>  
 
-MAPS is a vecotrized simulator designed for simulating agents and entities in a 2D particle world.
+MAPS is a vectorized simulator designed for simulating agents and entities in a 2D particle world.
 Its primary use is Multi Agent Reinforcement Learning (MARL) as it provides OpenAI gym interfaces
 for all scenarios. It simulates basic body dynamics and elastic collisions. The implementation 
 is written in PyTorch to provide environment vectorization (multiple environments can be stepped parallely 
-in a batch). The implmentation is based on [OpenAI's MPE](https://github.com/openai/multiagent-particle-envs). 
+in a batch). The implementation is based on [OpenAI's MPE](https://github.com/openai/multiagent-particle-envs). 
 We support all the scenarios in MPE. Additionally, we created new MARL robotics benchmarking scenarios.
-With respect to MPE, we also introduced environment vectorization and new simulator feactures like
-additional shaoes for entities (boxes, lines) and related collision rules.
+With respect to MPE, we also introduced environment vectorization and new simulator features like
+additional shapes for entities (boxes, lines) and related collision rules.
 
 ## How to use
 
 To use the simulator, simply create an environment by passing the name of the scenario
-you want (from the `scenarios` folder) to the `make_env` function in the omonimous file.
+you want (from the `scenarios` folder) to the `make_env` function.
 The function arguments are explained in the documentation. The function returns an environment
 object with the OpenAI gym interface:
 
@@ -41,7 +41,7 @@ A further example that you can run is available in the `make_env` main function.
 - **Rllib compatible**: A wrapper is already available in `environment` to use the scenarios in [rllib](https://docs.ray.io/en/latest/rllib/index.html) as an rllib.VectorEnv object.
 - **Entity shapes**: Our entities (agent and landmarks) can have different customizable shapes (spheres, boxes, lines).
 These shapes are supported for elastic collisions. For details on which collidable pairs are supported look at the `core`.
-- **Faster than physics engines**: Our simulator is extremely light weight, using only tensor operations. It is perfect for 
+- **Faster than physics engines**: Our simulator is extremely lightweight, using only tensor operations. It is perfect for 
 running MARL training at scale with multi-agent collisions and interactions.
 - **Customizable**: When creating a new scenario of your own, the world, agent and landmarks are highly
 customizable. Examples are: _world damping, simulation timestep, non-differentiable communication, agent sensors, masses and densities_.
@@ -53,9 +53,9 @@ To create a new scenario, just extend the `BaseScenario` class in `scenario`.
 
 You will need to implement at least `make_world`, `reset_world_at`, `observation`, and `reward`. Optionally, you can also implement `done` and `info`.
 
-To know how, just read the documentation of `BaseScenario` and look at the implmented scenarios. 
+To know how, just read the documentation of `BaseScenario` and look at the implemented scenarios. 
 
-## Rnedering
+## Rendering
 
 To render the environment, just call the `render` or the `try_render_at` functions (depending on environment wrapping).
 
