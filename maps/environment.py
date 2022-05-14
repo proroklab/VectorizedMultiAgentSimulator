@@ -137,6 +137,9 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
             dones: Tensor of len 'self.num_envs' of which each element is a bool
             infos : List on len 'self.n_agents' of which each element is a dictionary for which each key is a metric and the value is a tensor of shape '(self.num_envs, metric_size_per_agent)'
         """
+        assert (
+            len(actions) == self.n_agents
+        ), f"Expecting actions for {self.n_agents}, got {len(actions)} actions"
         for i in range(len(actions)):
             assert (
                 actions[i].shape[0] == self.num_envs
@@ -499,6 +502,9 @@ class VectorEnvWrapper(rllib.VectorEnv):
                     )
                 )
             for j in range(self.num_envs):
+                assert (
+                    len(list_in[j]) == self._env.n_agents
+                ), f"Expecting actions for {self._env.n_agents} agents, got {len(list_in[j])} actions"
                 for i in range(self._env.n_agents):
                     act = torch.tensor(
                         list_in[j][i], dtype=torch.float64, device=self._env.device
