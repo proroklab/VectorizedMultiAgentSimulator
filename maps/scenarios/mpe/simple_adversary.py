@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 
 from maps.core import World, Agent, Landmark, Sphere
@@ -27,8 +26,8 @@ class Scenario(BaseScenario):
                 collide=False,
                 shape=Sphere(radius=0.15),
                 color=Color.RED if adversary else Color.BLUE,
+                adversary=adversary,
             )
-            agent.adversary = adversary
             world.add_agent(agent)
         # Add landmarks
         for i in range(num_landmarks):
@@ -44,7 +43,10 @@ class Scenario(BaseScenario):
 
     def reset_world_at(self, env_index: int = None):
         # set goal landmark
-        goal = np.random.choice(self.world.landmarks)
+
+        goal = self.world.landmarks[
+            torch.randint(0, len(self.world.landmarks), (1,)).item()
+        ]
         goal.color = Color.GREEN
 
         for agent in self.world.agents:
@@ -58,7 +60,7 @@ class Scenario(BaseScenario):
                 batch_index=env_index,
             )
 
-        for i, landmark in enumerate(self.world.landmarks):
+        for landmark in self.world.landmarks:
             landmark.set_pos(
                 2
                 * torch.rand(
@@ -84,7 +86,7 @@ class Scenario(BaseScenario):
             else self.agent_reward(agent)
         )
 
-    def agent_reward(self, agent):
+    def agent_reward(self, agent: Agent):
         # Rewarded based on how close any good agent is to the goal landmark, and how far the adversary is from it
         shaped_reward = True
         shaped_adv_reward = True
@@ -171,7 +173,7 @@ class Scenario(BaseScenario):
             )
         return pos_rew + adv_rew
 
-    def adversary_reward(self, agent):
+    def adversary_reward(self, agent: Agent):
         # Rewarded based on proximity to the goal landmark
         shaped_reward = True
         if shaped_reward:  # distance-based reward

@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 from typing import Callable, Union, List
 
 import torch
 from torch import Tensor
 
-from maps.utils import Color, SensorType, X, Y
+from maps.utils import Color, SensorType, X, Y, override
 
 
 class TorchVectorizedObject(object):
@@ -226,7 +228,7 @@ class Entity(TorchVectorizedObject):
         mass: float = 1.0,
         shape: Shape = Sphere(),
         max_speed: float = None,
-        color: Color = Color.GRAY,
+        color=Color.GRAY,
     ):
         super().__init__()
         # name
@@ -247,6 +249,8 @@ class Entity(TorchVectorizedObject):
         self._shape = shape
         # state
         self._state = EntityState()
+        # entity goal
+        self._goal = None
 
     @TorchVectorizedObject.batch_dim.setter
     def batch_dim(self, batch_dim: int):
@@ -288,11 +292,22 @@ class Entity(TorchVectorizedObject):
 
     @property
     def color(self):
+        if isinstance(self._color, Color):
+            return self._color.value
         return self._color
 
     @color.setter
-    def color(self, color: Color):
+    def color(self, color):
         self._color = color
+
+    @property
+    def goal(self):
+        return self._goal
+
+    @goal.setter
+    def goal(self, goal: Entity):
+        assert self._goal is None, "Trying to assign a new goal to the entity"
+        self._goal = goal
 
     def _spawn(self, dim_p: int):
         self.state.pos = torch.zeros(
@@ -340,7 +355,7 @@ class Landmark(Entity):
         density: float = 25.0,  # Unused for now
         mass: float = 1.0,
         max_speed: float = None,
-        color: Color = Color.GRAY,
+        color=Color.GRAY,
     ):
         super().__init__(
             name,
@@ -365,7 +380,7 @@ class Agent(Entity):
         density: float = 25.0,  # Unused for now
         mass: float = 1.0,
         max_speed: float = None,
-        color: Color = Color.BLUE,
+        color=Color.BLUE,
         obs_range: float = None,
         obs_noise: float = None,
         u_noise: float = None,
@@ -375,6 +390,7 @@ class Agent(Entity):
         sensors: Union[SensorType, List[SensorType]] = None,
         c_noise: float = None,
         silent: bool = True,
+        adversary: bool = False,
     ):
         super().__init__(
             name,
@@ -399,16 +415,19 @@ class Agent(Entity):
         self._u_noise = u_noise
         # control range
         self._u_range = u_range
-        # agent action is a force multplied by this amount
+        # agent action is a force multiplied by this amount
         self._u_multiplier = u_multiplier
         # script behavior to execute
         self._action_callback = action_script
         # agents sensors
         self._sensors = sensors
-        # non diofferentiable communiation noise
+        # non differentiable communication noise
         self._c_noise = c_noise
         # cannot send communication signals
         self._silent = silent
+        # is adversary
+        self._adversary = adversary
+
         # action
         self._action = Action()
         # state
@@ -451,6 +470,18 @@ class Agent(Entity):
     @property
     def c_noise(self):
         return self._c_noise
+
+    @property
+    def adversary(self):
+        return self._adversary
+
+    @override(Entity)
+    def _spawn(self, dim_c, dim_p: int):
+        super()._spawn(dim_p)
+        if dim_c > 0 and not self.silent:
+            self.state.c = torch.zeros(
+                self.batch_dim, dim_c, device=self.device, dtype=torch.float64
+            )
 
 
 # multiagent world
@@ -496,7 +527,7 @@ class World(TorchVectorizedObject):
         """Only way to add agents to the world"""
         agent.batch_dim = self._batch_dim
         agent.device = self._device
-        agent._spawn(self.dim_p)
+        agent._spawn(dim_p=self.dim_p, dim_c=self._dim_c)
         self._agents.append(agent)
 
     def add_landmark(self, landmark: Landmark):

@@ -26,7 +26,7 @@ class Scenario(BaseScenario):
         return world
 
     def reset_world_at(self, env_index: int = None):
-        for i, agent in enumerate(self.world.agents):
+        for agent in self.world.agents:
             agent.set_pos(
                 2
                 * torch.rand(
@@ -35,7 +35,7 @@ class Scenario(BaseScenario):
                 - 1,
                 batch_index=env_index,
             )
-        for i, landmark in enumerate(self.world.landmarks):
+        for landmark in self.world.landmarks:
             landmark.set_pos(
                 2
                 * torch.rand(

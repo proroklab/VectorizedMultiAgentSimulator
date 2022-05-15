@@ -107,8 +107,8 @@ Xvfb :99 -screen 0 1400x900x24 > /dev/null 2>&1 &
 - [ ] Rewrite all MPE scenarios
   - [X] simple
   - [x] simple_adversary
-  - [ ] simple_crypto
-  - [ ] simple_push
+  - [X] simple_crypto
+  - [X] simple_push
   - [ ] simple_reference
   - [ ] simple_speaker_listener
   - [ ] simple_spread
