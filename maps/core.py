@@ -777,15 +777,23 @@ class World(TorchVectorizedObject):
             entity.state.vel = entity.state.vel * (1 - self._damping)
             entity.state.vel += (p_force[:, i] / entity.mass) * self._dt
             if entity.max_speed is not None:
-                speed = torch.sqrt(entity.state.vel[0] ** 2 + entity.state.vel[1] ** 2)
-                if speed > entity.max_speed:
-                    entity.state.vel = (
-                        entity.state.vel
-                        / torch.sqrt(
-                            entity.state.vel[0] ** 2 + entity.state.vel[1] ** 2
-                        )
-                        * entity.max_speed
+                speed = (
+                    torch.sqrt(
+                        entity.state.vel[:, X] ** 2 + entity.state.vel[:, Y] ** 2
                     )
+                    .unsqueeze(-1)
+                    .repeat(1, 2)
+                )
+                new_vel = (
+                    entity.state.vel
+                    / torch.sqrt(
+                        entity.state.vel[:, X] ** 2 + entity.state.vel[:, Y] ** 2
+                    ).unsqueeze(-1)
+                    * entity.max_speed
+                )
+                entity.state.vel[speed > entity.max_speed] = new_vel[
+                    speed > entity.max_speed
+                ]
             new_pos = entity.state.pos + entity.state.vel * self._dt
             if self._x_semidim is not None:
                 new_pos[:, X] = torch.clamp(
