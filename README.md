@@ -86,7 +86,6 @@ Xvfb :99 -screen 0 1400x900x24 > /dev/null 2>&1 &
 ## List of environments
 ### MAPS
 ### [MPE](https://github.com/openai/multiagent-particle-envs)
-> Note: not all the MPE scenarios are available. For a list of the already implemented ones see TODO section
 
 | Env name in code (name in paper)                         | Communication? | Competitive? | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 |----------------------------------------------------------|----------------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -104,7 +103,7 @@ Xvfb :99 -screen 0 1400x900x24 > /dev/null 2>&1 &
 
 - [ ] Implement resampling of random position until valid
 - [ ] Implement new custom MAPS scenarios
-- [ ] Rewrite all MPE scenarios
+- [X] Rewrite all MPE scenarios
   - [X] simple
   - [x] simple_adversary
   - [X] simple_crypto
@@ -113,4 +112,4 @@ Xvfb :99 -screen 0 1400x900x24 > /dev/null 2>&1 &
   - [X] simple_speaker_listener
   - [X] simple_spread
   - [X] simple_tag
-  - [ ] simple_world_comm
+  - [X] simple_world_comm
