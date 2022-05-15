@@ -7,7 +7,7 @@ from maps.utils import Color
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        world = World(batch_dim=batch_dim, device=device, x_semidim=0.5, y_semidim=0.5)
+        world = World(batch_dim=batch_dim, device=device, x_semidim=1, y_semidim=1)
         # set any world properties first
         num_good_agents = 1
         num_adversaries = 3
