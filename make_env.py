@@ -44,15 +44,17 @@ def make_env(
 
 
 if __name__ == "__main__":
-    scenario_name = "maps_simple"
+    scenario_name = "waterfall"
     num_envs = 32
     continuous_actions = True
     device = "cpu"
     wrapped = True
-    n_steps = 150
+    n_steps = 200
     n_agents = 5
 
-    simple_2d_action = [0.0, -0.18] if continuous_actions else [3] # Smaple action tell each agent to go down
+    simple_2d_action = (
+        [0, -0.5] if continuous_actions else [3]
+    )  # Sample action tell each agent to go down
 
     env = make_env(
         scenario_name=scenario_name,
@@ -63,22 +65,24 @@ if __name__ == "__main__":
         n_agents=n_agents,
     )
 
-    frame_list = [] # For creating a gif
+    frame_list = []  # For creating a gif
     init_time = time.time()
     for s in range(n_steps):
         actions = []
-        if wrapped: # Rllib interface
+        if wrapped:  # Rllib interface
             for i in range(num_envs):
                 actions_per_env = []
                 for j in range(n_agents):
-                    actions_per_env.append(
-                        np.array(simple_2d_action)
-                    )
+                    actions_per_env.append(np.array(simple_2d_action))
                 actions.append(actions_per_env)
             obs, rews, dones, info = env.vector_step(actions)
-            frame_list.append(Image.fromarray(env.try_render_at(mode="rgb_array", agent_index_focus=None))) # Can give the camera an agent index to focus on
+            frame_list.append(
+                Image.fromarray(
+                    env.try_render_at(mode="rgb_array", agent_index_focus=None)
+                )
+            )  # Can give the camera an agent index to focus on
 
-        else: # Same as before, with faster MAPS interface
+        else:  # Same as before, with faster MAPS interface
             for i in range(n_agents):
                 actions.append(
                     torch.tensor(
@@ -87,7 +91,9 @@ if __name__ == "__main__":
                     ).repeat(num_envs, 1)
                 )
             obs, rews, dones, info = env.step(actions)
-            frame_list.append(Image.fromarray(env.render(mode="rgb_array", agent_index_focus=None))) # Can give the camera an agent index to focus on
+            frame_list.append(
+                Image.fromarray(env.render(mode="rgb_array", agent_index_focus=None))
+            )  # Can give the camera an agent index to focus on
 
     gif_name = scenario_name + ".gif"
 
@@ -101,7 +107,6 @@ if __name__ == "__main__":
     )
     # Requires software to bi installed to convert the gif in faster format
     os.system(f"convert -delay 1x30 -loop 0 {gif_name} {gif_name}")
-
 
     total_time = time.time() - init_time
     print(
