@@ -43,14 +43,15 @@ class Scenario(BaseScenario):
 
     def reset_world_at(self, env_index: int = None):
         # set goal landmark
-
-        goal = self.world.landmarks[
-            torch.randint(0, len(self.world.landmarks), (1,)).item()
-        ]
-        goal.color = Color.GREEN
+        if env_index is None:
+            goal = self.world.landmarks[
+                torch.randint(0, len(self.world.landmarks), (1,)).item()
+            ]
+            goal.color = Color.GREEN
+            for agent in self.world.agents:
+                agent.goal = goal
 
         for agent in self.world.agents:
-            agent.goal = goal
             agent.set_pos(
                 2
                 * torch.rand(
