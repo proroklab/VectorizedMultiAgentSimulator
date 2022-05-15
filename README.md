@@ -85,6 +85,11 @@ Xvfb :99 -screen 0 1400x900x24 > /dev/null 2>&1 &
 
 ## List of environments
 ### MAPS
+| Env name       | Description                                                                                                                                                                                                                                                                                          |
+|----------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `waterfall.py` | Debug environment. N agents are spawned in the top of the environment. Each agent is rewarded based on how close it is to the black line at the bottom. Agents have to reach the line and in doing so they might collide with boxes in the environment. This environment is used just for debugging. |
+|                |                                                                                                                                                                                                                                                                                                      |
+
 ### [MPE](https://github.com/openai/multiagent-particle-envs)
 
 | Env name in code (name in paper)                         | Communication? | Competitive? | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
