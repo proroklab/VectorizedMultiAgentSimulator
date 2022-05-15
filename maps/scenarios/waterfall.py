@@ -1,6 +1,6 @@
 import torch
 
-from maps.core import Agent, World, Landmark, Sphere, Box
+from maps.core import Agent, World, Landmark, Sphere, Box, Line
 from maps.scenario import BaseScenario
 from maps.utils import Color
 
@@ -20,11 +20,19 @@ class Scenario(BaseScenario):
             landmark = Landmark(
                 name=f"landmark {i}",
                 collide=True,
-                movable=False,
+                movable=True,
                 shape=Box(length=0.3, width=0.1),
                 color=Color.RED,
             )
             world.add_landmark(landmark)
+        floor = Landmark(
+            name=f"landmark {i}",
+            collide=True,
+            movable=False,
+            shape=Line(length=2),
+            color=Color.BLACK,
+        )
+        world.add_landmark(floor)
 
         return world
 
@@ -38,7 +46,7 @@ class Scenario(BaseScenario):
                 ),
                 batch_index=env_index,
             )
-        for i, landmark in enumerate(self.world.landmarks):
+        for i, landmark in enumerate(self.world.landmarks[:-1]):
             landmark.set_pos(
                 torch.tensor(
                     [0.2 if i % 2 else -0.2, 0.6 - 0.3 * i],
@@ -55,10 +63,19 @@ class Scenario(BaseScenario):
                 ),
                 batch_index=env_index,
             )
+        floor = self.world.landmarks[-1]
+        floor.set_pos(
+            torch.tensor(
+                [0, -1],
+                dtype=torch.float64,
+                device=self.world.device,
+            ),
+            batch_index=env_index,
+        )
 
     def reward(self, agent: Agent):
         dist2 = torch.sum(
-            torch.square(agent.state.pos - self.world.landmarks[0].state.pos), dim=-1
+            torch.square(agent.state.pos - self.world.landmarks[-1].state.pos), dim=-1
         )
         return -dist2
 

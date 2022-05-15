@@ -515,7 +515,7 @@ class World(TorchVectorizedObject):
         self._damping = damping
         # contact response parameters
         self._contact_force = 1e2
-        self._contact_margin = 1e-3
+        self._contact_margin = 6e-3  # 0.001
 
         self._collidable_pairs = [{Sphere, Sphere}, {Sphere, Box}, {Sphere, Line}]
         # Horizontal unit vector
