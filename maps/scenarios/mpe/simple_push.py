@@ -35,25 +35,26 @@ class Scenario(BaseScenario):
         return world
 
     def reset_world_at(self, env_index: int = None):
-        # set goal landmark
-        for i, landmark in enumerate(self.world.landmarks):
-            landmark.color = torch.tensor([0.1, 0.1, 0.1])
-            landmark.color[i + 1] += 0.8
-            landmark.index = i
-        # set goal landmark
-        goal = self.world.landmarks[
-            torch.randint(0, len(self.world.landmarks), (1,)).item()
-        ]
-        for i, agent in enumerate(self.world.agents):
-            agent.color = torch.tensor([0.25, 0.25, 0.25])
-            if agent.adversary:
-                agent.color = torch.tensor([0.75, 0.25, 0.25])
-            else:
-                j = goal.index
-                agent.color[j + 1] += 0.5  # Agent color is similar to its goal
+        if env_index is None:
+            # set goal landmark
+            for i, landmark in enumerate(self.world.landmarks):
+                landmark.color = torch.tensor([0.1, 0.1, 0.1])
+                landmark.color[i + 1] += 0.8
+                landmark.index = i
+            # set goal landmark
+            goal = self.world.landmarks[
+                torch.randint(0, len(self.world.landmarks), (1,)).item()
+            ]
+            for i, agent in enumerate(self.world.agents):
+                agent.color = torch.tensor([0.25, 0.25, 0.25])
+                if agent.adversary:
+                    agent.color = torch.tensor([0.75, 0.25, 0.25])
+                else:
+                    j = goal.index
+                    agent.color[j + 1] += 0.5  # Agent color is similar to its goal
+                agent.goal = goal
 
         for agent in self.world.agents:
-            agent.goal = goal
             agent.set_pos(
                 2
                 * torch.rand(

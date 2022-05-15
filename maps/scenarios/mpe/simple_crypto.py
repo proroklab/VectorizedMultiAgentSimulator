@@ -45,21 +45,26 @@ class Scenario(BaseScenario):
         return world
 
     def reset_world_at(self, env_index: int = None):
-        for agent in self.world.agents:
-            agent.key = (
-                None
-                if not agent.speaker
-                else torch.randint(0, 2, (self.world.batch_dim, self.world.dim_c))
-            )
-            agent.secret = torch.randint(0, 2, (self.world.batch_dim, self.world.dim_c))
-            agent.set_pos(
-                2
-                * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float64
+        key = torch.randint(0, 2, (self.world.batch_dim, self.world.dim_c))
+        secret = torch.randint(0, 2, (self.world.batch_dim, self.world.dim_c))
+
+        if env_index is None:
+            for agent in self.world.agents:
+                agent.key = None if not agent.speaker else key
+                agent.secret = secret
+                agent.set_pos(
+                    2
+                    * torch.rand(
+                        self.world.dim_p, device=self.world.device, dtype=torch.float64
+                    )
+                    - 1,
+                    batch_index=env_index,
                 )
-                - 1,
-                batch_index=env_index,
-            )
+        else:
+            for agent in self.world.agents:
+                if agent.speaker:
+                    agent.key[env_index] = key[env_index]
+                agent.secret[env_index] = secret[env_index]
 
     # return all agents that are not adversaries
     def good_listeners(self):

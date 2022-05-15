@@ -326,10 +326,13 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
                         False
                     ), f"Entity shape not supported in rendering for {entity.name}"
                 xform = rendering.Transform()
+                color = entity.color
+                if isinstance(color, torch.Tensor) and len(color.shape) > 1:
+                    color = color[index]
                 if isinstance(entity, Agent):
-                    geom.set_color(*entity.color, alpha=0.5)
+                    geom.set_color(*color, alpha=0.5)
                 else:
-                    geom.set_color(*entity.color)
+                    geom.set_color(*color)
                 geom.add_attr(xform)
                 self.render_geoms.append(geom)
                 self.render_geoms_xform.append(xform)
