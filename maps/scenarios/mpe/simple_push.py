@@ -38,7 +38,9 @@ class Scenario(BaseScenario):
         if env_index is None:
             # set goal landmark
             for i, landmark in enumerate(self.world.landmarks):
-                landmark.color = torch.tensor([0.1, 0.1, 0.1])
+                landmark.color = torch.tensor(
+                    [0.1, 0.1, 0.1], device=self.world.device, dtype=torch.float64
+                )
                 landmark.color[i + 1] += 0.8
                 landmark.index = i
             # set goal landmark
@@ -46,9 +48,15 @@ class Scenario(BaseScenario):
                 torch.randint(0, len(self.world.landmarks), (1,)).item()
             ]
             for i, agent in enumerate(self.world.agents):
-                agent.color = torch.tensor([0.25, 0.25, 0.25])
+                agent.color = torch.tensor(
+                    [0.25, 0.25, 0.25], device=self.world.device, dtype=torch.float64
+                )
                 if agent.adversary:
-                    agent.color = torch.tensor([0.75, 0.25, 0.25])
+                    agent.color = torch.tensor(
+                        [0.75, 0.25, 0.25],
+                        device=self.world.device,
+                        dtype=torch.float64,
+                    )
                 else:
                     j = goal.index
                     agent.color[j + 1] += 0.5  # Agent color is similar to its goal

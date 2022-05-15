@@ -45,8 +45,12 @@ class Scenario(BaseScenario):
         return world
 
     def reset_world_at(self, env_index: int = None):
-        key = torch.randint(0, 2, (self.world.batch_dim, self.world.dim_c))
-        secret = torch.randint(0, 2, (self.world.batch_dim, self.world.dim_c))
+        key = torch.randint(
+            0, 2, (self.world.batch_dim, self.world.dim_c), device=self.world.device
+        )
+        secret = torch.randint(
+            0, 2, (self.world.batch_dim, self.world.dim_c), device=self.world.device
+        )
 
         if env_index is None:
             for agent in self.world.agents:
@@ -93,18 +97,36 @@ class Scenario(BaseScenario):
         # Agents rewarded if Bob can reconstruct message, but adversary (Eve) cannot
         good_listeners = self.good_listeners()
         adversaries = self.adversaries()
-        good_rew = torch.zeros(self.world.batch_dim)
-        adv_rew = torch.zeros(self.world.batch_dim)
+        good_rew = torch.zeros(
+            self.world.batch_dim, device=self.world.device, dtype=torch.float64
+        )
+        adv_rew = torch.zeros(
+            self.world.batch_dim, device=self.world.device, dtype=torch.float64
+        )
         for a in good_listeners:
             zero_comms = torch.all(
-                a.state.c == torch.zeros(self.world.batch_dim, self.world.dim_c), dim=-1
+                a.state.c
+                == torch.zeros(
+                    self.world.batch_dim,
+                    self.world.dim_c,
+                    device=self.world.device,
+                    dtype=torch.float64,
+                ),
+                dim=-1,
             )
             good_rew[~zero_comms] -= torch.sum(
                 torch.square(a.state.c - agent.secret), dim=-1
             )[~zero_comms]
         for a in adversaries:
             zero_comms = torch.all(
-                a.state.c == torch.zeros(self.world.batch_dim, self.world.dim_c), dim=-1
+                a.state.c
+                == torch.zeros(
+                    self.world.batch_dim,
+                    self.world.dim_c,
+                    device=self.world.device,
+                    dtype=torch.float64,
+                ),
+                dim=-1,
             )
             adv_rew[~zero_comms] += torch.sum(
                 torch.square(a.state.c - agent.secret), dim=-1
@@ -113,9 +135,18 @@ class Scenario(BaseScenario):
 
     def adversary_reward(self, agent: Agent):
         # Adversary (Eve) is rewarded if it can reconstruct original goal
-        rew = torch.zeros(self.world.batch_dim)
+        rew = torch.zeros(
+            self.world.batch_dim, device=self.world.device, dtype=torch.float64
+        )
         zero_comms = torch.all(
-            agent.state.c == torch.zeros(self.world.batch_dim, self.world.dim_c), dim=-1
+            agent.state.c
+            == torch.zeros(
+                self.world.batch_dim,
+                self.world.dim_c,
+                device=self.world.device,
+                dtype=torch.float64,
+            ),
+            dim=-1,
         )
         rew[~zero_comms] -= torch.sum(
             torch.square(agent.state.c - agent.secret), dim=-1

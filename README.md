@@ -109,8 +109,8 @@ Xvfb :99 -screen 0 1400x900x24 > /dev/null 2>&1 &
   - [x] simple_adversary
   - [X] simple_crypto
   - [X] simple_push
-  - [ ] simple_reference
-  - [ ] simple_speaker_listener
+  - [X] simple_reference
+  - [X] simple_speaker_listener
   - [ ] simple_spread
   - [ ] simple_tag
   - [ ] simple_world_comm

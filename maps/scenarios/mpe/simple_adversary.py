@@ -110,7 +110,9 @@ class Scenario(BaseScenario):
                 dim=-1,
             )
         else:  # proximity-based adversary reward (binary)
-            adv_rew = torch.zeros(self.world.batch_dim)
+            adv_rew = torch.zeros(
+                self.world.batch_dim, device=self.world.device, dtype=torch.float64
+            )
             for a in adversary_agents:
                 is_too_close = (
                     torch.sqrt(
@@ -139,7 +141,9 @@ class Scenario(BaseScenario):
             )[0]
 
         else:  # proximity-based agent reward (binary)
-            pos_rew = torch.zeros(self.world.batch_dim)
+            pos_rew = torch.zeros(
+                self.world.batch_dim, device=self.world.device, dtype=torch.float64
+            )
             is_close_enough = (
                 torch.min(
                     torch.stack(
@@ -183,7 +187,9 @@ class Scenario(BaseScenario):
             )
 
         else:  # proximity-based reward (binary)
-            adv_rew = torch.zeros(self.world.batch_dim)
+            adv_rew = torch.zeros(
+                self.world.batch_dim, device=self.world.device, dtype=torch.float64
+            )
             close_enough = (
                 torch.sqrt(
                     torch.sum(
