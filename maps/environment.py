@@ -378,7 +378,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
             all_poses = torch.cat(
                 [entity.state.pos[index] for entity in self.world.entities], dim=0
             )
-            cam_range = torch.max(torch.abs(all_poses)) + 1
+            cam_range = torch.max(torch.abs(all_poses)) + 0.5
             self.viewer.set_max_size(cam_range)
         else:
             # update bounds to center around agent
