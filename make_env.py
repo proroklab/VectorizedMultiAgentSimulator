@@ -106,7 +106,7 @@ if __name__ == "__main__":
         loop=0,
     )
     # Requires software to bi installed to convert the gif in faster format
-    os.system(f"convert -delay 1x30 -loop 0 {gif_name} {gif_name}")
+    os.system(f"convert -delay 1x30 -loop 0 {gif_name} {scenario_name}_fast.gif")
 
     total_time = time.time() - init_time
     print(
