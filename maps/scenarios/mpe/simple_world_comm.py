@@ -23,7 +23,7 @@ class Scenario(BaseScenario):
             agent = Agent(
                 name=f"agent {i}",
                 collide=True,
-                shape=Sphere(radius=0.075 if adversary else 0.0045),
+                shape=Sphere(radius=0.075 if adversary else 0.045),
                 u_multiplier=3.0 if adversary else 4.0,
                 max_speed=1.0 if adversary else 1.3,
                 color=Color.RED if adversary else Color.GREEN,
