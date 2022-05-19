@@ -59,7 +59,7 @@ class Scenario(BaseScenario):
                 agent.set_pos(
                     2
                     * torch.rand(
-                        self.world.dim_p, device=self.world.device, dtype=torch.float64
+                        self.world.dim_p, device=self.world.device, dtype=torch.float32
                     )
                     - 1,
                     batch_index=env_index,
@@ -98,10 +98,10 @@ class Scenario(BaseScenario):
         good_listeners = self.good_listeners()
         adversaries = self.adversaries()
         good_rew = torch.zeros(
-            self.world.batch_dim, device=self.world.device, dtype=torch.float64
+            self.world.batch_dim, device=self.world.device, dtype=torch.float32
         )
         adv_rew = torch.zeros(
-            self.world.batch_dim, device=self.world.device, dtype=torch.float64
+            self.world.batch_dim, device=self.world.device, dtype=torch.float32
         )
         for a in good_listeners:
             zero_comms = torch.all(
@@ -110,7 +110,7 @@ class Scenario(BaseScenario):
                     self.world.batch_dim,
                     self.world.dim_c,
                     device=self.world.device,
-                    dtype=torch.float64,
+                    dtype=torch.float32,
                 ),
                 dim=-1,
             )
@@ -124,7 +124,7 @@ class Scenario(BaseScenario):
                     self.world.batch_dim,
                     self.world.dim_c,
                     device=self.world.device,
-                    dtype=torch.float64,
+                    dtype=torch.float32,
                 ),
                 dim=-1,
             )
@@ -136,7 +136,7 @@ class Scenario(BaseScenario):
     def adversary_reward(self, agent: Agent):
         # Adversary (Eve) is rewarded if it can reconstruct original goal
         rew = torch.zeros(
-            self.world.batch_dim, device=self.world.device, dtype=torch.float64
+            self.world.batch_dim, device=self.world.device, dtype=torch.float32
         )
         zero_comms = torch.all(
             agent.state.c
@@ -144,7 +144,7 @@ class Scenario(BaseScenario):
                 self.world.batch_dim,
                 self.world.dim_c,
                 device=self.world.device,
-                dtype=torch.float64,
+                dtype=torch.float32,
             ),
             dim=-1,
         )

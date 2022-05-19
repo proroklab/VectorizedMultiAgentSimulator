@@ -55,7 +55,7 @@ class Scenario(BaseScenario):
             agent.set_pos(
                 2
                 * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float64
+                    self.world.dim_p, device=self.world.device, dtype=torch.float32
                 )
                 - 1,
                 batch_index=env_index,
@@ -65,7 +65,7 @@ class Scenario(BaseScenario):
             landmark.set_pos(
                 2
                 * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float64
+                    self.world.dim_p, device=self.world.device, dtype=torch.float32
                 )
                 - 1,
                 batch_index=env_index,
@@ -111,7 +111,7 @@ class Scenario(BaseScenario):
             )
         else:  # proximity-based adversary reward (binary)
             adv_rew = torch.zeros(
-                self.world.batch_dim, device=self.world.device, dtype=torch.float64
+                self.world.batch_dim, device=self.world.device, dtype=torch.float32
             )
             for a in adversary_agents:
                 is_too_close = (
@@ -142,7 +142,7 @@ class Scenario(BaseScenario):
 
         else:  # proximity-based agent reward (binary)
             pos_rew = torch.zeros(
-                self.world.batch_dim, device=self.world.device, dtype=torch.float64
+                self.world.batch_dim, device=self.world.device, dtype=torch.float32
             )
             is_close_enough = (
                 torch.min(
@@ -188,7 +188,7 @@ class Scenario(BaseScenario):
 
         else:  # proximity-based reward (binary)
             adv_rew = torch.zeros(
-                self.world.batch_dim, device=self.world.device, dtype=torch.float64
+                self.world.batch_dim, device=self.world.device, dtype=torch.float32
             )
             close_enough = (
                 torch.sqrt(

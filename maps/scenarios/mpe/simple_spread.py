@@ -36,7 +36,7 @@ class Scenario(BaseScenario):
             agent.set_pos(
                 2
                 * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float64
+                    self.world.dim_p, device=self.world.device, dtype=torch.float32
                 )
                 - 1,
                 batch_index=env_index,
@@ -46,7 +46,7 @@ class Scenario(BaseScenario):
             landmark.set_pos(
                 2
                 * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float64
+                    self.world.dim_p, device=self.world.device, dtype=torch.float32
                 )
                 - 1,
                 batch_index=env_index,
@@ -61,7 +61,7 @@ class Scenario(BaseScenario):
     def reward(self, agent: Agent):
         # Agents are rewarded based on minimum agent distance to each landmark, penalized for collisions
         rew = torch.zeros(
-            self.world.batch_dim, device=self.world.device, dtype=torch.float64
+            self.world.batch_dim, device=self.world.device, dtype=torch.float32
         )
         for l in self.world.landmarks:
             rew -= torch.min(

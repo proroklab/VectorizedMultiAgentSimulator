@@ -43,17 +43,17 @@ class Scenario(BaseScenario):
             # random properties for agents
             for i, agent in enumerate(self.world.agents):
                 agent.color = torch.tensor(
-                    [0.25, 0.25, 0.25], device=self.world.device, dtype=torch.float64
+                    [0.25, 0.25, 0.25], device=self.world.device, dtype=torch.float32
                 )
             # random properties for landmarks
             self.world.landmarks[0].color = torch.tensor(
-                [0.75, 0.25, 0.25], device=self.world.device, dtype=torch.float64
+                [0.75, 0.25, 0.25], device=self.world.device, dtype=torch.float32
             )
             self.world.landmarks[1].color = torch.tensor(
-                [0.25, 0.75, 0.25], device=self.world.device, dtype=torch.float64
+                [0.25, 0.75, 0.25], device=self.world.device, dtype=torch.float32
             )
             self.world.landmarks[2].color = torch.tensor(
-                [0.25, 0.25, 0.75], device=self.world.device, dtype=torch.float64
+                [0.25, 0.25, 0.75], device=self.world.device, dtype=torch.float32
             )
             # special colors for goals
             self.world.agents[0].goal_a.color = self.world.agents[0].goal_b.color
@@ -64,7 +64,7 @@ class Scenario(BaseScenario):
             agent.set_pos(
                 2
                 * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float64
+                    self.world.dim_p, device=self.world.device, dtype=torch.float32
                 )
                 - 1,
                 batch_index=env_index,
@@ -73,7 +73,7 @@ class Scenario(BaseScenario):
             landmark.set_pos(
                 2
                 * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float64
+                    self.world.dim_p, device=self.world.device, dtype=torch.float32
                 )
                 - 1,
                 batch_index=env_index,
@@ -82,7 +82,7 @@ class Scenario(BaseScenario):
     def reward(self, agent: Agent):
         if agent.goal_a is None or agent.goal_b is None:
             return torch.zeros(
-                self.world.batch_dim, device=self.world.device, dtype=torch.float64
+                self.world.batch_dim, device=self.world.device, dtype=torch.float32
             )
         dist2 = torch.sqrt(
             torch.sum(

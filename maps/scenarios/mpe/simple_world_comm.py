@@ -72,43 +72,43 @@ class Scenario(BaseScenario):
                     torch.tensor(
                         [0.45, 0.95, 0.45],
                         device=self.world.device,
-                        dtype=torch.float64,
+                        dtype=torch.float32,
                     )
                     if not agent.adversary
                     else torch.tensor(
                         [0.95, 0.45, 0.45],
                         device=self.world.device,
-                        dtype=torch.float64,
+                        dtype=torch.float32,
                     )
                 )
                 agent.color -= (
                     torch.tensor(
-                        [0.3, 0.3, 0.3], device=self.world.device, dtype=torch.float64
+                        [0.3, 0.3, 0.3], device=self.world.device, dtype=torch.float32
                     )
                     if agent.leader
                     else torch.tensor(
-                        [0, 0, 0], device=self.world.device, dtype=torch.float64
+                        [0, 0, 0], device=self.world.device, dtype=torch.float32
                     )
                 )
                 # random properties for landmarks
             for i, landmark in enumerate(self.world.landmarks):
                 landmark.color = torch.tensor(
-                    [0.25, 0.25, 0.25], device=self.world.device, dtype=torch.float64
+                    [0.25, 0.25, 0.25], device=self.world.device, dtype=torch.float32
                 )
             for i, landmark in enumerate(self.world.food):
                 landmark.color = torch.tensor(
-                    [0.15, 0.15, 0.65], device=self.world.device, dtype=torch.float64
+                    [0.15, 0.15, 0.65], device=self.world.device, dtype=torch.float32
                 )
             for i, landmark in enumerate(self.world.forests):
                 landmark.color = torch.tensor(
-                    [0.6, 0.9, 0.6], device=self.world.device, dtype=torch.float64
+                    [0.6, 0.9, 0.6], device=self.world.device, dtype=torch.float32
                 )
 
         for agent in self.world.agents:
             agent.set_pos(
                 2
                 * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float64
+                    self.world.dim_p, device=self.world.device, dtype=torch.float32
                 )
                 - 1,
                 batch_index=env_index,
@@ -118,7 +118,7 @@ class Scenario(BaseScenario):
             landmark.set_pos(
                 1.8
                 * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float64
+                    self.world.dim_p, device=self.world.device, dtype=torch.float32
                 )
                 - 0.9,
                 batch_index=env_index,
@@ -151,7 +151,7 @@ class Scenario(BaseScenario):
     def agent_reward(self, agent: Agent):
         # Agents are rewarded based on minimum agent distance to each landmark
         rew = rew = torch.zeros(
-            self.world.batch_dim, device=self.world.device, dtype=torch.float64
+            self.world.batch_dim, device=self.world.device, dtype=torch.float32
         )
         shape = False
         adversaries = self.adversaries()
@@ -191,7 +191,7 @@ class Scenario(BaseScenario):
     def adversary_reward(self, agent: Agent):
         # Agents are rewarded based on minimum agent distance to each landmark
         rew = rew = torch.zeros(
-            self.world.batch_dim, device=self.world.device, dtype=torch.float64
+            self.world.batch_dim, device=self.world.device, dtype=torch.float32
         )
         shape = True
         agents = self.good_agents()
@@ -268,7 +268,7 @@ class Scenario(BaseScenario):
                     self.world.batch_dim,
                     4,
                     device=self.world.device,
-                    dtype=torch.float64,
+                    dtype=torch.float32,
                 )
                 index = torch.logical_and(inf[:, i], oth_f[:, i])
                 other_info[index, :2] = other.state.pos[index] - agent.state.pos[index]

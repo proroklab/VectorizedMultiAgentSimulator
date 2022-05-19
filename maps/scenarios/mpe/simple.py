@@ -30,7 +30,7 @@ class Scenario(BaseScenario):
             agent.set_pos(
                 2
                 * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float64
+                    self.world.dim_p, device=self.world.device, dtype=torch.float32
                 )
                 - 1,
                 batch_index=env_index,
@@ -39,7 +39,7 @@ class Scenario(BaseScenario):
             landmark.set_pos(
                 2
                 * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float64
+                    self.world.dim_p, device=self.world.device, dtype=torch.float32
                 )
                 - 1,
                 batch_index=env_index,

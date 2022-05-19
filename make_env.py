@@ -45,10 +45,10 @@ def make_env(
 
 if __name__ == "__main__":
     scenario_name = "waterfall"
-    num_envs = 32
+    num_envs = 1
     continuous_actions = True
     device = "cpu"
-    wrapped = True
+    wrapped = False
     n_steps = 200
     n_agents = 5
 
