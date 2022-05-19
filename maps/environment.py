@@ -260,7 +260,8 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
                     device=self.device,
                     dtype=torch.float64,
                 )
-                agent.action.c[:, comm_action] = 1.0
+                # Discrete to one-hot
+                agent.action.c.scatter_(1, comm_action, 1)
             else:
                 comm_action = action[:, self.world.dim_p :]
                 assert not torch.any(comm_action > 1) and not torch.any(
