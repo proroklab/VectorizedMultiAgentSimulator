@@ -39,7 +39,7 @@ class Scenario(BaseScenario):
             # set goal landmark
             for i, landmark in enumerate(self.world.landmarks):
                 landmark.color = torch.tensor(
-                    [0.1, 0.1, 0.1], device=self.world.device, dtype=torch.float64
+                    [0.1, 0.1, 0.1], device=self.world.device, dtype=torch.float32
                 )
                 landmark.color[i + 1] += 0.8
                 landmark.index = i
@@ -49,13 +49,13 @@ class Scenario(BaseScenario):
             ]
             for i, agent in enumerate(self.world.agents):
                 agent.color = torch.tensor(
-                    [0.25, 0.25, 0.25], device=self.world.device, dtype=torch.float64
+                    [0.25, 0.25, 0.25], device=self.world.device, dtype=torch.float32
                 )
                 if agent.adversary:
                     agent.color = torch.tensor(
                         [0.75, 0.25, 0.25],
                         device=self.world.device,
-                        dtype=torch.float64,
+                        dtype=torch.float32,
                     )
                 else:
                     j = goal.index
@@ -66,7 +66,7 @@ class Scenario(BaseScenario):
             agent.set_pos(
                 2
                 * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float64
+                    self.world.dim_p, device=self.world.device, dtype=torch.float32
                 )
                 - 1,
                 batch_index=env_index,
@@ -75,7 +75,7 @@ class Scenario(BaseScenario):
             landmark.set_pos(
                 2
                 * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float64
+                    self.world.dim_p, device=self.world.device, dtype=torch.float32
                 )
                 - 1,
                 batch_index=env_index,

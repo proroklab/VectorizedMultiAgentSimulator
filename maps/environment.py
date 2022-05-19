@@ -150,7 +150,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
             )
             if not isinstance(actions[i], Tensor):
                 actions[i] = torch.tensor(
-                    actions[i], dtype=torch.float64, device=self.device
+                    actions[i], dtype=torch.float32, device=self.device
                 )
 
         # set action for each agent
@@ -211,7 +211,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
     def _set_action(self, action, agent):
         action = action.clone().to(self.device)
         agent.action.u = torch.zeros(
-            self.batch_dim, self.world.dim_p, device=self.device, dtype=torch.float64
+            self.batch_dim, self.world.dim_p, device=self.device, dtype=torch.float32
         )
 
         assert action.shape[1] == self.get_agent_action_size(agent), (
@@ -258,7 +258,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
                     self.num_envs,
                     self.world.dim_c,
                     device=self.device,
-                    dtype=torch.float64,
+                    dtype=torch.float32,
                 )
                 # Discrete to one-hot
                 agent.action.c.scatter_(1, comm_action, 1)
@@ -502,7 +502,7 @@ class VectorEnvWrapper(rllib.VectorEnv):
                         self.num_envs,
                         self._env.get_agent_action_size(agent),
                         device=self._env.device,
-                        dtype=torch.float64,
+                        dtype=torch.float32,
                     )
                 )
             for j in range(self.num_envs):
@@ -511,7 +511,7 @@ class VectorEnvWrapper(rllib.VectorEnv):
                 ), f"Expecting actions for {self._env.n_agents} agents, got {len(list_in[j])} actions"
                 for i in range(self._env.n_agents):
                     act = torch.tensor(
-                        list_in[j][i], dtype=torch.float64, device=self._env.device
+                        list_in[j][i], dtype=torch.float32, device=self._env.device
                     )
                     assert act.shape[0] == self._env.get_agent_action_size(
                         self._env.agents[i]

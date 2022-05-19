@@ -311,13 +311,13 @@ class Entity(TorchVectorizedObject):
 
     def _spawn(self, dim_p: int):
         self.state.pos = torch.zeros(
-            self.batch_dim, dim_p, device=self.device, dtype=torch.float64
+            self.batch_dim, dim_p, device=self.device, dtype=torch.float32
         )
         self.state.vel = torch.zeros(
-            self.batch_dim, dim_p, device=self.device, dtype=torch.float64
+            self.batch_dim, dim_p, device=self.device, dtype=torch.float32
         )
         self.state.rot = torch.zeros(
-            self.batch_dim, 1, device=self.device, dtype=torch.float64
+            self.batch_dim, 1, device=self.device, dtype=torch.float32
         )
 
     def set_pos(self, pos: Tensor, batch_index: int = None):
@@ -480,7 +480,7 @@ class Agent(Entity):
         super()._spawn(dim_p)
         if dim_c > 0 and not self.silent:
             self.state.c = torch.zeros(
-                self.batch_dim, dim_c, device=self.device, dtype=torch.float64
+                self.batch_dim, dim_c, device=self.device, dtype=torch.float32
             )
 
 
@@ -520,7 +520,7 @@ class World(TorchVectorizedObject):
         self._collidable_pairs = [{Sphere, Sphere}, {Sphere, Box}, {Sphere, Line}]
         # Horizontal unit vector
         self._normal_vector = torch.tensor(
-            [1.0, 0.0], dtype=torch.float64, device=self.device
+            [1.0, 0.0], dtype=torch.float32, device=self.device
         ).repeat(self._batch_dim, 1)
 
     def add_agent(self, agent: Agent):
@@ -585,7 +585,7 @@ class World(TorchVectorizedObject):
             len(self.entities),
             2,
             device=self.device,
-            dtype=torch.float64,
+            dtype=torch.float32,
         )
         # apply agent physical controls
         p_force = self._apply_action_force(p_force)
@@ -605,7 +605,7 @@ class World(TorchVectorizedObject):
             if agent.movable:
                 noise = (
                     torch.randn(
-                        *agent.action.u.shape, device=self.device, dtype=torch.float64
+                        *agent.action.u.shape, device=self.device, dtype=torch.float32
                     )
                     * agent.u_noise
                     if agent.u_noise
@@ -639,10 +639,10 @@ class World(TorchVectorizedObject):
     # collisions among lines and boxes or these objects among themselves will be ignored
     def _get_collision_force(self, entity_a, entity_b):
         force_a = torch.zeros(
-            self._batch_dim, self._dim_p, device=self.device, dtype=torch.float64
+            self._batch_dim, self._dim_p, device=self.device, dtype=torch.float32
         )
         force_b = torch.zeros(
-            self._batch_dim, self._dim_p, device=self.device, dtype=torch.float64
+            self._batch_dim, self._dim_p, device=self.device, dtype=torch.float32
         )
 
         if (not entity_a.collide) or (not entity_b.collide) or entity_a is entity_b:
@@ -715,10 +715,10 @@ class World(TorchVectorizedObject):
         return (
             force_a
             if entity_a.movable
-            else torch.tensor(0.0, dtype=torch.float64, device=self.device),
+            else torch.tensor(0.0, dtype=torch.float32, device=self.device),
             force_b
             if entity_b.movable
-            else torch.tensor(0.0, dtype=torch.float64, device=self.device),
+            else torch.tensor(0.0, dtype=torch.float32, device=self.device),
         )
 
     def _line_sphere_collision_forces(
@@ -738,7 +738,7 @@ class World(TorchVectorizedObject):
             - sign
             * torch.min(
                 torch.abs(dot_p),
-                torch.tensor(line_length / 2, dtype=torch.float64, device=self.device),
+                torch.tensor(line_length / 2, dtype=torch.float32, device=self.device),
             )
             * rotated_vector
         )
@@ -756,7 +756,7 @@ class World(TorchVectorizedObject):
         k = self._contact_margin
         penetration = (
             torch.logaddexp(
-                torch.tensor(0.0, dtype=torch.float64, device=self.device),
+                torch.tensor(0.0, dtype=torch.float32, device=self.device),
                 -(dist - dist_min) / k,
             )
             * k
@@ -810,7 +810,7 @@ class World(TorchVectorizedObject):
         if not agent.silent:
             noise = (
                 torch.randn(
-                    *agent.action.c.shape, device=self.device, dtype=torch.float64
+                    *agent.action.c.shape, device=self.device, dtype=torch.float32
                 )
                 * agent.c_noise
                 if agent.c_noise

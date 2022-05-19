@@ -41,7 +41,7 @@ class Scenario(BaseScenario):
             agent.set_pos(
                 torch.tensor(
                     [x, y],
-                    dtype=torch.float64,
+                    dtype=torch.float32,
                     device=self.world.device,
                 ),
                 batch_index=env_index,
@@ -51,7 +51,7 @@ class Scenario(BaseScenario):
         package.set_pos(
             torch.tensor(
                 [-0.6, -0.6],
-                dtype=torch.float64,
+                dtype=torch.float32,
                 device=self.world.device,
             ),
             batch_index=env_index,
@@ -60,7 +60,7 @@ class Scenario(BaseScenario):
         goal.set_pos(
             torch.tensor(
                 [0.8, 0.8],
-                dtype=torch.float64,
+                dtype=torch.float32,
                 device=self.world.device,
             ),
             batch_index=env_index,

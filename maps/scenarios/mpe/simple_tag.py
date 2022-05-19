@@ -44,7 +44,7 @@ class Scenario(BaseScenario):
             agent.set_pos(
                 2
                 * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float64
+                    self.world.dim_p, device=self.world.device, dtype=torch.float32
                 )
                 - 1,
                 batch_index=env_index,
@@ -54,7 +54,7 @@ class Scenario(BaseScenario):
             landmark.set_pos(
                 1.8
                 * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float64
+                    self.world.dim_p, device=self.world.device, dtype=torch.float32
                 )
                 - 0.9,
                 batch_index=env_index,
@@ -86,7 +86,7 @@ class Scenario(BaseScenario):
     def agent_reward(self, agent: Agent):
         # Agents are negatively rewarded if caught by adversaries
         rew = torch.zeros(
-            self.world.batch_dim, device=self.world.device, dtype=torch.float64
+            self.world.batch_dim, device=self.world.device, dtype=torch.float32
         )
         shape = False
         adversaries = self.adversaries()
@@ -106,7 +106,7 @@ class Scenario(BaseScenario):
     def adversary_reward(self, agent: Agent):
         # Adversaries are rewarded for collisions with agents
         rew = torch.zeros(
-            self.world.batch_dim, device=self.world.device, dtype=torch.float64
+            self.world.batch_dim, device=self.world.device, dtype=torch.float32
         )
         shape = False
         agents = self.good_agents()

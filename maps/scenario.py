@@ -110,7 +110,7 @@ class BaseScenario(ABC):
             ...            agent.set_pos(
             ...                torch.tensor(
             ...                     [-0.2 + 0.1 * i, 1.0],
-            ...                     dtype=torch.float64,
+            ...                     dtype=torch.float32,
             ...                     device=self.world.device,
             ...                ),
             ...                 batch_index=env_index,
@@ -119,7 +119,7 @@ class BaseScenario(ABC):
             ...            landmark.set_pos(
             ...                torch.tensor(
             ...                     [0.2 if i % 2 else -0.2, 0.6 - 0.3 * i],
-            ...                     dtype=torch.float64,
+            ...                     dtype=torch.float32,
             ...                     device=self.world.device,
             ...                ),
             ...                 batch_index=env_index,
@@ -127,7 +127,7 @@ class BaseScenario(ABC):
             ...            landmark.set_rot(
             ...                torch.tensor(
             ...                     [torch.pi / 4 if i % 2 else -torch.pi / 4],
-            ...                     dtype=torch.float64,
+            ...                     dtype=torch.float32,
             ...                     device=self.world.device,
             ...                ),
             ...                 batch_index=env_index,

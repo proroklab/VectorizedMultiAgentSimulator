@@ -46,23 +46,23 @@ class Scenario(BaseScenario):
             # random properties for agents
             for i, agent in enumerate(self.world.agents):
                 agent.color = torch.tensor(
-                    [0.25, 0.25, 0.25], device=self.world.device, dtype=torch.float64
+                    [0.25, 0.25, 0.25], device=self.world.device, dtype=torch.float32
                 )
             # random properties for landmarks
             self.world.landmarks[0].color = torch.tensor(
-                [0.65, 0.15, 0.15], device=self.world.device, dtype=torch.float64
+                [0.65, 0.15, 0.15], device=self.world.device, dtype=torch.float32
             )
             self.world.landmarks[1].color = torch.tensor(
-                [0.15, 0.65, 0.15], device=self.world.device, dtype=torch.float64
+                [0.15, 0.65, 0.15], device=self.world.device, dtype=torch.float32
             )
             self.world.landmarks[2].color = torch.tensor(
-                [0.15, 0.15, 0.65], device=self.world.device, dtype=torch.float64
+                [0.15, 0.15, 0.65], device=self.world.device, dtype=torch.float32
             )
             # special colors for goals
             self.world.agents[0].goal_a.color = self.world.agents[
                 0
             ].goal_b.color + torch.tensor(
-                [0.45, 0.45, 0.45], device=self.world.device, dtype=torch.float64
+                [0.45, 0.45, 0.45], device=self.world.device, dtype=torch.float32
             )
 
         # set random initial states
@@ -70,7 +70,7 @@ class Scenario(BaseScenario):
             agent.set_pos(
                 2
                 * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float64
+                    self.world.dim_p, device=self.world.device, dtype=torch.float32
                 )
                 - 1,
                 batch_index=env_index,
@@ -79,7 +79,7 @@ class Scenario(BaseScenario):
             landmark.set_pos(
                 2
                 * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float64
+                    self.world.dim_p, device=self.world.device, dtype=torch.float32
                 )
                 - 1,
                 batch_index=env_index,
@@ -95,7 +95,7 @@ class Scenario(BaseScenario):
 
     def observation(self, agent):
         # goal color
-        goal_color = torch.zeros(3, device=self.world.device, dtype=torch.float64)
+        goal_color = torch.zeros(3, device=self.world.device, dtype=torch.float32)
         if agent.goal_b is not None:
             goal_color = agent.goal_b.color
 
