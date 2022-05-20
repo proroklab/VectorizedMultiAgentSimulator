@@ -583,7 +583,7 @@ class World(TorchVectorizedObject):
         p_force = torch.zeros(
             self._batch_dim,
             len(self.entities),
-            2,
+            self._dim_p,
             device=self.device,
             dtype=torch.float32,
         )

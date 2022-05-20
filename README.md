@@ -107,9 +107,10 @@ Xvfb :99 -screen 0 1400x900x24 > /dev/null 2>&1 &
 ## TODOS
 
 - [ ] Implement resampling of random position until valid
-- [ ] Implement LIDAR and other sensors 
+- [ ] Implement LIDAR and other sensors (camera)
 - [ ] Implement new custom MAPS scenarios
 - [ ] Vectorization in the agents (improve collision loop)
+- [ ] Implement support for 3D
 - [X] Rewrite all MPE scenarios
   - [X] simple
   - [x] simple_adversary
