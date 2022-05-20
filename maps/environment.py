@@ -59,7 +59,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
                             + [1.0] * (self.world.dim_c if not agent.silent else 0)
                         ),
                         shape=(self.get_agent_action_size(agent),),
-                        dtype=float,
+                        dtype=np.float32,
                     )
                     if self.continuous_actions
                     else (
@@ -80,7 +80,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
                         low=-float("inf"),
                         high=float("inf"),
                         shape=(len(self.scenario.observation(agent)[0]),),
-                        dtype=float,
+                        dtype=np.float32,
                     )
                 )
                 for agent in self.agents
