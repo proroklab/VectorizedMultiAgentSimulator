@@ -55,7 +55,7 @@ def get_display(spec):
 
 
 class Viewer(object):
-    def __init__(self, width, height, display=None):
+    def __init__(self, width, height, display=None, visible=True):
 
         display = get_display(display)
 

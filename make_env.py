@@ -12,10 +12,13 @@ of size (env.world.dim_p + env.world.dim_c, 1). Physical actions precede
 communication actions in this array. See environment.py for more details.
 """
 import os
+import platform
 import time
+from pathlib import Path
 
 import numpy as np
 import torch
+import wandb
 from PIL import Image
 
 from maps import scenarios
@@ -28,6 +31,7 @@ def make_env(
     device: str = "cpu",
     continuous_actions: bool = True,
     rllib_wrapped: bool = False,
+    max_steps: int = None,
     **kwargs,
 ):
     # load scenario from script
@@ -37,6 +41,7 @@ def make_env(
         num_envs=num_envs,
         device=device,
         continuous_actions=continuous_actions,
+        max_steps=max_steps,
         **kwargs,
     )
 
@@ -45,7 +50,7 @@ def make_env(
 
 if __name__ == "__main__":
     scenario_name = "waterfall"
-    num_envs = 1
+    num_envs = 32
     continuous_actions = True
     device = "cpu"
     wrapped = False
