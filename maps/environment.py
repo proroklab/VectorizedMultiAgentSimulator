@@ -28,8 +28,8 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         scenario: BaseScenario,
         num_envs: int = 32,
         device: str = "cpu",
-        max_steps=None,
-        continuous_actions=True,
+        max_steps: int = None,
+        continuous_actions: bool = True,
         **kwargs,
     ):
         self.current_rendering_index = None
@@ -59,7 +59,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
                             + [1.0] * (self.world.dim_c if not agent.silent else 0)
                         ),
                         shape=(self.get_agent_action_size(agent),),
-                        dtype=np.float32,
+                        dtype=float,
                     )
                     if self.continuous_actions
                     else (
@@ -80,7 +80,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
                         low=-float("inf"),
                         high=float("inf"),
                         shape=(len(self.scenario.observation(agent)[0]),),
-                        dtype=np.float32,
+                        dtype=float,
                     )
                 )
                 for agent in self.agents
@@ -296,7 +296,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         if self.viewer is None:
             from maps import rendering
 
-            self.viewer = rendering.Viewer(700, 700)
+            self.viewer = rendering.Viewer(700, 700, visible=True)
 
         # create rendering geometry
         if self.render_geoms is None:
@@ -416,11 +416,12 @@ class VectorEnvWrapper(rllib.VectorEnv):
 
     def vector_reset(self) -> List[EnvObsType]:
         obs = self._env.reset()
-        return self._tensor_to_list(obs)
+        return self._tensor_to_list(obs, self.num_envs)
 
     def reset_at(self, index: Optional[int] = None) -> EnvObsType:
+        assert index is not None
         obs = self._env.reset_at(index)
-        return self._tensor_to_list(obs)
+        return self._tensor_to_list(obs, 1)
 
     def vector_step(
         self, actions: List[EnvActionType]
@@ -470,7 +471,7 @@ class VectorEnvWrapper(rllib.VectorEnv):
 
     def try_render_at(
         self,
-        index: Optional[int] = 0,
+        index: Optional[int] = None,
         mode="human",
         agent_index_focus: Optional[int] = None,
     ) -> Optional[np.ndarray]:
@@ -489,6 +490,8 @@ class VectorEnvWrapper(rllib.VectorEnv):
                                   If None, the camera will stay in the center and zoom out to contain all agents
         :return: Rgb array or None, depending on the mode
         """
+        if index is None:
+            index = 0
         return self._env.render(
             mode=mode, index=index, agent_index_focus=agent_index_focus
         )
@@ -524,13 +527,14 @@ class VectorEnvWrapper(rllib.VectorEnv):
         else:
             assert False, f"Input action is not in correct format"
 
-    def _tensor_to_list(self, list_in: List) -> List:
+    def _tensor_to_list(self, list_in: List, num_envs: int) -> List:
         assert (
             len(list_in) == self._env.n_agents
         ), f"Tensor used in output of env must be of len {self._env.n_agents}, got {len(list_in)}"
         list_out = []
-        for j in range(self.num_envs):
-            list_out.append([])
+        for j in range(num_envs):
+            list_per_env = []
             for i in range(self._env.n_agents):
-                list_out[j].append(list_in[i][j].cpu().detach().numpy())
-        return list_out
+                list_per_env.append(list_in[i][j].cpu().detach().numpy())
+            list_out.append(list_per_env)
+        return list_out[0] if num_envs == 1 else list_out
