@@ -57,6 +57,18 @@ if __name__ == "__main__":
     n_steps = 200
     n_agents = 5
 
+    scratch_dir = (
+        Path("/Users/Matteo/scratch/")
+        if platform.system() == "Darwin"
+        else Path("/local/scratch/mb2389/")
+    )
+
+    wandb.login(key="3a8c4d8792cdfd956e22f1dae0831f8ce4b44698")
+    wandb.init(
+        project=f"maps_test",
+        name="test",
+    )
+
     simple_2d_action = (
         [0, -0.5] if continuous_actions else [3]
     )  # Sample action tell each agent to go down
