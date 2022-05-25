@@ -296,7 +296,9 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         if self.viewer is None:
             from maps import rendering
 
-            self.viewer = rendering.Viewer(700, 700, visible=True)
+            self.viewer = rendering.Viewer(
+                700, 700, visible=False if mode == "rgb_array" else True
+            )
 
         # create rendering geometry
         if self.render_geoms is None:
