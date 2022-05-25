@@ -32,7 +32,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         continuous_actions: bool = True,
         **kwargs,
     ):
-        self.current_rendering_index = None
+
         self.scenario = scenario
         self.num_envs = num_envs
         TorchVectorizedObject.__init__(self, num_envs, torch.device(device))
@@ -42,8 +42,6 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         self.n_agents = len(self.agents)
         self.max_steps = max_steps
         self.continuous_actions = continuous_actions
-
-        self.steps = 0
 
         # configure spaces
         self.action_space = gym.spaces.Tuple(
@@ -87,6 +85,8 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
             )
         )
 
+        self.reset()
+
         # rendering
         self.render_geoms_xform = None
         self.render_geoms = None
@@ -102,6 +102,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
             self.seed(seed)
         # reset world
         self.scenario.reset_world()
+        self.steps = torch.zeros(self.num_envs, device=self.device)
         # record observations for each agent
         obs = []
         for agent in self.agents:
@@ -115,6 +116,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         """
         self._check_batch_index(index)
         self.scenario.reset_world_at(index)
+        self.steps[index] = 0
         obs = []
         for agent in self.agents:
             obs.append(self.scenario.observation(agent)[index])
@@ -171,10 +173,8 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         dones = self.scenario.done()
 
         self.steps += 1
-        if self.max_steps is not None and self.steps > self.max_steps:
-            dones = torch.tensor([True], device=self.device).repeat(
-                self.world.batch_dim
-            )
+        if self.max_steps is not None:
+            dones = self.steps >= self.max_steps
 
         # print("\nStep results in unwrapped environment")
         # print(
@@ -397,6 +397,11 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         # render to display or array
         return self.viewer.render(return_rgb_array=mode == "rgb_array")
 
+    def close(self):
+        if self.viewer is not None:
+            self.viewer.close()
+            self.viewer = None
+
 
 class VectorEnvWrapper(rllib.VectorEnv):
     def __init__(
@@ -421,7 +426,7 @@ class VectorEnvWrapper(rllib.VectorEnv):
     def reset_at(self, index: Optional[int] = None) -> EnvObsType:
         assert index is not None
         obs = self._env.reset_at(index)
-        return self._tensor_to_list(obs, 1)
+        return self._tensor_to_list(obs, 1)[0]
 
     def vector_step(
         self, actions: List[EnvActionType]
@@ -496,6 +501,9 @@ class VectorEnvWrapper(rllib.VectorEnv):
             mode=mode, index=index, agent_index_focus=agent_index_focus
         )
 
+    def close(self):
+        self._env.close()
+
     def _list_to_tensor(self, list_in: List) -> List:
         if len(list_in) == self.num_envs:
             actions = []
@@ -537,4 +545,4 @@ class VectorEnvWrapper(rllib.VectorEnv):
             for i in range(self._env.n_agents):
                 list_per_env.append(list_in[i][j].cpu().detach().numpy())
             list_out.append(list_per_env)
-        return list_out[0] if num_envs == 1 else list_out
+        return list_out

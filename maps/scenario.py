@@ -35,7 +35,6 @@ class BaseScenario(ABC):
     def env_make_world(self, batch_dim: int, device: torch.device, **kwargs) -> World:
         """Do not override"""
         self._world = self.make_world(batch_dim, device, **kwargs)
-        self.reset_world()
         return self._world
 
     @abstractmethod
