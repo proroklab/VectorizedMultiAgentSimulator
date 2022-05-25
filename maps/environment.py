@@ -399,11 +399,6 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         # render to display or array
         return self.viewer.render(return_rgb_array=mode == "rgb_array")
 
-    def close(self):
-        if self.viewer is not None:
-            self.viewer.close()
-            self.viewer = None
-
 
 class VectorEnvWrapper(rllib.VectorEnv):
     def __init__(
@@ -503,9 +498,6 @@ class VectorEnvWrapper(rllib.VectorEnv):
             mode=mode, index=index, agent_index_focus=agent_index_focus
         )
 
-    def close(self):
-        self._env.close()
-
     def _list_to_tensor(self, list_in: List) -> List:
         if len(list_in) == self.num_envs:
             actions = []
@@ -526,12 +518,17 @@ class VectorEnvWrapper(rllib.VectorEnv):
                     act = torch.tensor(
                         list_in[j][i], dtype=torch.float32, device=self._env.device
                     )
-                    assert act.shape[0] == self._env.get_agent_action_size(
-                        self._env.agents[i]
-                    ), (
-                        f"Action of agent {i} in env {j} hase wrong shape: "
-                        f"expected {self._env.get_agent_action_size(self._env.agents[i])}, got {act.shape[0]}"
-                    )
+                    if len(act.shape) == 0:
+                        assert (
+                            self._env.get_agent_action_size(self._env.agents[i]) == 1
+                        ), f"Action of agent {i} in env {j} is supposed to be an int"
+                    else:
+                        assert act.shape[0] == self._env.get_agent_action_size(
+                            self._env.agents[i]
+                        ), (
+                            f"Action of agent {i} in env {j} hase wrong shape: "
+                            f"expected {self._env.get_agent_action_size(self._env.agents[i])}, got {act.shape[0]}"
+                        )
                     actions[i][j] = act
             return actions
         else:
