@@ -12,13 +12,10 @@ of size (env.world.dim_p + env.world.dim_c, 1). Physical actions precede
 communication actions in this array. See environment.py for more details.
 """
 import os
-import platform
 import time
-from pathlib import Path
 
 import numpy as np
 import torch
-import wandb
 from PIL import Image
 
 from maps import scenarios
@@ -53,21 +50,9 @@ if __name__ == "__main__":
     num_envs = 32
     continuous_actions = True
     device = "cpu"
-    wrapped = False
+    wrapped = True
     n_steps = 200
     n_agents = 5
-
-    scratch_dir = (
-        Path("/Users/Matteo/scratch/")
-        if platform.system() == "Darwin"
-        else Path("/local/scratch/mb2389/")
-    )
-
-    wandb.login(key="3a8c4d8792cdfd956e22f1dae0831f8ce4b44698")
-    wandb.init(
-        project=f"maps_test",
-        name="test",
-    )
 
     simple_2d_action = (
         [0, -0.5] if continuous_actions else [3]
