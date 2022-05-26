@@ -16,7 +16,7 @@ from ray.tune import register_env
 from ray.tune.integration.wandb import WandbLoggerCallback
 
 import wandb
-from make_env import make_env
+from maps.make_env import make_env
 
 
 def env_creator(config: Dict):
