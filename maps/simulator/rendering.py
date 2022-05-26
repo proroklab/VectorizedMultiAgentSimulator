@@ -3,35 +3,19 @@
 """
 from __future__ import division
 
+import math
 import os
 import sys
-
+import numpy as np
+import pyglet
 import six
+from gym import error
+from pyglet.gl import *
 
 if "Apple" in sys.version:
     if "DYLD_FALLBACK_LIBRARY_PATH" in os.environ:
         os.environ["DYLD_FALLBACK_LIBRARY_PATH"] += ":/usr/lib"
         # (JDS 2016/04/15): avoid bug on Anaconda 2.3.0 / Yosemite
-
-from gym import error
-
-try:
-    import pyglet
-except ImportError as e:
-    reraise(
-        suffix="HINT: you can install pyglet directly via 'pip install pyglet'. But if you really just want to install all Gym dependencies and not have to think about it, 'pip install -e .[all]' or 'pip install gym[all]' will do it."
-    )
-
-try:
-    from pyglet.gl import *
-except ImportError as e:
-    reraise(
-        prefix="Error occured while running `from pyglet.gl import *`",
-        suffix="HINT: make sure you have OpenGL install. On Ubuntu, you can run 'apt-get install python-opengl'. If you're running on a server, you may need a virtual frame buffer; something like this should work: 'xvfb-run -s \"-screen 0 1400x900x24\" python <your_script.py>'",
-    )
-
-import math
-import numpy as np
 
 RAD2DEG = 57.29577951308232
 
@@ -142,7 +126,7 @@ class Viewer(object):
             # was requested. (Guess Xmonad was preserving a pixel for
             # the boundary.) So we use the buffer height/width rather
             # than the requested one.
-            arr = arr.reshape(buffer.height, buffer.width, 4)
+            arr = arr.reshape((buffer.height, buffer.width, 4))
             arr = arr[::-1, :, 0:3]
         self.window.flip()
         self.onetime_geoms = []
@@ -180,7 +164,7 @@ class Viewer(object):
         )
         self.window.flip()
         arr = np.fromstring(image_data.data, dtype=np.uint8, sep="")
-        arr = arr.reshape(self.height, self.width, 4)
+        arr = arr.reshape((self.height, self.width, 4))
         return arr[::-1, :, 0:3]
 
 
@@ -436,9 +420,7 @@ class Image(Geom):
         self.flip = False
 
     def render1(self):
-        self.img.blit(
-            -self.width / 2, -self.height / 2, width=self.width, height=self.height
-        )
+        self.img.blit(-self.width / 2, -self.height / 2)
 
 
 # ================================================================
