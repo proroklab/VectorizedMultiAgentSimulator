@@ -8,10 +8,10 @@ from ray import rllib
 from ray.rllib.utils.typing import EnvActionType, EnvObsType, EnvInfoDict
 from torch import Tensor
 
-from maps import core
-from maps.core import TorchVectorizedObject, Line, Box, Agent
-from maps.scenario import BaseScenario
-from maps.utils import X, Y
+from maps.simulator import core
+from maps.simulator.core import TorchVectorizedObject, Line, Box, Agent
+from maps.simulator.scenario import BaseScenario
+from maps.simulator.utils import X, Y
 
 
 # environment for all agents in the multiagent world

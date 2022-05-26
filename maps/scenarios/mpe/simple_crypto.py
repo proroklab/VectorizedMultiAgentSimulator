@@ -6,9 +6,9 @@ adversary to goal. Adversary is rewarded for its distance to the goal.
 
 import torch
 
-from maps.core import World, Agent
-from maps.scenario import BaseScenario
-from maps.utils import Color
+from maps.simulator.core import World, Agent
+from maps.simulator.scenario import BaseScenario
+from maps.simulator.utils import Color
 
 
 class Scenario(BaseScenario):

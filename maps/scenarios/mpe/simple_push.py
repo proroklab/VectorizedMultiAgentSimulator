@@ -1,7 +1,7 @@
 import torch
 
-from maps.core import World, Agent, Landmark
-from maps.scenario import BaseScenario
+from maps.simulator.core import World, Agent, Landmark
+from maps.simulator.scenario import BaseScenario
 
 
 class Scenario(BaseScenario):

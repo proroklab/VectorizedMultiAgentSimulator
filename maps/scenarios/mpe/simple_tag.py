@@ -1,8 +1,8 @@
 import torch
 
-from maps.core import World, Agent, Landmark, Sphere
-from maps.scenario import BaseScenario
-from maps.utils import Color
+from maps.simulator.core import World, Agent, Landmark, Sphere
+from maps.simulator.scenario import BaseScenario
+from maps.simulator.utils import Color
 
 
 class Scenario(BaseScenario):
