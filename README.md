@@ -33,7 +33,7 @@ Here is an example:
         **kwargs # Additional arguments you want to pass to the scenario initialization
     )
 ```
-A further example that you can run is available in the `make_env` main function.
+A further example that you can run is available in the `examples` directory.
 
 ## Simulator features
 
