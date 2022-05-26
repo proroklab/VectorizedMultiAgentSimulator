@@ -119,7 +119,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         self.steps[index] = 0
         obs = []
         for agent in self.agents:
-            obs.append(self.scenario.observation(agent)[index])
+            obs.append(self.scenario.observation(agent)[index].unsqueeze(0))
         return obs
 
     def seed(self, seed=None):
