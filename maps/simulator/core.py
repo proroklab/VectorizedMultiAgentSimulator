@@ -5,7 +5,7 @@ from typing import Callable, Union, List
 import torch
 from torch import Tensor
 
-from maps.utils import Color, SensorType, X, Y, override
+from maps.simulator.utils import Color, SensorType, X, Y, override
 
 
 class TorchVectorizedObject(object):

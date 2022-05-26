@@ -4,7 +4,7 @@ from typing import Dict
 import torch
 from torch import Tensor
 
-from maps.core import World, Agent
+from maps.simulator.core import World, Agent
 
 
 class BaseScenario(ABC):
@@ -49,9 +49,9 @@ class BaseScenario(ABC):
         :param kwargs: named arguments passed during environment creation
         :return world: returns the instantiated world which is automatically set in 'self.world'
         Examples:
-            >>> from maps.core import Agent, World, Landmark, Sphere, Box
-            >>> from maps.scenario import BaseScenario
-            >>> from maps.utils import Color
+            >>> from maps.simulator.core import Agent, World, Landmark, Sphere, Box
+            >>> from maps.simulator.scenario import BaseScenario
+            >>> from maps.simulator.utils import Color
             >>> class Scenario(BaseScenario):
             >>>     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
             ...         # Pass any kwargs you desire when creating the environment
@@ -100,9 +100,9 @@ class BaseScenario(ABC):
 
         :param env_index: index of the environment to reset. If None a vectorized reset should be performed
         Examples:
-            >>> from maps.core import Agent, World, Landmark, Sphere, Box
-            >>> from maps.scenario import BaseScenario
-            >>> from maps.utils import Color
+            >>> from maps.simulator.core import Agent, World, Landmark, Sphere, Box
+            >>> from maps.simulator.scenario import BaseScenario
+            >>> from maps.simulator.utils import Color
             >>> class Scenario(BaseScenario):
             >>>     def reset_world_at(self, env_index: int = None)
             ...        for i, agent in enumerate(self.world.agents):
@@ -149,9 +149,9 @@ class BaseScenario(ABC):
         :param agent: Agent batch to compute observation of
         :return observation: Tensor of shape (n_envs, n_agent_obs)
         Examples:
-            >>> from maps.core import Agent, World, Landmark, Sphere, Box
-            >>> from maps.scenario import BaseScenario
-            >>> from maps.utils import Color
+            >>> from maps.simulator.core import Agent, World, Landmark, Sphere, Box
+            >>> from maps.simulator.scenario import BaseScenario
+            >>> from maps.simulator.utils import Color
             >>> def observation(self, agent: Agent):
             ...      # get positions of all entities in this agent's reference frame
             ...      entity_pos = []
@@ -177,9 +177,9 @@ class BaseScenario(ABC):
         :param agent: Agent batch to compute reward of
         :return observation: Tensor of shape (n_envs)
         Examples:
-            >>> from maps.core import Agent, World, Landmark, Sphere, Box
-            >>> from maps.scenario import BaseScenario
-            >>> from maps.utils import Color
+            >>> from maps.simulator.core import Agent, World, Landmark, Sphere, Box
+            >>> from maps.simulator.scenario import BaseScenario
+            >>> from maps.simulator.utils import Color
             >>> def observation(self, agent: Agent):
             ...      # reward every agent proportionally to distance from first landmark
             ...      dist2 = torch.sum(

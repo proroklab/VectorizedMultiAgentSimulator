@@ -6,6 +6,7 @@ from typing import Dict, Optional
 
 import numpy as np
 import ray
+import wandb
 from ray import tune
 from ray.rllib import RolloutWorker, BaseEnv, Policy
 from ray.rllib.agents import DefaultCallbacks
@@ -13,10 +14,8 @@ from ray.rllib.agents.ppo import PPOTrainer
 from ray.rllib.evaluation import Episode
 from ray.rllib.utils.typing import PolicyID
 from ray.tune import register_env
-from ray.tune.integration.wandb import WandbLoggerCallback
 
-import wandb
-from make_env import make_env
+from maps import make_env
 
 
 def env_creator(config: Dict):
@@ -73,22 +72,22 @@ def train():
 
     continuous_actions = False
     max_steps = 100
-    num_vectorized_envs = 32
-    num_workers = 7
+    num_vectorized_envs = 1
+    num_workers = 5
     maps_device = "cpu"
     RLLIB_NUM_GPUS = int(os.environ.get("RLLIB_NUM_GPUS", "0"))
-    num_gpus = min(RLLIB_NUM_GPUS - 0.5, 0)  # Driver GPU
+    num_gpus = RLLIB_NUM_GPUS  # Driver GPU
     num_gpus_per_worker = (1 - num_gpus) / num_workers if maps_device == "cuda" else 0
 
     tune.run(
         PPOTrainer,
         stop={"training_iteration": 5000},
-        callbacks=[
-            WandbLoggerCallback(
-                project=f"maps_test",
-                api_key="",
-            )
-        ],
+        # callbacks=[
+        #     WandbLoggerCallback(
+        #         project=f"maps_test",
+        #         api_key="",
+        #     )
+        # ],
         config={
             "seed": 0,
             "framework": "torch",
