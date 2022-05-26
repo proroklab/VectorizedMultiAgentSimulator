@@ -1,3 +1,14 @@
+#  Copyright (c) 2022. Matteo Bettini
+#  All rights reserved.
+import os
+import time
+
+import numpy as np
+import torch
+from PIL import Image
+
+from maps import make_env
+
 if __name__ == "__main__":
     scenario_name = "waterfall"
     num_envs = 32

@@ -1,3 +1,6 @@
+#  Copyright (c) 2022. Matteo Bettini
+#  All rights reserved.
+
 from typing import List, Tuple, Optional
 
 import gym
@@ -294,7 +297,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         shared_viewer = agent_index_focus is None
 
         if self.viewer is None:
-            from maps import rendering
+            from maps.simulator import rendering
 
             self.viewer = rendering.Viewer(
                 700, 700, visible=False if mode == "rgb_array" else True
@@ -303,7 +306,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         # create rendering geometry
         if self.render_geoms is None:
             # import rendering only if we need it (and don't import for headless machines)
-            from maps import rendering
+            from maps.simulator import rendering
 
             self.render_geoms = []
             self.render_geoms_xform = []

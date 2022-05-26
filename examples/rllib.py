@@ -14,6 +14,7 @@ from ray.rllib.agents.ppo import PPOTrainer
 from ray.rllib.evaluation import Episode
 from ray.rllib.utils.typing import PolicyID
 from ray.tune import register_env
+from ray.tune.integration.wandb import WandbLoggerCallback
 
 from maps import make_env
 
@@ -82,12 +83,12 @@ def train():
     tune.run(
         PPOTrainer,
         stop={"training_iteration": 5000},
-        # callbacks=[
-        #     WandbLoggerCallback(
-        #         project=f"maps_test",
-        #         api_key="",
-        #     )
-        # ],
+        callbacks=[
+            WandbLoggerCallback(
+                project=f"maps_test",
+                api_key="",
+            )
+        ],
         config={
             "seed": 0,
             "framework": "torch",
