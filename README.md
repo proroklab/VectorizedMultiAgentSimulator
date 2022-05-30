@@ -17,6 +17,19 @@ additional shapes for entities (boxes, lines) and related collision rules.
 
 ## How to use
 
+### Install
+
+To install the simulator, simply install the requirements using:
+```
+pip install -r requirements.txt
+```
+and then install the package with:
+```
+pip install -e .
+```
+
+### Run 
+
 To use the simulator, simply create an environment by passing the name of the scenario
 you want (from the `scenarios` folder) to the `make_env` function.
 The function arguments are explained in the documentation. The function returns an environment
