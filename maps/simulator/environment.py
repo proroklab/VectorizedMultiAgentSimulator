@@ -1,6 +1,5 @@
 #  Copyright (c) 2022. Matteo Bettini
 #  All rights reserved.
-import os
 from typing import List, Tuple, Optional
 
 import gym
@@ -297,10 +296,6 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
 
         if self.viewer is None:
             from maps.simulator import rendering
-
-            if mode == "rgb_array":
-                os.environ["DISPLAY"] = ":99.0"
-                os.system(f"Xvfb :99 -screen 0 1400x900x24 > /dev/null 2>&1 &")
 
             self.viewer = rendering.Viewer(
                 700, 700, visible=False if mode == "rgb_array" else True
