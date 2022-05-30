@@ -83,7 +83,7 @@ class Viewer(object):
         self.close()
 
     def set_max_size(self, current_size):
-        max_size = self.max_size = current_size
+        max_size = self.max_size = max(current_size, 1)
         left = -max_size
         right = max_size
         bottom = -max_size
