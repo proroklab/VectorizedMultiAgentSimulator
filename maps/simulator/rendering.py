@@ -62,27 +62,9 @@ try:
         glVertex3f,
     )
 except ImportError:
-    os.environ["DISPLAY"] = ":99.0"
-    os.system(f"Xvfb :99 -screen 0 1400x900x24 > /dev/null 2>&1 &")
-    from pyglet.gl import (
-        glBegin,
-        glBlendFunc,
-        glClearColor,
-        glColor4f,
-        glDisable,
-        glEnable,
-        glEnd,
-        glHint,
-        glLineStipple,
-        glLineWidth,
-        glPopMatrix,
-        glPushMatrix,
-        glRotatef,
-        glScalef,
-        glTranslatef,
-        gluOrtho2D,
-        glVertex2f,
-        glVertex3f,
+    raise ImportError(
+        """Error occurred while running `from pyglet.gl import ...`
+            HINT: make sure you have OpenGL install. On Ubuntu, you can run 'apt-get install python-opengl'. If you're running on a server, you may need a virtual frame buffer; something like this should work: 'xvfb-run -s \"-screen 0 1400x900x24\" python <your_script.py>'"""
     )
 
 
