@@ -77,11 +77,7 @@ env.render(
 | <img src="media/maps_simple_focus_agent_4.gif" alt="drawing" width="260"/> |       With ` agent_index_focus=4` the camera follows agent 4        |
 
 ### Rendering on server machines
-To render in machines without a display use `mode=rgb_array` and the following
-```
-export DISPLAY=':99.0'
-Xvfb :99 -screen 0 1400x900x24 > /dev/null 2>&1 &
-```
+To render in machines without a display use `mode=rgb_array`. Make sure you have EGL installed.
 
 ## List of environments
 ### MAPS

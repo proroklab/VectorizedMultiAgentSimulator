@@ -7,6 +7,7 @@ from typing import Dict, Optional
 import numpy as np
 import ray
 import wandb
+from maps import make_env
 from ray import tune
 from ray.rllib import RolloutWorker, BaseEnv, Policy
 from ray.rllib.agents import DefaultCallbacks
@@ -15,8 +16,6 @@ from ray.rllib.evaluation import Episode
 from ray.rllib.utils.typing import PolicyID
 from ray.tune import register_env
 from ray.tune.integration.wandb import WandbLoggerCallback
-
-from maps import make_env
 
 
 def env_creator(config: Dict):
@@ -73,16 +72,23 @@ def train():
 
     continuous_actions = False
     max_steps = 100
-    num_vectorized_envs = 1
+    num_vectorized_envs = 32
     num_workers = 5
     maps_device = "cpu"
+
     RLLIB_NUM_GPUS = int(os.environ.get("RLLIB_NUM_GPUS", "0"))
-    num_gpus = RLLIB_NUM_GPUS  # Driver GPU
-    num_gpus_per_worker = (1 - num_gpus) / num_workers if maps_device == "cuda" else 0
+    num_gpus = 1e-3  # Driver GPU
+    num_gpus_per_worker = (
+        (RLLIB_NUM_GPUS - num_gpus) / num_workers if maps_device == "cuda" else 0
+    )
 
     tune.run(
         PPOTrainer,
         stop={"training_iteration": 5000},
+        checkpoint_freq=1,
+        keep_checkpoints_num=2,
+        checkpoint_at_end=True,
+        checkpoint_score_attr="episode_reward_mean",
         callbacks=[
             WandbLoggerCallback(
                 project=f"maps_test",
@@ -100,8 +106,8 @@ def train():
             "vf_loss_coeff": 1,
             "vf_clip_param": float("inf"),
             "entropy_coeff": 0,
-            "train_batch_size": 10000,
-            "rollout_fragment_length": 200,
+            "train_batch_size": 20000,
+            "rollout_fragment_length": 125,
             "sgd_minibatch_size": 2000,
             "num_sgd_iter": 32,
             "num_gpus": num_gpus,
@@ -120,10 +126,10 @@ def train():
                 "continuous_actions": continuous_actions,
                 "max_steps": max_steps,
             },
-            "evaluation_interval": 50,
+            "evaluation_interval": 20,
             "evaluation_duration": 1,
-            "evaluation_num_workers": 1,
-            "evaluation_parallel_to_training": True,
+            "evaluation_num_workers": 0,
+            "evaluation_parallel_to_training": False,
             "evaluation_config": {
                 "num_envs_per_worker": 1,
                 "callbacks": RenderingCallbacks,
