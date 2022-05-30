@@ -92,6 +92,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         self.render_geoms_xform = None
         self.render_geoms = None
         self.viewer = None
+        self.fake_screen = None
 
     def reset(self, seed: int = None):
         """
@@ -293,13 +294,21 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
                 f" between 0 and {self.n_agents}, got {agent_index_focus}"
             )
         shared_viewer = agent_index_focus is None
+        headless = mode == "rgb_array"
 
         if self.viewer is None:
             from maps.simulator import rendering
 
-            self.viewer = rendering.Viewer(
-                700, 700, visible=False if mode == "rgb_array" else True
-            )
+            try:
+                self.viewer = rendering.Viewer(700, 700, visible=not headless)
+            except:
+                import pyvirtualdisplay
+
+                self.fake_screen = pyvirtualdisplay.Display(
+                    visible=False, size=(700, 700)
+                )
+                self.fake_screen.start()
+                self.viewer = rendering.Viewer(700, 700, visible=not headless)
 
         # create rendering geometry
         if self.render_geoms is None:
