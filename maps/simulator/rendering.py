@@ -24,40 +24,44 @@ pyglet.options["headless"] = True
 if platform.system() == "Darwin":
     pyglet.options["headless"] = False
 
-from pyglet.gl import (
-    glBegin,
-    glBlendFunc,
-    glClearColor,
-    glColor4f,
-    glDisable,
-    glEnable,
-    glEnd,
-    glHint,
-    glLineStipple,
-    glLineWidth,
-    glPopMatrix,
-    glPushMatrix,
-    glRotatef,
-    glScalef,
-    glTranslatef,
-    gluOrtho2D,
-    glVertex2f,
-    glVertex3f,
-    GL_BLEND,
-    GL_LINE_LOOP,
-    GL_LINE_SMOOTH,
-    GL_LINE_SMOOTH_HINT,
-    GL_LINE_STIPPLE,
-    GL_LINE_STRIP,
-    GL_LINES,
-    GL_NICEST,
-    GL_ONE_MINUS_SRC_ALPHA,
-    GL_POINTS,
-    GL_POLYGON,
-    GL_QUADS,
-    GL_SRC_ALPHA,
-    GL_TRIANGLES,
-)
+try:
+    from pyglet.gl import (
+        glBegin,
+        glBlendFunc,
+        glClearColor,
+        glColor4f,
+        glDisable,
+        glEnable,
+        glEnd,
+        glHint,
+        glLineStipple,
+        glLineWidth,
+        glPopMatrix,
+        glPushMatrix,
+        glRotatef,
+        glScalef,
+        glTranslatef,
+        gluOrtho2D,
+        glVertex2f,
+        glVertex3f,
+        GL_BLEND,
+        GL_LINE_LOOP,
+        GL_LINE_SMOOTH,
+        GL_LINE_SMOOTH_HINT,
+        GL_LINE_STIPPLE,
+        GL_LINE_STRIP,
+        GL_LINES,
+        GL_NICEST,
+        GL_ONE_MINUS_SRC_ALPHA,
+        GL_POINTS,
+        GL_POLYGON,
+        GL_QUADS,
+        GL_SRC_ALPHA,
+        GL_TRIANGLES,
+    )
+except ImportError as e:
+    raise ImportError("Error occured while running `from pyglet.gl import *`, HINT: make sure you have OpenGL installed. On Ubuntu, you can run 'apt-get install python-opengl'. If you're running on a server, you may need a virtual frame buffer; something like this should work: 'xvfb-run -s \"-screen 0 1400x900x24\" python <your_script.py>'")
+
 
 if "Apple" in sys.version:
     if "DYLD_FALLBACK_LIBRARY_PATH" in os.environ:
