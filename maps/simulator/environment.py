@@ -297,16 +297,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         headless = mode == "rgb_array"
 
         if self.viewer is None:
-            try:
-                from maps.simulator import rendering
-            except:
-                import pyvirtualdisplay
-
-                self.fake_screen = pyvirtualdisplay.Display(
-                    visible=False, size=(700, 700)
-                )
-                self.fake_screen.start()
-                from maps.simulator import rendering
+            from maps.simulator import rendering
 
             self.viewer = rendering.Viewer(700, 700, visible=not headless)
 
