@@ -6,7 +6,6 @@ import gym
 import numpy as np
 import torch
 from gym import spaces
-from pyglet.canvas.xlib import NoSuchDisplayException
 from ray import rllib
 from ray.rllib.utils.typing import EnvActionType, EnvObsType, EnvInfoDict
 from torch import Tensor
@@ -300,7 +299,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         if self.viewer is None:
             try:
                 from maps.simulator import rendering
-            except NoSuchDisplayException:
+            except:
                 import pyvirtualdisplay
 
                 self.fake_screen = pyvirtualdisplay.Display(
