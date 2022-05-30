@@ -62,11 +62,8 @@ try:
         glVertex3f,
     )
 except ImportError:
-    # In case display was not found
-    import pyvirtualdisplay
-
-    _display = pyvirtualdisplay.Display(visible=False, size=(1400, 900))
-    _display.start()
+    os.environ["DISPLAY"] = ":99.0"
+    os.system(f"Xvfb :99 -screen 0 1400x900x24 > /dev/null 2>&1 &")
     from pyglet.gl import (
         glBegin,
         glBlendFunc,
