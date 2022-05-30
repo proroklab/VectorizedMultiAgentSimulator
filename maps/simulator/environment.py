@@ -6,6 +6,7 @@ import gym
 import numpy as np
 import torch
 from gym import spaces
+from pyglet.canvas.xlib import NoSuchDisplayException
 from ray import rllib
 from ray.rllib.utils.typing import EnvActionType, EnvObsType, EnvInfoDict
 from torch import Tensor
@@ -297,18 +298,18 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         headless = mode == "rgb_array"
 
         if self.viewer is None:
-            from maps.simulator import rendering
-
             try:
-                self.viewer = rendering.Viewer(700, 700, visible=not headless)
-            except:
+                from maps.simulator import rendering
+            except NoSuchDisplayException:
                 import pyvirtualdisplay
 
                 self.fake_screen = pyvirtualdisplay.Display(
                     visible=False, size=(700, 700)
                 )
                 self.fake_screen.start()
-                self.viewer = rendering.Viewer(700, 700, visible=not headless)
+                from maps.simulator import rendering
+
+            self.viewer = rendering.Viewer(700, 700, visible=not headless)
 
         # create rendering geometry
         if self.render_geoms is None:
