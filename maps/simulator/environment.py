@@ -20,7 +20,6 @@ from maps.simulator.utils import X, Y
 # environment for all agents in the multiagent world
 # currently code assumes that no agents will be created/destroyed at runtime!
 class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
-
     metadata = {
         "render.modes": ["human", "rgb_array"],
         "runtime.vectorized": True,

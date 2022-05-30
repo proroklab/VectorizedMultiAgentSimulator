@@ -12,15 +12,82 @@ import platform
 import sys
 
 import numpy as np
-import pyglet
+import six
+from gym import error
+from pyglet.gl import (
+    GL_BLEND,
+    GL_LINE_LOOP,
+    GL_LINE_SMOOTH,
+    GL_LINE_SMOOTH_HINT,
+    GL_LINE_STIPPLE,
+    GL_LINE_STRIP,
+    GL_LINES,
+    GL_NICEST,
+    GL_ONE_MINUS_SRC_ALPHA,
+    GL_POINTS,
+    GL_POLYGON,
+    GL_QUADS,
+    GL_SRC_ALPHA,
+    GL_TRIANGLES,
+)
+
+try:
+    import pyglet
+except ImportError:
+    raise ImportError("HINT: you can install pyglet directly via 'pip install pyglet'.")
 
 pyglet.options["headless"] = True
 if platform.system() == "Darwin":
     pyglet.options["headless"] = False
 
-import six
-from gym import error
-from pyglet.gl import *
+try:
+    from pyglet.gl import (
+        glBegin,
+        glBlendFunc,
+        glClearColor,
+        glColor4f,
+        glDisable,
+        glEnable,
+        glEnd,
+        glHint,
+        glLineStipple,
+        glLineWidth,
+        glPopMatrix,
+        glPushMatrix,
+        glRotatef,
+        glScalef,
+        glTranslatef,
+        gluOrtho2D,
+        glVertex2f,
+        glVertex3f,
+    )
+except ImportError:
+    # In case display was not found
+    import pyvirtualdisplay
+
+    _display = pyvirtualdisplay.Display(visible=False, size=(1400, 900))
+    _display.start()
+    from pyglet.gl import (
+        glBegin,
+        glBlendFunc,
+        glClearColor,
+        glColor4f,
+        glDisable,
+        glEnable,
+        glEnd,
+        glHint,
+        glLineStipple,
+        glLineWidth,
+        glPopMatrix,
+        glPushMatrix,
+        glRotatef,
+        glScalef,
+        glTranslatef,
+        gluOrtho2D,
+        glVertex2f,
+        glVertex3f,
+    )
+
 
 if "Apple" in sys.version:
     if "DYLD_FALLBACK_LIBRARY_PATH" in os.environ:
