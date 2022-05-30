@@ -17,6 +17,9 @@ additional shapes for entities (boxes, lines) and related collision rules.
 
 ## How to use
 
+### Notebook &ensp; [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1ipcNWJH0LKv6eLNs05tPrcLQHisbFaFU?usp=sharing)
+Here is a simple notebook that you can run to create, step and render any environment. It reproduces the `use_maps_env.py` script in the `examples` folder.
+
 ### Install
 
 To install the simulator, simply install the requirements using:
@@ -90,7 +93,24 @@ env.render(
 | <img src="media/maps_simple_focus_agent_4.gif" alt="drawing" width="260"/> |       With ` agent_index_focus=4` the camera follows agent 4        |
 
 ### Rendering on server machines
-To render in machines without a display use `mode=rgb_array`. Make sure you have EGL installed.
+To render in machines without a display use `mode=rgb_array`. Make sure you have OpenGL and Pyglet installed.
+To enable rendering on headless machines you need to create a fake screen. You can do this by adding
+these lines at the beginning of your script:
+```
+import pyvirtualdisplay
+display = pyvirtualdisplay.Display(visible=False, size=(1400, 900))
+display.start()
+```
+or by running these commands before the run: 
+```
+export DISPLAY=':99.0'
+Xvfb :99 -screen 0 1400x900x24 > /dev/null 2>&1 &
+```
+or in this way:
+```
+xvfb-run -s \"-screen 0 1400x900x24\" python <your_script.py>
+```
+For all 3 options you need to have Xvfb installed.
 
 ## List of environments
 ### MAPS
