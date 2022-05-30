@@ -1,13 +1,23 @@
 """
 2D rendering framework
 """
+#  Copyright (c) 2022. Matteo Bettini
+#  All rights reserved.
+
 from __future__ import division
 
 import math
 import os
+import platform
 import sys
+
 import numpy as np
 import pyglet
+
+pyglet.options["headless"] = True
+if platform.system() == "Darwin":
+    pyglet.options["headless"] = False
+
 import six
 from gym import error
 from pyglet.gl import *
@@ -16,6 +26,7 @@ if "Apple" in sys.version:
     if "DYLD_FALLBACK_LIBRARY_PATH" in os.environ:
         os.environ["DYLD_FALLBACK_LIBRARY_PATH"] += ":/usr/lib"
         # (JDS 2016/04/15): avoid bug on Anaconda 2.3.0 / Yosemite
+
 
 RAD2DEG = 57.29577951308232
 
@@ -50,6 +61,7 @@ class Viewer(object):
             width=width, height=height, display=display, visible=visible
         )
         self.window.on_close = self.window_closed_by_user
+
         self.geoms = []
         self.text_lines = []
         self.onetime_geoms = []
@@ -71,7 +83,7 @@ class Viewer(object):
         self.close()
 
     def set_max_size(self, current_size):
-        max_size = self.max_size = max(current_size, self.max_size)
+        max_size = self.max_size = current_size
         left = -max_size
         right = max_size
         bottom = -max_size
@@ -99,9 +111,11 @@ class Viewer(object):
 
     def render(self, return_rgb_array=False):
         glClearColor(1, 1, 1, 1)
+
         self.window.clear()
         self.window.switch_to()
         self.window.dispatch_events()
+
         self.transform.enable()
         for geom in self.geoms:
             geom.render()
@@ -111,7 +125,7 @@ class Viewer(object):
 
         pyglet.gl.glMatrixMode(pyglet.gl.GL_PROJECTION)
         pyglet.gl.glLoadIdentity()
-        gluOrtho2D(0, self.window.width, 0, self.window.height)
+        gluOrtho2D(0, self.width, 0, self.height)
         for geom in self.text_lines:
             geom.render()
 
@@ -128,6 +142,7 @@ class Viewer(object):
             # than the requested one.
             arr = arr.reshape((buffer.height, buffer.width, 4))
             arr = arr[::-1, :, 0:3]
+
         self.window.flip()
         self.onetime_geoms = []
         return arr
