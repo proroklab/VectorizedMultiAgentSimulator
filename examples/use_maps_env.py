@@ -15,7 +15,7 @@ if __name__ == "__main__":
     continuous_actions = True
     device = "cpu"
     wrapped = True
-    n_steps = 200
+    n_steps = 150
     n_agents = 5
 
     simple_2d_action = (
