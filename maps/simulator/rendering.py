@@ -14,7 +14,35 @@ import sys
 import numpy as np
 import six
 from gym import error
+
+try:
+    import pyglet
+except ImportError:
+    raise ImportError("HINT: you can install pyglet directly via 'pip install pyglet'.")
+
+pyglet.options["headless"] = True
+if platform.system() == "Darwin":
+    pyglet.options["headless"] = False
+
 from pyglet.gl import (
+    glBegin,
+    glBlendFunc,
+    glClearColor,
+    glColor4f,
+    glDisable,
+    glEnable,
+    glEnd,
+    glHint,
+    glLineStipple,
+    glLineWidth,
+    glPopMatrix,
+    glPushMatrix,
+    glRotatef,
+    glScalef,
+    glTranslatef,
+    gluOrtho2D,
+    glVertex2f,
+    glVertex3f,
     GL_BLEND,
     GL_LINE_LOOP,
     GL_LINE_SMOOTH,
@@ -31,48 +59,10 @@ from pyglet.gl import (
     GL_TRIANGLES,
 )
 
-try:
-    import pyglet
-except ImportError:
-    raise ImportError("HINT: you can install pyglet directly via 'pip install pyglet'.")
-
-pyglet.options["headless"] = True
-if platform.system() == "Darwin":
-    pyglet.options["headless"] = False
-
-try:
-    from pyglet.gl import (
-        glBegin,
-        glBlendFunc,
-        glClearColor,
-        glColor4f,
-        glDisable,
-        glEnable,
-        glEnd,
-        glHint,
-        glLineStipple,
-        glLineWidth,
-        glPopMatrix,
-        glPushMatrix,
-        glRotatef,
-        glScalef,
-        glTranslatef,
-        gluOrtho2D,
-        glVertex2f,
-        glVertex3f,
-    )
-except ImportError:
-    raise ImportError(
-        """Error occurred while running `from pyglet.gl import ...`
-            HINT: make sure you have OpenGL install. On Ubuntu, you can run 'apt-get install python-opengl'. If you're running on a server, you may need a virtual frame buffer; something like this should work: 'xvfb-run -s \"-screen 0 1400x900x24\" python <your_script.py>'"""
-    )
-
-
 if "Apple" in sys.version:
     if "DYLD_FALLBACK_LIBRARY_PATH" in os.environ:
         os.environ["DYLD_FALLBACK_LIBRARY_PATH"] += ":/usr/lib"
         # (JDS 2016/04/15): avoid bug on Anaconda 2.3.0 / Yosemite
-
 
 RAD2DEG = 57.29577951308232
 
