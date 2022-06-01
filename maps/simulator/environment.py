@@ -228,7 +228,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
                     torch.abs(physical_action) > agent.u_range
                 ), f"Physical actions of agent {agent.name} are out of its range {agent.u_range}"
 
-                agent.action.u = physical_action
+                agent.action.u = physical_action.to(torch.float32)
             else:
                 physical_action = action[:, :1]
 
@@ -299,7 +299,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         if self.viewer is None:
             from maps.simulator import rendering
 
-            self.viewer = rendering.Viewer(700, 700, visible=not headless)
+            self.viewer = rendering.Viewer(700, 700)
 
         # create rendering geometry
         if self.render_geoms is None:
