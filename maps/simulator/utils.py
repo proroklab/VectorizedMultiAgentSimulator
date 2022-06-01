@@ -1,3 +1,6 @@
+#  Copyright (c) 2022. Matteo Bettini
+#  All rights reserved.
+
 from enum import Enum
 
 X = 0
@@ -27,3 +30,11 @@ def override(cls):
         return method
 
     return check_override
+
+
+def create_fake_screen():
+    import pyvirtualdisplay
+
+    display = pyvirtualdisplay.Display(visible=False, size=(1400, 900))
+    display.start()
+    return display

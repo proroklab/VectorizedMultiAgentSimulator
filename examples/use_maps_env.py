@@ -10,16 +10,17 @@ from PIL import Image
 from maps import make_env
 
 if __name__ == "__main__":
-    scenario_name = "waterfall"
-    num_envs = 32
+    scenario_name = "dropout"
+    num_envs = 1
     continuous_actions = True
     device = "cpu"
     wrapped = True
-    n_steps = 150
-    n_agents = 5
+    n_steps = 100
+    n_agents = 4
+    energy_coeff = 0
 
     simple_2d_action = (
-        [0, -0.5] if continuous_actions else [3]
+        [0, 0.5] if continuous_actions else [0]
     )  # Sample action tell each agent to go down
 
     env = make_env(
@@ -29,12 +30,18 @@ if __name__ == "__main__":
         continuous_actions=continuous_actions,
         rllib_wrapped=wrapped,
         n_agents=n_agents,
+        energy_coeff=energy_coeff,
     )
+
+    # _display = create_fake_screen()
 
     frame_list = []  # For creating a gif
     init_time = time.time()
+    step = 0
     for s in range(n_steps):
         actions = []
+        step += 1
+        print(f"Step {step}")
         if wrapped:  # Rllib interface
             for i in range(num_envs):
                 actions_per_env = []
@@ -46,7 +53,9 @@ if __name__ == "__main__":
                 Image.fromarray(
                     env.try_render_at(mode="rgb_array", agent_index_focus=None)
                 )
-            )  # Can give the camera an agent index to focus on
+            )
+
+            # Can give the camera an agent index to focus on
 
         else:  # Same as before, with faster MAPS interface
             for i in range(n_agents):

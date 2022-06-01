@@ -1,3 +1,6 @@
+#  Copyright (c) 2022. Matteo Bettini
+#  All rights reserved.
+
 from __future__ import annotations
 
 from typing import Callable, Union, List
@@ -538,7 +541,7 @@ class World(TorchVectorizedObject):
         self._landmarks.append(landmark)
 
     @property
-    def agents(self):
+    def agents(self) -> List[Agent]:
         return self._agents
 
     @property

@@ -7,15 +7,17 @@ from typing import Dict, Optional
 import numpy as np
 import ray
 import wandb
-from maps import make_env
 from ray import tune
 from ray.rllib import RolloutWorker, BaseEnv, Policy
-from ray.rllib.agents import DefaultCallbacks
+from ray.rllib.agents import DefaultCallbacks, MultiCallbacks
 from ray.rllib.agents.ppo import PPOTrainer
-from ray.rllib.evaluation import Episode
+from ray.rllib.evaluation import Episode, MultiAgentEpisode
 from ray.rllib.utils.typing import PolicyID
 from ray.tune import register_env
 from ray.tune.integration.wandb import WandbLoggerCallback
+
+from maps import make_env
+from maps.simulator.utils import create_fake_screen
 
 
 def env_creator(config: Dict):
@@ -26,6 +28,8 @@ def env_creator(config: Dict):
         continuous_actions=config["continuous_actions"],
         rllib_wrapped=True,
         max_steps=config["max_steps"],
+        n_agents=config["n_agents"],
+        # energy_coeff=config["energy_coeff"],
     )
     return env
 
@@ -34,6 +38,40 @@ if not ray.is_initialized():
     ray.init()
     print("Ray init!")
 register_env("waterfall", lambda config: env_creator(config))
+
+
+class EvaluationCallbacks(DefaultCallbacks):
+    def on_episode_step(
+        self,
+        *,
+        worker: RolloutWorker,
+        base_env: BaseEnv,
+        episode: MultiAgentEpisode,
+        **kwargs,
+    ):
+        info = episode.last_info_for()
+
+        for a_key in info.keys():
+            for b_key in info[a_key]:
+                try:
+                    episode.user_data[f"{a_key}/{b_key}"].append(info[a_key][b_key])
+                except KeyError:
+                    episode.user_data[f"{a_key}/{b_key}"] = [info[a_key][b_key]]
+
+    def on_episode_end(
+        self,
+        *,
+        worker: RolloutWorker,
+        base_env: BaseEnv,
+        policies: Dict[str, Policy],
+        episode: MultiAgentEpisode,
+        **kwargs,
+    ):
+        info = episode.last_info_for()
+        for a_key in info.keys():
+            for b_key in info[a_key]:
+                metric = np.array(episode.user_data[f"{a_key}/{b_key}"])
+                episode.custom_metrics[f"{a_key}/{b_key}"] = np.sum(metric).item()
 
 
 class RenderingCallbacks(DefaultCallbacks):
@@ -75,11 +113,13 @@ def train():
     num_vectorized_envs = 32
     num_workers = 5
     maps_device = "cpu"
+    n_agents = 4
+    energy_coeff = 0
 
     RLLIB_NUM_GPUS = int(os.environ.get("RLLIB_NUM_GPUS", "0"))
     num_gpus = 1e-3  # Driver GPU
     num_gpus_per_worker = (
-        (RLLIB_NUM_GPUS - num_gpus) / num_workers if maps_device == "cuda" else 0
+        (RLLIB_NUM_GPUS - num_gpus) / (num_workers + 1) if maps_device == "cuda" else 0
     )
 
     tune.run(
@@ -91,14 +131,14 @@ def train():
         checkpoint_score_attr="episode_reward_mean",
         callbacks=[
             WandbLoggerCallback(
-                project=f"maps_test",
+                project=f"dropout",
                 api_key="",
             )
         ],
         config={
             "seed": 0,
             "framework": "torch",
-            "env": "waterfall",
+            "env": scenario_name,
             "kl_coeff": 0.01,
             "kl_target": 0.01,
             "lambda": 0.99,
@@ -125,18 +165,22 @@ def train():
                 "scenario_name": scenario_name,
                 "continuous_actions": continuous_actions,
                 "max_steps": max_steps,
+                "n_agents": n_agents,
+                # "energy_coeff": energy_coeff,
             },
-            "evaluation_interval": 20,
+            "evaluation_interval": 2,
             "evaluation_duration": 1,
-            "evaluation_num_workers": 0,
-            "evaluation_parallel_to_training": False,
+            "evaluation_num_workers": 1,
+            "evaluation_parallel_to_training": True,
             "evaluation_config": {
                 "num_envs_per_worker": 1,
-                "callbacks": RenderingCallbacks,
-                "env_config": {
-                    "num_envs": 1,
-                },
+                "callbacks": MultiCallbacks(
+                    [
+                        RenderingCallbacks,
+                    ]
+                ),
             },
+            "callbacks": EvaluationCallbacks,
         },
     )
 
