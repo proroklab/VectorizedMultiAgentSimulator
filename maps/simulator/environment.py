@@ -443,7 +443,7 @@ class VectorEnvWrapper(rllib.VectorEnv):
             env_infos = {"rewards": {}}
             total_env_rew = 0.0
             for i, agent in enumerate(self._env.agents):
-                obs_list[j].append(obs[i][j].cpu().detach().numpy())
+                obs_list[j].append(obs[i][j].cpu().numpy())
                 total_env_rew += rews[i][j].item()
                 env_infos["rewards"].update({i: rews[i][j].item()})
                 env_infos.update(
