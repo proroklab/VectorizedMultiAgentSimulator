@@ -6,14 +6,13 @@ import gym
 import numpy as np
 import torch
 from gym import spaces
-from ray import rllib
-from ray.rllib.utils.typing import EnvActionType, EnvObsType, EnvInfoDict
-from torch import Tensor
-
 from maps.simulator import core
 from maps.simulator.core import TorchVectorizedObject, Line, Box, Agent
 from maps.simulator.scenario import BaseScenario
 from maps.simulator.utils import X, Y
+from ray import rllib
+from ray.rllib.utils.typing import EnvActionType, EnvObsType, EnvInfoDict
+from torch import Tensor
 
 
 # environment for all agents in the multiagent world
@@ -176,7 +175,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
 
         self.steps += 1
         if self.max_steps is not None:
-            dones = self.steps >= self.max_steps
+            dones += self.steps >= self.max_steps
 
         # print("\nStep results in unwrapped environment")
         # print(
@@ -190,7 +189,6 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         # )
         # print(f"Dones len (n_envs): {len(dones)}, dones[0] (done env 0): {dones[0]}")
         # print(f"Info len (n_agents): {len(infos)}, info[0] (infos agent 0): {infos[0]}")
-
         return obs, rews, dones, infos
 
     def get_agent_action_size(self, agent: Agent):
@@ -377,11 +375,11 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
                 idx += 1
 
         if shared_viewer:
-            # zoom out to fit eveyone
+            # zoom out to fit everyone
             all_poses = torch.cat(
                 [entity.state.pos[index] for entity in self.world.entities], dim=0
             )
-            cam_range = torch.max(torch.abs(all_poses)) + 0.5
+            cam_range = torch.max(torch.abs(all_poses)) + 0.2
             self.viewer.set_max_size(cam_range)
         else:
             # update bounds to center around agent
@@ -466,7 +464,6 @@ class VectorEnvWrapper(rllib.VectorEnv):
         # print(
         #     f"Total infos len (num_envs): {len(total_infos)}, total_infos[0] (infos env 0): {total_infos[0]}"
         # )
-
         return obs_list, total_rews, dones, total_infos
 
     def seed(self, seed=None):

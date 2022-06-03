@@ -71,6 +71,7 @@ if "Apple" in sys.version:
         # (JDS 2016/04/15): avoid bug on Anaconda 2.3.0 / Yosemite
 
 RAD2DEG = 57.29577951308232
+VIEWER_MIN_SIZE = 1.2
 
 
 def get_display(spec):
@@ -108,7 +109,6 @@ class Viewer(object):
         self.text_lines = []
         self.onetime_geoms = []
         self.transform = Transform()
-        self.max_size = 1
 
         glEnable(GL_BLEND)
         # glEnable(GL_MULTISAMPLE)
@@ -125,7 +125,7 @@ class Viewer(object):
         self.close()
 
     def set_max_size(self, current_size):
-        max_size = self.max_size = max(current_size, 1)
+        max_size = max(current_size, VIEWER_MIN_SIZE)
         left = -max_size
         right = max_size
         bottom = -max_size

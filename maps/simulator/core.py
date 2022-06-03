@@ -337,7 +337,7 @@ class Entity(TorchVectorizedObject):
     ):
         self._check_batch_index(batch_index)
         if batch_index is None:
-            if new.shape[0] == self.batch_dim:
+            if len(new.shape) > 1:
                 prop.fset(entity, new)
             else:
                 prop.fset(entity, new.repeat(self.batch_dim, 1))
@@ -547,6 +547,14 @@ class World(TorchVectorizedObject):
     @property
     def landmarks(self):
         return self._landmarks
+
+    @property
+    def x_semidim(self):
+        return self._x_semidim
+
+    @property
+    def y_semidim(self):
+        return self._y_semidim
 
     @property
     def dim_p(self):
