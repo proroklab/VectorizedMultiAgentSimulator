@@ -94,14 +94,7 @@ env.render(
 
 ### Rendering on server machines
 To render in machines without a display use `mode=rgb_array`. Make sure you have OpenGL and Pyglet installed.
-To enable rendering on headless machines you need to create a fake screen. You can do this by adding
-these lines at the beginning of your script:
-```
-import pyvirtualdisplay
-display = pyvirtualdisplay.Display(visible=False, size=(1400, 900))
-display.start()
-```
-or by running these commands before the run: 
+To enable rendering on headless machines you need to create a fake screen. You can do this by running these commands before the script: 
 ```
 export DISPLAY=':99.0'
 Xvfb :99 -screen 0 1400x900x24 > /dev/null 2>&1 &
@@ -110,7 +103,7 @@ or in this way:
 ```
 xvfb-run -s \"-screen 0 1400x900x24\" python <your_script.py>
 ```
-For all 3 options you need to have Xvfb installed.
+For all options you need to have Xvfb installed.
 
 ## List of environments
 ### MAPS
