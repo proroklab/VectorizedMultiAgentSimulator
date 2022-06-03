@@ -4,11 +4,10 @@ import math
 from typing import Dict
 
 import torch
-from torch import Tensor
-
 from maps.simulator.core import Agent, World, Landmark, Sphere
 from maps.simulator.scenario import BaseScenario
 from maps.simulator.utils import Color
+from torch import Tensor
 
 
 class Scenario(BaseScenario):
@@ -57,39 +56,62 @@ class Scenario(BaseScenario):
             )
 
     def reward(self, agent: Agent):
-        pos_rew = -torch.min(
+        # pos_rew = -torch.min(
+        #     torch.stack(
+        #         [
+        #             (a.state.pos - self.world.landmarks[0].state.pos)
+        #             .square()
+        #             .sum(-1)
+        #             .sqrt()
+        #             for a in self.world.agents
+        #         ],
+        #         dim=1,
+        #     ),
+        #     dim=-1,
+        # )[0]
+        #
+        # # Scale by max possible distance, world is bounded between -1 and 1
+        # self.pos_rew = pos_rew / math.sqrt(
+        #     ((2 * self.world.x_semidim) ** 2) + ((2 * self.world.y_semidim) ** 2)
+        # )
+        #
+        # assert torch.all(self.pos_rew <= 0) and torch.all(self.pos_rew >= -1)
+        self._done = torch.any(
             torch.stack(
                 [
                     torch.sqrt(
-                        torch.sum(
-                            torch.square(
-                                a.state.pos - self.world.landmarks[0].state.pos
-                            ),
-                            dim=-1,
-                        )
+                        (a.state.pos - self.world.landmarks[0].state.pos)
+                        .square()
+                        .sum(-1)
                     )
-                    for a in self.world.agents
-                ],
-                dim=1,
-            ),
-            dim=-1,
-        )[0]
-
-        # Scale by max possible distance, world is bounded between -1 and 1
-        self.pos_rew = pos_rew / math.sqrt(self.world.dim_p)
-
-        # Assumption: all agents have same action range and multiplier
-        self.energy_rew = self.energy_coeff * -torch.sum(
-            torch.stack(
-                [
-                    torch.linalg.norm(a.action.u, dim=-1)
-                    / math.sqrt(self.world.dim_p * ((a.u_range * a.u_multiplier) ** 2))
+                    < self.world.landmarks[0].shape.radius
                     for a in self.world.agents
                 ],
                 dim=1,
             ),
             dim=-1,
         )
+
+        self.pos_rew = torch.zeros(self.world.batch_dim, device=self.world.device)
+        self.pos_rew[self._done] = 1
+
+        # Assumption: all agents have same action range and multiplier
+        self.energy_rew = (
+            self.energy_coeff
+            * -torch.stack(
+                [
+                    torch.linalg.norm(a.action.u, dim=-1)
+                    / math.sqrt(self.world.dim_p * ((a.u_range * a.u_multiplier) ** 2))
+                    for a in self.world.agents
+                ],
+                dim=1,
+            ).sum(-1)
+            # / len(self.world.agents)
+        )
+        if self.energy_coeff != 0:
+            assert torch.all((self.energy_rew / self.energy_coeff) <= 0) and torch.all(
+                (self.energy_rew / self.energy_coeff) >= -1
+            )
 
         rew = self.pos_rew + self.energy_rew
 
@@ -98,8 +120,8 @@ class Scenario(BaseScenario):
     def observation(self, agent: Agent):
         return torch.cat(
             [
-                agent.state.vel,
                 agent.state.pos,
+                agent.state.vel,
                 agent.state.pos - self.world.landmarks[0].state.pos,
             ],
             dim=-1,
@@ -113,21 +135,4 @@ class Scenario(BaseScenario):
         return info
 
     def done(self):
-        return torch.any(
-            torch.stack(
-                [
-                    torch.sqrt(
-                        torch.sum(
-                            torch.square(
-                                a.state.pos - self.world.landmarks[0].state.pos
-                            ),
-                            dim=-1,
-                        )
-                    )
-                    < self.world.landmarks[0].shape.radius
-                    for a in self.world.agents
-                ],
-                dim=1,
-            ),
-            dim=-1,
-        )
+        return self._done
