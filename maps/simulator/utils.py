@@ -1,6 +1,6 @@
 #  Copyright (c) 2022. Matteo Bettini
 #  All rights reserved.
-
+import os
 from enum import Enum
 
 X = 0
@@ -32,9 +32,11 @@ def override(cls):
     return check_override
 
 
-def create_fake_screen():
-    import pyvirtualdisplay
-
-    display = pyvirtualdisplay.Display(visible=False, size=(1400, 900))
-    display.start()
-    return display
+def _init_pyglet_device():
+    available_devices = os.getenv("CUDA_VISIBLE_DEVICES")
+    if available_devices is not None and len(available_devices) > 0:
+        os.environ["PYGLET_HEADLESS_DEVICE"] = (
+            available_devices.split(",")[0]
+            if len(available_devices) > 1
+            else available_devices
+        )
