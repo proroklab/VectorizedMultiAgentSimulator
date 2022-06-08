@@ -6,7 +6,6 @@ from typing import Dict, Optional
 
 import numpy as np
 import ray
-import wandb
 from ray import tune
 from ray.rllib import RolloutWorker, BaseEnv, Policy
 from ray.rllib.agents import DefaultCallbacks, MultiCallbacks
@@ -16,8 +15,21 @@ from ray.rllib.utils.typing import PolicyID
 from ray.tune import register_env
 from ray.tune.integration.wandb import WandbLoggerCallback
 
+import wandb
 from maps import make_env
-from maps.simulator.utils import create_fake_screen
+
+scenario_name = "waterfall"
+
+# Scenario specific variables.
+# When modifying this also modify env_config and env_creator
+n_agents = 4
+
+# Common variables
+continuous_actions = True
+max_steps = 100
+num_vectorized_envs = 96
+num_workers = 5
+maps_device = "cpu"  # or cuda
 
 
 def env_creator(config: Dict):
@@ -28,8 +40,8 @@ def env_creator(config: Dict):
         continuous_actions=config["continuous_actions"],
         rllib_wrapped=True,
         max_steps=config["max_steps"],
+        # Scenario specific variables
         n_agents=config["n_agents"],
-        # energy_coeff=config["energy_coeff"],
     )
     return env
 
@@ -37,7 +49,7 @@ def env_creator(config: Dict):
 if not ray.is_initialized():
     ray.init()
     print("Ray init!")
-register_env("waterfall", lambda config: env_creator(config))
+register_env(scenario_name, lambda config: env_creator(config))
 
 
 class EvaluationCallbacks(DefaultCallbacks):
@@ -50,7 +62,6 @@ class EvaluationCallbacks(DefaultCallbacks):
         **kwargs,
     ):
         info = episode.last_info_for()
-
         for a_key in info.keys():
             for b_key in info[a_key]:
                 try:
@@ -106,18 +117,8 @@ class RenderingCallbacks(DefaultCallbacks):
 
 def train():
 
-    scenario_name = "waterfall"
-
-    continuous_actions = False
-    max_steps = 100
-    num_vectorized_envs = 32
-    num_workers = 5
-    maps_device = "cpu"
-    n_agents = 4
-    energy_coeff = 0
-
     RLLIB_NUM_GPUS = int(os.environ.get("RLLIB_NUM_GPUS", "0"))
-    num_gpus = 1e-3  # Driver GPU
+    num_gpus = 0.001 if RLLIB_NUM_GPUS > 0 else 0  # Driver GPU
     num_gpus_per_worker = (
         (RLLIB_NUM_GPUS - num_gpus) / (num_workers + 1) if maps_device == "cuda" else 0
     )
@@ -146,9 +147,9 @@ def train():
             "vf_loss_coeff": 1,
             "vf_clip_param": float("inf"),
             "entropy_coeff": 0,
-            "train_batch_size": 20000,
+            "train_batch_size": 60000,
             "rollout_fragment_length": 125,
-            "sgd_minibatch_size": 2000,
+            "sgd_minibatch_size": 4000,
             "num_sgd_iter": 32,
             "num_gpus": num_gpus,
             "num_workers": num_workers,
@@ -165,20 +166,19 @@ def train():
                 "scenario_name": scenario_name,
                 "continuous_actions": continuous_actions,
                 "max_steps": max_steps,
+                # Scenario specific variables
                 "n_agents": n_agents,
-                # "energy_coeff": energy_coeff,
             },
             "evaluation_interval": 2,
             "evaluation_duration": 1,
-            "evaluation_num_workers": 1,
-            "evaluation_parallel_to_training": True,
+            "evaluation_num_workers": 0,
+            "evaluation_parallel_to_training": False,
             "evaluation_config": {
                 "num_envs_per_worker": 1,
-                "callbacks": MultiCallbacks(
-                    [
-                        RenderingCallbacks,
-                    ]
-                ),
+                "env_config": {
+                    "num_envs": 1,
+                },
+                "callbacks": MultiCallbacks([RenderingCallbacks, EvaluationCallbacks]),
             },
             "callbacks": EvaluationCallbacks,
         },

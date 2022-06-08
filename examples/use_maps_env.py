@@ -10,17 +10,20 @@ from PIL import Image
 from maps import make_env
 
 if __name__ == "__main__":
-    scenario_name = "dropout"
-    num_envs = 1
-    continuous_actions = True
-    device = "cpu"
-    wrapped = True
-    n_steps = 100
+
+    scenario_name = "waterfall"
+
+    # Scenario specific variables
     n_agents = 4
-    energy_coeff = 0
+
+    num_envs = 32
+    continuous_actions = False
+    device = "cpu"  # or cuda or any other torch device
+    wrapped = False
+    n_steps = 100
 
     simple_2d_action = (
-        [0, 0.5] if continuous_actions else [0]
+        [0, 0.5] if continuous_actions else [3]
     )  # Sample action tell each agent to go down
 
     env = make_env(
@@ -29,11 +32,9 @@ if __name__ == "__main__":
         device=device,
         continuous_actions=continuous_actions,
         rllib_wrapped=wrapped,
+        # Environment specific variables
         n_agents=n_agents,
-        energy_coeff=energy_coeff,
     )
-
-    # _display = create_fake_screen()
 
     frame_list = []  # For creating a gif
     init_time = time.time()
@@ -51,12 +52,13 @@ if __name__ == "__main__":
             obs, rews, dones, info = env.vector_step(actions)
             frame_list.append(
                 Image.fromarray(
-                    env.try_render_at(mode="rgb_array", agent_index_focus=None)
+                    env.try_render_at(
+                        mode="rgb_array",
+                        agent_index_focus=None,
+                        visualize_when_rgb=True,
+                    )  # Can give the camera an agent index to focus onß
                 )
             )
-
-            # Can give the camera an agent index to focus on
-
         else:  # Same as before, with faster MAPS interface
             for i in range(n_agents):
                 actions.append(
@@ -67,7 +69,13 @@ if __name__ == "__main__":
                 )
             obs, rews, dones, info = env.step(actions)
             frame_list.append(
-                Image.fromarray(env.render(mode="rgb_array", agent_index_focus=None))
+                Image.fromarray(
+                    env.render(
+                        mode="rgb_array",
+                        agent_index_focus=None,
+                        visualize_when_rgb=True,
+                    )
+                )
             )  # Can give the camera an agent index to focus on
 
     gif_name = scenario_name + ".gif"
@@ -80,10 +88,11 @@ if __name__ == "__main__":
         duration=3,
         loop=0,
     )
-    # Requires software to bi installed to convert the gif in faster format
+    # Requires image magik to be installed to convert the gif in faster format
     os.system(f"convert -delay 1x30 -loop 0 {gif_name} {scenario_name}_fast.gif")
 
     total_time = time.time() - init_time
     print(
-        f"It took: {total_time}s for {n_steps} steps of {num_envs} parallel environments on device {device} for {'wrapped' if wrapped else 'unwrapped'} simulator"
+        f"It took: {total_time}s for {n_steps} steps of {num_envs} parallel environments on device {device}"
+        f" for {'wrapped' if wrapped else 'unwrapped'} simulator"
     )

@@ -4,5 +4,3 @@ pyglet~=1.5.26
 gym==0.22.0
 six~=1.16.0
 ray[rllib]~=1.12
-pyvirtualdisplay~=3.0
-
