@@ -6,9 +6,8 @@ from __future__ import annotations
 from typing import Callable, Union, List
 
 import torch
-from torch import Tensor
-
 from maps.simulator.utils import Color, SensorType, X, Y, override
+from torch import Tensor
 
 
 class TorchVectorizedObject(object):
@@ -254,6 +253,7 @@ class Entity(TorchVectorizedObject):
         self._state = EntityState()
         # entity goal
         self._goal = None
+        self._render = None
 
     @TorchVectorizedObject.batch_dim.setter
     def batch_dim(self, batch_dim: int):
@@ -264,6 +264,15 @@ class Entity(TorchVectorizedObject):
     def device(self, device: torch.device):
         TorchVectorizedObject.device.fset(self, device)
         self._state.device = device
+
+    @property
+    def render(self):
+        if self._render is None:
+            self.reset_render()
+        return self._render
+
+    def reset_render(self):
+        self._render = torch.full((self.batch_dim,), True, device=self.device)
 
     @property
     def mass(self):

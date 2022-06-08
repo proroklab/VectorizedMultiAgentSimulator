@@ -6,13 +6,14 @@ import gym
 import numpy as np
 import torch
 from gym import spaces
-from maps.simulator import core
-from maps.simulator.core import TorchVectorizedObject, Line, Box, Agent
-from maps.simulator.scenario import BaseScenario
-from maps.simulator.utils import X, Y
 from ray import rllib
 from ray.rllib.utils.typing import EnvActionType, EnvObsType, EnvInfoDict
 from torch import Tensor
+
+from maps.simulator import core
+from maps.simulator.core import TorchVectorizedObject, Line, Box, Agent
+from maps.simulator.scenario import BaseScenario
+from maps.simulator.utils import X, Y, Color
 
 
 # environment for all agents in the multiagent world
@@ -42,6 +43,8 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         self.n_agents = len(self.agents)
         self.max_steps = max_steps
         self.continuous_actions = continuous_actions
+
+        self.reset()
 
         # configure spaces
         self.action_space = gym.spaces.Tuple(
@@ -84,8 +87,6 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
                 for agent in self.agents
             )
         )
-
-        self.reset()
 
         # rendering
         self.render_geoms_xform = None
@@ -166,8 +167,8 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         rews = []
         infos = []
         for agent in self.agents:
-            obs.append(self.scenario.observation(agent))
             rews.append(self.scenario.reward(agent))
+            obs.append(self.scenario.observation(agent))
             # A dictionary per agent
             infos.append(self.scenario.info(agent))
 
@@ -269,7 +270,13 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
                 ), f"Comm actions are out of range [0,1]"
                 agent.action.c = comm_action
 
-    def render(self, mode="human", index=0, agent_index_focus: int = None):
+    def render(
+        self,
+        mode="human",
+        index=0,
+        agent_index_focus: int = None,
+        visualize_when_rgb: bool = False,
+    ):
         """
         Render function for environment using pyglet
 
@@ -283,6 +290,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         :param index: Index of the environment to render
         :param agent_index_focus: If specified the camera will stay on the agent with this index.
                                   If None, the camera will stay in the center and zoom out to contain all agents
+        :param visualize_when_rgb: Also run human visualization when mode=="rgb_array"
         :return: Rgb array or None, depending on the mode
         """
         self._check_batch_index(index)
@@ -297,7 +305,9 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         if self.viewer is None:
             from maps.simulator import rendering
 
-            self.viewer = rendering.Viewer(700, 700)
+            self.viewer = rendering.Viewer(
+                700, 700, visible=not headless or visualize_when_rgb
+            )
 
         # create rendering geometry
         if self.render_geoms is None:
@@ -306,7 +316,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
 
             self.render_geoms = []
             self.render_geoms_xform = []
-            for entity in self.world.entities:
+            for entity_index, entity in enumerate(self.world.entities):
                 if isinstance(entity.shape, core.Sphere):
                     geom = rendering.make_circle(entity.shape.radius)
                 elif isinstance(entity.shape, Line):
@@ -328,16 +338,10 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
                         False
                     ), f"Entity shape not supported in rendering for {entity.name}"
                 xform = rendering.Transform()
-                color = entity.color
-                if isinstance(color, torch.Tensor) and len(color.shape) > 1:
-                    color = color[index]
-                if isinstance(entity, Agent):
-                    geom.set_color(*color, alpha=0.5)
-                else:
-                    geom.set_color(*color)
                 geom.add_attr(xform)
                 self.render_geoms.append(geom)
                 self.render_geoms_xform.append(xform)
+                self._set_entity_render_color(entity_index, index)
 
             # add geoms to viewer
             self.viewer.geoms = []
@@ -393,10 +397,24 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
             )
         # update geometry positions
         for e, entity in enumerate(self.world.entities):
+            self._set_entity_render_color(e, index)
             self.render_geoms_xform[e].set_translation(*entity.state.pos[index])
             self.render_geoms_xform[e].set_rotation(entity.state.rot[index])
         # render to display or array
         return self.viewer.render(return_rgb_array=mode == "rgb_array")
+
+    def _set_entity_render_color(self, entity_index: int, env_index: int):
+        entity = self.world.entities[entity_index]
+        if not entity.render[env_index]:
+            self.render_geoms[entity_index].set_color(*Color.WHITE.value, alpha=0)
+        else:
+            color = entity.color
+            if isinstance(color, torch.Tensor) and len(color.shape) > 1:
+                color = color[env_index]
+            if isinstance(entity, Agent):
+                self.render_geoms[entity_index].set_color(*color, alpha=0.5)
+            else:
+                self.render_geoms[entity_index].set_color(*color)
 
 
 class VectorEnvWrapper(rllib.VectorEnv):
@@ -448,7 +466,7 @@ class VectorEnvWrapper(rllib.VectorEnv):
                     {agent.name: {k: v[j].tolist() for k, v in infos[i].items()}}
                 )
             total_infos.append(env_infos)
-            total_rews.append(total_env_rew)
+            total_rews.append(total_env_rew / self._env.n_agents)  # Average reward
 
         # print("\nStep results in wrapped environment")
         # print(
@@ -474,6 +492,7 @@ class VectorEnvWrapper(rllib.VectorEnv):
         index: Optional[int] = None,
         mode="human",
         agent_index_focus: Optional[int] = None,
+        visualize_when_rgb: bool = False,
     ) -> Optional[np.ndarray]:
         """
         Render function for environment using pyglet
@@ -488,12 +507,16 @@ class VectorEnvWrapper(rllib.VectorEnv):
         :param index: Index of the environment to render
         :param agent_index_focus: If specified the camera will stay on the agent with this index.
                                   If None, the camera will stay in the center and zoom out to contain all agents
+        :param visualize_when_rgb: Also run human visualization when mode=="rgb_array"
         :return: Rgb array or None, depending on the mode
         """
         if index is None:
             index = 0
         return self._env.render(
-            mode=mode, index=index, agent_index_focus=agent_index_focus
+            mode=mode,
+            index=index,
+            agent_index_focus=agent_index_focus,
+            visualize_when_rgb=visualize_when_rgb,
         )
 
     def _list_to_tensor(self, list_in: List) -> List:
