@@ -22,13 +22,13 @@ class Scenario(BaseScenario):
         # Add agents
         for i in range(n_agents):
             # Constraint: all agents have same action range and multiplier
-            agent = Agent(name=f"agent {i}")
+            agent = Agent(name=f"agent {i}", collide=False)
             world.add_agent(agent)
         # Add landmarks
         goal = Landmark(
             name=f"goal",
             collide=False,
-            shape=Sphere(radius=0.05),
+            shape=Sphere(radius=0.03),
             color=Color.GREEN,
         )
         world.add_landmark(goal)
@@ -40,7 +40,11 @@ class Scenario(BaseScenario):
             agent.set_pos(
                 2
                 * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float32
+                    self.world.dim_p
+                    if env_index is not None
+                    else (self.world.batch_dim, self.world.dim_p),
+                    device=self.world.device,
+                    dtype=torch.float32,
                 )
                 - 1,
                 batch_index=env_index,
@@ -49,11 +53,23 @@ class Scenario(BaseScenario):
             landmark.set_pos(
                 2
                 * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float32
+                    self.world.dim_p
+                    if env_index is not None
+                    else (self.world.batch_dim, self.world.dim_p),
+                    device=self.world.device,
+                    dtype=torch.float32,
                 )
                 - 1,
                 batch_index=env_index,
             )
+            if env_index is None:
+                landmark.eaten = torch.full(
+                    (self.world.batch_dim,), False, device=self.world.device
+                )
+                landmark.reset_render()
+            else:
+                landmark.eaten[env_index] = False
+                landmark.render[env_index] = True
 
     def reward(self, agent: Agent):
         # pos_rew = -torch.min(
@@ -76,7 +92,7 @@ class Scenario(BaseScenario):
         # )
         #
         # assert torch.all(self.pos_rew <= 0) and torch.all(self.pos_rew >= -1)
-        self._done = torch.any(
+        self.any_eaten = torch.any(
             torch.stack(
                 [
                     torch.sqrt(
@@ -84,7 +100,7 @@ class Scenario(BaseScenario):
                         .square()
                         .sum(-1)
                     )
-                    < self.world.landmarks[0].shape.radius
+                    < a.shape.radius + self.world.landmarks[0].shape.radius
                     for a in self.world.agents
                 ],
                 dim=1,
@@ -93,7 +109,12 @@ class Scenario(BaseScenario):
         )
 
         self.pos_rew = torch.zeros(self.world.batch_dim, device=self.world.device)
-        self.pos_rew[self._done] = 1
+        self.pos_rew[self.any_eaten * ~self.world.landmarks[-1].eaten] = 1
+
+        is_last = agent == self.world.agents[-1]
+        if is_last:
+            self.world.landmarks[-1].eaten[self.any_eaten] = True
+            self.world.landmarks[-1].render[self.any_eaten] = False
 
         # Assumption: all agents have same action range and multiplier
         self.energy_rew = (
@@ -108,10 +129,10 @@ class Scenario(BaseScenario):
             ).sum(-1)
             # / len(self.world.agents)
         )
-        if self.energy_coeff != 0:
-            assert torch.all((self.energy_rew / self.energy_coeff) <= 0) and torch.all(
-                (self.energy_rew / self.energy_coeff) >= -1
-            )
+        # if self.energy_coeff != 0:
+        #     assert torch.all((self.energy_rew / self.energy_coeff <= 0) and torch.all(
+        #         (self.energy_rew / self.energy_coeff) >= -1
+        #     )
 
         rew = self.pos_rew + self.energy_rew
 
@@ -134,5 +155,5 @@ class Scenario(BaseScenario):
             info = {}
         return info
 
-    def done(self):
-        return self._done
+    # def done(self):
+    #     return self._done
