@@ -4,10 +4,11 @@ import math
 from typing import Dict
 
 import torch
+from torch import Tensor
+
 from maps.simulator.core import Agent, World, Landmark, Sphere
 from maps.simulator.scenario import BaseScenario
 from maps.simulator.utils import Color
-from torch import Tensor
 
 
 class Scenario(BaseScenario):
@@ -37,6 +38,7 @@ class Scenario(BaseScenario):
 
     def reset_world_at(self, env_index: int = None):
         for agent in self.world.agents:
+            # Random pos between -1 and 1
             agent.set_pos(
                 2
                 * torch.rand(
