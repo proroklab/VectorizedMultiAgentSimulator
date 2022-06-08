@@ -69,6 +69,7 @@ class Scenario(BaseScenario):
                 landmark.reset_render()
             else:
                 landmark.eaten[env_index] = False
+                landmark.just_eaten[env_index] = False
                 landmark.render[env_index] = True
 
     def reward(self, agent: Agent):
