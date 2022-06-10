@@ -3,7 +3,7 @@
 
 import torch
 
-from maps.simulator.core import World, Agent, Landmark, Sphere
+from maps.simulator.core import Agent, Landmark, Sphere, World
 from maps.simulator.scenario import BaseScenario
 from maps.simulator.utils import Color
 
@@ -71,18 +71,18 @@ class Scenario(BaseScenario):
             self.world.batch_dim, device=self.world.device, dtype=torch.float32
         )
         self._done = torch.full(self.world.batch_dim, True, device=self.world.device)
-        for l in self.world.landmarks:
+        for landmark in self.world.landmarks:
             closest = torch.min(
                 torch.stack(
                     [
-                        (a.state.pos - l.state.pos).square().sum(-1).sqrt()
+                        (a.state.pos - landmark.state.pos).square().sum(-1).sqrt()
                         for a in self.world.agents
                     ],
                     dim=1,
                 ),
                 dim=-1,
             )[0]
-            goal_reached = closest < l.shape.radius
+            goal_reached = closest < landmark.shape.radius
             self._done *= goal_reached
             rew -= closest
 

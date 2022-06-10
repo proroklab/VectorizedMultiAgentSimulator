@@ -3,11 +3,12 @@
 
 from __future__ import annotations
 
-from typing import Callable, Union, List
+from typing import Callable, List, Union
 
 import torch
-from maps.simulator.utils import Color, SensorType, X, Y, override
 from torch import Tensor
+
+from maps.simulator.utils import Color, SensorType, X, Y, override
 
 
 class TorchVectorizedObject(object):
@@ -109,7 +110,7 @@ class EntityState(TorchVectorizedObject):
     def pos(self, pos: Tensor):
         assert (
             self._batch_dim is not None and self._device is not None
-        ), f"First add an entity to the world before setting its state"
+        ), "First add an entity to the world before setting its state"
         assert (
             pos.shape[0] == self._batch_dim
         ), f"Internal state must match batch dim, got {pos.shape[0]}, expected {self._batch_dim}"
@@ -128,7 +129,7 @@ class EntityState(TorchVectorizedObject):
     def vel(self, vel: Tensor):
         assert (
             self._batch_dim is not None and self._device is not None
-        ), f"First add an entity to the world before setting its state"
+        ), "First add an entity to the world before setting its state"
         assert (
             vel.shape[0] == self._batch_dim
         ), f"Internal state must match batch dim, got {vel.shape[0]}, expected {self._batch_dim}"
@@ -147,7 +148,7 @@ class EntityState(TorchVectorizedObject):
     def rot(self, rot: Tensor):
         assert (
             self._batch_dim is not None and self._device is not None
-        ), f"First add an entity to the world before setting its state"
+        ), "First add an entity to the world before setting its state"
         assert (
             rot.shape[0] == self._batch_dim
         ), f"Internal state must match batch dim, got {rot.shape[0]}, expected {self._batch_dim}"
@@ -171,7 +172,7 @@ class AgentState(EntityState):
     def c(self, c: Tensor):
         assert (
             self._batch_dim is not None and self._device is not None
-        ), f"First add an entity to the world before setting its state"
+        ), "First add an entity to the world before setting its state"
         assert (
             c.shape[0] == self._batch_dim
         ), f"Internal state must match batch dim, got {c.shape[0]}, expected {self._batch_dim}"
@@ -196,7 +197,7 @@ class Action(TorchVectorizedObject):
     def u(self, u: Tensor):
         assert (
             self._batch_dim is not None and self._device is not None
-        ), f"First add an agent to the world before setting its action"
+        ), "First add an agent to the world before setting its action"
         assert (
             u.shape[0] == self._batch_dim
         ), f"Action must match batch dim, got {u.shape[0]}, expected {self._batch_dim}"
@@ -211,7 +212,7 @@ class Action(TorchVectorizedObject):
     def c(self, c: Tensor):
         assert (
             self._batch_dim is not None and self._device is not None
-        ), f"First add an agent to the world before setting its action"
+        ), "First add an agent to the world before setting its action"
         assert (
             c.shape[0] == self._batch_dim
         ), f"Action must match batch dim, got {c.shape[0]}, expected {self._batch_dim}"

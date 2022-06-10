@@ -1,19 +1,19 @@
 #  Copyright (c) 2022. Matteo Bettini
 #  All rights reserved.
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
 
 import gym
 import numpy as np
 import torch
 from gym import spaces
 from ray import rllib
-from ray.rllib.utils.typing import EnvActionType, EnvObsType, EnvInfoDict
+from ray.rllib.utils.typing import EnvActionType, EnvInfoDict, EnvObsType
 from torch import Tensor
 
 from maps.simulator import core
-from maps.simulator.core import TorchVectorizedObject, Line, Box, Agent
+from maps.simulator.core import Agent, Box, Line, TorchVectorizedObject
 from maps.simulator.scenario import BaseScenario
-from maps.simulator.utils import X, Y, Color
+from maps.simulator.utils import Color, X, Y
 
 
 # environment for all agents in the multiagent world
@@ -134,12 +134,15 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
     def step(self, actions: List):
         """Performs a vectorized step on all sub environments using `actions`.
         Args:
-            actions: Is a list on len 'self.n_agents' of which each element is a torch.Tensor of shape '(self.num_envs, action_size_of_agent)'.
+            actions: Is a list on len 'self.n_agents' of which each element is a torch.Tensor of shape
+            '(self.num_envs, action_size_of_agent)'.
         Returns:
-            obs: List on len 'self.n_agents' of which each element is a torch.Tensor of shape '(self.num_envs, obs_size_of_agent)'
+            obs: List on len 'self.n_agents' of which each element is a torch.Tensor
+                 of shape '(self.num_envs, obs_size_of_agent)'
             rewards: List on len 'self.n_agents' of which each element is a torch.Tensor of shape '(self.num_envs)'
             dones: Tensor of len 'self.num_envs' of which each element is a bool
-            infos : List on len 'self.n_agents' of which each element is a dictionary for which each key is a metric and the value is a tensor of shape '(self.num_envs, metric_size_per_agent)'
+            infos : List on len 'self.n_agents' of which each element is a dictionary for which each key is a metric
+                    and the value is a tensor of shape '(self.num_envs, metric_size_per_agent)'
         """
         assert (
             len(actions) == self.n_agents
@@ -180,13 +183,17 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
 
         # print("\nStep results in unwrapped environment")
         # print(
-        #     f"Actions len (n_agents): {len(actions)}, actions[0] shape (num_envs, agent 0 action shape): {actions[0].shape}, actions[0][0] (action agent 0 env 0): {actions[0][0]}"
+        #     f"Actions len (n_agents): {len(actions)}, "
+        #     f"actions[0] shape (num_envs, agent 0 action shape): {actions[0].shape}, "
+        #     f"actions[0][0] (action agent 0 env 0): {actions[0][0]}"
         # )
         # print(
-        #     f"Obs len (n_agents): {len(obs)}, obs[0] shape (num_envs, agent 0 obs shape): {obs[0].shape}, obs[0][0] (obs agent 0 env 0): {obs[0][0]}"
+        #     f"Obs len (n_agents): {len(obs)}, "
+        #     f"obs[0] shape (num_envs, agent 0 obs shape): {obs[0].shape}, obs[0][0] (obs agent 0 env 0): {obs[0][0]}"
         # )
         # print(
-        #     f"Rews len (n_agents): {len(rews)}, rews[0] shape (num_envs, 1): {rews[0].shape}, rews[0][0] (agent 0 env 0): {rews[0][0]}"
+        #     f"Rews len (n_agents): {len(rews)}, rews[0] shape (num_envs, 1): {rews[0].shape}, "
+        #     f"rews[0][0] (agent 0 env 0): {rews[0][0]}"
         # )
         # print(f"Dones len (n_envs): {len(dones)}, dones[0] (done env 0): {dones[0]}")
         # print(f"Info len (n_agents): {len(infos)}, info[0] (infos agent 0): {infos[0]}")
@@ -267,7 +274,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
                 comm_action = action[:, self.world.dim_p :]
                 assert not torch.any(comm_action > 1) and not torch.any(
                     0 > comm_action
-                ), f"Comm actions are out of range [0,1]"
+                ), "Comm actions are out of range [0,1]"
                 agent.action.c = comm_action
 
     def render(
@@ -445,7 +452,7 @@ class VectorEnvWrapper(rllib.VectorEnv):
     def vector_step(
         self, actions: List[EnvActionType]
     ) -> Tuple[List[EnvObsType], List[float], List[bool], List[EnvInfoDict]]:
-        saved_actions = actions
+        # saved_actions = actions
         actions = self._list_to_tensor(actions)
         obs, rews, dones, infos = self._env.step(actions)
 
@@ -470,10 +477,12 @@ class VectorEnvWrapper(rllib.VectorEnv):
 
         # print("\nStep results in wrapped environment")
         # print(
-        #     f"Actions len (num_envs): {len(saved_actions)}, len actions[0] (n_agents): {len(saved_actions[0])}, actions[0][0] (action agent 0 env 0): {saved_actions[0][0]}"
+        #     f"Actions len (num_envs): {len(saved_actions)}, len actions[0] (n_agents): {len(saved_actions[0])},"
+        #     f" actions[0][0] (action agent 0 env 0): {saved_actions[0][0]}"
         # )
         # print(
-        #     f"Obs len (num_envs): {len(obs_list)}, len obs[0] (n_agents): {len(obs_list[0])}, obs[0][0] (obs agent 0 env 0): {obs_list[0][0]}"
+        #     f"Obs len (num_envs): {len(obs_list)}, len obs[0] (n_agents): {len(obs_list[0])},"
+        #     f" obs[0][0] (obs agent 0 env 0): {obs_list[0][0]}"
         # )
         # print(
         #     f"Total rews len (num_envs): {len(total_rews)}, total_rews[0] (total rew env 0): {total_rews[0]}"
@@ -553,7 +562,7 @@ class VectorEnvWrapper(rllib.VectorEnv):
                     actions[i][j] = act
             return actions
         else:
-            assert False, f"Input action is not in correct format"
+            assert False, "Input action is not in correct format"
 
     def _tensor_to_list(self, list_in: List, num_envs: int) -> List:
         assert (

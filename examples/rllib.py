@@ -6,8 +6,9 @@ from typing import Dict, Optional
 
 import numpy as np
 import ray
+import wandb
 from ray import tune
-from ray.rllib import RolloutWorker, BaseEnv, Policy
+from ray.rllib import BaseEnv, Policy, RolloutWorker
 from ray.rllib.agents import DefaultCallbacks, MultiCallbacks
 from ray.rllib.agents.ppo import PPOTrainer
 from ray.rllib.evaluation import Episode, MultiAgentEpisode
@@ -15,7 +16,6 @@ from ray.rllib.utils.typing import PolicyID
 from ray.tune import register_env
 from ray.tune.integration.wandb import WandbLoggerCallback
 
-import wandb
 from maps import make_env
 
 scenario_name = "waterfall"
@@ -132,7 +132,7 @@ def train():
         checkpoint_score_attr="episode_reward_mean",
         callbacks=[
             WandbLoggerCallback(
-                project=f"dropout",
+                project=f"{scenario_name}",
                 api_key="",
             )
         ],

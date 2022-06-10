@@ -6,7 +6,7 @@ from typing import Dict
 import torch
 from torch import Tensor
 
-from maps.simulator.core import Agent, World, Landmark, Sphere
+from maps.simulator.core import Agent, Landmark, Sphere, World
 from maps.simulator.scenario import BaseScenario
 from maps.simulator.utils import Color
 
@@ -27,7 +27,7 @@ class Scenario(BaseScenario):
             world.add_agent(agent)
         # Add landmarks
         goal = Landmark(
-            name=f"goal",
+            name="goal",
             collide=False,
             shape=Sphere(radius=0.03),
             color=Color.GREEN,

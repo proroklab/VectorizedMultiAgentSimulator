@@ -1,6 +1,6 @@
-numpy~=1.22.4
+numpy
 torch~=1.11.0
 pyglet~=1.5.26
-gym==0.22.0
+gym
 six~=1.16.0
 ray[rllib]~=1.12

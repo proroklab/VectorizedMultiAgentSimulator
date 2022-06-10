@@ -51,6 +51,8 @@ cmake-build-*/
 
 wandb
 
+junit
+
 # IntelliJ
 out/
 
