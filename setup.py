@@ -1,3 +1,6 @@
+#  Copyright (c) 2022. Matteo Bettini
+#  All rights reserved.
+
 from setuptools import setup, find_packages
 
 setup(
@@ -8,6 +11,7 @@ setup(
     author="Matteo Bettini",
     author_email="mb2389@cl.cam.ac.uk",
     packages=find_packages(),
+    install_requires=["torch", "numpy", "pyglet", "gym", "six"],
     include_package_data=True,
     zip_safe=False,
 )

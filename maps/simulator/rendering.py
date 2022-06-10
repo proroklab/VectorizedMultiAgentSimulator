@@ -26,6 +26,20 @@ if platform.system() == "Darwin":
 
 try:
     from pyglet.gl import (
+        GL_BLEND,
+        GL_LINE_LOOP,
+        GL_LINE_SMOOTH,
+        GL_LINE_SMOOTH_HINT,
+        GL_LINE_STIPPLE,
+        GL_LINE_STRIP,
+        GL_LINES,
+        GL_NICEST,
+        GL_ONE_MINUS_SRC_ALPHA,
+        GL_POINTS,
+        GL_POLYGON,
+        GL_QUADS,
+        GL_SRC_ALPHA,
+        GL_TRIANGLES,
         glBegin,
         glBlendFunc,
         glClearColor,
@@ -44,24 +58,13 @@ try:
         gluOrtho2D,
         glVertex2f,
         glVertex3f,
-        GL_BLEND,
-        GL_LINE_LOOP,
-        GL_LINE_SMOOTH,
-        GL_LINE_SMOOTH_HINT,
-        GL_LINE_STIPPLE,
-        GL_LINE_STRIP,
-        GL_LINES,
-        GL_NICEST,
-        GL_ONE_MINUS_SRC_ALPHA,
-        GL_POINTS,
-        GL_POLYGON,
-        GL_QUADS,
-        GL_SRC_ALPHA,
-        GL_TRIANGLES,
     )
-except ImportError as e:
+except ImportError:
     raise ImportError(
-        "Error occured while running `from pyglet.gl import *`, HINT: make sure you have OpenGL installed. On Ubuntu, you can run 'apt-get install python-opengl'. If you're running on a server, you may need a virtual frame buffer; something like this should work: 'xvfb-run -s \"-screen 0 1400x900x24\" python <your_script.py>'"
+        "Error occured while running `from pyglet.gl import *`, HINT: make sure you have OpenGL installed. "
+        "On Ubuntu, you can run 'apt-get install python-opengl'. If you're running on a server, you may need a "
+        "virtual frame buffer; something like this should work:"
+        "'xvfb-run -s \"-screen 0 1400x900x24\" python <your_script.py>'"
     )
 
 

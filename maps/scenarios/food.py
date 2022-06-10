@@ -3,7 +3,7 @@
 
 import torch
 
-from maps.simulator.core import Agent, World, Landmark, Sphere
+from maps.simulator.core import Agent, Landmark, Sphere, World
 from maps.simulator.scenario import BaseScenario
 from maps.simulator.utils import Color
 
@@ -130,7 +130,7 @@ class Scenario(BaseScenario):
     def done(self):
         return torch.all(
             torch.stack(
-                [l.eaten for l in self.world.landmarks],
+                [landmark.eaten for landmark in self.world.landmarks],
                 dim=1,
             ),
             dim=-1,

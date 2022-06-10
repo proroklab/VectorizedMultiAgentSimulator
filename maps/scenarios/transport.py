@@ -1,6 +1,9 @@
+#  Copyright (c) 2022. Matteo Bettini
+#  All rights reserved.
+
 import torch
 
-from maps.simulator.core import Agent, World, Landmark, Sphere, Box
+from maps.simulator.core import Agent, Box, Landmark, Sphere, World
 from maps.simulator.scenario import BaseScenario
 from maps.simulator.utils import Color
 
@@ -17,14 +20,14 @@ class Scenario(BaseScenario):
             world.add_agent(agent)
         # Add landmarks
         goal = Landmark(
-            name=f"goal",
+            name="goal",
             collide=False,
             shape=Sphere(radius=0.03),
             color=Color.GREEN,
         )
         world.add_landmark(goal)
         package = Landmark(
-            name=f"package",
+            name="package",
             collide=True,
             movable=True,
             shape=Box(length=0.3, width=0.3),
