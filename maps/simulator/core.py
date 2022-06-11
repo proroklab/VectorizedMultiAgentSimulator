@@ -587,7 +587,7 @@ class World(TorchVectorizedObject):
 
     # return all agents controllable by external policies
     @property
-    def policy_agents(self):
+    def policy_agents(self) -> List[Agent]:
         return [agent for agent in self._agents if agent.action_callback is None]
 
     # return all agents controlled by world scripts
