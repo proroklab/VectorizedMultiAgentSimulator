@@ -321,7 +321,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
             )
         # First time rendering
         if self.render_geoms is None:
-            self._create_rendering_objects(env_index)
+            self._create_rendering_objects()
 
         if self.world.dim_c > 0:
             idx = 0
@@ -369,7 +369,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         # render to display or array
         return self.viewer.render(return_rgb_array=mode == "rgb_array")
 
-    def _create_rendering_objects(self, env_index: int):
+    def _create_rendering_objects(self):
         # import rendering only if we need it (and don't import for headless machines)
         from maps.simulator import rendering
 
@@ -604,17 +604,16 @@ class GymWrapper(gym.Env):
         self.observation_space = self._env.observation_space
         self.action_space = self._env.action_space
 
-    @property
-    def env(self):
+    def unwrapped(self) -> Environment:
         return self._env
 
     def step(self, action):
         action = self._action_list_to_tensor(action)
         obs, rews, done, info = self._env.step(action)
+        done = done[0].item()
         for i in range(self._env.n_agents):
             obs[i] = obs[i][0]
             rews[i] = rews[i][0].item()
-            done = done[0].item()
         return obs, rews, done, info
 
     def reset(

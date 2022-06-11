@@ -333,7 +333,7 @@ class TextLine:
         if self.label is not None:
             self.label.draw()
 
-    def set_text(self, text):
+    def set_text(self, text, font_size: int = 20):
         if pyglet.font.have_font("Courier"):
             font = "Courier"
         elif pyglet.font.have_font("Secret Code"):
@@ -345,7 +345,7 @@ class TextLine:
             text,
             font_name=font,
             color=(0, 0, 0, 255),
-            font_size=20,
+            font_size=font_size,
             x=0,
             y=self.idx * 40 + 20,
             anchor_x="left",
