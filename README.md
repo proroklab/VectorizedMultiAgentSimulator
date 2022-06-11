@@ -73,6 +73,19 @@ You will need to implement at least `make_world`, `reset_world_at`, `observation
 
 To know how, just read the documentation of `BaseScenario` and look at the implemented scenarios. 
 
+## Play a scenario
+
+You can play with a scenario interactively!
+
+Just use the `render_interactively` script. Relevant values will be plotted to screen.
+Move the agent with the arrow keys and switch agents with TAB!
+
+Here is an overview of what it looks like:
+
+<p align="center">
+<img src="media/interactive.png"  alt="drawing" width="500"/>
+</p>
+
 ## Rendering
 
 To render the environment, just call the `render` or the `try_render_at` functions (depending on environment wrapping).
@@ -94,7 +107,8 @@ env.render(
 
 ### Rendering on server machines
 To render in machines without a display use `mode=rgb_array`. Make sure you have OpenGL and Pyglet installed.
-To enable rendering on headless machines you need to create a fake screen. You can do this by running these commands before the script: 
+To enable rendering on headless machines you should install EGL.
+If you do not have EGL, you need to create a fake screen. You can do this by running these commands before the script: 
 ```
 export DISPLAY=':99.0'
 Xvfb :99 -screen 0 1400x900x24 > /dev/null 2>&1 &
@@ -103,14 +117,14 @@ or in this way:
 ```
 xvfb-run -s \"-screen 0 1400x900x24\" python <your_script.py>
 ```
-For all options you need to have Xvfb installed.
+To create a fake screen you need to have `Xvfb` installed.
 
 ## List of environments
 ### MAPS
-| Env name       | Description                                                                                                                                                                                                                                                                                          |
-|----------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `waterfall.py` | Debug environment. N agents are spawned in the top of the environment. Each agent is rewarded based on how close it is to the black line at the bottom. Agents have to reach the line and in doing so they might collide with boxes in the environment. This environment is used just for debugging. |
-|                |                                                                                                                                                                                                                                                                                                      |
+| Env name       | Description                                                                                                                                                                                                                                                                           |
+|----------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `waterfall.py` | Debug environment. N agents are spawned in the top of the environment. Each agent is rewarded based on how close it is to the center of black line at the bottom. Agents have to reach the line and in doing so they might collide with each other and with boxes in the environment. |
+|                |                                                                                                                                                                                                                                                                                       |
 
 ### [MPE](https://github.com/openai/multiagent-particle-envs)
 
