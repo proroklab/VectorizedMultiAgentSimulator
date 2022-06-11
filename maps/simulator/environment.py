@@ -1,19 +1,21 @@
 #  Copyright (c) 2022. Matteo Bettini
 #  All rights reserved.
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import gym
 import numpy as np
 import torch
 from gym import spaces
+from gym.core import ObsType, ActType
 from ray import rllib
 from ray.rllib.utils.typing import EnvActionType, EnvInfoDict, EnvObsType
 from torch import Tensor
 
 from maps.simulator import core
 from maps.simulator.core import Agent, Box, Line, TorchVectorizedObject
+from maps.simulator.rendering import VIEWER_MIN_SIZE
 from maps.simulator.scenario import BaseScenario
-from maps.simulator.utils import Color, X, Y
+from maps.simulator.utils import Color, X, Y, ALPHABET
 
 
 # environment for all agents in the multiagent world
@@ -92,7 +94,6 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         self.render_geoms_xform = None
         self.render_geoms = None
         self.viewer = None
-        self.fake_screen = None
 
     def reset(self, seed: int = None):
         """
@@ -103,7 +104,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         if seed is not None:
             self.seed(seed)
         # reset world
-        self.scenario.reset_world()
+        self.scenario.reset_world_at(env_index=None)
         self.steps = torch.zeros(self.num_envs, device=self.device)
         # record observations for each agent
         obs = []
@@ -148,6 +149,10 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
             len(actions) == self.n_agents
         ), f"Expecting actions for {self.n_agents}, got {len(actions)} actions"
         for i in range(len(actions)):
+            if not isinstance(actions[i], Tensor):
+                actions[i] = torch.tensor(
+                    actions[i], dtype=torch.float32, device=self.device
+                )
             assert (
                 actions[i].shape[0] == self.num_envs
             ), f"Actions used in input of env must be of len {self.num_envs}, got {actions[i].shape[0]}"
@@ -155,22 +160,18 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
                 f"Action for agent {self.agents[i].name} has shape {actions[i].shape[1]},"
                 f" but should have shape {self.get_agent_action_size(self.agents[i])}"
             )
-            if not isinstance(actions[i], Tensor):
-                actions[i] = torch.tensor(
-                    actions[i], dtype=torch.float32, device=self.device
-                )
 
         # set action for each agent
         for i, agent in enumerate(self.agents):
             self._set_action(actions[i], agent)
         # advance world state
         self.world.step()
-        # record observation for each agent
+
         obs = []
-        rews = []
+        rewards = []
         infos = []
         for agent in self.agents:
-            rews.append(self.scenario.reward(agent))
+            rewards.append(self.scenario.reward(agent))
             obs.append(self.scenario.observation(agent))
             # A dictionary per agent
             infos.append(self.scenario.info(agent))
@@ -192,12 +193,12 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         #     f"obs[0] shape (num_envs, agent 0 obs shape): {obs[0].shape}, obs[0][0] (obs agent 0 env 0): {obs[0][0]}"
         # )
         # print(
-        #     f"Rews len (n_agents): {len(rews)}, rews[0] shape (num_envs, 1): {rews[0].shape}, "
-        #     f"rews[0][0] (agent 0 env 0): {rews[0][0]}"
+        #     f"Rewards len (n_agents): {len(rewards)}, rewards[0] shape (num_envs, 1): {rewards[0].shape}, "
+        #     f"rewards[0][0] (agent 0 env 0): {rewards[0][0]}"
         # )
         # print(f"Dones len (n_envs): {len(dones)}, dones[0] (done env 0): {dones[0]}")
         # print(f"Info len (n_agents): {len(infos)}, info[0] (infos agent 0): {infos[0]}")
-        return obs, rews, dones, infos
+        return obs, rewards, dones, infos
 
     def get_agent_action_size(self, agent: Agent):
         return (
@@ -239,7 +240,10 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
                 physical_action = action[:, :1]
 
                 self._check_discrete_action(
-                    physical_action, 0, self.world.dim_p * 2 + 1, "physical"
+                    physical_action,
+                    low=0,
+                    high=self.world.dim_p * 2 + 1,
+                    type="physical",
                 )
 
                 arr1 = physical_action == 1
@@ -249,9 +253,9 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
 
                 disc_action_value = agent.u_range
 
-                agent.action.u[:, X] += -disc_action_value * arr1.squeeze(-1)
+                agent.action.u[:, X] -= disc_action_value * arr1.squeeze(-1)
                 agent.action.u[:, X] += disc_action_value * arr2.squeeze(-1)
-                agent.action.u[:, Y] += -disc_action_value * arr3.squeeze(-1)
+                agent.action.u[:, Y] -= disc_action_value * arr3.squeeze(-1)
                 agent.action.u[:, Y] += disc_action_value * arr4.squeeze(-1)
 
             agent.action.u *= agent.u_multiplier
@@ -273,14 +277,14 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
             else:
                 comm_action = action[:, self.world.dim_p :]
                 assert not torch.any(comm_action > 1) and not torch.any(
-                    0 > comm_action
+                    comm_action < 0
                 ), "Comm actions are out of range [0,1]"
                 agent.action.c = comm_action
 
     def render(
         self,
         mode="human",
-        index=0,
+        env_index=0,
         agent_index_focus: int = None,
         visualize_when_rgb: bool = False,
     ):
@@ -294,77 +298,33 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         ```
 
         :param mode: One of human or rgb_array
-        :param index: Index of the environment to render
+        :param env_index: Index of the environment to render
         :param agent_index_focus: If specified the camera will stay on the agent with this index.
                                   If None, the camera will stay in the center and zoom out to contain all agents
         :param visualize_when_rgb: Also run human visualization when mode=="rgb_array"
         :return: Rgb array or None, depending on the mode
         """
-        self._check_batch_index(index)
+        self._check_batch_index(env_index)
         if agent_index_focus is not None:
-            assert -1 <= agent_index_focus <= self.n_agents, (
+            assert 0 <= agent_index_focus < self.n_agents, (
                 f"Agent focus in rendering should be a valid agent index"
                 f" between 0 and {self.n_agents}, got {agent_index_focus}"
             )
         shared_viewer = agent_index_focus is None
         headless = mode == "rgb_array"
 
+        # First time rendering
         if self.viewer is None:
             from maps.simulator import rendering
 
             self.viewer = rendering.Viewer(
                 700, 700, visible=not headless or visualize_when_rgb
             )
-
-        # create rendering geometry
+        # First time rendering
         if self.render_geoms is None:
-            # import rendering only if we need it (and don't import for headless machines)
-            from maps.simulator import rendering
-
-            self.render_geoms = []
-            self.render_geoms_xform = []
-            for entity_index, entity in enumerate(self.world.entities):
-                if isinstance(entity.shape, core.Sphere):
-                    geom = rendering.make_circle(entity.shape.radius)
-                elif isinstance(entity.shape, Line):
-                    geom = rendering.Line(
-                        (-entity.shape.length / 2, 0),
-                        (entity.shape.length / 2, 0),
-                        width=entity.shape.width,
-                    )
-                elif isinstance(entity.shape, Box):
-                    l, r, t, b = (
-                        -entity.shape.length / 2,
-                        entity.shape.length / 2,
-                        entity.shape.width / 2,
-                        -entity.shape.width / 2,
-                    )
-                    geom = rendering.make_polygon([(l, b), (l, t), (r, t), (r, b)])
-                else:
-                    assert (
-                        False
-                    ), f"Entity shape not supported in rendering for {entity.name}"
-                xform = rendering.Transform()
-                geom.add_attr(xform)
-                self.render_geoms.append(geom)
-                self.render_geoms_xform.append(xform)
-                self._set_entity_render_color(entity_index, index)
-
-            # add geoms to viewer
-            self.viewer.geoms = []
-            for geom in self.render_geoms:
-                self.viewer.add_geom(geom)
-            self.viewer.text_lines = []
-            idx = 0
-            if self.world.dim_c > 0:
-                for agent in self.world.agents:
-                    if not agent.silent:
-                        tline = rendering.TextLine(self.viewer.window, idx)
-                        self.viewer.text_lines.append(tline)
-                        idx += 1
+            self._create_rendering_objects(env_index)
 
         if self.world.dim_c > 0:
-            alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
             idx = 0
             for agent in self.world.agents:
                 if agent.silent:
@@ -375,11 +335,11 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
                 if self.continuous_actions:
                     word = (
                         "["
-                        + ",".join([f"{comm:.2f}" for comm in agent.state.c[index]])
+                        + ",".join([f"{comm:.2f}" for comm in agent.state.c[env_index]])
                         + "]"
                     )
                 else:
-                    word = alphabet[torch.argmax(agent.state.c[index]).item()]
+                    word = ALPHABET[torch.argmax(agent.state.c[env_index]).item()]
 
                 message = agent.name + " sends " + word + "   "
                 self.viewer.text_lines[idx].set_text(message)
@@ -388,14 +348,14 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         if shared_viewer:
             # zoom out to fit everyone
             all_poses = torch.cat(
-                [entity.state.pos[index] for entity in self.world.entities], dim=0
+                [entity.state.pos[env_index] for entity in self.world.entities], dim=0
             )
-            cam_range = torch.max(torch.abs(all_poses)) + 0.2
+            cam_range = torch.max(torch.abs(all_poses)) + VIEWER_MIN_SIZE - 1
             self.viewer.set_max_size(cam_range)
         else:
             # update bounds to center around agent
             cam_range = 1
-            pos = self.agents[agent_index_focus].state.pos[index]
+            pos = self.agents[agent_index_focus].state.pos[env_index]
             self.viewer.set_bounds(
                 pos[0] - cam_range,
                 pos[0] + cam_range,
@@ -404,11 +364,56 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
             )
         # update geometry positions
         for e, entity in enumerate(self.world.entities):
-            self._set_entity_render_color(e, index)
-            self.render_geoms_xform[e].set_translation(*entity.state.pos[index])
-            self.render_geoms_xform[e].set_rotation(entity.state.rot[index])
+            self._set_entity_render_color(e, env_index)
+            self.render_geoms_xform[e].set_translation(*entity.state.pos[env_index])
+            self.render_geoms_xform[e].set_rotation(entity.state.rot[env_index])
         # render to display or array
         return self.viewer.render(return_rgb_array=mode == "rgb_array")
+
+    def _create_rendering_objects(self, env_index: int):
+        # import rendering only if we need it (and don't import for headless machines)
+        from maps.simulator import rendering
+
+        self.render_geoms = []
+        self.render_geoms_xform = []
+        for entity_index, entity in enumerate(self.world.entities):
+            if isinstance(entity.shape, core.Sphere):
+                geom = rendering.make_circle(entity.shape.radius)
+            elif isinstance(entity.shape, Line):
+                geom = rendering.Line(
+                    (-entity.shape.length / 2, 0),
+                    (entity.shape.length / 2, 0),
+                    width=entity.shape.width,
+                )
+            elif isinstance(entity.shape, Box):
+                l, r, t, b = (
+                    -entity.shape.length / 2,
+                    entity.shape.length / 2,
+                    entity.shape.width / 2,
+                    -entity.shape.width / 2,
+                )
+                geom = rendering.make_polygon([(l, b), (l, t), (r, t), (r, b)])
+            else:
+                assert (
+                    False
+                ), f"Entity shape not supported in rendering for {entity.name}"
+            xform = rendering.Transform()
+            geom.add_attr(xform)
+            self.render_geoms.append(geom)
+            self.render_geoms_xform.append(xform)
+
+        # add geoms to viewer
+        self.viewer.geoms = []
+        for geom in self.render_geoms:
+            self.viewer.add_geom(geom)
+        self.viewer.text_lines = []
+        idx = 0
+        if self.world.dim_c > 0:
+            for agent in self.world.agents:
+                if not agent.silent:
+                    text_line = rendering.TextLine(self.viewer.window, idx)
+                    self.viewer.text_lines.append(text_line)
+                    idx += 1
 
     def _set_entity_render_color(self, entity_index: int, env_index: int):
         entity = self.world.entities[entity_index]
@@ -425,6 +430,10 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
 
 
 class VectorEnvWrapper(rllib.VectorEnv):
+    """
+    Vector environment wrapper for rllib
+    """
+
     def __init__(
         self,
         env: Environment,
@@ -453,7 +462,7 @@ class VectorEnvWrapper(rllib.VectorEnv):
         self, actions: List[EnvActionType]
     ) -> Tuple[List[EnvObsType], List[float], List[bool], List[EnvInfoDict]]:
         # saved_actions = actions
-        actions = self._list_to_tensor(actions)
+        actions = self._action_list_to_tensor(actions)
         obs, rews, dones, infos = self._env.step(actions)
 
         dones = dones.tolist()
@@ -523,12 +532,12 @@ class VectorEnvWrapper(rllib.VectorEnv):
             index = 0
         return self._env.render(
             mode=mode,
-            index=index,
+            env_index=index,
             agent_index_focus=agent_index_focus,
             visualize_when_rgb=visualize_when_rgb,
         )
 
-    def _list_to_tensor(self, list_in: List) -> List:
+    def _action_list_to_tensor(self, list_in: List) -> List:
         if len(list_in) == self.num_envs:
             actions = []
             for agent in self._env.agents:
@@ -551,11 +560,11 @@ class VectorEnvWrapper(rllib.VectorEnv):
                     if len(act.shape) == 0:
                         assert (
                             self._env.get_agent_action_size(self._env.agents[i]) == 1
-                        ), f"Action of agent {i} in env {j} is supposed to be an int"
+                        ), f"Action of agent {i} in env {j} is supposed to be an scalar int"
                     else:
-                        assert act.shape[0] == self._env.get_agent_action_size(
-                            self._env.agents[i]
-                        ), (
+                        assert len(act.shape) == 1 and act.shape[
+                            0
+                        ] == self._env.get_agent_action_size(self._env.agents[i]), (
                             f"Action of agent {i} in env {j} hase wrong shape: "
                             f"expected {self._env.get_agent_action_size(self._env.agents[i])}, got {act.shape[0]}"
                         )
@@ -568,10 +577,14 @@ class VectorEnvWrapper(rllib.VectorEnv):
         assert (
             len(list_in) == self._env.n_agents
         ), f"Tensor used in output of env must be of len {self._env.n_agents}, got {len(list_in)}"
+        assert list_in[0].shape[0] == num_envs, (
+            f"Input tensor for each agent should have"
+            f" vector dim {num_envs}, but got {list_in[0].shape[0]}"
+        )
         list_out = []
         for j in range(num_envs):
             list_per_env = []
             for i in range(self._env.n_agents):
-                list_per_env.append(list_in[i][j].cpu().detach().numpy())
+                list_per_env.append(list_in[i][j].cpu().numpy())
             list_out.append(list_per_env)
         return list_out
