@@ -11,6 +11,7 @@ class TestWaterfall(unittest.TestCase):
     def setUp(self) -> None:
         super().setUp()
         self.n_agents = 5
+
         self.continuous_actions = True
         self.n_envs = 32
         self.env = make_env(

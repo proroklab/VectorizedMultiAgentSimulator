@@ -78,7 +78,7 @@ To know how, just read the documentation of `BaseScenario` and look at the imple
 You can play with a scenario interactively!
 
 Just use the `render_interactively` script. Relevant values will be plotted to screen.
-Move the agent with the arrow keys and switch agents with TAB!
+Move the agent with the arrow keys and switch agents with TAB. You can reset the environment by pressing R
 
 Here is an overview of what it looks like:
 

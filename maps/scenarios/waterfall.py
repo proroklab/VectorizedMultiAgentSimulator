@@ -85,7 +85,7 @@ class Scenario(BaseScenario):
     def observation(self, agent: Agent):
         # get positions of all entities in this agent's reference frame
         return torch.cat(
-            [agent.state.vel]
+            [agent.state.pos, agent.state.vel]
             + [
                 landmark.state.pos - agent.state.pos
                 for landmark in self.world.landmarks
