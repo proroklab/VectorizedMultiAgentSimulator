@@ -29,7 +29,7 @@ class Scenario(BaseScenario):
             )
             world.add_landmark(landmark)
         floor = Landmark(
-            name=f"floor",
+            name="floor",
             collide=True,
             movable=False,
             shape=Line(length=2),
