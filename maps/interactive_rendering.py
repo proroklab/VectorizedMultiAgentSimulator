@@ -4,6 +4,7 @@
 Use this script to interactively play with scenarios
 
 You can change agent by pressing TAB
+You can reset the environment by pressing R
 You can move agents with the arrow keys
 """
 import numpy as np
@@ -19,6 +20,7 @@ class InteractiveEnv:
     Use this script to interactively play with scenarios
 
     You can change agent by pressing TAB
+    You can reset the environment by pressing R
     You can move agents with the arrow keys
     """
 
@@ -30,6 +32,7 @@ class InteractiveEnv:
         self.u = 0
         self.current_agent_index = 0
         self.n_agents = self.env.unwrapped().n_agents
+        self.reset = False
 
         env.render()
         self._init_text()
@@ -45,6 +48,10 @@ class InteractiveEnv:
 
     def _cycle(self):
         while True:
+            if self.reset:
+                self.env.reset()
+                self.reset = False
+
             active_agent_index = self.current_agent_index
 
             action_list = [0] * self.n_agents
@@ -72,6 +79,9 @@ class InteractiveEnv:
             self._write_values(self.text_idx + 4, message)
 
             self.env.render()
+
+            if done:
+                self.reset = True
 
     def _init_text(self):
         from maps.simulator import rendering
@@ -106,12 +116,16 @@ class InteractiveEnv:
             self.u = 3
         elif k == key.TAB:
             self._increment_selected_agent_index()
+        elif k == key.R:
+            self.reset = True
 
     def _key_release(self, k, mod):
         from pyglet.window import key
 
         if k == key.LEFT or k == key.RIGHT or k == key.UP or k == key.DOWN:
             self.u = 0
+        elif k == key.R:
+            self.reset = False
 
 
 def render_interactively(scenario_name: str, **kwargs):
@@ -119,6 +133,7 @@ def render_interactively(scenario_name: str, **kwargs):
     Use this script to interactively play with scenarios
 
     You can change agent by pressing TAB
+    You can reset the environment by pressing R
     You can move agents with the arrow keys
     """
     InteractiveEnv(
@@ -140,11 +155,12 @@ if __name__ == "__main__":
     # Use this script to interactively play with scenarios
     #
     # You can change agent by pressing TAB
+    # You can reset the environment by pressing R
     # You can move agents with the arrow keys
 
-    scenario_name = "waterfall"
+    scenario_name = "dropout"
 
     # Scenario specific variables
     n_agents = 4
 
-    render_interactively(scenario_name, n_agents=n_agents)
+    render_interactively(scenario_name, n_agents=n_agents, energy_coeff=0.02)
