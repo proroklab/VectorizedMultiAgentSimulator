@@ -9,7 +9,8 @@ from PIL import Image
 
 from maps import make_env
 
-if __name__ == "__main__":
+
+def use_maps_env(render: bool = False):
 
     scenario_name = "waterfall"
 
@@ -50,15 +51,16 @@ if __name__ == "__main__":
                     actions_per_env.append(np.array(simple_2d_action))
                 actions.append(actions_per_env)
             obs, rews, dones, info = env.vector_step(actions)
-            frame_list.append(
-                Image.fromarray(
-                    env.try_render_at(
-                        mode="rgb_array",
-                        agent_index_focus=None,
-                        visualize_when_rgb=True,
-                    )  # Can give the camera an agent index to focus onß
+            if render:
+                frame_list.append(
+                    Image.fromarray(
+                        env.try_render_at(
+                            mode="rgb_array",
+                            agent_index_focus=None,
+                            visualize_when_rgb=True,
+                        )  # Can give the camera an agent index to focus onß
+                    )
                 )
-            )
         else:  # Same as before, with faster MAPS interface
             for i in range(n_agents):
                 actions.append(
@@ -68,31 +70,37 @@ if __name__ == "__main__":
                     ).repeat(num_envs, 1)
                 )
             obs, rews, dones, info = env.step(actions)
-            frame_list.append(
-                Image.fromarray(
-                    env.render(
-                        mode="rgb_array",
-                        agent_index_focus=None,
-                        visualize_when_rgb=True,
+            if render:
+                frame_list.append(
+                    Image.fromarray(
+                        env.render(
+                            mode="rgb_array",
+                            agent_index_focus=None,
+                            visualize_when_rgb=True,
+                        )
                     )
-                )
-            )  # Can give the camera an agent index to focus on
+                )  # Can give the camera an agent index to focus on
 
-    gif_name = scenario_name + ".gif"
+    if render:
+        gif_name = scenario_name + ".gif"
 
-    # Produce a gif
-    frame_list[0].save(
-        gif_name,
-        save_all=True,
-        append_images=frame_list[1:],
-        duration=3,
-        loop=0,
-    )
-    # Requires image magik to be installed to convert the gif in faster format
-    os.system(f"convert -delay 1x30 -loop 0 {gif_name} {scenario_name}_fast.gif")
+        # Produce a gif
+        frame_list[0].save(
+            gif_name,
+            save_all=True,
+            append_images=frame_list[1:],
+            duration=3,
+            loop=0,
+        )
+        # Requires image magik to be installed to convert the gif in faster format
+        os.system(f"convert -delay 1x30 -loop 0 {gif_name} {scenario_name}_fast.gif")
 
     total_time = time.time() - init_time
     print(
         f"It took: {total_time}s for {n_steps} steps of {num_envs} parallel environments on device {device}"
         f" for {'wrapped' if wrapped else 'unwrapped'} simulator"
     )
+
+
+if __name__ == "__main__":
+    use_maps_env(render=True)

@@ -1,3 +1,6 @@
+#  Copyright (c) 2022. Matteo Bettini
+#  All rights reserved.
+
 import torch
 
 from maps.simulator.core import Agent, World, Landmark, Sphere, Box, Line
@@ -26,7 +29,7 @@ class Scenario(BaseScenario):
             )
             world.add_landmark(landmark)
         floor = Landmark(
-            name=f"landmark {i}",
+            name="floor",
             collide=True,
             movable=False,
             shape=Line(length=2),
@@ -74,14 +77,18 @@ class Scenario(BaseScenario):
         )
 
     def reward(self, agent: Agent):
-        dist2 = torch.sum(
-            torch.square(agent.state.pos - self.world.landmarks[-1].state.pos), dim=-1
+        dist2 = torch.linalg.vector_norm(
+            agent.state.pos - self.world.landmarks[-1].state.pos, dim=1
         )
         return -dist2
 
     def observation(self, agent: Agent):
         # get positions of all entities in this agent's reference frame
-        entity_pos = []
-        for entity in self.world.landmarks:
-            entity_pos.append(entity.state.pos - agent.state.pos)
-        return torch.cat([agent.state.vel, *entity_pos], dim=-1)
+        return torch.cat(
+            [agent.state.vel]
+            + [
+                landmark.state.pos - agent.state.pos
+                for landmark in self.world.landmarks
+            ],
+            dim=-1,
+        )
