@@ -1,21 +1,20 @@
 #  Copyright (c) 2022. Matteo Bettini
 #  All rights reserved.
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
 import gym
 import numpy as np
 import torch
 from gym import spaces
-from gym.core import ObsType, ActType
 from ray import rllib
 from ray.rllib.utils.typing import EnvActionType, EnvInfoDict, EnvObsType
 from torch import Tensor
 
 from maps.simulator import core
 from maps.simulator.core import Agent, Box, Line, TorchVectorizedObject
-from maps.simulator.rendering import VIEWER_MIN_SIZE
 from maps.simulator.scenario import BaseScenario
 from maps.simulator.utils import Color, X, Y, ALPHABET
+from maps.simulator.utils import VIEWER_MIN_SIZE
 
 
 # environment for all agents in the multiagent world
@@ -588,3 +587,89 @@ class VectorEnvWrapper(rllib.VectorEnv):
                 list_per_env.append(list_in[i][j].cpu().numpy())
             list_out.append(list_per_env)
         return list_out
+
+
+class GymWrapper(gym.Env):
+    metadata = Environment.metadata
+
+    def __init__(
+        self,
+        env: Environment,
+    ):
+        assert (
+            env.num_envs == 1
+        ), f"GymEnv wrapper is not vectorised, got env.num_envs: {env.num_envs}"
+
+        self._env = env
+        self.observation_space = self._env.observation_space
+        self.action_space = self._env.action_space
+
+    @property
+    def env(self):
+        return self._env
+
+    def step(self, action):
+        action = self._action_list_to_tensor(action)
+        obs, rews, done, info = self._env.step(action)
+        for i in range(self._env.n_agents):
+            obs[i] = obs[i][0]
+            rews[i] = rews[i][0].item()
+            done = done[0].item()
+        return obs, rews, done, info
+
+    def reset(
+        self,
+        *,
+        seed: Optional[int] = None,
+        return_info: bool = False,
+        options: Optional[dict] = None,
+    ):
+        obs = self._env.reset(seed)
+        for i in range(self._env.n_agents):
+            obs[i] = obs[i][0]
+        return obs
+
+    def render(
+        self,
+        mode="human",
+        agent_index_focus: Optional[int] = None,
+        visualize_when_rgb: bool = False,
+    ) -> Optional[np.ndarray]:
+
+        return self._env.render(
+            mode=mode,
+            env_index=0,
+            agent_index_focus=agent_index_focus,
+            visualize_when_rgb=visualize_when_rgb,
+        )
+
+    def _action_list_to_tensor(self, list_in: List) -> List:
+        assert (
+            len(list_in) == self._env.n_agents
+        ), f"Expecting actions for {self._env.n_agents} agents, got {len(list_in)} actions"
+        actions = []
+        for agent in self._env.agents:
+            actions.append(
+                torch.zeros(
+                    1,
+                    self._env.get_agent_action_size(agent),
+                    device=self._env.device,
+                    dtype=torch.float32,
+                )
+            )
+
+        for i in range(self._env.n_agents):
+            act = torch.tensor(list_in[i], dtype=torch.float32, device=self._env.device)
+            if len(act.shape) == 0:
+                assert (
+                    self._env.get_agent_action_size(self._env.agents[i]) == 1
+                ), f"Action of agent {i} is supposed to be an scalar int"
+            else:
+                assert len(act.shape) == 1 and act.shape[
+                    0
+                ] == self._env.get_agent_action_size(self._env.agents[i]), (
+                    f"Action of agent {i} hase wrong shape: "
+                    f"expected {self._env.get_agent_action_size(self._env.agents[i])}, got {act.shape[0]}"
+                )
+            actions[i][0] = act
+        return actions

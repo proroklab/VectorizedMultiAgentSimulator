@@ -15,6 +15,8 @@ import numpy as np
 import six
 from gym import error
 
+from maps.simulator.utils import VIEWER_MIN_SIZE
+
 try:
     import pyglet
 except ImportError:
@@ -74,7 +76,6 @@ if "Apple" in sys.version:
         # (JDS 2016/04/15): avoid bug on Anaconda 2.3.0 / Yosemite
 
 RAD2DEG = 57.29577951308232
-VIEWER_MIN_SIZE = 1.2
 
 
 def get_display(spec):

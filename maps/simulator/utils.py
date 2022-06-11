@@ -7,6 +7,7 @@ X = 0
 Y = 1
 Z = 2
 ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+VIEWER_MIN_SIZE = 1.2
 
 
 class Color(Enum):
