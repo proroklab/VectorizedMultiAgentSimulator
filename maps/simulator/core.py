@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from abc import ABC
 from typing import Callable, List, Union
 
 import torch
@@ -43,7 +44,7 @@ class TorchVectorizedObject(object):
             ), f"Index must be between 0 and {self.batch_dim}, got {batch_index}"
 
 
-class Shape:
+class Shape(ABC):
     pass
 
 
@@ -221,7 +222,7 @@ class Action(TorchVectorizedObject):
 
 
 # properties and state of physical world entity
-class Entity(TorchVectorizedObject):
+class Entity(TorchVectorizedObject, ABC):
     def __init__(
         self,
         name: str,
@@ -254,6 +255,7 @@ class Entity(TorchVectorizedObject):
         self._state = EntityState()
         # entity goal
         self._goal = None
+        # Render the entity
         self._render = None
 
     @TorchVectorizedObject.batch_dim.setter
@@ -491,13 +493,17 @@ class Agent(Entity):
     @override(Entity)
     def _spawn(self, dim_c, dim_p: int):
         super()._spawn(dim_p)
-        if dim_c > 0 and not self.silent:
+        if dim_c == 0:
+            assert (
+                self.silent
+            ), f"Agent {self.name} must be silent when world has no communication"
+        elif dim_c > 0 and not self.silent:
             self.state.c = torch.zeros(
                 self.batch_dim, dim_c, device=self.device, dtype=torch.float32
             )
 
 
-# multiagent world
+# Multi-agent world
 class World(TorchVectorizedObject):
     def __init__(
         self,
@@ -529,7 +535,7 @@ class World(TorchVectorizedObject):
         # contact response parameters
         self._contact_force = 1e2
         self._contact_margin = 6e-3  # 0.001
-
+        # Pairs of collidable shapes
         self._collidable_pairs = [{Sphere, Sphere}, {Sphere, Box}, {Sphere, Line}]
         # Horizontal unit vector
         self._normal_vector = torch.tensor(
@@ -614,7 +620,7 @@ class World(TorchVectorizedObject):
         p_force = self._apply_environment_force(p_force)
         # integrate physical state
         self._integrate_state(p_force)
-        # update non-differantiable comm state
+        # update non-differentiable comm state
         if self._dim_c > 0:
             for agent in self._agents:
                 self._update_comm_state(agent)
@@ -798,20 +804,8 @@ class World(TorchVectorizedObject):
             entity.state.vel = entity.state.vel * (1 - self._damping)
             entity.state.vel += (p_force[:, i] / entity.mass) * self._dt
             if entity.max_speed is not None:
-                speed = (
-                    torch.sqrt(
-                        entity.state.vel[:, X] ** 2 + entity.state.vel[:, Y] ** 2
-                    )
-                    .unsqueeze(-1)
-                    .repeat(1, 2)
-                )
-                new_vel = (
-                    entity.state.vel
-                    / torch.sqrt(
-                        entity.state.vel[:, X] ** 2 + entity.state.vel[:, Y] ** 2
-                    ).unsqueeze(-1)
-                    * entity.max_speed
-                )
+                speed = torch.linalg.norm(entity.state.vel, dim=1)
+                new_vel = entity.state.vel / speed.unsqueeze(-1) * entity.max_speed
                 entity.state.vel[speed > entity.max_speed] = new_vel[
                     speed > entity.max_speed
                 ]

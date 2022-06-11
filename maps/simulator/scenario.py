@@ -1,3 +1,6 @@
+#  Copyright (c) 2022. Matteo Bettini
+#  All rights reserved.
+
 from abc import ABC, abstractmethod
 from typing import Dict
 
@@ -19,10 +22,6 @@ class BaseScenario(ABC):
             self._world is not None
         ), "You first need to set `self._world` in the `make_world` method"
         return self._world
-
-    def reset_world(self):
-        """Do not override"""
-        self.reset_world_at()
 
     def seed(self, seed: int = None):
         """Do not override"""
