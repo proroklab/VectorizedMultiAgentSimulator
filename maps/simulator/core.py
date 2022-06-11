@@ -321,7 +321,6 @@ class Entity(TorchVectorizedObject, ABC):
 
     @goal.setter
     def goal(self, goal: Entity):
-        assert self._goal is None, "Trying to assign a new goal to the entity"
         self._goal = goal
 
     def _spawn(self, dim_p: int):
