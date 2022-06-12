@@ -536,6 +536,9 @@ class VectorEnvWrapper(rllib.VectorEnv):
             visualize_when_rgb=visualize_when_rgb,
         )
 
+    def get_sub_environments(self) -> List[Environment]:
+        return [self._env]
+
     def _action_list_to_tensor(self, list_in: List) -> List:
         if len(list_in) == self.num_envs:
             actions = []
