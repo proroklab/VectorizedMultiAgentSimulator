@@ -12,18 +12,19 @@ class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         n_agents = kwargs.get("n_agents", 4)
         self.share_reward = kwargs.get("share_reward", False)
+        self.penalise_by_time = kwargs.get("penalise_by_time", False)
 
         n_food = n_agents
 
         # Make world
-        world = World(batch_dim, device, x_semidim=1, y_semidim=1)
+        world = World(batch_dim, device)
         # Add agents
         for i in range(n_agents):
             # Constraint: all agents have same action range and multiplier
             agent = Agent(
                 name=f"agent {i}",
                 collide=False,
-                shape=Sphere(radius=0.03),
+                shape=Sphere(radius=0.035),
             )
             world.add_agent(agent)
         # Add landmarks
@@ -31,7 +32,7 @@ class Scenario(BaseScenario):
             food = Landmark(
                 name=f"food {i}",
                 collide=False,
-                shape=Sphere(radius=0.08),
+                shape=Sphere(radius=0.02),
                 color=Color.GREEN,
             )
             world.add_landmark(food)
@@ -73,31 +74,38 @@ class Scenario(BaseScenario):
                 landmark.render[env_index] = True
 
     def reward(self, agent: Agent):
+        is_first = agent == self.world.agents[0]
         is_last = agent == self.world.agents[-1]
 
         rews = torch.zeros(self.world.batch_dim, device=self.world.device)
 
         for landmark in self.world.landmarks:
-            how_many_on_food = torch.stack(
-                [
-                    torch.sqrt((a.state.pos - landmark.state.pos).square().sum(-1))
-                    < a.shape.radius + landmark.shape.radius
-                    for a in self.world.agents
-                ],
-                dim=1,
-            ).sum(-1)
-            anyone_on_food = how_many_on_food > 0
-            landmark.just_eaten[anyone_on_food] = True
+            if is_first:
+                landmark.how_many_on_food = torch.stack(
+                    [
+                        torch.linalg.vector_norm(
+                            a.state.pos - landmark.state.pos, dim=1
+                        )
+                        < a.shape.radius + landmark.shape.radius
+                        for a in self.world.agents
+                    ],
+                    dim=1,
+                ).sum(-1)
+                landmark.anyone_on_food = landmark.how_many_on_food > 0
+                landmark.just_eaten[landmark.anyone_on_food] = True
 
-            assert (how_many_on_food <= len(self.world.agents)).all()
+            assert (landmark.how_many_on_food <= len(self.world.agents)).all()
 
             if self.share_reward:
                 rews[landmark.just_eaten * ~landmark.eaten] += 1
             else:
-                on_food = (agent.state.pos - landmark.state.pos).square().sum(
-                    -1
-                ).sqrt() < agent.shape.radius + landmark.shape.radius
-                eating_rew = how_many_on_food.reciprocal().nan_to_num(
+                on_food = (
+                    torch.linalg.vector_norm(
+                        agent.state.pos - landmark.state.pos, dim=1
+                    )
+                    < agent.shape.radius + landmark.shape.radius
+                )
+                eating_rew = landmark.how_many_on_food.reciprocal().nan_to_num(
                     posinf=0, neginf=0
                 )
                 rews[on_food * ~landmark.eaten] += eating_rew[on_food * ~landmark.eaten]
@@ -107,23 +115,24 @@ class Scenario(BaseScenario):
                 landmark.just_eaten[:] = False
                 landmark.render[landmark.eaten] = False
 
-        rews[rews == 0] = -0.01
+        if self.penalise_by_time:
+            rews[rews == 0] = -0.01
         return rews
 
     def observation(self, agent: Agent):
         obs = []
-        for entity in self.world.landmarks:
+        for landmark in self.world.landmarks:
             obs.append(
                 torch.cat(
                     [
-                        entity.state.pos - agent.state.pos,
-                        entity.eaten.to(torch.int).unsqueeze(-1),
+                        landmark.state.pos - agent.state.pos,
+                        landmark.eaten.to(torch.int).unsqueeze(-1),
                     ],
                     dim=-1,
                 )
             )
         return torch.cat(
-            [agent.state.pos, *obs],
+            [agent.state.pos, agent.state.vel, *obs],
             dim=-1,
         )
 
