@@ -11,7 +11,7 @@ setup(
     author="Matteo Bettini",
     author_email="mb2389@cl.cam.ac.uk",
     packages=find_packages(),
-    install_requires=["torch", "numpy", "pyglet", "gym", "six"],
+    install_requires=["torch", "numpy", "pyglet", "gym"],
     include_package_data=True,
     zip_safe=False,
 )
