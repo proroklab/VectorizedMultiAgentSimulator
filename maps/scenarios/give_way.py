@@ -15,9 +15,9 @@ class Scenario(BaseScenario):
         # Make world
         world = World(batch_dim, device, x_semidim=1, y_semidim=1)
         # Add agents
-        blue_agent = Agent(name=f"blue agent")
+        blue_agent = Agent(name="blue agent")
         blue_goal = Landmark(
-            name=f"blue goal",
+            name="blue goal",
             collide=False,
             shape=Sphere(radius=0.015),
             color=Color.BLUE,
@@ -25,9 +25,9 @@ class Scenario(BaseScenario):
         world.add_agent(blue_agent)
         world.add_landmark(blue_goal)
 
-        green_agent = Agent(name=f"green agent", color=Color.GREEN)
+        green_agent = Agent(name="green agent", color=Color.GREEN)
         green_goal = Landmark(
-            name=f"green goal",
+            name="green goal",
             collide=False,
             shape=Sphere(radius=0.015),
             color=Color.GREEN,
@@ -37,7 +37,7 @@ class Scenario(BaseScenario):
 
         # Add landmarks
         landmark = Landmark(
-            name=f"floor",
+            name="floor",
             collide=True,
             shape=Line(length=2),
             color=Color.BLACK,

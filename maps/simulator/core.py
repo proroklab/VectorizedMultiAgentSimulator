@@ -400,7 +400,7 @@ class Agent(Entity):
         u_noise: float = None,
         u_range: float = 1.0,
         u_multiplier: float = 1.0,
-        action_script: Callable = None,
+        action_script: Callable[[Agent, World], Action] = None,
         sensors: Union[SensorType, List[SensorType]] = None,
         c_noise: float = None,
         silent: bool = True,
@@ -432,7 +432,7 @@ class Agent(Entity):
         # agent action is a force multiplied by this amount
         self._u_multiplier = u_multiplier
         # script behavior to execute
-        self._action_callback = action_script
+        self._action_script = action_script
         # agents sensors
         self._sensors = sensors
         # non differentiable communication noise
@@ -458,8 +458,24 @@ class Agent(Entity):
         self._action.device = device
 
     @property
-    def action_callback(self):
-        return self._action_callback
+    def action_script(self) -> Callable[[Agent, World], Action]:
+        return self._action_script
+
+    def action_callback(self, world: World):
+        self._action = self._action_script(self, world)
+        if self._silent or world.dim_c == 0:
+            assert (
+                self._action.c is None
+            ), f"Agent {self.name} should not communicate but action script communicates"
+        assert (
+            self._action.u is not None
+        ), f"Action script of {self.name} should set u action"
+        assert (
+            self._action.u.shape[1] == world.dim_p
+        ), f"Scripted physical action of agent {self.name} has wrong shape"
+        assert (
+            (self._action.u / self.u_multiplier).abs() <= self.u_range
+        ).all(), f"Scripted physical action of {self.name} is out of range"
 
     @property
     def u_range(self):
@@ -581,18 +597,18 @@ class World(TorchVectorizedObject):
 
     # return all entities in the world
     @property
-    def entities(self):
+    def entities(self) -> List[Entity]:
         return self._agents + self._landmarks
 
     # return all agents controllable by external policies
     @property
     def policy_agents(self) -> List[Agent]:
-        return [agent for agent in self._agents if agent.action_callback is None]
+        return [agent for agent in self._agents if agent.action_script is None]
 
     # return all agents controlled by world scripts
     @property
-    def scripted_agents(self):
-        return [agent for agent in self._agents if agent.action_callback is not None]
+    def scripted_agents(self) -> List[Agent]:
+        return [agent for agent in self._agents if agent.action_script is not None]
 
     def seed(self, seed=None):
         if seed is None:
@@ -604,7 +620,7 @@ class World(TorchVectorizedObject):
     def step(self):
         # set actions for scripted agents
         for agent in self.scripted_agents:
-            agent.action = agent.action_callback(agent, self)
+            agent.action_callback(self)
         # gather forces applied to entities
         p_force = torch.zeros(
             self._batch_dim,
