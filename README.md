@@ -26,6 +26,10 @@ To install the simulator, simply install the requirements using:
 ```
 pip install -r requirements.txt
 ```
+rllib dependencies are outdated, so then run:
+```
+pip install gym==0.22
+```
 and then install the package with:
 ```
 pip install -e .
