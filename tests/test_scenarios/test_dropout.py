@@ -58,9 +58,9 @@ class TestDropout(unittest.TestCase):
 
                     obs, new_rews, dones, _ = self.env.step(actions)
                     for j in range(self.n_agents):
-                        self.assert_(torch.equal(new_rews[0], new_rews[j]))
+                        self.assertTrue(torch.equal(new_rews[0], new_rews[j]))
                     total_rew += new_rews[0]
-                    self.assert_((total_rew[dones] > 0).all())
+                    self.assertTrue((total_rew[dones] > 0).all())
                     if dones.all():
                         rewards.append(total_rew)
                         break
@@ -91,9 +91,9 @@ class TestDropout(unittest.TestCase):
 
                 obs, new_rews, dones, _ = self.env.step(actions)
                 for j in range(self.n_agents):
-                    self.assert_(torch.equal(new_rews[0], new_rews[j]))
+                    self.assertTrue(torch.equal(new_rews[0], new_rews[j]))
                 total_rew += new_rews[0]
-                self.assert_(
+                self.assertTrue(
                     (
                         total_rew[dones] < 0
                         if energy_coeff > 0
