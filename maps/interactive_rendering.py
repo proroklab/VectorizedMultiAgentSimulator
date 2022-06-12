@@ -7,12 +7,14 @@ You can change agent by pressing TAB
 You can reset the environment by pressing R
 You can move agents with the arrow keys
 """
+from operator import add
+
 import numpy as np
 
 from maps import make_env
 from maps.simulator.environment import GymWrapper
 
-N_TEXT_LINES_INTERACTIVE = 5
+N_TEXT_LINES_INTERACTIVE = 6
 
 
 class InteractiveEnv:
@@ -47,10 +49,12 @@ class InteractiveEnv:
             self.current_agent_index = 0
 
     def _cycle(self):
+        total_rew = [0] * self.n_agents
         while True:
             if self.reset:
                 self.env.reset()
                 self.reset = False
+                total_rew = [0] * self.n_agents
 
             active_agent_index = self.current_agent_index
 
@@ -70,13 +74,17 @@ class InteractiveEnv:
             message = f"Rew: {round(rew[active_agent_index],3)}"
             self._write_values(self.text_idx + 2, message)
 
-            message = f"Done: {done}"
+            total_rew = list(map(add, total_rew, rew))
+            message = f"Total rew: {round(total_rew[active_agent_index], 3)}"
             self._write_values(self.text_idx + 3, message)
+
+            message = f"Done: {done}"
+            self._write_values(self.text_idx + 4, message)
 
             message = (
                 f"Selected: {self.env.unwrapped().agents[active_agent_index].name}"
             )
-            self._write_values(self.text_idx + 4, message)
+            self._write_values(self.text_idx + 5, message)
 
             self.env.render()
 
