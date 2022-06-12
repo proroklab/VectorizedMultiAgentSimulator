@@ -17,7 +17,7 @@ class TestDropout(unittest.TestCase):
         self.energy_coeff = energy_coeff
 
         self.continuous_actions = True
-        self.n_envs = 30
+        self.n_envs = 23
         self.env = make_env(
             scenario_name="dropout",
             num_envs=self.n_envs,
@@ -38,7 +38,7 @@ class TestDropout(unittest.TestCase):
             for i in range(self.n_agents):
                 obs = self.env.reset()
                 total_rew = torch.zeros(self.env.num_envs)
-                for _ in range(100):
+                for _ in range(50):
                     obs_agent = obs[i]
                     action_agent = torch.clamp(
                         obs_agent[:, -3:-1],
@@ -81,7 +81,7 @@ class TestDropout(unittest.TestCase):
             self.setup_env(n_agents=n_agents, energy_coeff=energy_coeff)
             obs = self.env.reset()
             total_rew = torch.zeros(self.env.num_envs)
-            for _ in range(100):
+            for _ in range(50):
                 actions = []
                 for i in range(self.n_agents):
                     obs_i = obs[i]
