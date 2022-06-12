@@ -13,7 +13,7 @@ class TestWaterfall(unittest.TestCase):
         self.n_agents = 5
 
         self.continuous_actions = True
-        self.n_envs = 32
+        self.n_envs = 19
         self.env = make_env(
             scenario_name="waterfall",
             num_envs=self.n_envs,
@@ -25,7 +25,7 @@ class TestWaterfall(unittest.TestCase):
         )
         self.env.seed(0)
 
-    def test_heuristic_reward(self):
+    def test_heuristic(self):
         obs = self.env.reset()
         rews = None
         for _ in range(200):
