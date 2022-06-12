@@ -61,7 +61,7 @@ class Scenario(BaseScenario):
 
     def is_collision(self, agent1: Agent, agent2: Agent):
         delta_pos = agent1.state.pos - agent2.state.pos
-        dist = delta_pos.square().sum(-1).sqrt()
+        dist = torch.linalg.vector_norm(delta_pos, dim=1)
         dist_min = agent1.shape.radius + agent2.shape.radius
         return dist < dist_min
 
@@ -70,47 +70,45 @@ class Scenario(BaseScenario):
         rew = torch.zeros(
             self.world.batch_dim, device=self.world.device, dtype=torch.float32
         )
-        self._done = torch.full(self.world.batch_dim, True, device=self.world.device)
+
         for landmark in self.world.landmarks:
             closest = torch.min(
                 torch.stack(
                     [
-                        (a.state.pos - landmark.state.pos).square().sum(-1).sqrt()
+                        torch.linalg.vector_norm(
+                            a.state.pos - landmark.state.pos, dim=1
+                        )
                         for a in self.world.agents
                     ],
                     dim=1,
                 ),
                 dim=-1,
             )[0]
-            goal_reached = closest < landmark.shape.radius
-            self._done *= goal_reached
             rew -= closest
 
         if agent.collide:
             for a in self.world.agents:
-                rew[self.is_collision(a, agent)] -= 1
+                if a != agent:
+                    rew[self.is_collision(a, agent)] -= 1
+
         return rew
 
     def observation(self, agent: Agent):
-        # get positions of all entities in this agent's reference frame
-        entity_pos = []
-        for entity in self.world.landmarks:  # world.entities:
-            entity_pos.append(entity.state.pos - agent.state.pos)
-        # communication of all other agents
+        # get positions of all landmarks in this agent's reference frame
+        landmark_pos = []
+        for landmark in self.world.landmarks:  # world.entities:
+            landmark_pos.append(landmark.state.pos - agent.state.pos)
+        # distance to all other agents
         other_pos = []
         for other in self.world.agents:
-            if other is agent:
-                continue
-            other_pos.append(other.state.pos - agent.state.pos)
+            if other != agent:
+                other_pos.append(other.state.pos - agent.state.pos)
         return torch.cat(
             [
                 agent.state.pos,
                 agent.state.vel,
-                *entity_pos,
+                *landmark_pos,
                 *(other_pos if self.obs_agents else []),
             ],
             dim=-1,
         )
-
-    def done(self):
-        return self._done
