@@ -25,7 +25,7 @@ class TestWaterfall(unittest.TestCase):
         )
         self.env.seed(0)
 
-    def test_heuristic_reward(self):
+    def test_heuristic(self):
         obs = self.env.reset()
         rews = None
         for _ in range(200):

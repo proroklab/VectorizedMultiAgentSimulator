@@ -19,7 +19,7 @@ class TestFood(unittest.TestCase):
         self.continuous_actions = True
         self.n_envs = 25
         self.env = make_env(
-            scenario_name="food",
+            scenario_name="dispersion",
             num_envs=self.n_envs,
             device="cpu",
             continuous_actions=self.continuous_actions,
