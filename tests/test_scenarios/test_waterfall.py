@@ -41,4 +41,4 @@ class TestWaterfall(unittest.TestCase):
             obs, new_rews, _, _ = self.env.step(actions)
             if rews is not None:
                 for i in range(self.n_agents):
-                    self.assert_((new_rews[i] >= rews[i]).all())
+                    self.assertTrue((new_rews[i] >= rews[i]).all())
