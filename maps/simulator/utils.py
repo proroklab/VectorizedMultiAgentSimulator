@@ -8,12 +8,14 @@ Y = 1
 Z = 2
 ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 VIEWER_MIN_SIZE = 1.2
+LINE_MIN_DIST = 4 / 6e2
 
 
 class Color(Enum):
     RED = (0.75, 0.25, 0.25)
     GREEN = (0.25, 0.75, 0.25)
     BLUE = (0.25, 0.25, 0.75)
+    LIGHT_GREEN = (0.45, 0.95, 0.45)
     WHITE = (0.75, 0.75, 0.75)
     GRAY = (0.25, 0.25, 0.25)
     BLACK = (0.15, 0.15, 0.15)
