@@ -9,7 +9,7 @@ from typing import Callable, List, Union
 import torch
 from torch import Tensor
 
-from maps.simulator.utils import Color, SensorType, X, Y, override
+from maps.simulator.utils import Color, SensorType, X, Y, override, LINE_MIN_DIST
 
 
 class TorchVectorizedObject(object):
@@ -77,7 +77,7 @@ class Sphere(Shape):
 
 
 class Line(Shape):
-    def __init__(self, length: float = 0.5, width: float = 3):
+    def __init__(self, length: float = 0.5, width: float = 4):
         super().__init__()
         assert length > 0, f"Length must be > 0, got {length}"
         assert width > 0, f"Width must be > 0, got {length}"
@@ -549,7 +549,7 @@ class World(TorchVectorizedObject):
         self._damping = damping
         # contact response parameters
         self._contact_force = 1e2
-        self._contact_margin = 6e-3  # 0.001
+        self._contact_margin = 1e-3
         # Pairs of collidable shapes
         self._collidable_pairs = [{Sphere, Sphere}, {Sphere, Box}, {Sphere, Line}]
         # Horizontal unit vector
@@ -598,7 +598,7 @@ class World(TorchVectorizedObject):
     # return all entities in the world
     @property
     def entities(self) -> List[Entity]:
-        return self._agents + self._landmarks
+        return self._landmarks + self._agents
 
     # return all agents controllable by external policies
     @property
@@ -615,6 +615,56 @@ class World(TorchVectorizedObject):
             seed = 0
         torch.manual_seed(seed)
         return [seed]
+
+    def is_overlapping(self, entity_a: Entity, entity_b: Entity) -> Tensor:
+        a_shape = entity_a.shape
+        b_shape = entity_b.shape
+        if isinstance(a_shape, Sphere) and isinstance(b_shape, Sphere):
+            delta_pos = entity_a.state.pos - entity_b.state.pos
+            dist = torch.linalg.vector_norm(delta_pos, dim=1)
+            dist_min = a_shape.radius + b_shape.radius
+            return dist < dist_min
+        elif (
+            isinstance(entity_a.shape, Box)
+            and isinstance(entity_b.shape, Sphere)
+            or isinstance(entity_b.shape, Box)
+            and isinstance(entity_a.shape, Sphere)
+        ):
+            box, sphere = (
+                (entity_a, entity_b)
+                if isinstance(entity_b.shape, Sphere)
+                else (entity_b, entity_a)
+            )
+            closest_point = self._get_closest_point_box_sphere(box, sphere)
+
+            distance_sphere_box = torch.linalg.vector_norm(
+                sphere.state.pos - box.state.pos, dim=1
+            )
+            distance_closest_point_box = torch.linalg.vector_norm(
+                box.state.pos - closest_point, dim=1
+            )
+            dist_min = sphere.shape.radius
+            return (distance_sphere_box - dist_min) < distance_closest_point_box
+        # Sphere and line
+        elif (
+            isinstance(entity_a.shape, Line)
+            and isinstance(entity_b.shape, Sphere)
+            or isinstance(entity_b.shape, Line)
+            and isinstance(entity_a.shape, Sphere)
+        ):
+            line, sphere = (
+                (entity_a, entity_b)
+                if isinstance(entity_b.shape, Sphere)
+                else (entity_b, entity_a)
+            )
+            closest_point = self._get_closest_point_line_sphere(
+                line.state.pos, line.state.rot, line.shape.length, sphere
+            )
+            distance = torch.linalg.vector_norm(sphere.state.pos - closest_point, dim=1)
+            dist_min = sphere.shape.radius + LINE_MIN_DIST
+            return distance < dist_min
+        else:
+            assert False, "Overlap not computable for give entities"
 
     # update state of the world
     def step(self):
@@ -643,7 +693,7 @@ class World(TorchVectorizedObject):
     # gather agent action forces
     def _apply_action_force(self, p_force):
         # set applied forces
-        for i, agent in enumerate(self._agents):
+        for i, agent in enumerate(self._agents, start=len(self.landmarks)):
             if agent.movable:
                 noise = (
                     torch.randn(
@@ -671,6 +721,8 @@ class World(TorchVectorizedObject):
         return p_force
 
     def _collides(self, a: Entity, b: Entity) -> bool:
+        if (not a.collide) or (not b.collide) or a is b:
+            return False
         a_shape = a.shape
         b_shape = b.shape
         if {a_shape.__class__, b_shape.__class__} in self._collidable_pairs:
@@ -686,9 +738,6 @@ class World(TorchVectorizedObject):
         force_b = torch.zeros(
             self._batch_dim, self._dim_p, device=self.device, dtype=torch.float32
         )
-
-        if (not entity_a.collide) or (not entity_b.collide) or entity_a is entity_b:
-            return force_a, force_b
 
         # Sphere and sphere
         if isinstance(entity_a.shape, Sphere) and isinstance(entity_b.shape, Sphere):
@@ -709,12 +758,19 @@ class World(TorchVectorizedObject):
                 if isinstance(entity_b.shape, Sphere)
                 else (entity_b, entity_a)
             )
-            force_a, force_b = self._line_sphere_collision_forces(
+            closest_point = self._get_closest_point_line_sphere(
+                line.state.pos, line.state.rot, line.shape.length, sphere
+            )
+            force_sphere, force_line = self._get_collision_forces(
                 sphere.state.pos,
-                sphere.shape.radius,
-                line.state.pos,
-                line.state.rot,
-                line.shape.length,
+                closest_point,
+                dist_min=sphere.shape.radius + LINE_MIN_DIST,
+            )
+            force_a += (
+                force_sphere if isinstance(entity_a.shape, Sphere) else force_line
+            )
+            force_b += (
+                force_sphere if isinstance(entity_b.shape, Sphere) else force_line
             )
         # Sphere and box
         elif (
@@ -728,31 +784,15 @@ class World(TorchVectorizedObject):
                 if isinstance(entity_b.shape, Sphere)
                 else (entity_b, entity_a)
             )
+            closest_point = self._get_closest_point_box_sphere(box, sphere)
 
-            # Rotate normal vector by the angle of the box
-
-            rotated_vector = World._rotate_vector(self._normal_vector, box.state.rot)
-            rotated_vector2 = World._rotate_vector(
-                self._normal_vector, box.state.rot + torch.pi / 2
+            force_sphere, force_box = self._get_collision_forces(
+                sphere.state.pos,
+                closest_point,
+                dist_min=sphere.shape.radius + LINE_MIN_DIST,
             )
-
-            # Middle points of the sides
-            p1 = box.state.pos + rotated_vector * (box.shape.length / 2)
-            p2 = box.state.pos - rotated_vector * (box.shape.length / 2)
-            p3 = box.state.pos + rotated_vector2 * (box.shape.width / 2)
-            p4 = box.state.pos - rotated_vector2 * (box.shape.width / 2)
-
-            for i, p in enumerate([p1, p2, p3, p4]):
-
-                f_a, f_b = self._line_sphere_collision_forces(
-                    sphere.state.pos,
-                    sphere.shape.radius,
-                    p,
-                    box.state.rot + torch.pi / 2 if i <= 1 else box.state.rot,
-                    box.shape.width if i <= 1 else box.shape.length,
-                )
-                force_a += f_a
-                force_b += f_b
+            force_a += force_sphere if isinstance(entity_a.shape, Sphere) else force_box
+            force_b += force_sphere if isinstance(entity_b.shape, Sphere) else force_box
 
         return (
             force_a
@@ -763,9 +803,63 @@ class World(TorchVectorizedObject):
             else torch.tensor(0.0, dtype=torch.float32, device=self.device),
         )
 
-    def _line_sphere_collision_forces(
-        self, sphere_pos, sphere_radius, line_pos, line_rot, line_length
+    def _get_closest_point_box_sphere(self, box: Entity, sphere: Entity):
+        assert isinstance(box.shape, Box) and isinstance(sphere.shape, Sphere)
+
+        closest_points = self._get_all_points_box_sphere(box, sphere)
+        closest_point = torch.full(
+            (self.batch_dim, self.dim_p),
+            float("inf"),
+            device=self.device,
+            dtype=torch.float32,
+        )
+        distance = torch.full(
+            (self.batch_dim,), float("inf"), device=self.device, dtype=torch.float32
+        )
+        for p in closest_points:
+            d = torch.linalg.vector_norm(sphere.state.pos - p, dim=1)
+            is_closest = d < distance
+            closest_point[is_closest] = p[is_closest]
+            distance[is_closest] = d[is_closest]
+
+        assert not closest_point.isinf().any()
+
+        return closest_point
+
+    def _get_all_points_box_sphere(self, box: Entity, sphere: Entity):
+        assert isinstance(box.shape, Box) and isinstance(sphere.shape, Sphere)
+
+        # Rotate normal vector by the angle of the box
+        rotated_vector = World._rotate_vector(self._normal_vector, box.state.rot)
+        rotated_vector2 = World._rotate_vector(
+            self._normal_vector, box.state.rot + torch.pi / 2
+        )
+
+        # Middle points of the sides
+        p1 = box.state.pos + rotated_vector * (box.shape.length / 2)
+        p2 = box.state.pos - rotated_vector * (box.shape.length / 2)
+        p3 = box.state.pos + rotated_vector2 * (box.shape.width / 2)
+        p4 = box.state.pos - rotated_vector2 * (box.shape.width / 2)
+
+        closest_points = []
+
+        for i, p in enumerate([p1, p2, p3, p4]):
+            point = self._get_closest_point_line_sphere(
+                p,
+                box.state.rot + torch.pi / 2 if i <= 1 else box.state.rot,
+                box.shape.width if i <= 1 else box.shape.length,
+                sphere,
+            )
+            closest_points.append(point)
+
+        return closest_points
+
+    def _get_closest_point_line_sphere(
+        self, line_pos, line_rot, line_length, sphere: Entity
     ):
+        assert isinstance(sphere.shape, Sphere)
+
+        sphere_pos = sphere.state.pos
 
         # Rotate it by the angle of the line
         rotated_vector = World._rotate_vector(self._normal_vector, line_rot)
@@ -784,15 +878,11 @@ class World(TorchVectorizedObject):
             )
             * rotated_vector
         )
-        return self._get_collision_forces(
-            sphere_pos,
-            closest_point,
-            dist_min=sphere_radius,
-        )
+        return closest_point
 
     def _get_collision_forces(self, pos_a, pos_b, dist_min):
         delta_pos = pos_a - pos_b
-        dist = torch.sqrt(torch.sum(delta_pos**2, dim=-1))
+        dist = torch.linalg.vector_norm(delta_pos, dim=1)
 
         # softmax penetration
         k = self._contact_margin
