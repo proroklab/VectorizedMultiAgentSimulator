@@ -166,7 +166,7 @@ if __name__ == "__main__":
     # You can reset the environment by pressing R
     # You can move agents with the arrow keys
 
-    scenario_name = "dropout"
+    scenario_name = "reverse_transport"
 
     # Scenario specific variables
     n_agents = 4
