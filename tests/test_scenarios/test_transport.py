@@ -7,7 +7,7 @@ import torch
 from maps import make_env
 
 
-class TestDispersion(unittest.TestCase):
+class TestTransport(unittest.TestCase):
     def setup_env(self, **kwargs) -> None:
         super().setUp()
         self.n_agents = kwargs.get("n_agents", 4)
