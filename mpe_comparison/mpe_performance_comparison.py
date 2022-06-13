@@ -3,14 +3,16 @@
 
 import argparse
 import os
+import pickle
 import platform
 import re
 import subprocess
 import time
+from pathlib import Path
 
+import numpy as np
 import torch
 from matplotlib import pyplot as plt
-from matplotlib.pyplot import xticks
 
 import maps
 
@@ -104,19 +106,58 @@ def get_device_name(torch_device: str):
         assert False
 
 
+def store_pickled_evaluation(name: str, evaluation: list):
+    save_folder = (
+        f"{os.path.dirname(os.path.realpath(__file__))}/maps_vs_mpe_graphs/pickled"
+    )
+    file = f"{save_folder}/{name}.pkl"
+
+    pickle.dump(evaluation, open(file, "wb"))
+
+
+def load_pickled_evaluation(
+    name: str,
+):
+    save_folder = (
+        f"{os.path.dirname(os.path.realpath(__file__))}/maps_vs_mpe_graphs/pickled"
+    )
+    file = Path(f"{save_folder}/{name}.pkl")
+
+    if file.is_file():
+        return pickle.load(open(file, "rb"))
+    return None
+
+
 def run_comparison(maps_device: str, n_steps: int = 100):
     device_name = get_device_name(maps_device)
 
     mpe_times = []
     maps_times = []
 
-    list_n_envs = [1, 10, 100, 1e3, 1e4, 1e5]
+    low = 1
+    high = 40000
+    num = 100
 
-    for n_envs in list_n_envs:
-        mpe_times.append(run_mpe_simple_spread(n_envs=n_envs, n_steps=n_steps))
-        maps_times.append(
-            run_maps_simple_spread(n_envs=n_envs, n_steps=n_steps, device=maps_device)
+    list_n_envs = np.linspace(low, high, num)
+
+    figure_name = f"MAPS_vs_MPE_{n_steps}_steps_{device_name.lower().replace(' ','_')}"
+    figure_name_pkl = figure_name + f"_range_{low}_{high}_num_{num}"
+
+    evaluation = load_pickled_evaluation(figure_name_pkl)
+    if evaluation is None:
+        for n_envs in list_n_envs:
+            mpe_times.append(run_mpe_simple_spread(n_envs=n_envs, n_steps=n_steps))
+            maps_times.append(
+                run_maps_simple_spread(
+                    n_envs=n_envs, n_steps=n_steps, device=maps_device
+                )
+            )
+        store_pickled_evaluation(
+            name=figure_name_pkl, evaluation=[mpe_times, maps_times]
         )
+    else:
+        mpe_times = evaluation[0]
+        maps_times = evaluation[1]
 
     fig, ax = plt.subplots()
     ax.plot(
@@ -131,16 +172,14 @@ def run_comparison(maps_device: str, n_steps: int = 100):
     )
     plt.xlabel("Number of parallel environments", fontsize=14)
     plt.ylabel("Seconds", fontsize=14)
-    xticks(list_n_envs)
     ax.legend(loc="upper left")
 
     fig.suptitle("MAPS vs MPE", fontsize=16)
     ax.set_title(
         f"Execution time of 'simple_spread' for {n_steps} steps on {device_name}",
-        fontsize=10,
+        fontsize=8,
     )
 
-    figure_name = f"MAPS_vs_MPE_{n_steps}_steps_{device_name}"
     save_folder = os.path.dirname(os.path.realpath(__file__))
     plt.savefig(f"{save_folder}/maps_vs_mpe_graphs/{figure_name}.pdf")
 
