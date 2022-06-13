@@ -115,6 +115,7 @@ class Scenario(BaseScenario):
         package_pos = []
         for package in self.world.landmarks[1:]:
             package_pos.append(package.state.pos - package.goal.state.pos)
+            package_pos.append(package.state.pos - agent.state.pos)
         return torch.cat([agent.state.pos, agent.state.vel, *package_pos], dim=-1)
 
     def done(self):

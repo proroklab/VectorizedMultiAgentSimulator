@@ -7,7 +7,7 @@ import torch
 from maps import make_env
 
 
-class TestFood(unittest.TestCase):
+class TestDispersion(unittest.TestCase):
     def setup_env(
         self, n_agents: int, share_reward: bool, penalise_by_time: bool
     ) -> None:
