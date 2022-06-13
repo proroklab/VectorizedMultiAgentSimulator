@@ -348,7 +348,7 @@ class Entity(TorchVectorizedObject, ABC):
     ):
         self._check_batch_index(batch_index)
         if batch_index is None:
-            if len(new.shape) > 1:
+            if len(new.shape) > 1 and new.shape[0] == self.batch_dim:
                 prop.fset(entity, new)
             else:
                 prop.fset(entity, new.repeat(self.batch_dim, 1))
@@ -529,6 +529,8 @@ class World(TorchVectorizedObject):
         x_semidim: float = None,
         y_semidim: float = None,
         dim_c: int = 0,
+        contact_force: float = 1e2,
+        contact_margin: float = 1e-3,
     ):
         assert batch_dim > 0, f"Batch dim must be greater than 0, got {batch_dim}"
 
@@ -548,8 +550,8 @@ class World(TorchVectorizedObject):
         # physical damping
         self._damping = damping
         # contact response parameters
-        self._contact_force = 1e2
-        self._contact_margin = 1e-3
+        self._contact_force = contact_force
+        self._contact_margin = contact_margin
         # Pairs of collidable shapes
         self._collidable_pairs = [{Sphere, Sphere}, {Sphere, Box}, {Sphere, Line}]
         # Horizontal unit vector
@@ -637,6 +639,9 @@ class World(TorchVectorizedObject):
             )
             closest_point = self._get_closest_point_box_sphere(box, sphere)
 
+            distance_sphere_closest_point = torch.linalg.vector_norm(
+                sphere.state.pos - closest_point, dim=1
+            )
             distance_sphere_box = torch.linalg.vector_norm(
                 sphere.state.pos - box.state.pos, dim=1
             )
@@ -644,7 +649,9 @@ class World(TorchVectorizedObject):
                 box.state.pos - closest_point, dim=1
             )
             dist_min = sphere.shape.radius
-            return (distance_sphere_box - dist_min) < distance_closest_point_box
+            return (distance_sphere_box < distance_closest_point_box) + (
+                distance_sphere_closest_point < dist_min
+            )
         # Sphere and line
         elif (
             isinstance(entity_a.shape, Line)
