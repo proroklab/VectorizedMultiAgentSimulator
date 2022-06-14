@@ -838,7 +838,7 @@ class World(TorchVectorizedObject):
                 dist_min=sphere.shape.radius + LINE_MIN_DIST,
             )
             r = closest_point - line.state.pos
-            torque_line = self._compute_torque(force_line, r)
+            torque_line = World._compute_torque(force_line, r)
 
             force_a = force_sphere if isinstance(entity_a.shape, Sphere) else force_line
             force_b = force_sphere if isinstance(entity_b.shape, Sphere) else force_line
@@ -863,7 +863,7 @@ class World(TorchVectorizedObject):
                 dist_min=sphere.shape.radius + LINE_MIN_DIST,
             )
             r = closest_point - box.state.pos
-            torque_box = self._compute_torque(force_box, r)
+            torque_box = World._compute_torque(force_box, r)
 
             force_a = force_sphere if isinstance(entity_a.shape, Sphere) else force_box
             force_b = force_sphere if isinstance(entity_b.shape, Sphere) else force_box
