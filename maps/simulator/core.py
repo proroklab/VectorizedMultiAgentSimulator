@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from abc import ABC
+from abc import ABC, abstractmethod
 from typing import Callable, List, Union
 
 import torch
@@ -45,7 +45,9 @@ class TorchVectorizedObject(object):
 
 
 class Shape(ABC):
-    pass
+    @abstractmethod
+    def moment_of_inertia(self, mass: float):
+        raise NotImplementedError
 
 
 class Box(Shape):
@@ -64,6 +66,9 @@ class Box(Shape):
     def width(self):
         return self._width
 
+    def moment_of_inertia(self, mass: float):
+        return (1 / 12) * mass * (self.length**2 + self.width**2)
+
 
 class Sphere(Shape):
     def __init__(self, radius: float = 0.05):
@@ -74,6 +79,9 @@ class Sphere(Shape):
     @property
     def radius(self):
         return self._radius
+
+    def moment_of_inertia(self, mass: float):
+        return (1 / 2) * mass * self.radius**2
 
 
 class Line(Shape):
@@ -91,6 +99,9 @@ class Line(Shape):
     @property
     def width(self):
         return self._width
+
+    def moment_of_inertia(self, mass: float):
+        return (1 / 12) * mass * (self.length**2)
 
 
 class EntityState(TorchVectorizedObject):
@@ -280,6 +291,10 @@ class Entity(TorchVectorizedObject, ABC):
     @property
     def mass(self):
         return self._mass
+
+    @property
+    def moment_of_inertia(self):
+        return self.shape.moment_of_inertia(self.mass)
 
     @property
     def state(self):
