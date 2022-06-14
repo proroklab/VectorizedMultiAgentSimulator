@@ -135,7 +135,7 @@ def run_comparison(maps_device: str, n_steps: int = 100):
     maps_times = []
 
     low = 1
-    high = 40000
+    high = 30000
     num = 100
 
     list_n_envs = np.linspace(low, high, num)
