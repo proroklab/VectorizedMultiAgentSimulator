@@ -24,6 +24,7 @@ class Scenario(BaseScenario):
                 name=f"landmark {i}",
                 collide=True,
                 movable=True,
+                rotatable=True,
                 shape=Box(length=0.3, width=0.1),
                 color=Color.RED,
             )

@@ -166,9 +166,9 @@ if __name__ == "__main__":
     # You can reset the environment by pressing R
     # You can move agents with the arrow keys
 
-    scenario_name = "reverse_transport"
+    scenario_name = "waterfall"
 
     # Scenario specific variables
     n_agents = 4
 
-    render_interactively(scenario_name, n_agents=n_agents, energy_coeff=0.02)
+    render_interactively(scenario_name, n_agents=n_agents)
