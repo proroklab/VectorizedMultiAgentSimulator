@@ -840,10 +840,11 @@ class World(TorchVectorizedObject):
             r = closest_point - line.state.pos
             torque_line = World._compute_torque(force_line, r)
 
-            force_a = force_sphere if isinstance(entity_a.shape, Sphere) else force_line
-            force_b = force_sphere if isinstance(entity_b.shape, Sphere) else force_line
-            torque_a = torque_line if isinstance(entity_a.shape, Line) else 0
-            torque_b = torque_line if isinstance(entity_b.shape, Line) else 0
+            force_a, torque_a, force_b, torque_b = (
+                (force_sphere, 0, force_line, torque_line)
+                if isinstance(entity_a.shape, Sphere)
+                else (force_line, torque_line, force_sphere, 0)
+            )
         # Sphere and box
         elif (
             isinstance(entity_a.shape, Box)
@@ -865,10 +866,11 @@ class World(TorchVectorizedObject):
             r = closest_point - box.state.pos
             torque_box = World._compute_torque(force_box, r)
 
-            force_a = force_sphere if isinstance(entity_a.shape, Sphere) else force_box
-            force_b = force_sphere if isinstance(entity_b.shape, Sphere) else force_box
-            torque_a = torque_box if isinstance(entity_a.shape, Box) else 0
-            torque_b = torque_box if isinstance(entity_b.shape, Box) else 0
+            force_a, torque_a, force_b, torque_b = (
+                (force_sphere, 0, force_box, torque_box)
+                if isinstance(entity_a.shape, Sphere)
+                else (force_box, torque_box, force_sphere, 0)
+            )
         else:
             assert False
 
