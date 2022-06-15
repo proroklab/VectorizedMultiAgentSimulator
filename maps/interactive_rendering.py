@@ -34,8 +34,8 @@ class InteractiveEnv:
         self.n_agents = self.env.unwrapped().n_agents
         self.continuous = self.env.unwrapped().continuous_actions
         self.reset = False
-        self.keys = np.array([0,0,0,0]) # up, down, left, right
-        self.u = 0 if not self.continuous else (0.,0.)
+        self.keys = np.array([0, 0, 0, 0])  # up, down, left, right
+        self.u = 0 if not self.continuous else (0.0, 0.0)
 
         env.render()
         self._init_text()
@@ -60,7 +60,7 @@ class InteractiveEnv:
             active_agent_index = self.current_agent_index
 
             if self.continuous:
-                action_list = [(0.,0.)] * self.n_agents
+                action_list = [(0.0, 0.0)] * self.n_agents
             else:
                 action_list = [0] * self.n_agents
             action_list[active_agent_index] = self.u
@@ -118,19 +118,19 @@ class InteractiveEnv:
     def _key_press(self, k, mod):
         from pyglet.window import key
 
-        u_disc = self.u
+        u = self.u
         if k == key.LEFT:
             self.keys[0] = 1
-            u_disc = 1
+            u = 1
         elif k == key.RIGHT:
             self.keys[1] = 1
-            u_disc = 2
+            u = 2
         elif k == key.DOWN:
             self.keys[2] = 1
-            u_disc = 3
+            u = 3
         elif k == key.UP:
             self.keys[3] = 1
-            u_disc = 4
+            u = 4
         elif k == key.TAB:
             self._increment_selected_agent_index()
         elif k == key.R:
@@ -139,8 +139,7 @@ class InteractiveEnv:
         if self.continuous:
             self.u = (self.keys[1] - self.keys[0], self.keys[3] - self.keys[2])
         else:
-            self.u = u_disc
-
+            self.u = u
 
     def _key_release(self, k, mod):
         from pyglet.window import key
@@ -163,7 +162,6 @@ class InteractiveEnv:
                 self.u = np.argmax(self.keys) + 1
             else:
                 self.u = 0
-
 
 
 def render_interactively(scenario_name: str, **kwargs):
