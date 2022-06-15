@@ -627,7 +627,7 @@ class World(TorchVectorizedObject):
         return self._agents
 
     @property
-    def landmarks(self):
+    def landmarks(self) -> List[Landmark]:
         return self._landmarks
 
     @property
