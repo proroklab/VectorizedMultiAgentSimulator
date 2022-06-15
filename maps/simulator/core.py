@@ -448,7 +448,7 @@ class Agent(Entity):
         u_noise: float = None,
         u_range: float = 1.0,
         u_multiplier: float = 1.0,
-        action_script: Callable[[Agent, World], Action] = None,
+        action_script: Callable[[Agent, World], None] = None,
         sensors: Union[SensorType, List[SensorType]] = None,
         c_noise: float = None,
         silent: bool = True,
@@ -507,11 +507,11 @@ class Agent(Entity):
         self._action.device = device
 
     @property
-    def action_script(self) -> Callable[[Agent, World], Action]:
+    def action_script(self) -> Callable[[Agent, World], None]:
         return self._action_script
 
     def action_callback(self, world: World):
-        self._action = self._action_script(self, world)
+        self._action_script(self, world)
         if self._silent or world.dim_c == 0:
             assert (
                 self._action.c is None
@@ -779,12 +779,6 @@ class World(TorchVectorizedObject):
                 if b <= a or not self._collides(entity_a, entity_b):
                     continue
                 (f_a, t_a), (f_b, t_b) = self._get_collision_force(entity_a, entity_b)
-                assert (
-                    not f_a.isnan().any()
-                    or not f_b.isnan().any()
-                    or not t_a.isnan().any()
-                    or not t_b.isnan().any()
-                )
                 if entity_a.movable:
                     force[:, a] += f_a
                 if entity_a.rotatable:
