@@ -8,12 +8,14 @@ import torch
 from torch import Tensor
 
 from maps.simulator.core import World, Agent
+from maps.simulator.utils import INITIAL_VIEWER_SIZE
 
 
 class BaseScenario(ABC):
     def __init__(self):
         """Do not override"""
         self._world = None
+        self.viewer_size = INITIAL_VIEWER_SIZE
 
     @property
     def world(self):

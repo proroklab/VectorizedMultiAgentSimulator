@@ -311,13 +311,14 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
             )
         shared_viewer = agent_index_focus is None
         headless = mode == "rgb_array"
+        aspect_ratio = self.scenario.viewer_size[X] / self.scenario.viewer_size[Y]
 
         # First time rendering
         if self.viewer is None:
             from maps.simulator import rendering
 
             self.viewer = rendering.Viewer(
-                700, 700, visible=not headless or visualize_when_rgb
+                *self.scenario.viewer_size, visible=not headless or visualize_when_rgb
             )
         # First time rendering
         if self.render_geoms is None:
@@ -344,22 +345,43 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
                 self.viewer.text_lines[idx].set_text(message)
                 idx += 1
 
+        if aspect_ratio < 1:
+            cam_range = torch.tensor([VIEWER_MIN_SIZE, VIEWER_MIN_SIZE / aspect_ratio])
+        else:
+            cam_range = torch.tensor([VIEWER_MIN_SIZE * aspect_ratio, VIEWER_MIN_SIZE])
+
         if shared_viewer:
             # zoom out to fit everyone
-            all_poses = torch.cat(
+            all_poses = torch.stack(
                 [entity.state.pos[env_index] for entity in self.world.entities], dim=0
             )
-            cam_range = torch.max(torch.abs(all_poses)) + VIEWER_MIN_SIZE - 1
-            self.viewer.set_max_size(cam_range)
+            viewer_size_fit = (
+                torch.stack(
+                    [
+                        torch.max(torch.abs(all_poses[:, X])),
+                        torch.max(torch.abs(all_poses[:, Y])),
+                    ]
+                )
+                + VIEWER_MIN_SIZE
+                - 1
+            )
+
+            viewer_size = torch.maximum(viewer_size_fit / cam_range, torch.tensor(1))
+            cam_range *= torch.max(viewer_size)
+            self.viewer.set_bounds(
+                -cam_range[X],
+                cam_range[X],
+                -cam_range[Y],
+                cam_range[Y],
+            )
         else:
             # update bounds to center around agent
-            cam_range = 1
             pos = self.agents[agent_index_focus].state.pos[env_index]
             self.viewer.set_bounds(
-                pos[0] - cam_range,
-                pos[0] + cam_range,
-                pos[1] - cam_range,
-                pos[1] + cam_range,
+                pos[X] - cam_range[X],
+                pos[X] + cam_range[X],
+                pos[Y] - cam_range[Y],
+                pos[Y] + cam_range[Y],
             )
         # update geometry positions
         for e, entity in enumerate(self.world.entities):
