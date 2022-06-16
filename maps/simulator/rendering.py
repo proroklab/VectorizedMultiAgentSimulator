@@ -15,8 +15,6 @@ import numpy as np
 import six
 from gym import error
 
-from maps.simulator.utils import VIEWER_MIN_SIZE
-
 try:
     import pyglet
 except ImportError:
@@ -127,19 +125,6 @@ class Viewer(object):
 
     def window_closed_by_user(self):
         self.close()
-
-    def set_max_size(self, current_size):
-        max_size = max(current_size, VIEWER_MIN_SIZE)
-        left = -max_size
-        right = max_size
-        bottom = -max_size
-        top = max_size
-        assert right > left and top > bottom
-        scalex = self.width / (right - left)
-        scaley = self.height / (top - bottom)
-        self.transform = Transform(
-            translation=(-left * scalex, -bottom * scaley), scale=(scalex, scaley)
-        )
 
     def set_bounds(self, left, right, bottom, top):
         assert right > left and top > bottom
