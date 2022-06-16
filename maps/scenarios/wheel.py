@@ -19,7 +19,7 @@ class Scenario(BaseScenario):
         # Add agents
         for i in range(n_agents):
             # Constraint: all agents have same action range and multiplier
-            agent = Agent(name=f"agent {i}", u_multiplier=0.9)
+            agent = Agent(name=f"agent {i}", u_multiplier=0.9, shape=Sphere(0.03))
             world.add_agent(agent)
         # Add landmarks
         line = Landmark(

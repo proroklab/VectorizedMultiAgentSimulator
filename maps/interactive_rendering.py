@@ -169,6 +169,5 @@ if __name__ == "__main__":
     scenario_name = "waterfall"
 
     # Scenario specific variables
-    n_agents = 4
 
-    render_interactively(scenario_name, n_agents=n_agents)
+    render_interactively(scenario_name)
