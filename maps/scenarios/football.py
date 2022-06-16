@@ -472,8 +472,10 @@ class Scenario(BaseScenario):
             [agent.state.pos,
              agent.state.vel,
              self.ball.state.pos - agent.state.pos,
-             self.ball.state.vel - agent.state.vel]
+             self.ball.state.vel - agent.state.vel],
+            dim=1
         )
+        print(obs.shape)
         return obs
 
     def done(self):
@@ -500,7 +502,6 @@ def ball_action_script(ball, world):
     goal_mask = (ball.state.pos[:, 1] < world.goal_size/2) * (ball.state.pos[:, 1] > -world.goal_size/2)
     actions[goal_mask,0] = 0
     ball.action.u = actions
-    return ball.action
 
 
 
@@ -513,10 +514,9 @@ class AgentPolicy:
         self.otherteam_name = "Blue" if (team=="Red") else "Red"
         self.lookahead = 0.01
         self.dribble_speed = 0.5
-        self.touch_eps = 0.02
-        self.vel_eps = 0.01
-        self.min_action_steps = 1
-        self.max_action_steps = 100
+        self.dribble_slowdown_dist = 0.1
+        self.initial_vel_dist_behind_target_frac = 0.
+        self.pos_eps = 0.05
         self.objectives = {}
         self.actions = {}
         self.action_steps = {}
@@ -668,10 +668,7 @@ class AgentPolicy:
     def go_to(self, agent, pos, vel, start_vel=None):
         start_pos = agent.state.pos.clone()
         if start_vel is None:
-            goal_disp = pos - start_pos
-            goal_dist = goal_disp.norm(dim=1)
-            start_vel_aug_dir = goal_disp / goal_dist if (goal_dist > 0) else goal_disp
-            start_vel = start_vel_aug_dir * vel.norm(dim=1)
+            start_vel = self.get_start_vel(agent, pos, vel)
         self.objectives[agent] = {
             "target_pos": pos.numpy(),
             "target_vel": vel.numpy(),
@@ -679,6 +676,21 @@ class AgentPolicy:
             "start_vel": start_vel.numpy(),
         }
         self.plot_traj(agent)
+
+
+    def get_start_vel(self, agent, pos, vel):
+        start_pos = agent.state.pos.clone()
+        goal_disp = pos - start_pos
+        goal_dist = goal_disp.norm(dim=1)
+        vel_mag = vel.norm(dim=1)
+        vel_dir = vel / vel_mag if vel_mag > 0 else vel
+        dist_behind_target = self.initial_vel_dist_behind_target_frac * goal_dist
+        target_pos = pos - vel_dir * dist_behind_target
+        target_disp = target_pos - start_pos
+        target_dist = target_disp.norm(dim=1)
+        start_vel_aug_dir = target_disp / target_dist if (target_dist > 0) else target_disp
+        start_vel = start_vel_aug_dir * vel.norm(dim=1)
+        return start_vel
 
 
     def plot_traj(self, agent):
@@ -728,44 +740,37 @@ class AgentPolicy:
 
     def update_dribble(self, agent, pos):
         ball_pos = self.ball.state.pos
-        direction = pos - ball_pos
-        direction = direction / direction.norm(dim=1)
+        ball_disp = pos - ball_pos
+        ball_dist = ball_disp.norm(dim=1)
+        direction = ball_disp / ball_dist
         hit_pos = ball_pos - direction * (self.ball.shape.radius + agent.shape.radius)
         hit_vel = direction * self.dribble_speed
+        if ball_dist <= self.dribble_slowdown_dist:
+            hit_vel *= ball_dist / self.dribble_slowdown_dist
         self.go_to(agent, hit_pos, hit_vel)
 
 
-    def dribble_stop_cond(self, agent):
-        if self.action_steps[agent] < self.min_action_steps:
-            return False
-        if self.action_steps[agent] >= self.max_action_steps:
-            return True
-        disp = self.ball.state.pos - agent.state.pos
-        dist = disp.norm(dim=1)
-        if dist < self.ball.shape.radius + agent.shape.radius + self.touch_eps:
-            return True
-        return False
-
     def dribble(self, agent, pos):
-        if self.actions[agent]["dribbling"]:
-            if self.dribble_stop_cond(agent):
-                self.actions[agent]["dribbling"] = False
-                self.action_steps[agent] = 0
-            else:
-                self.action_steps[agent] += 1
         if not self.actions[agent]["dribbling"]:
             self.actions[agent]["dribbling"] = True
+            self.action_steps[agent] = 0
+        dist = (pos - self.ball.state.pos).norm(dim=1)
+        if dist <= self.pos_eps:
+            self.actions[agent]["dribbling"] = True
+            self.action_steps[agent] = 0
+        else:
             self.update_dribble(agent, pos)
+            self.action_steps[agent] += 1
 
 
     def policy(self, agent, world):
         if not self.initialised:
             self.init(agent, world)
-        self.dribble(agent, self.target_net.state.pos)
+        # self.dribble(agent, self.target_net.state.pos)
+        self.dribble(agent, torch.tensor([-0.75, 0.]).unsqueeze(0))
         control = self.get_action(agent)
         control = torch.clamp(control, min=-1., max=1.)
         agent.action.u = control * agent.u_multiplier
-        return agent.action
 
 
 
