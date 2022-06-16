@@ -36,6 +36,7 @@ class InteractiveEnv:
         self.reset = False
         self.keys = np.array([0, 0, 0, 0])  # up, down, left, right
         self.u = 0 if not self.continuous else (0.0, 0.0)
+        self.action_multiplier = 0.3
 
         env.render()
         self._init_text()
@@ -137,7 +138,10 @@ class InteractiveEnv:
             self.reset = True
 
         if self.continuous:
-            self.u = (self.keys[1] - self.keys[0], self.keys[3] - self.keys[2])
+            self.u = (
+                (self.keys[1] - self.keys[0]) * self.action_multiplier,
+                (self.keys[3] - self.keys[2]) * self.action_multiplier,
+            )
         else:
             self.u = u
 
@@ -156,7 +160,10 @@ class InteractiveEnv:
             self.reset = False
 
         if self.continuous:
-            self.u = (self.keys[1] - self.keys[0], self.keys[3] - self.keys[2])
+            self.u = (
+                (self.keys[1] - self.keys[0]) * self.action_multiplier,
+                (self.keys[3] - self.keys[2]) * self.action_multiplier,
+            )
         else:
             if np.sum(self.keys) == 1:
                 self.u = np.argmax(self.keys) + 1
