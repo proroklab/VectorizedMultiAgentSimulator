@@ -7,7 +7,30 @@ from maps.simulator.utils import Color
 
 
 class Scenario(BaseScenario):
+
+
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
+        self.init_params(**kwargs)
+        world = self.init_world(batch_dim, device)
+        self.init_agents(world)
+        self.init_ball(world)
+        self.init_background(world)
+        self.init_walls(world)
+        self.init_goals(world)
+        self.init_traj_pts(world)
+        return world
+
+
+    def reset_world_at(self, env_index: int = None):
+        self.reset_ball(env_index)
+        self.reset_agents(env_index)
+        self.reset_background(env_index)
+        self.reset_walls(env_index)
+        self.reset_goals(env_index)
+        self.reset_controllers(env_index)
+
+
+    def init_params(self, **kwargs):
         self.viewer_size = kwargs.get("viewer_size", (1200, 800))
         self.ai_red_agents = kwargs.get("ai_red_agents", True)
         self.ai_blue_agents = kwargs.get("ai_blue_agents", False)
@@ -25,10 +48,8 @@ class Scenario(BaseScenario):
         self.ball_size = kwargs.get("ball_size", 0.02)
         self.n_traj_points = kwargs.get("n_traj_points", 8)
 
-        self.hits = []
-        self.last_hit_obs = None
-        self.ball_hit = False
 
+    def init_world(self, batch_dim: int, device: torch.device):
         # Make world
         world = World(
             batch_dim,
@@ -36,10 +57,17 @@ class Scenario(BaseScenario):
             dt=0.1,
             damping=0.05,
             contact_force=5e1,
-            x_semidim=self.pitch_length/2 + self.goal_depth - self.agent_size,
-            y_semidim=self.pitch_width/2 - self.agent_size,
+            x_semidim=self.pitch_length / 2 + self.goal_depth - self.agent_size,
+            y_semidim=self.pitch_width / 2 - self.agent_size,
         )
+        world.agent_size = self.agent_size
+        world.pitch_width = self.pitch_width
+        world.pitch_length = self.pitch_length
+        world.goal_size = self.goal_size
+        return world
 
+
+    def init_agents(self, world):
         # Add agents
         self.blue_controller = None
         self.red_controller = None
@@ -47,7 +75,8 @@ class Scenario(BaseScenario):
             self.blue_controller = AgentPolicy()
         if self.ai_red_agents:
             self.red_controller = AgentPolicy()
-        world.blue_agents = []
+
+        blue_agents = []
         for i in range(self.n_blue_agents):
             agent = Agent(name=f"Agent Blue {i}",
                           shape=Sphere(radius=self.agent_size),
@@ -56,8 +85,9 @@ class Scenario(BaseScenario):
                           max_speed=self.max_speed,
                           color=Color.BLUE)
             world.add_agent(agent)
-            world.blue_agents.append(agent)
-        world.red_agents = []
+            blue_agents.append(agent)
+
+        red_agents = []
         for i in range(self.n_red_agents):
             agent = Agent(name=f"Agent Red {i}",
                           shape=Sphere(radius=self.agent_size),
@@ -66,21 +96,83 @@ class Scenario(BaseScenario):
                           max_speed=self.max_speed,
                           color=Color.RED)
             world.add_agent(agent)
-            world.red_agents.append(agent)
+            red_agents.append(agent)
 
+        self.red_agents = red_agents
+        self.blue_agents = blue_agents
+        world.red_agents = red_agents
+        world.blue_agents = blue_agents
+
+
+    def reset_agents(self, env_index: int = None):
+        for agent in self.blue_agents:
+            agent.set_pos(
+                torch.rand(
+                    self.world.dim_p
+                    if env_index is not None
+                    else (self.world.batch_dim, self.world.dim_p),
+                    device=self.world.device
+                )
+                + torch.tensor([-self.pitch_length / 2, -self.pitch_width / 2]),
+                batch_index=env_index,
+            )
+            agent.set_vel(
+                torch.zeros(2, device=self.world.device),
+                batch_index=env_index,
+            )
+        for agent in self.red_agents:
+            agent.set_pos(
+                torch.rand(
+                    self.world.dim_p
+                    if env_index is not None
+                    else (self.world.batch_dim, self.world.dim_p),
+                    device=self.world.device
+                )
+                + torch.tensor([0., -self.pitch_width / 2]),
+                batch_index=env_index,
+            )
+            agent.set_vel(
+                torch.zeros(2, device=self.world.device),
+                batch_index=env_index,
+            )
+
+
+    def reset_controllers(self, env_index: int = None):
+        if self.red_controller is not None:
+            if not self.red_controller.initialised:
+                self.red_controller.init(self.world)
+            self.red_controller.reset(env_index)
+        if self.blue_controller is not None:
+            if not self.blue_controller.initialised:
+                self.blue_controller.init(self.world)
+            self.blue_controller.reset(env_index)
+
+
+    def init_ball(self, world):
         # Add Ball
         ball = Agent(name=f"Ball",
                      shape=Sphere(radius=self.ball_size),
                      action_script=ball_action_script,
                      max_speed=self.ball_max_speed,
-                     mass = self.ball_mass,
+                     mass=self.ball_mass,
                      color=Color.GRAY)
         world.add_agent(ball)
-        world.agent_size = self.agent_size
-        world.pitch_width = self.pitch_width
-        world.pitch_length = self.pitch_length
-        world.goal_size = self.goal_size
+        world.ball = ball
+        self.ball = ball
 
+
+    def reset_ball(self, env_index: int = None):
+        self.ball.set_pos(
+            torch.zeros(2, device=self.world.device),
+            batch_index=env_index,
+        )
+        self.ball.set_vel(
+            torch.zeros(2, device=self.world.device),
+            batch_index=env_index,
+        )
+
+
+    def init_background(self, world):
         # Add landmarks
         background = Landmark(
             name=f"Background",
@@ -95,7 +187,7 @@ class Scenario(BaseScenario):
             name=f"Centre Circle Outer",
             collide=False,
             movable=False,
-            shape=Sphere(radius=self.goal_size/2),
+            shape=Sphere(radius=self.goal_size / 2),
             color=Color.WHITE,
         )
         world.add_landmark(centre_circle_outer)
@@ -104,7 +196,7 @@ class Scenario(BaseScenario):
             name=f"Centre Circle Inner",
             collide=False,
             movable=False,
-            shape=Sphere(self.goal_size/2-0.02),
+            shape=Sphere(self.goal_size / 2 - 0.02),
             color=Color.GREEN,
         )
         world.add_landmark(centre_circle_inner)
@@ -113,7 +205,7 @@ class Scenario(BaseScenario):
             name=f"Centre Line",
             collide=False,
             movable=False,
-            shape=Line(length=self.pitch_width - 2*self.agent_size, width=6),
+            shape=Line(length=self.pitch_width - 2 * self.agent_size, width=6),
             color=Color.WHITE,
         )
         world.add_landmark(centre_line)
@@ -122,7 +214,7 @@ class Scenario(BaseScenario):
             name=f"Right Line",
             collide=False,
             movable=False,
-            shape=Line(length=self.pitch_width - 2*self.agent_size, width=6),
+            shape=Line(length=self.pitch_width - 2 * self.agent_size, width=6),
             color=Color.WHITE,
         )
         world.add_landmark(right_line)
@@ -131,7 +223,7 @@ class Scenario(BaseScenario):
             name=f"Left Line",
             collide=False,
             movable=False,
-            shape=Line(length=self.pitch_width - 2*self.agent_size, width=6),
+            shape=Line(length=self.pitch_width - 2 * self.agent_size, width=6),
             color=Color.WHITE,
         )
         world.add_landmark(left_line)
@@ -140,7 +232,7 @@ class Scenario(BaseScenario):
             name=f"Top Line",
             collide=False,
             movable=False,
-            shape=Line(length=self.pitch_length - 2*self.agent_size, width=6),
+            shape=Line(length=self.pitch_length - 2 * self.agent_size, width=6),
             color=Color.WHITE,
         )
         world.add_landmark(top_line)
@@ -153,6 +245,46 @@ class Scenario(BaseScenario):
             color=Color.WHITE,
         )
         world.add_landmark(bottom_line)
+
+
+    def reset_background(self, env_index: int = None):
+        for landmark in self.world.landmarks:
+            if landmark.name == "Centre Line":
+                landmark.set_rot(
+                    torch.tensor([torch.pi / 2], dtype=torch.float32, device=self.world.device),
+                    batch_index=env_index,
+                )
+            elif landmark.name == "Right Line":
+                landmark.set_pos(
+                    torch.tensor([self.pitch_length/2 - self.agent_size, 0.], dtype=torch.float32, device=self.world.device,),
+                    batch_index=env_index,
+                )
+                landmark.set_rot(
+                    torch.tensor([torch.pi / 2], dtype=torch.float32, device=self.world.device),
+                    batch_index=env_index,
+                )
+            elif landmark.name == "Left Line":
+                landmark.set_pos(
+                    torch.tensor([-self.pitch_length/2 + self.agent_size, 0.], dtype=torch.float32, device=self.world.device,),
+                    batch_index=env_index,
+                )
+                landmark.set_rot(
+                    torch.tensor([torch.pi / 2], dtype=torch.float32, device=self.world.device),
+                    batch_index=env_index,
+                )
+            elif landmark.name == "Top Line":
+                landmark.set_pos(
+                    torch.tensor([0., self.pitch_width/2 - self.agent_size], dtype=torch.float32, device=self.world.device,),
+                    batch_index=env_index,
+                )
+            elif landmark.name == "Bottom Line":
+                landmark.set_pos(
+                    torch.tensor([0., -self.pitch_width/2 + self.agent_size], dtype=torch.float32, device=self.world.device,),
+                    batch_index=env_index,
+                )
+
+
+    def init_walls(self, world):
 
         right_top_wall = Landmark(
             name=f"Right Top Wall",
@@ -190,6 +322,54 @@ class Scenario(BaseScenario):
         )
         world.add_landmark(left_bottom_wall)
 
+
+    def reset_walls(self, env_index: int = None):
+        for landmark in self.world.landmarks:
+            if landmark.name == "Left Top Wall":
+                landmark.set_pos(
+                    torch.tensor([-self.pitch_length / 2, self.pitch_width / 4 + self.goal_size / 4], dtype=torch.float32,
+                                 device=self.world.device, ),
+                    batch_index=env_index,
+                )
+                landmark.set_rot(
+                    torch.tensor([torch.pi / 2], dtype=torch.float32, device=self.world.device),
+                    batch_index=env_index,
+                )
+
+            elif landmark.name == "Left Bottom Wall":
+                landmark.set_pos(
+                    torch.tensor([-self.pitch_length / 2, -self.pitch_width / 4 - self.goal_size / 4], dtype=torch.float32,
+                                 device=self.world.device, ),
+                    batch_index=env_index,
+                )
+                landmark.set_rot(
+                    torch.tensor([torch.pi / 2], dtype=torch.float32, device=self.world.device),
+                    batch_index=env_index,
+                )
+
+            elif landmark.name == "Right Top Wall":
+                landmark.set_pos(
+                    torch.tensor([self.pitch_length / 2, self.pitch_width / 4 + self.goal_size / 4], dtype=torch.float32,
+                                 device=self.world.device, ),
+                    batch_index=env_index,
+                )
+                landmark.set_rot(
+                    torch.tensor([torch.pi / 2], dtype=torch.float32, device=self.world.device),
+                    batch_index=env_index,
+                )
+            elif landmark.name == "Right Bottom Wall":
+                landmark.set_pos(
+                    torch.tensor([self.pitch_length / 2, -self.pitch_width / 4 - self.goal_size / 4], dtype=torch.float32,
+                                 device=self.world.device, ),
+                    batch_index=env_index,
+                )
+                landmark.set_rot(
+                    torch.tensor([torch.pi / 2], dtype=torch.float32, device=self.world.device),
+                    batch_index=env_index,
+                )
+
+
+    def init_goals(self, world):
         right_goal_back = Landmark(
             name=f"Right Goal Back",
             collide=True,
@@ -262,148 +442,18 @@ class Scenario(BaseScenario):
         )
         world.add_landmark(red_net)
 
-        world.traj_points = {"Red": {}, "Blue": {}}
-        if self.ai_red_agents:
-            for i, agent in enumerate(world.red_agents):
-                world.traj_points["Red"][agent] = []
-                for j in range(self.n_traj_points):
-                    pointj = Landmark(
-                            name="Red {agent} Trajectory {pt}".format(agent=i, pt=j),
-                            collide=False,
-                            movable=False,
-                            shape=Sphere(radius=0.01),
-                            color=Color.GRAY,
-                        )
-                    world.add_landmark(pointj)
-                    world.traj_points["Red"][agent].append(pointj)
-        if self.ai_blue_agents:
-            for i, agent in enumerate(world.blue_agents):
-                world.traj_points["Blue"][agent] = []
-                for j in range(self.n_traj_points):
-                    pointj = Landmark(
-                            name="Blue {agent} Trajectory {pt}".format(agent=i, pt=j),
-                            collide=False,
-                            movable=False,
-                            shape=Sphere(radius=0.01),
-                            color=Color.GRAY,
-                        )
-                    world.add_landmark(pointj)
-                    world.traj_points["Blue"][agent].append(pointj)
+        self.blue_net = blue_net
+        self.red_net = red_net
+        world.blue_net = blue_net
+        world.red_net = red_net
 
-        self.ball = ball
-        self.left_net = blue_net
-        self.right_net = red_net
-        return world
 
-    def reset_world_at(self, env_index: int = None):
-        self.ball.set_pos(
-            torch.zeros(2, device=self.world.device),
-            batch_index=env_index,
-        )
-        self.ball.set_vel(
-            torch.zeros(2, device=self.world.device),
-            batch_index=env_index,
-        )
-        for i, agent in enumerate(self.world.agents):
-            if "Blue" in agent.name:
-                agent.set_pos(
-                    torch.rand(
-                        self.world.dim_p
-                        if env_index is not None
-                        else (self.world.batch_dim, self.world.dim_p),
-                        device=self.world.device
-                    )
-                    + torch.tensor([-self.pitch_length/2, -self.pitch_width/2]),
-                    batch_index=env_index,
-                )
-            elif "Red" in agent.name:
-                agent.set_pos(
-                    torch.rand(
-                        self.world.dim_p
-                        if env_index is not None
-                        else (self.world.batch_dim, self.world.dim_p),
-                        device=self.world.device
-                    )
-                    + torch.tensor([0., -self.pitch_width/2]),
-                    batch_index=env_index,
-                )
-            agent.set_vel(
-                torch.zeros(2, device=self.world.device),
-                batch_index=env_index,
-            )
+    def reset_goals(self, env_index: int = None):
         for landmark in self.world.landmarks:
-            if landmark.name == "Centre Line":
-                landmark.set_rot(
-                    torch.tensor([torch.pi / 2], dtype=torch.float32, device=self.world.device),
-                    batch_index=env_index,
-                )
-            elif landmark.name == "Right Line":
+            if landmark.name == "Left Goal Back":
                 landmark.set_pos(
-                    torch.tensor([self.pitch_length/2 - self.agent_size, 0.], dtype=torch.float32, device=self.world.device,),
-                    batch_index=env_index,
-                )
-                landmark.set_rot(
-                    torch.tensor([torch.pi / 2], dtype=torch.float32, device=self.world.device),
-                    batch_index=env_index,
-                )
-            elif landmark.name == "Left Line":
-                landmark.set_pos(
-                    torch.tensor([-self.pitch_length/2 + self.agent_size, 0.], dtype=torch.float32, device=self.world.device,),
-                    batch_index=env_index,
-                )
-                landmark.set_rot(
-                    torch.tensor([torch.pi / 2], dtype=torch.float32, device=self.world.device),
-                    batch_index=env_index,
-                )
-            elif landmark.name == "Top Line":
-                landmark.set_pos(
-                    torch.tensor([0., self.pitch_width/2 - self.agent_size], dtype=torch.float32, device=self.world.device,),
-                    batch_index=env_index,
-                )
-            elif landmark.name == "Bottom Line":
-                landmark.set_pos(
-                    torch.tensor([0., -self.pitch_width/2 + self.agent_size], dtype=torch.float32, device=self.world.device,),
-                    batch_index=env_index,
-                )
-            elif landmark.name == "Left Top Wall":
-                landmark.set_pos(
-                    torch.tensor([-self.pitch_length/2, self.pitch_width/4 + self.goal_size/4], dtype=torch.float32, device=self.world.device, ),
-                    batch_index=env_index,
-                )
-                landmark.set_rot(
-                    torch.tensor([torch.pi / 2], dtype=torch.float32, device=self.world.device),
-                    batch_index=env_index,
-                )
-            elif landmark.name == "Left Bottom Wall":
-                landmark.set_pos(
-                    torch.tensor([-self.pitch_length/2, -self.pitch_width/4 - self.goal_size/4], dtype=torch.float32, device=self.world.device, ),
-                    batch_index=env_index,
-                )
-                landmark.set_rot(
-                    torch.tensor([torch.pi / 2], dtype=torch.float32, device=self.world.device),
-                    batch_index=env_index,
-                )
-            elif landmark.name == "Right Top Wall":
-                landmark.set_pos(
-                    torch.tensor([self.pitch_length/2, self.pitch_width/4 + self.goal_size/4], dtype=torch.float32, device=self.world.device, ),
-                    batch_index=env_index,
-                )
-                landmark.set_rot(
-                    torch.tensor([torch.pi / 2], dtype=torch.float32, device=self.world.device),
-                    batch_index=env_index,
-                )
-            elif landmark.name == "Right Bottom Wall":
-                landmark.set_pos(
-                    torch.tensor([self.pitch_length/2, -self.pitch_width/4 - self.goal_size/4], dtype=torch.float32, device=self.world.device, ),
-                    batch_index=env_index,
-                )
-                landmark.set_rot(
-                    torch.tensor([torch.pi / 2], dtype=torch.float32, device=self.world.device),
-                    batch_index=env_index,
-                )
-            elif landmark.name == "Left Goal Back":
-                landmark.set_pos(
-                    torch.tensor([-self.pitch_length/2 - self.goal_depth + self.agent_size, 0.], dtype=torch.float32, device=self.world.device, ),
+                    torch.tensor([-self.pitch_length / 2 - self.goal_depth + self.agent_size, 0.], dtype=torch.float32,
+                                 device=self.world.device, ),
                     batch_index=env_index,
                 )
                 landmark.set_rot(
@@ -412,7 +462,8 @@ class Scenario(BaseScenario):
                 )
             elif landmark.name == "Right Goal Back":
                 landmark.set_pos(
-                    torch.tensor([self.pitch_length/2 + self.goal_depth - self.agent_size, 0.], dtype=torch.float32, device=self.world.device, ),
+                    torch.tensor([self.pitch_length / 2 + self.goal_depth - self.agent_size, 0.], dtype=torch.float32,
+                                 device=self.world.device, ),
                     batch_index=env_index,
                 )
                 landmark.set_rot(
@@ -421,51 +472,84 @@ class Scenario(BaseScenario):
                 )
             elif landmark.name == "Left Goal Top":
                 landmark.set_pos(
-                    torch.tensor([-self.pitch_length/2 - self.goal_depth/2 + self.agent_size, self.goal_size/2], dtype=torch.float32, device=self.world.device, ),
+                    torch.tensor([-self.pitch_length / 2 - self.goal_depth / 2 + self.agent_size, self.goal_size / 2],
+                                 dtype=torch.float32, device=self.world.device, ),
                     batch_index=env_index,
                 )
             elif landmark.name == "Left Goal Bottom":
                 landmark.set_pos(
-                    torch.tensor([-self.pitch_length/2 - self.goal_depth/2  + self.agent_size, -self.goal_size/2], dtype=torch.float32, device=self.world.device, ),
+                    torch.tensor([-self.pitch_length / 2 - self.goal_depth / 2 + self.agent_size, -self.goal_size / 2],
+                                 dtype=torch.float32, device=self.world.device, ),
                     batch_index=env_index,
                 )
             elif landmark.name == "Right Goal Top":
                 landmark.set_pos(
-                    torch.tensor([self.pitch_length/2 + self.goal_depth/2 - self.agent_size, self.goal_size/2], dtype=torch.float32, device=self.world.device, ),
+                    torch.tensor([self.pitch_length / 2 + self.goal_depth / 2 - self.agent_size, self.goal_size / 2],
+                                 dtype=torch.float32, device=self.world.device, ),
                     batch_index=env_index,
                 )
             elif landmark.name == "Right Goal Bottom":
                 landmark.set_pos(
-                    torch.tensor([self.pitch_length/2 + self.goal_depth/2 - self.agent_size, -self.goal_size/2], dtype=torch.float32, device=self.world.device, ),
+                    torch.tensor([self.pitch_length / 2 + self.goal_depth / 2 - self.agent_size, -self.goal_size / 2],
+                                 dtype=torch.float32, device=self.world.device, ),
                     batch_index=env_index,
                 )
             elif landmark.name == "Red Net":
                 landmark.set_pos(
-                    torch.tensor([self.pitch_length/2 + self.goal_depth/2 - self.agent_size/2, 0.], dtype=torch.float32, device=self.world.device, ),
+                    torch.tensor([self.pitch_length / 2 + self.goal_depth / 2 - self.agent_size / 2, 0.], dtype=torch.float32,
+                                 device=self.world.device, ),
                     batch_index=env_index,
                 )
-                landmark.color
             elif landmark.name == "Blue Net":
                 landmark.set_pos(
-                    torch.tensor([-self.pitch_length/2 - self.goal_depth/2 + self.agent_size/2, 0.], dtype=torch.float32, device=self.world.device, ),
+                    torch.tensor([-self.pitch_length / 2 - self.goal_depth / 2 + self.agent_size / 2, 0.], dtype=torch.float32,
+                                 device=self.world.device, ),
                     batch_index=env_index,
                 )
-            if self.red_controller is not None:
-                self.red_controller.init(self.world)
-            if self.blue_controller is not None:
-                self.blue_controller.init(self.world)
+
+
+    def init_traj_pts(self, world):
+        world.traj_points = {"Red": {}, "Blue": {}}
+        if self.ai_red_agents:
+            for i, agent in enumerate(world.red_agents):
+                world.traj_points["Red"][agent] = []
+                for j in range(self.n_traj_points):
+                    pointj = Landmark(
+                        name="Red {agent} Trajectory {pt}".format(agent=i, pt=j),
+                        collide=False,
+                        movable=False,
+                        shape=Sphere(radius=0.01),
+                        color=Color.GRAY,
+                    )
+                    world.add_landmark(pointj)
+                    world.traj_points["Red"][agent].append(pointj)
+        if self.ai_blue_agents:
+            for i, agent in enumerate(world.blue_agents):
+                world.traj_points["Blue"][agent] = []
+                for j in range(self.n_traj_points):
+                    pointj = Landmark(
+                        name="Blue {agent} Trajectory {pt}".format(agent=i, pt=j),
+                        collide=False,
+                        movable=False,
+                        shape=Sphere(radius=0.01),
+                        color=Color.GRAY,
+                    )
+                    world.add_landmark(pointj)
+                    world.traj_points["Blue"][agent].append(pointj)
+
 
     def reward(self, agent: Agent):
         if agent == self.world.agents[0]:
             over_right_line = self.ball.state.pos[:,0] > self.pitch_length / 2 + self.ball_size / 2
-            in_right_goal = self.world.is_overlapping(self.ball, self.right_net)
+            in_right_goal = self.world.is_overlapping(self.ball, self.red_net)
             over_left_line = self.ball.state.pos[:, 0] < -self.pitch_length / 2 - self.ball_size / 2
-            in_left_goal = self.world.is_overlapping(self.ball, self.left_net)
+            in_left_goal = self.world.is_overlapping(self.ball, self.blue_net)
             right_goal = over_right_line & in_right_goal
             left_goal = over_left_line & in_left_goal
             self._reward = 1 * right_goal - 1 * left_goal
             self._done = right_goal | left_goal
         return self._reward
+
 
     def observation(self, agent: Agent):
         obs =  torch.cat(
@@ -477,12 +561,13 @@ class Scenario(BaseScenario):
         )
         return obs
 
+
     def done(self):
         return self._done
 
 
+### Ball Physics ###
 
-## Ball Physics ##
 
 def ball_action_script(ball, world):
     # Avoid getting stuck against the wall
@@ -503,8 +588,8 @@ def ball_action_script(ball, world):
     ball.action.u = actions
 
 
+### Agent Policy ###
 
-## Agent Policy ##
 
 class AgentPolicy:
 
@@ -519,31 +604,24 @@ class AgentPolicy:
         self.initial_vel_dist_behind_target_frac = 0.3
         self.start_vel_mag = 0.6
         self.pos_eps = 0.08
-        self.objectives = {}
-        self.actions = {}
-        self.action_steps = {}
-        self.teammates = []
-        self.opposition = []
         self.initialised = False
+
 
     def init(self, world):
         self.initialised = True
         self.world = world
 
-        for agent in world.agents:
-            if agent.name == "Ball":
-                self.ball = agent
-            elif self.team_name in agent.name:
-                self.teammates.append(agent)
-            elif self.otherteam_name in agent.name:
-                self.opposition.append(agent)
-
-        for landmark in world.landmarks:
-            if "Net" in landmark.name:
-                if self.team_name in landmark.name:
-                    self.own_net = landmark
-                elif self.otherteam_name in landmark.name:
-                    self.target_net = landmark
+        self.ball = self.world.ball
+        if self.team_name == "Red":
+            self.teammates = self.world.red_agents
+            self.opposition = self.world.blue_agents
+            self.own_net = self.world.red_net
+            self.target_net = self.world.blue_net
+        elif self.team_name == "Blue":
+            self.teammates = self.world.blue_agents
+            self.opposition = self.world.red_agents
+            self.own_net = self.world.blue_net
+            self.target_net = self.world.red_net
 
         self.actions = {
             agent:
@@ -571,23 +649,43 @@ class AgentPolicy:
         }
 
 
-    def to_numpy(self, x):
-        if isinstance(x, np.ndarray):
-            return x
-        elif isinstance(x, torch.Tensor):
-            return x.numpy()
-        elif isinstance(x, list):
-            return np.array(x)
-        return np.array(x)
+    def reset(self, env_index = slice(None)):
+        for agent in self.teammates:
+            self.actions[agent]["moving"][env_index] = False
+            self.actions[agent]["dribbling"][env_index] = False
+            self.actions[agent]["shooting"][env_index] = False
+            self.action_steps[agent][env_index] = 0
+            self.objectives[agent]["target_pos"][env_index] = torch.zeros(self.world.dim_p)
+            self.objectives[agent]["target_vel"][env_index] = torch.zeros(self.world.dim_p)
+            self.objectives[agent]["start_pos"][env_index] = torch.zeros(self.world.dim_p)
+            self.objectives[agent]["start_vel"][env_index] = torch.zeros(self.world.dim_p)
 
 
-    def nPr(self, n, r):
-        if r > n:
-            return 0
-        ans = 1
-        for k in range(n,max(1,n-r),-1):
-            ans = ans * k
-        return ans
+    def policy(self, agent, world):
+        # self.dribble(agent, self.target_net.state.pos)
+        self.dribble(agent, torch.tensor([-0.75, 0.]).unsqueeze(0), env_index=[0])
+        # self.go_to(agent, torch.tensor([0., 0.]).unsqueeze(0), torch.tensor([0., 1.]).unsqueeze(0))
+        control = self.get_action(agent)
+        control = torch.clamp(control, min=-1., max=1.)
+        agent.action.u = control * agent.u_multiplier
+
+
+    def dribble(self, agent, pos, env_index=slice(None)):
+        if isinstance(env_index, int):
+            env_index = [env_index]
+
+        self.action_steps[agent][env_index][~self.actions[agent]["dribbling"][env_index]] = 0
+        self.actions[agent]["dribbling"][env_index] = True
+
+        dist = (pos - self.ball.state.pos[env_index]).norm(dim=-1)
+        reached_goal_mask = self.combine_mask(env_index, dist <= self.pos_eps)
+        self.actions[agent]["dribbling"][reached_goal_mask] = False
+        self.action_steps[agent][reached_goal_mask] = 0
+        curr_pos = agent.state.pos[reached_goal_mask]
+        self.go_to(agent, curr_pos, torch.zeros(curr_pos.shape), env_index=reached_goal_mask)
+
+        self.update_dribble(agent, pos, env_index=self.actions[agent]["dribbling"])
+        self.action_steps[agent][self.actions[agent]["dribbling"]] += 1
 
 
     def hermite(self, p0, p1, p0dot, p1dot, u=0.1, deriv=0, norm_dist=None):
@@ -771,22 +869,24 @@ class AgentPolicy:
         self.go_to(agent, hit_pos, hit_vel, start_vel=start_vel, env_index=env_index)
 
 
-    def dribble(self, agent, pos, env_index=slice(None)):
-        if isinstance(env_index, int):
-            env_index = [env_index]
+    def to_numpy(self, x):
+        if isinstance(x, np.ndarray):
+            return x
+        elif isinstance(x, torch.Tensor):
+            return x.numpy()
+        elif isinstance(x, list):
+            return np.array(x)
+        return np.array(x)
 
-        self.action_steps[agent][env_index][~self.actions[agent]["dribbling"][env_index]] = 0
-        self.actions[agent]["dribbling"][env_index] = True
 
-        dist = (pos - self.ball.state.pos[env_index]).norm(dim=-1)
-        reached_goal_mask = self.combine_mask(env_index, dist <= self.pos_eps)
-        self.actions[agent]["dribbling"][reached_goal_mask] = False
-        self.action_steps[agent][reached_goal_mask] = 0
-        curr_pos = agent.state.pos[reached_goal_mask]
-        self.go_to(agent, curr_pos, torch.zeros(curr_pos.shape), env_index=reached_goal_mask)
+    def nPr(self, n, r):
+        if r > n:
+            return 0
+        ans = 1
+        for k in range(n,max(1,n-r),-1):
+            ans = ans * k
+        return ans
 
-        self.update_dribble(agent, pos, env_index=self.actions[agent]["dribbling"])
-        self.action_steps[agent][self.actions[agent]["dribbling"]] += 1
 
     def combine_mask(self, env_index, mask):
         if env_index == slice(None):
@@ -799,21 +899,8 @@ class AgentPolicy:
             return torch.tensor(env_index)[mask]
 
 
-    def policy(self, agent, world):
-        if not self.initialised:
-            self.init(agent, world)
-        # self.dribble(agent, self.target_net.state.pos)
-        self.dribble(agent, torch.tensor([-0.75, 0.]).unsqueeze(0), env_index=[0])
-        # self.go_to(agent, torch.tensor([0., 0.]).unsqueeze(0), torch.tensor([0., 1.]).unsqueeze(0))
-        control = self.get_action(agent)
-        control = torch.clamp(control, min=-1., max=1.)
-        agent.action.u = control * agent.u_multiplier
+### Run ###
 
-
-
-
-
-## Run ##
 
 if __name__ == '__main__':
     from maps.interactive_rendering import render_interactively
