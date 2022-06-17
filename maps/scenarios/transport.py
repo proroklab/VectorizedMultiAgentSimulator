@@ -3,6 +3,7 @@
 
 import torch
 
+from maps import render_interactively
 from maps.simulator.core import Agent, Box, Landmark, Sphere, World
 from maps.simulator.scenario import BaseScenario
 from maps.simulator.utils import Color
@@ -48,41 +49,44 @@ class Scenario(BaseScenario):
         for i, agent in enumerate(self.world.agents):
             # Random pos between -1 and 1
             agent.set_pos(
-                2
-                * torch.rand(
-                    self.world.dim_p
+                torch.zeros(
+                    (1, self.world.dim_p)
                     if env_index is not None
                     else (self.world.batch_dim, self.world.dim_p),
                     device=self.world.device,
                     dtype=torch.float32,
-                )
-                - 1,
+                ).uniform_(
+                    -1.0,
+                    1.0,
+                ),
                 batch_index=env_index,
             )
         for i, package in enumerate(self.world.landmarks[1:]):
             package.set_pos(
-                2
-                * torch.rand(
-                    self.world.dim_p
+                torch.zeros(
+                    (1, self.world.dim_p)
                     if env_index is not None
                     else (self.world.batch_dim, self.world.dim_p),
                     device=self.world.device,
                     dtype=torch.float32,
-                )
-                - 1,
+                ).uniform_(
+                    -1.0,
+                    1.0,
+                ),
                 batch_index=env_index,
             )
         goal = self.world.landmarks[0]
         goal.set_pos(
-            2
-            * torch.rand(
-                self.world.dim_p
+            torch.zeros(
+                (1, self.world.dim_p)
                 if env_index is not None
                 else (self.world.batch_dim, self.world.dim_p),
                 device=self.world.device,
                 dtype=torch.float32,
-            )
-            - 1,
+            ).uniform_(
+                -1.0,
+                1.0,
+            ),
             batch_index=env_index,
         )
 
@@ -126,3 +130,14 @@ class Scenario(BaseScenario):
             ),
             dim=-1,
         )
+
+
+if __name__ == "__main__":
+    render_interactively(
+        "transport",
+        n_agents=4,
+        n_packages=1,
+        package_width=0.15,
+        package_length=0.15,
+        package_mass=50,
+    )

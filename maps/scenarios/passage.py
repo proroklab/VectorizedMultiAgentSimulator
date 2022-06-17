@@ -11,7 +11,7 @@ from maps.simulator.utils import Color
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.n_passages = kwargs.get("n_passages", 2)
+        self.n_passages = kwargs.get("n_passages", 1)
         self.shared_reward = kwargs.get("shared_reward", False)
 
         assert self.n_passages >= 1 and self.n_passages <= 20
@@ -66,7 +66,7 @@ class Scenario(BaseScenario):
         central_agent_pos = torch.cat(
             [
                 torch.zeros(
-                    (1,) if env_index is not None else (self.world.batch_dim, 1),
+                    (1, 1) if env_index is not None else (self.world.batch_dim, 1),
                     device=self.world.device,
                     dtype=torch.float32,
                 ).uniform_(
@@ -74,7 +74,7 @@ class Scenario(BaseScenario):
                     1 - (3 * self.agent_radius + self.agent_spacing),
                 ),
                 torch.zeros(
-                    (1,) if env_index is not None else (self.world.batch_dim, 1),
+                    (1, 1) if env_index is not None else (self.world.batch_dim, 1),
                     device=self.world.device,
                     dtype=torch.float32,
                 ).uniform_(
@@ -88,7 +88,7 @@ class Scenario(BaseScenario):
         central_goal_pos = torch.cat(
             [
                 torch.zeros(
-                    (1,) if env_index is not None else (self.world.batch_dim, 1),
+                    (1, 1) if env_index is not None else (self.world.batch_dim, 1),
                     device=self.world.device,
                     dtype=torch.float32,
                 ).uniform_(
@@ -96,7 +96,7 @@ class Scenario(BaseScenario):
                     1 - (3 * self.agent_radius + self.agent_spacing),
                 ),
                 torch.zeros(
-                    (1,) if env_index is not None else (self.world.batch_dim, 1),
+                    (1, 1) if env_index is not None else (self.world.batch_dim, 1),
                     device=self.world.device,
                     dtype=torch.float32,
                 ).uniform_(
@@ -286,4 +286,4 @@ class Scenario(BaseScenario):
 
 
 if __name__ == "__main__":
-    render_interactively("passage", shared_reward=True)
+    render_interactively("passage", n_passages=1, shared_reward=False)

@@ -353,7 +353,7 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         if shared_viewer:
             # zoom out to fit everyone
             all_poses = torch.stack(
-                [entity.state.pos[env_index] for entity in self.world.entities], dim=0
+                [agent.state.pos[env_index] for agent in self.world.agents], dim=0
             )
             viewer_size_fit = (
                 torch.stack(
