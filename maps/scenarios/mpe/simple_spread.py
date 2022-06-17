@@ -59,12 +59,6 @@ class Scenario(BaseScenario):
                 batch_index=env_index,
             )
 
-    def is_collision(self, agent1: Agent, agent2: Agent):
-        delta_pos = agent1.state.pos - agent2.state.pos
-        dist = torch.linalg.vector_norm(delta_pos, dim=1)
-        dist_min = agent1.shape.radius + agent2.shape.radius
-        return dist < dist_min
-
     def reward(self, agent: Agent):
         # Agents are rewarded based on minimum agent distance to each landmark, penalized for collisions
         rew = torch.zeros(
@@ -89,7 +83,7 @@ class Scenario(BaseScenario):
         if agent.collide:
             for a in self.world.agents:
                 if a != agent:
-                    rew[self.is_collision(a, agent)] -= 1
+                    rew[self.world.is_overlapping(a, agent)] -= 1
 
         return rew
 
