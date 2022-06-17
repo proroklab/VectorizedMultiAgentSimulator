@@ -1,0 +1,289 @@
+#  Copyright (c) 2022. Matteo Bettini
+#  All rights reserved.
+
+import torch
+
+from maps import render_interactively
+from maps.simulator.core import Agent, Box, Landmark, Sphere, World, Line
+from maps.simulator.scenario import BaseScenario
+from maps.simulator.utils import Color
+
+
+class Scenario(BaseScenario):
+    def make_world(self, batch_dim: int, device: torch.device, **kwargs):
+        self.n_passages = kwargs.get("n_passages", 2)
+        self.shared_reward = kwargs.get("shared_reward", False)
+
+        assert self.n_passages >= 1 and self.n_passages <= 20
+
+        self.n_agents = 5
+        self.agent_radius = 0.03333
+        self.agent_spacing = 0.1
+        self.passage_width = 0.2
+        self.passage_length = 0.103
+
+        # Make world
+        world = World(batch_dim, device, x_semidim=1, y_semidim=1)
+        # Add agents
+        for i in range(self.n_agents):
+            agent = Agent(
+                name=f"agent {i}", shape=Sphere(self.agent_radius), u_multiplier=0.7
+            )
+            world.add_agent(agent)
+            goal = Landmark(
+                name=f"goal {i}",
+                collide=False,
+                shape=Sphere(radius=self.agent_radius),
+                color=Color.LIGHT_GREEN,
+            )
+            agent.goal = goal
+            world.add_landmark(goal)
+        # Add landmarks
+        for i in range(
+            int((2 * world.x_semidim + 2 * self.agent_radius) // self.passage_length)
+        ):
+            removed = i < self.n_passages
+            package = Landmark(
+                name=f"passage {i}",
+                collide=not removed,
+                movable=False,
+                shape=Box(length=self.passage_length, width=self.passage_width),
+                color=Color.RED,
+            )
+            world.add_landmark(package)
+        for i in range(4):
+            border = Landmark(
+                name=f"border {i}",
+                shape=Line(length=2 + self.agent_radius * 2),
+                collide=False,
+                color=Color.BLACK,
+            )
+            world.add_landmark(border)
+
+        return world
+
+    def reset_world_at(self, env_index: int = None):
+        central_agent_pos = torch.cat(
+            [
+                torch.zeros(
+                    (1,) if env_index is not None else (self.world.batch_dim, 1),
+                    device=self.world.device,
+                    dtype=torch.float32,
+                ).uniform_(
+                    -1 + (3 * self.agent_radius + self.agent_spacing),
+                    1 - (3 * self.agent_radius + self.agent_spacing),
+                ),
+                torch.zeros(
+                    (1,) if env_index is not None else (self.world.batch_dim, 1),
+                    device=self.world.device,
+                    dtype=torch.float32,
+                ).uniform_(
+                    -1 + (3 * self.agent_radius + self.agent_spacing),
+                    -(3 * self.agent_radius + self.agent_spacing)
+                    - self.passage_width / 2,
+                ),
+            ],
+            dim=1,
+        )
+        central_goal_pos = torch.cat(
+            [
+                torch.zeros(
+                    (1,) if env_index is not None else (self.world.batch_dim, 1),
+                    device=self.world.device,
+                    dtype=torch.float32,
+                ).uniform_(
+                    -1 + (3 * self.agent_radius + self.agent_spacing),
+                    1 - (3 * self.agent_radius + self.agent_spacing),
+                ),
+                torch.zeros(
+                    (1,) if env_index is not None else (self.world.batch_dim, 1),
+                    device=self.world.device,
+                    dtype=torch.float32,
+                ).uniform_(
+                    (3 * self.agent_radius + self.agent_spacing)
+                    + self.passage_width / 2,
+                    1 - (3 * self.agent_radius + self.agent_spacing),
+                ),
+            ],
+            dim=1,
+        )
+
+        order = torch.randperm(self.n_agents).tolist()
+        agents = [self.world.agents[i] for i in order]
+        goals = [self.world.landmarks[i] for i in order]
+
+        for i, agent in enumerate(agents):
+            if i == self.n_agents - 1:
+                agent.set_pos(
+                    central_agent_pos,
+                    batch_index=env_index,
+                )
+            else:
+                agent.set_pos(
+                    central_agent_pos
+                    + torch.tensor(
+                        [
+                            [
+                                0.0
+                                if i % 2
+                                else (
+                                    self.agent_spacing
+                                    if i == 0
+                                    else -self.agent_spacing
+                                ),
+                                0.0
+                                if not i % 2
+                                else (
+                                    self.agent_spacing
+                                    if i == 1
+                                    else -self.agent_spacing
+                                ),
+                            ],
+                        ],
+                        device=self.world.device,
+                    ),
+                    batch_index=env_index,
+                )
+        for i, goal in enumerate(goals):
+            if i == self.n_agents - 1:
+                goal.set_pos(
+                    central_goal_pos,
+                    batch_index=env_index,
+                )
+            else:
+                goal.set_pos(
+                    central_goal_pos
+                    + torch.tensor(
+                        [
+                            [
+                                0.0
+                                if i % 2
+                                else (
+                                    self.agent_spacing
+                                    if i == 0
+                                    else -self.agent_spacing
+                                ),
+                                0.0
+                                if not i % 2
+                                else (
+                                    self.agent_spacing
+                                    if i == 1
+                                    else -self.agent_spacing
+                                ),
+                            ],
+                        ],
+                        device=self.world.device,
+                    ),
+                    batch_index=env_index,
+                )
+        order = torch.randperm(len(self.world.landmarks[self.n_agents : -4])).tolist()
+        passages = [self.world.landmarks[self.n_agents : -4][i] for i in order]
+        for i, passage in enumerate(passages):
+            if not passage.collide:
+                passage.render[:] = False
+            passage.set_pos(
+                torch.tensor(
+                    [
+                        -1
+                        - self.agent_radius
+                        + self.passage_length / 2
+                        + self.passage_length * i,
+                        0.0,
+                    ],
+                    dtype=torch.float32,
+                    device=self.world.device,
+                ),
+                batch_index=env_index,
+            )
+        for i, border in enumerate(self.world.landmarks[-4:]):
+            border.set_pos(
+                torch.tensor(
+                    [
+                        0.0
+                        if i % 2
+                        else (
+                            self.world.x_semidim + self.agent_radius
+                            if i == 0
+                            else -self.world.x_semidim - self.agent_radius
+                        ),
+                        0.0
+                        if not i % 2
+                        else (
+                            self.world.x_semidim + self.agent_radius
+                            if i == 1
+                            else -self.world.x_semidim - self.agent_radius
+                        ),
+                    ],
+                    dtype=torch.float32,
+                    device=self.world.device,
+                ),
+                batch_index=env_index,
+            )
+            border.set_rot(
+                torch.tensor(
+                    [
+                        torch.pi / 2 if not i % 2 else 0.0,
+                    ],
+                    dtype=torch.float32,
+                    device=self.world.device,
+                ),
+                batch_index=env_index,
+            )
+
+    def reward(self, agent: Agent):
+        is_first = agent == self.world.agents[0]
+
+        rew = torch.zeros(
+            self.world.batch_dim, device=self.world.device, dtype=torch.float32
+        )
+
+        if self.shared_reward:
+            if is_first:
+                self.all_distance_to_goals = torch.stack(
+                    [
+                        torch.linalg.vector_norm(a.state.pos - a.goal.state.pos, dim=1)
+                        for a in self.world.agents
+                    ],
+                    dim=1,
+                ).sum(-1)
+            rew += self.all_distance_to_goals
+        else:
+            rew += torch.linalg.vector_norm(
+                agent.state.pos - agent.goal.state.pos, dim=1
+            )
+
+        if agent.collide:
+            for a in self.world.agents:
+                if a != agent:
+                    rew[self.world.is_overlapping(a, agent)] += 10
+
+        return -rew
+
+    def observation(self, agent: Agent):
+        # get positions of all entities in this agent's reference frame
+        passage_obs = []
+        passages = self.world.landmarks[self.n_agents : -4]
+        for passage in passages:
+            if not passage.collide:
+                passage_obs.append(agent.state.pos - passage.state.pos)
+        return torch.cat(
+            [
+                agent.state.pos,
+                agent.state.vel,
+                agent.goal.state.pos - agent.state.pos,
+                *passage_obs,
+            ],
+            dim=-1,
+        )
+
+    def done(self):
+        return torch.all(
+            torch.stack(
+                [self.world.is_overlapping(a, a.goal) for a in self.world.agents], dim=1
+            ),
+            dim=1,
+        )
+
+
+if __name__ == "__main__":
+    render_interactively("passage", shared_reward=True)
