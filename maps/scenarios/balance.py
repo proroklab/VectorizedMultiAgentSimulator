@@ -46,7 +46,7 @@ class Scenario(BaseScenario):
         # Add landmarks
 
         self.line = Landmark(
-            name=f"line",
+            name="line",
             shape=Line(length=self.line_length),
             collide=True,
             movable=True,
@@ -57,7 +57,7 @@ class Scenario(BaseScenario):
         world.add_landmark(self.line)
 
         floor = Landmark(
-            name=f"floor",
+            name="floor",
             collide=False,
             shape=Box(length=10, width=1),
             color=Color.WHITE,
