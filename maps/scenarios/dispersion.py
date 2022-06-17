@@ -3,6 +3,7 @@
 
 import torch
 
+from maps import render_interactively
 from maps.simulator.core import Agent, Landmark, Sphere, World
 from maps.simulator.scenario import BaseScenario
 from maps.simulator.utils import Color
@@ -49,15 +50,16 @@ class Scenario(BaseScenario):
             )
         for landmark in self.world.landmarks:
             landmark.set_pos(
-                2
-                * torch.rand(
-                    self.world.dim_p
+                torch.zeros(
+                    (1, self.world.dim_p)
                     if env_index is not None
                     else (self.world.batch_dim, self.world.dim_p),
                     device=self.world.device,
                     dtype=torch.float32,
-                )
-                - 1,
+                ).uniform_(
+                    -1.0,
+                    1.0,
+                ),
                 batch_index=env_index,
             )
             if env_index is None:
@@ -144,3 +146,9 @@ class Scenario(BaseScenario):
             ),
             dim=-1,
         )
+
+
+if __name__ == "__main__":
+    render_interactively(
+        "dispersion", n_agents=4, share_reward=False, penalise_by_tim=False
+    )

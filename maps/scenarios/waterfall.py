@@ -3,6 +3,7 @@
 
 import torch
 
+from maps import render_interactively
 from maps.simulator.core import Agent, World, Landmark, Sphere, Box, Line
 from maps.simulator.scenario import BaseScenario
 from maps.simulator.utils import Color
@@ -93,3 +94,7 @@ class Scenario(BaseScenario):
             ],
             dim=-1,
         )
+
+
+if __name__ == "__main__":
+    render_interactively("waterfall", n_agents=5)

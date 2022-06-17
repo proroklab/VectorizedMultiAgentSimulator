@@ -3,6 +3,7 @@
 
 import torch
 
+from maps import render_interactively
 from maps.simulator.core import Agent, World, Landmark, Sphere, Line
 from maps.simulator.scenario import BaseScenario
 from maps.simulator.utils import Color
@@ -240,3 +241,7 @@ class Scenario(BaseScenario):
 
     def done(self):
         return self._done
+
+
+if __name__ == "__main__":
+    render_interactively("give_way", shared_reward=False)
