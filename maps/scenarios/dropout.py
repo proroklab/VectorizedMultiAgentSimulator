@@ -6,6 +6,7 @@ from typing import Dict
 import torch
 from torch import Tensor
 
+from maps import render_interactively
 from maps.simulator.core import Agent, Landmark, Sphere, World
 from maps.simulator.scenario import BaseScenario
 from maps.simulator.utils import Color
@@ -42,29 +43,31 @@ class Scenario(BaseScenario):
         for agent in self.world.agents:
             # Random pos between -1 and 1
             agent.set_pos(
-                2
-                * torch.rand(
-                    self.world.dim_p
+                torch.zeros(
+                    (1, self.world.dim_p)
                     if env_index is not None
                     else (self.world.batch_dim, self.world.dim_p),
                     device=self.world.device,
                     dtype=torch.float32,
-                )
-                - 1,
+                ).uniform_(
+                    -1.0,
+                    1.0,
+                ),
                 batch_index=env_index,
             )
         for landmark in self.world.landmarks:
             # Random pos between -1 and 1
             landmark.set_pos(
-                2
-                * torch.rand(
-                    self.world.dim_p
+                torch.zeros(
+                    (1, self.world.dim_p)
                     if env_index is not None
                     else (self.world.batch_dim, self.world.dim_p),
                     device=self.world.device,
                     dtype=torch.float32,
-                )
-                - 1,
+                ).uniform_(
+                    -1.0,
+                    1.0,
+                ),
                 batch_index=env_index,
             )
             if env_index is None:
@@ -106,7 +109,7 @@ class Scenario(BaseScenario):
         if is_first:
             self.energy_rew = self.energy_coeff * -torch.stack(
                 [
-                    torch.linalg.norm(a.action.u, dim=-1)
+                    torch.linalg.vector_norm(a.action.u, dim=-1)
                     / math.sqrt(self.world.dim_p * ((a.u_range * a.u_multiplier) ** 2))
                     for a in self.world.agents
                 ],
@@ -138,3 +141,7 @@ class Scenario(BaseScenario):
 
     def done(self):
         return self._done
+
+
+if __name__ == "__main__":
+    render_interactively("dropout", n_agents=4, energy_coeff=DEFAULT_ENERGY_COEFF)
