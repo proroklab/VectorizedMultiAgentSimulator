@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Callable, List, Union
+from typing import Callable, List, Union, Tuple
 
 import torch
 from torch import Tensor
@@ -376,20 +376,20 @@ class Entity(TorchVectorizedObject, ABC):
             self.batch_dim, 1, device=self.device, dtype=torch.float32
         )
 
-    def set_pos(self, pos: Tensor, batch_index: int = None):
+    def set_pos(self, pos: Tensor, batch_index: int):
         self._set_state_property(EntityState.pos, self.state, pos, batch_index)
 
-    def set_vel(self, vel: Tensor, batch_index: int = None):
+    def set_vel(self, vel: Tensor, batch_index: int):
         self._set_state_property(EntityState.vel, self.state, vel, batch_index)
 
-    def set_rot(self, rot: Tensor, batch_index: int = None):
+    def set_rot(self, rot: Tensor, batch_index: int):
         self._set_state_property(EntityState.rot, self.state, rot, batch_index)
 
-    def set_ang_vel(self, ang_vel: Tensor, batch_index: int = None):
+    def set_ang_vel(self, ang_vel: Tensor, batch_index: int):
         self._set_state_property(EntityState.ang_vel, self.state, ang_vel, batch_index)
 
     def _set_state_property(
-        self, prop, entity: EntityState, new: Tensor, batch_index: int = None
+        self, prop, entity: EntityState, new: Tensor, batch_index: int
     ):
         self._check_batch_index(batch_index)
         if batch_index is None:
@@ -580,6 +580,7 @@ class World(TorchVectorizedObject):
         dim_c: int = 0,
         contact_force: float = 1e2,
         contact_margin: float = 1e-3,
+        gravity: Tuple[float, float] = (0.0, 0.0),
     ):
         assert batch_dim > 0, f"Batch dim must be greater than 0, got {batch_dim}"
 
@@ -598,6 +599,8 @@ class World(TorchVectorizedObject):
         self._dt = dt
         # physical damping
         self._damping = damping
+        # gravity
+        self._gravity = torch.tensor(gravity, device=self.device, dtype=torch.float32)
         # contact response parameters
         self._contact_force = contact_force
         self._contact_margin = contact_margin
@@ -744,15 +747,23 @@ class World(TorchVectorizedObject):
         )
 
         # apply agent physical controls
-        force = self._apply_action_force(force)
+        self._apply_action_force(force)
         # apply environment forces
-        force = self._apply_environment_force(force, torque)
+        self._apply_environment_force(force, torque)
+        # apply gravity
+        self._apply_gravity(force)
         # integrate physical state
         self._integrate_state(force, torque)
         # update non-differentiable comm state
         if self._dim_c > 0:
             for agent in self._agents:
                 self._update_comm_state(agent)
+
+    def _apply_gravity(self, force):
+        if not (self._gravity == 0.0).all():
+            for i, entity in enumerate(self.entities):
+                if entity.movable:
+                    force[:, i] += entity.mass * self._gravity
 
     # gather agent action forces
     def _apply_action_force(self, force):
@@ -769,7 +780,6 @@ class World(TorchVectorizedObject):
                 )
                 force[:, i] = agent.action.u + noise
         assert not force.isnan().any()
-        return force
 
     # gather physical forces acting on entities
     def _apply_environment_force(self, force, torque):
@@ -787,7 +797,6 @@ class World(TorchVectorizedObject):
                     force[:, b] += f_b
                 if entity_b.rotatable:
                     torque[:, b] += t_b
-        return force
 
     def _collides(self, a: Entity, b: Entity) -> bool:
         if (not a.collide) or (not b.collide) or a is b:
