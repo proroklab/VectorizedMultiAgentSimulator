@@ -6,20 +6,19 @@ import gym
 import numpy as np
 import torch
 from gym import spaces
-from ray import rllib
-from ray.rllib.utils.typing import EnvActionType, EnvInfoDict, EnvObsType
-from torch import Tensor
-
 from maps.simulator import core
 from maps.simulator.core import Agent, Box, Line, TorchVectorizedObject
 from maps.simulator.scenario import BaseScenario
 from maps.simulator.utils import Color, X, Y, ALPHABET
 from maps.simulator.utils import VIEWER_MIN_SIZE
+from ray import rllib
+from ray.rllib.utils.typing import EnvActionType, EnvInfoDict, EnvObsType
+from torch import Tensor
 
 
 # environment for all agents in the multiagent world
 # currently code assumes that no agents will be created/destroyed at runtime!
-class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
+class Environment(TorchVectorizedObject):
     metadata = {
         "render.modes": ["human", "rgb_array"],
         "runtime.vectorized": True,

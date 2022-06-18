@@ -7,9 +7,8 @@ from abc import ABC, abstractmethod
 from typing import Callable, List, Union, Tuple
 
 import torch
-from torch import Tensor
-
 from maps.simulator.utils import Color, SensorType, X, Y, override, LINE_MIN_DIST
+from torch import Tensor
 
 
 class TorchVectorizedObject(object):
@@ -748,10 +747,10 @@ class World(TorchVectorizedObject):
 
         # apply agent physical controls
         self._apply_action_force(force)
-        # apply environment forces
-        self._apply_environment_force(force, torque)
         # apply gravity
         self._apply_gravity(force)
+        # apply environment forces
+        self._apply_environment_force(force, torque)
         # integrate physical state
         self._integrate_state(force, torque)
         # update non-differentiable comm state

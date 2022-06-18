@@ -152,9 +152,8 @@ To create a fake screen you need to have `Xvfb` installed.
 
 - [ ] Implement resampling of random position until valid
 - [ ] Implement LIDAR and other sensors (camera)
-- [ ] Implement new custom MAPS scenarios
+- [ ] Move simulation core from force-based to impulse-based
 - [ ] Vectorization in the agents (improve collision loop)
-- [ ] Implement support for 3D
 - [X] Rewrite all MPE scenarios
   - [X] simple
   - [x] simple_adversary
