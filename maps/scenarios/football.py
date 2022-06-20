@@ -3,7 +3,7 @@ import numpy as np
 
 from maps.simulator.core import Agent, World, Landmark, Sphere, Box, Line
 from maps.simulator.scenario import BaseScenario
-from maps.simulator.utils import Color
+from maps.simulator.utils import Color, X, Y
 
 
 class Scenario(BaseScenario):
@@ -41,9 +41,9 @@ class Scenario(BaseScenario):
         self.goal_depth = kwargs.get("goal_depth", 0.1)
         self.pitch_length = kwargs.get("pitch_length", 3.0)
         self.pitch_width = kwargs.get("pitch_width", 1.5)
-        self.max_speed = kwargs.get("max_speed", 0.1)
+        self.max_speed = kwargs.get("max_speed", 0.15)
         self.u_multiplier = kwargs.get("u_multiplier", 0.1)
-        self.ball_max_speed = kwargs.get("ball_max_speed", 0.2)
+        self.ball_max_speed = kwargs.get("ball_max_speed", 0.3)
         self.ball_mass = kwargs.get("ball_mass", 0.1)
         self.ball_size = kwargs.get("ball_size", 0.02)
         self.n_traj_points = kwargs.get("n_traj_points", 8)
@@ -56,7 +56,7 @@ class Scenario(BaseScenario):
             device,
             dt=0.1,
             damping=0.05,
-            contact_force=5e1,
+            contact_force=1e2,
             x_semidim=self.pitch_length / 2 + self.goal_depth - self.agent_size,
             y_semidim=self.pitch_width / 2 - self.agent_size,
         )
@@ -64,6 +64,7 @@ class Scenario(BaseScenario):
         world.pitch_width = self.pitch_width
         world.pitch_length = self.pitch_length
         world.goal_size = self.goal_size
+        world.goal_depth = self.goal_depth
         return world
 
 
@@ -596,14 +597,24 @@ class AgentPolicy:
     def __init__(self, team="Red"):
         self.team_name = team
         self.otherteam_name = "Blue" if (self.team_name == "Red") else "Red"
+
         self.pos_lookahead = 0.01
         self.vel_lookahead = 0.01
+        self.start_vel_mag = 0.6
+
         self.dribble_speed = 0.5
         self.dribble_slowdown_dist = 0.25
         self.dribble_stop_margin_vel_coeff = 0.1
         self.initial_vel_dist_behind_target_frac = 0.3
-        self.start_vel_mag = 0.6
-        self.pos_eps = 0.08
+        self.ball_pos_eps = 0.08
+
+        self.max_shoot_dist = 0.6
+        self.valid_start_cos = np.cos(np.pi/8)
+        self.valid_start_dist = 0.2
+        self.dist_to_hit_speed = 1.7
+        self.start_vel_mag_shoot = 1.0
+        self.touch_eps = 0.01
+
         self.initialised = False
 
 
@@ -629,6 +640,7 @@ class AgentPolicy:
                     "moving": torch.zeros(self.world.batch_dim).bool(),
                     "dribbling": torch.zeros(self.world.batch_dim).bool(),
                     "shooting": torch.zeros(self.world.batch_dim).bool(),
+                    "pre-shooting": torch.zeros(self.world.batch_dim).bool(),
                 }
             for agent in self.teammates
         }
@@ -644,6 +656,7 @@ class AgentPolicy:
                     "target_vel": torch.zeros(self.world.batch_dim, self.world.dim_p),
                     "start_pos": torch.zeros(self.world.batch_dim, self.world.dim_p),
                     "start_vel": torch.zeros(self.world.batch_dim, self.world.dim_p),
+                    "norm_dist": torch.zeros(self.world.batch_dim),
                 }
             for agent in self.teammates
         }
@@ -654,6 +667,7 @@ class AgentPolicy:
             self.actions[agent]["moving"][env_index] = False
             self.actions[agent]["dribbling"][env_index] = False
             self.actions[agent]["shooting"][env_index] = False
+            self.actions[agent]["pre-shooting"][env_index] = False
             self.action_steps[agent][env_index] = 0
             self.objectives[agent]["target_pos"][env_index] = torch.zeros(self.world.dim_p)
             self.objectives[agent]["target_vel"][env_index] = torch.zeros(self.world.dim_p)
@@ -663,29 +677,170 @@ class AgentPolicy:
 
     def policy(self, agent, world):
         # self.dribble(agent, self.target_net.state.pos)
-        self.dribble(agent, torch.tensor([-0.75, 0.]).unsqueeze(0), env_index=[0])
+        self.dribble(agent, torch.tensor([-0.75, 0.]).unsqueeze(0), env_index=slice(None))
         # self.go_to(agent, torch.tensor([0., 0.]).unsqueeze(0), torch.tensor([0., 1.]).unsqueeze(0))
+        # self.shoot(agent, torch.tensor([-0.6, 0.]).unsqueeze(0), env_index=[0])
+        # self.shoot(agent, self.target_net.state.pos, env_index=[0])
         control = self.get_action(agent)
         control = torch.clamp(control, min=-1., max=1.)
         agent.action.u = control * agent.u_multiplier
+
+
+    def shoot(self, agent, pos, env_index=slice(None)):
+        if isinstance(env_index, int):
+            env_index = [env_index]
+
+        ball_curr_pos = self.ball.state.pos[env_index]
+        agent_curr_pos = agent.state.pos[env_index]
+
+        ball_target_disp = pos - ball_curr_pos
+        ball_target_dist = ball_target_disp.norm(dim=-1)
+        ball_target_dir = ball_target_disp / ball_target_dist
+
+        agent_ball_disp = ball_curr_pos - agent_curr_pos
+        agent_ball_dist = agent_ball_disp.norm(dim=-1)
+        agent_ball_dir = agent_ball_disp / agent_ball_dist
+
+        dist_maxdist_ratio = (torch.minimum(ball_target_dist, torch.tensor(self.max_shoot_dist)) / self.max_shoot_dist)
+
+        # Determine if shooting or pre-shooting
+        start_dist = self.valid_start_dist * dist_maxdist_ratio
+        valid_angle_mask = (ball_target_dir * agent_ball_dir).sum(dim=-1) > self.valid_start_cos
+        valid_dist_mask = agent_ball_dist > start_dist
+        shooting_mask = self.actions[agent]["shooting"][env_index] | (valid_dist_mask & valid_angle_mask)
+        pre_shooting_mask = ~shooting_mask
+        start_shooting_mask = ~self.actions[agent]["shooting"][env_index] & shooting_mask
+        start_pre_shooting_mask = ~self.actions[agent]["pre-shooting"][env_index] & pre_shooting_mask
+        self.action_steps[agent][self.combine_mask(env_index, start_shooting_mask & start_pre_shooting_mask)] = 0
+        self.actions[agent]["shooting"][env_index] = shooting_mask
+        self.actions[agent]["pre-shooting"][env_index] = pre_shooting_mask
+
+        # Shooting
+        hit_pos = ball_curr_pos - ball_target_dir * (self.ball.shape.radius + agent.shape.radius)
+        hit_speed = self.dist_to_hit_speed * dist_maxdist_ratio
+        hit_vel = ball_target_dir * hit_speed
+        start_vel = self.get_start_vel(hit_pos, hit_vel, agent_curr_pos, hit_speed)
+
+        # Pre Shooting
+        pre_shoot_target_pos = ball_curr_pos - ball_target_dir * start_dist
+        pre_shoot_target_vel = ball_target_dir * hit_speed
+
+        # Next to wall
+        close_to_wall_mask = self.clamp_pos(pre_shoot_target_pos, return_bool=True) & pre_shooting_mask
+        pre_shooting_mask = pre_shooting_mask & ~close_to_wall_mask
+        self.update_dribble(
+            agent,
+            pos=pos[close_to_wall_mask],
+            env_index=self.combine_mask(env_index, close_to_wall_mask),
+        )
+
+        self.go_to(
+            agent,
+            pos=pre_shoot_target_pos[pre_shooting_mask],
+            vel=pre_shoot_target_vel[pre_shooting_mask],
+            env_index=self.combine_mask(env_index, pre_shooting_mask),
+        )
+
+        self.go_to(
+            agent,
+            pos=hit_pos[shooting_mask],
+            vel=hit_vel[shooting_mask],
+            start_vel=start_vel,
+            env_index=self.actions[agent]["shooting"],
+        )
+
+        touch_dist = (ball_curr_pos - agent_curr_pos).norm(dim=-1) - (self.ball.shape.radius + agent.shape.radius)
+        touch_mask = touch_dist < self.touch_eps
+        self.actions[agent]["shooting"][self.combine_mask(env_index, shooting_mask)] = ~touch_mask
 
 
     def dribble(self, agent, pos, env_index=slice(None)):
         if isinstance(env_index, int):
             env_index = [env_index]
 
-        self.action_steps[agent][env_index][~self.actions[agent]["dribbling"][env_index]] = 0
+        self.action_steps[agent][self.combine_mask(env_index, ~self.actions[agent]["dribbling"][env_index])] = 0
         self.actions[agent]["dribbling"][env_index] = True
 
         dist = (pos - self.ball.state.pos[env_index]).norm(dim=-1)
-        reached_goal_mask = self.combine_mask(env_index, dist <= self.pos_eps)
+        reached_goal_mask = self.combine_mask(env_index, dist <= self.ball_pos_eps)
         self.actions[agent]["dribbling"][reached_goal_mask] = False
         self.action_steps[agent][reached_goal_mask] = 0
         curr_pos = agent.state.pos[reached_goal_mask]
-        self.go_to(agent, curr_pos, torch.zeros(curr_pos.shape), env_index=reached_goal_mask)
+        self.go_to(agent, curr_pos, torch.zeros(curr_pos.shape), env_index=~self.actions[agent]["dribbling"])
 
         self.update_dribble(agent, pos, env_index=self.actions[agent]["dribbling"])
         self.action_steps[agent][self.actions[agent]["dribbling"]] += 1
+
+
+    def update_dribble(self, agent, pos, env_index=slice(None)):
+        agent_pos = agent.state.pos[env_index]
+        ball_pos = self.ball.state.pos[env_index]
+        ball_disp = pos - ball_pos
+        ball_dist = ball_disp.norm(dim=-1)
+        direction = ball_disp / ball_dist[:,None]
+        hit_pos = ball_pos - direction * (self.ball.shape.radius + agent.shape.radius)
+        hit_vel = direction * self.dribble_speed
+        start_vel = self.get_start_vel(hit_pos, hit_vel, agent_pos, self.start_vel_mag)
+
+        slowdown_mask = ball_dist <= self.dribble_slowdown_dist
+        hit_vel[slowdown_mask,:] *= ball_dist[slowdown_mask,None] / self.dribble_slowdown_dist
+        # start_vel[slowdown_mask,:] *= ball_dist[slowdown_mask,None] / self.dribble_slowdown_dist
+
+        self.go_to(agent, hit_pos, hit_vel, start_vel=start_vel, env_index=env_index)
+
+
+    def go_to(self, agent, pos, vel, start_vel=None, norm_dist=0, env_index=slice(None)):
+        start_pos = agent.state.pos[env_index]
+        if start_vel is None:
+            start_vel = self.get_start_vel(pos, vel, start_pos, self.start_vel_mag)
+        self.objectives[agent]["target_pos"][env_index] = pos
+        self.objectives[agent]["target_vel"][env_index] = vel
+        self.objectives[agent]["start_pos"][env_index] = start_pos
+        self.objectives[agent]["start_vel"][env_index] = start_vel
+        self.objectives[agent]["norm_dist"][env_index] = norm_dist
+        self.plot_traj(agent, env_index=env_index)
+
+
+    def get_start_vel(self, pos, vel, start_pos, start_vel_mag):
+        goal_disp = pos - start_pos
+        goal_dist = goal_disp.norm(dim=-1)
+        vel_mag = vel.norm(dim=-1)
+        vel_dir = vel.clone()
+        vel_dir[vel_mag > 0] /= vel_mag[vel_mag > 0, None]
+        dist_behind_target = self.initial_vel_dist_behind_target_frac * goal_dist
+        target_pos = pos - vel_dir * dist_behind_target[:, None]
+        target_disp = target_pos - start_pos
+        target_dist = target_disp.norm(dim=1)
+        start_vel_aug_dir = target_disp
+        start_vel_aug_dir[target_dist > 0] /= target_dist[target_dist > 0, None]
+        start_vel = start_vel_aug_dir * start_vel_mag
+        return start_vel
+
+
+    def get_action(self, agent, env_index=slice(None)):
+        curr_pos = agent.state.pos[env_index, :]
+        curr_vel = agent.state.vel[env_index, :]
+        u_start = torch.zeros(curr_pos.shape[0])
+        des_curr_pos = self.hermite(
+            self.objectives[agent]["start_pos"][env_index, :],
+            self.objectives[agent]["target_pos"][env_index, :],
+            self.objectives[agent]["start_vel"][env_index, :],
+            self.objectives[agent]["target_vel"][env_index, :],
+            u = np.minimum(u_start + self.pos_lookahead, 1.),
+            deriv = 0,
+        )
+        des_curr_vel = self.hermite(
+            self.objectives[agent]["start_pos"][env_index, :],
+            self.objectives[agent]["target_pos"][env_index, :],
+            self.objectives[agent]["start_vel"][env_index, :],
+            self.objectives[agent]["target_vel"][env_index, :],
+            u = np.minimum(u_start + self.vel_lookahead, 1.),
+            deriv = 1,
+        )
+        des_curr_pos = torch.as_tensor(des_curr_pos)
+        des_curr_vel = torch.as_tensor(des_curr_vel)
+        control = 0.5 * (des_curr_pos - curr_pos) + 0.5 * (des_curr_vel - curr_vel)
+        return control
 
 
     def hermite(self, p0, p1, p0dot, p1dot, u=0.1, deriv=0, norm_dist=None):
@@ -696,19 +851,20 @@ class AgentPolicy:
         p0dot = self.to_numpy(p0dot)
         p1dot = self.to_numpy(p1dot)
         input_shape = p0.shape
+        p0 = p0.reshape(-1, p0.shape[-1])
+        p1 = p1.reshape(-1, p1.shape[-1])
+        p0dot = p0dot.reshape(-1, p0dot.shape[-1])
+        p1dot = p1dot.reshape(-1, p1dot.shape[-1])
+        u = u.reshape((-1,))
 
         if norm_dist is not None:
-            p0p1_disp = p1 - p0
+            norm_dist = self.to_numpy(norm_dist).reshape(-1)
+            norm_dist_mask = norm_dist > 0
+            p0p1_disp = (p1 - p0)
             p0p1_dist = np.linalg.norm(p0p1_disp, axis=-1)
-            if p0p1_dist == 0:
-                p0p1_dist = 1
-            p1 = p0 + p0p1_disp / p0p1_dist * norm_dist
+            p0p1_dist[p0p1_dist == 0] = 1
+            p1[norm_dist_mask] = p0[norm_dist_mask] + p0p1_disp[norm_dist_mask] / p0p1_dist[norm_dist_mask,None] * norm_dist[norm_dist_mask,None]
 
-        u = u.reshape((-1,))
-        p0 = p0.reshape((-1,))
-        p1 = p1.reshape((-1,))
-        p0dot = p0dot.reshape((-1,))
-        p1dot = p1dot.reshape((-1,))
         # Calculation
         U = np.array([self.nPr(3,deriv) * (u ** max(0,3-deriv)),
                       self.nPr(2,deriv) * (u ** max(0,2-deriv)),
@@ -718,11 +874,15 @@ class AgentPolicy:
                       [-3., 3.,-2.,-1.],
                       [0. , 0., 1., 0.],
                       [1. , 0., 0., 0.]])
-        P = np.array([p0,p1,p0dot,p1dot], dtype=np.float64)
-        ans = U.dot(A).dot(P)
-        ans = ans.reshape(*input_shape)
+        P = np.stack([p0, p1, p0dot, p1dot], axis=1)
+        ans = U[:,None,:] @ A[None,:,:] @ P
+        ans = ans.squeeze(1)
         if (norm_dist is not None) and deriv == 0:
-            ans = (ans - p0) * p0p1_dist / norm_dist + p0
+            norm_dist_mask = norm_dist > 0
+            p0_in = p0.reshape(*input_shape)
+            p0_in = p0_in.reshape(-1, p0_in.shape[-1])
+            ans[norm_dist_mask] = (ans - p0_in)[norm_dist_mask] * p0p1_dist[norm_dist_mask,None] / norm_dist[norm_dist_mask, None] + p0_in[norm_dist_mask]
+        ans = ans.reshape(*input_shape)
         return ans
 
 
@@ -779,94 +939,47 @@ class AgentPolicy:
         return ubest
 
 
-    def go_to(self, agent, pos, vel, start_vel=None, env_index=slice(None)):
-        start_pos = agent.state.pos[env_index]
-        if start_vel is None:
-            start_vel = self.get_start_vel(pos, vel, start_pos)
-        self.objectives[agent]["target_pos"][env_index] = pos
-        self.objectives[agent]["target_vel"][env_index] = vel
-        self.objectives[agent]["start_pos"][env_index] = start_pos
-        self.objectives[agent]["start_vel"][env_index] = start_vel
-        self.plot_traj(agent)
-
-
-    def get_start_vel(self, pos, vel, start_pos):
-        goal_disp = pos - start_pos
-        goal_dist = goal_disp.norm(dim=-1)
-        vel_mag = vel.norm(dim=-1)
-        vel_dir = vel
-        vel_dir[vel_mag > 0] /= vel_mag[:, None]
-        dist_behind_target = self.initial_vel_dist_behind_target_frac * goal_dist
-        target_pos = pos - vel_dir * dist_behind_target[:, None]
-        target_disp = target_pos - start_pos
-        target_dist = target_disp.norm(dim=1)
-        start_vel_aug_dir = target_disp
-        start_vel_aug_dir[target_dist > 0] /= target_dist[:, None]
-        start_vel = start_vel_aug_dir * self.start_vel_mag
-        return start_vel
-
-
     def plot_traj(self, agent, env_index=0):
         for i, u in enumerate(np.linspace(0,1,len(self.world.traj_points[self.team_name][agent]))):
             pointi = self.world.traj_points[self.team_name][agent][i]
+            num_envs = self.objectives[agent]["start_pos"][env_index, :].shape[0]
             posi = self.hermite(
                 self.objectives[agent]["start_pos"][env_index, :],
                 self.objectives[agent]["target_pos"][env_index, :],
                 self.objectives[agent]["start_vel"][env_index, :],
                 self.objectives[agent]["target_vel"][env_index, :],
-                u=u,
+                norm_dist=self.objectives[agent]["norm_dist"][env_index],
+                u=torch.tensor([u] * num_envs),
                 deriv=0,
             )
-            pointi.set_pos(torch.as_tensor(posi), batch_index=env_index)
+            if env_index==slice(None) or (isinstance(env_index, torch.Tensor) and env_index.dtype == torch.bool and torch.all(env_index)):
+                pointi.set_pos(torch.as_tensor(posi), batch_index=None)
+            elif isinstance(env_index, int):
+                pointi.set_pos(torch.as_tensor(posi), batch_index=env_index)
+            elif isinstance(env_index, list):
+                for envi in env_index:
+                    pointi.set_pos(torch.as_tensor(posi)[envi,:], batch_index=env_index[envi])
+            elif isinstance(env_index, torch.Tensor) and env_index.dtype == torch.bool and torch.any(env_index):
+                envs = torch.where(env_index)
+                for i, envi in enumerate(envs):
+                    pointi.set_pos(torch.as_tensor(posi)[i,:], batch_index=envi[0])
 
 
-    def get_action(self, agent, env_index=slice(None)):
-        curr_pos = agent.state.pos[env_index, :]
-        curr_vel = agent.state.vel[env_index, :]
-        u_closest = self.invhermite(
-            curr_pos,
-            self.objectives[agent]["start_pos"][env_index, :],
-            self.objectives[agent]["target_pos"][env_index, :],
-            self.objectives[agent]["start_vel"][env_index, :],
-            self.objectives[agent]["target_vel"][env_index, :],
-        )
-        des_curr_pos = self.hermite(
-            self.objectives[agent]["start_pos"][env_index, :],
-            self.objectives[agent]["target_pos"][env_index, :],
-            self.objectives[agent]["start_vel"][env_index, :],
-            self.objectives[agent]["target_vel"][env_index, :],
-            u = np.minimum(u_closest + self.pos_lookahead, 1.),
-            deriv = 0,
-        )
-        des_curr_vel = self.hermite(
-            self.objectives[agent]["start_pos"][env_index, :],
-            self.objectives[agent]["target_pos"][env_index, :],
-            self.objectives[agent]["start_vel"][env_index, :],
-            self.objectives[agent]["target_vel"][env_index, :],
-            u = np.minimum(u_closest + self.vel_lookahead, 1.),
-            deriv = 1,
-        )
-        des_curr_pos = torch.as_tensor(des_curr_pos)
-        des_curr_vel = torch.as_tensor(des_curr_vel)
-        control = 0.5 * (des_curr_pos - curr_pos) + 0.5 * (des_curr_vel - curr_vel)
-        return control
-
-
-    def update_dribble(self, agent, pos, env_index=slice(None)):
-        agent_pos = agent.state.pos[env_index]
-        ball_pos = self.ball.state.pos[env_index]
-        ball_disp = pos - ball_pos
-        ball_dist = ball_disp.norm(dim=-1)
-        direction = ball_disp / ball_dist[:,None]
-        hit_pos = ball_pos - direction * (self.ball.shape.radius + agent.shape.radius)
-        hit_vel = direction * self.dribble_speed
-        start_vel = self.get_start_vel(hit_pos, hit_vel, agent_pos)
-
-        slowdown_mask = ball_dist <= self.dribble_slowdown_dist
-        hit_vel[slowdown_mask,:] *= ball_dist[slowdown_mask,None] / self.dribble_slowdown_dist
-        start_vel[slowdown_mask,:] *= ball_dist[slowdown_mask,None] / self.dribble_slowdown_dist
-
-        self.go_to(agent, hit_pos, hit_vel, start_vel=start_vel, env_index=env_index)
+    def clamp_pos(self, pos, return_bool=False):
+        orig_pos = pos.clone()
+        agent_size = self.world.agent_size
+        pitch_y = self.world.pitch_width / 2 - agent_size
+        pitch_x = self.world.pitch_length / 2 - agent_size
+        goal_y = self.world.goal_size / 2 - agent_size
+        goal_x = self.world.goal_depth
+        pos[:,Y] = torch.clamp(pos[:,Y], -pitch_y, pitch_y)
+        inside_goal_y_mask = torch.abs(pos[:,Y]) < goal_y
+        pos[~inside_goal_y_mask, X] = torch.clamp(pos[~inside_goal_y_mask, X], -pitch_x, pitch_x)
+        pos[inside_goal_y_mask, X] = torch.clamp(pos[inside_goal_y_mask, X], -pitch_x-goal_x, pitch_x+goal_x)
+        if return_bool:
+            return torch.any(pos != orig_pos, dim=-1)
+        else:
+            return pos
 
 
     def to_numpy(self, x):
@@ -901,8 +1014,7 @@ class AgentPolicy:
 
 ### Run ###
 
-
-if __name__ == '__main__':
+def interactive():
     from maps.interactive_rendering import render_interactively
     render_interactively(
         "football",
@@ -910,3 +1022,58 @@ if __name__ == '__main__':
         n_blue_agents=1,
         n_red_agents=1,
     )
+
+
+def multiple_envs():
+    from PIL import Image
+    from maps import make_env
+
+    scenario_name = "football"
+
+    # Scenario specific variables
+    env_args = {
+        "n_blue_agents": 1,
+        "n_red_agents": 2,
+    }
+
+    num_envs = 6
+    render_env = 2
+    continuous_actions = False
+    device = "cpu"  # or cuda or any other torch device
+    n_steps = 10000
+
+    action = [0., 0.]
+
+    env = make_env(
+        scenario_name=scenario_name,
+        num_envs=num_envs,
+        device=device,
+        continuous_actions=True,
+        rllib_wrapped=False,
+        # Environment specific variables
+        **env_args,
+    )
+
+    step = 0
+    n_agents = env_args["n_blue_agents"]
+    for s in range(n_steps):
+        actions = []
+        step += 1
+        for i in range(n_agents):
+            actions.append(
+                torch.tensor(
+                    action,
+                    device=device,
+                ).repeat(num_envs, 1)
+            )
+        obs, rews, dones, info = env.step(actions)
+        env.render(
+            mode="rgb_array",
+            agent_index_focus=None,
+            visualize_when_rgb=True,
+            env_index=render_env,
+        )
+
+
+if __name__ == '__main__':
+    multiple_envs()
