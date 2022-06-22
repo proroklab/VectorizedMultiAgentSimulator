@@ -279,11 +279,16 @@ class Scenario(BaseScenario):
     def done(self):
         return torch.all(
             torch.stack(
-                [self.world.is_overlapping(a, a.goal) for a in self.world.agents], dim=1
+                [
+                    torch.linalg.vector_norm(a.state.pos - a.goal.state.pos, dim=1)
+                    <= a.shape.radius / 2
+                    for a in self.world.agents
+                ],
+                dim=1,
             ),
             dim=1,
         )
 
 
 if __name__ == "__main__":
-    render_interactively("passage", n_passages=1, shared_reward=False)
+    render_interactively("passage", n_passages=5, shared_reward=False)

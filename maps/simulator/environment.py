@@ -19,7 +19,7 @@ from maps.simulator.utils import VIEWER_MIN_SIZE
 
 # environment for all agents in the multiagent world
 # currently code assumes that no agents will be created/destroyed at runtime!
-class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
+class Environment(TorchVectorizedObject):
     metadata = {
         "render.modes": ["human", "rgb_array"],
         "runtime.vectorized": True,
@@ -170,12 +170,12 @@ class Environment(gym.vector.VectorEnv, TorchVectorizedObject):
         rewards = []
         infos = []
         for agent in self.agents:
-            rewards.append(self.scenario.reward(agent))
-            obs.append(self.scenario.observation(agent))
+            rewards.append(self.scenario.reward(agent).clone())
+            obs.append(self.scenario.observation(agent).clone())
             # A dictionary per agent
             infos.append(self.scenario.info(agent))
 
-        dones = self.scenario.done()
+        dones = self.scenario.done().clone()
 
         self.steps += 1
         if self.max_steps is not None:
@@ -648,9 +648,9 @@ class GymWrapper(gym.Env):
         return_info: bool = False,
         options: Optional[dict] = None,
     ):
-        obs = self._env.reset(seed)
+        obs = self._env.reset_at(index=0)
         for i in range(self._env.n_agents):
-            obs[i] = obs[i][0]
+            obs[i] = obs[i]
         return obs
 
     def render(
