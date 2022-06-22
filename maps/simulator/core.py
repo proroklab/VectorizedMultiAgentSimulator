@@ -670,7 +670,7 @@ class World(TorchVectorizedObject):
         torch.manual_seed(seed)
         return [seed]
 
-    def is_overlapping(self, entity_a: Entity, entity_b: Entity, env_index: int = None):
+    def get_distance(self, entity_a: Entity, entity_b: Entity, env_index: int = None):
         a_shape = entity_a.shape
         b_shape = entity_b.shape
         self._check_batch_index(env_index)
@@ -678,8 +678,55 @@ class World(TorchVectorizedObject):
         if isinstance(a_shape, Sphere) and isinstance(b_shape, Sphere):
             delta_pos = entity_a.state.pos - entity_b.state.pos
             dist = torch.linalg.vector_norm(delta_pos, dim=1)
+            return_value = dist
+        elif (
+            isinstance(entity_a.shape, Box)
+            and isinstance(entity_b.shape, Sphere)
+            or isinstance(entity_b.shape, Box)
+            and isinstance(entity_a.shape, Sphere)
+        ):
+            box, sphere = (
+                (entity_a, entity_b)
+                if isinstance(entity_b.shape, Sphere)
+                else (entity_b, entity_a)
+            )
+            closest_point = self._get_closest_point_box_sphere(box, sphere)
+
+            distance_sphere_closest_point = torch.linalg.vector_norm(
+                sphere.state.pos - closest_point, dim=1
+            )
+            return_value = distance_sphere_closest_point
+        # Sphere and line
+        elif (
+            isinstance(entity_a.shape, Line)
+            and isinstance(entity_b.shape, Sphere)
+            or isinstance(entity_b.shape, Line)
+            and isinstance(entity_a.shape, Sphere)
+        ):
+            line, sphere = (
+                (entity_a, entity_b)
+                if isinstance(entity_b.shape, Sphere)
+                else (entity_b, entity_a)
+            )
+            closest_point = self._get_closest_point_line_sphere(
+                line.state.pos, line.state.rot, line.shape.length, sphere
+            )
+            distance = torch.linalg.vector_norm(sphere.state.pos - closest_point, dim=1)
+            return_value = distance
+        else:
+            assert False, "Distance not computable for give entities"
+        if env_index is not None:
+            return_value = return_value[env_index]
+        return return_value
+
+    def is_overlapping(self, entity_a: Entity, entity_b: Entity, env_index: int = None):
+        a_shape = entity_a.shape
+        b_shape = entity_b.shape
+        self._check_batch_index(env_index)
+
+        if isinstance(a_shape, Sphere) and isinstance(b_shape, Sphere):
             dist_min = a_shape.radius + b_shape.radius
-            return_value = dist < dist_min
+            return self.get_distance(entity_a, entity_b, env_index) < dist_min
         elif (
             isinstance(entity_a.shape, Box)
             and isinstance(entity_b.shape, Sphere)
@@ -718,12 +765,9 @@ class World(TorchVectorizedObject):
                 if isinstance(entity_b.shape, Sphere)
                 else (entity_b, entity_a)
             )
-            closest_point = self._get_closest_point_line_sphere(
-                line.state.pos, line.state.rot, line.shape.length, sphere
-            )
-            distance = torch.linalg.vector_norm(sphere.state.pos - closest_point, dim=1)
             dist_min = sphere.shape.radius + LINE_MIN_DIST
-            return_value = distance < dist_min
+            return self.get_distance(entity_a, entity_b, env_index) < dist_min
+
         else:
             assert False, "Overlap not computable for give entities"
         if env_index is not None:
