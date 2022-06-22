@@ -17,11 +17,13 @@ class Scenario(BaseScenario):
         self.package_length = kwargs.get("package_length", 0.15)
         self.package_mass = kwargs.get("package_mass", 50)
 
+        self.shaping_factor = 100
+
         # Make world
-        world = World(batch_dim, device)
+        world = World(batch_dim, device, x_semidim=1, y_semidim=1)
         # Add agents
         for i in range(n_agents):
-            agent = Agent(name=f"agent {i}", shape=Sphere(0.03), u_multiplier=0.9)
+            agent = Agent(name=f"agent {i}", shape=Sphere(0.03), u_multiplier=0.7)
             world.add_agent(agent)
         # Add landmarks
         goal = Landmark(
@@ -61,20 +63,6 @@ class Scenario(BaseScenario):
                 ),
                 batch_index=env_index,
             )
-        for i, package in enumerate(self.world.landmarks[1:]):
-            package.set_pos(
-                torch.zeros(
-                    (1, self.world.dim_p)
-                    if env_index is not None
-                    else (self.world.batch_dim, self.world.dim_p),
-                    device=self.world.device,
-                    dtype=torch.float32,
-                ).uniform_(
-                    -1.0,
-                    1.0,
-                ),
-                batch_index=env_index,
-            )
         goal = self.world.landmarks[0]
         goal.set_pos(
             torch.zeros(
@@ -89,16 +77,62 @@ class Scenario(BaseScenario):
             ),
             batch_index=env_index,
         )
+        for i, package in enumerate(self.world.landmarks[1:]):
+            package.set_pos(
+                torch.zeros(
+                    (1, self.world.dim_p)
+                    if env_index is not None
+                    else (self.world.batch_dim, self.world.dim_p),
+                    device=self.world.device,
+                    dtype=torch.float32,
+                ).uniform_(
+                    -1.0,
+                    1.0,
+                ),
+                batch_index=env_index,
+            )
+            for agent in self.world.agents:
+                while self.world.is_overlapping(
+                    package, agent, env_index=env_index
+                ).any():
+                    package.set_pos(
+                        torch.zeros(
+                            (1, self.world.dim_p)
+                            if env_index is not None
+                            else (self.world.batch_dim, self.world.dim_p),
+                            device=self.world.device,
+                            dtype=torch.float32,
+                        ).uniform_(
+                            -1.0,
+                            1.0,
+                        ),
+                        batch_index=env_index,
+                    )
+
+            if env_index is None:
+                package.global_shaping = (
+                    torch.linalg.vector_norm(
+                        package.state.pos - package.goal.state.pos, dim=1
+                    )
+                    * self.shaping_factor
+                )
+            else:
+                package.global_shaping[env_index] = (
+                    torch.linalg.vector_norm(
+                        package.state.pos[env_index] - package.goal.state.pos[env_index]
+                    )
+                    * self.shaping_factor
+                )
 
     def reward(self, agent: Agent):
         is_first = agent == self.world.agents[0]
 
-        rew = torch.zeros(
-            self.world.batch_dim, device=self.world.device, dtype=torch.float32
-        )
+        if is_first:
+            self.rew = torch.zeros(
+                self.world.batch_dim, device=self.world.device, dtype=torch.float32
+            )
 
-        for i, package in enumerate(self.world.landmarks[1:]):
-            if is_first:
+            for i, package in enumerate(self.world.landmarks[1:]):
                 package.dist_to_goal = torch.linalg.vector_norm(
                     package.state.pos - package.goal.state.pos, dim=1
                 )
@@ -110,17 +144,31 @@ class Scenario(BaseScenario):
                     Color.GREEN.value, device=self.world.device, dtype=torch.float32
                 )
 
-            rew[~package.on_goal] += package.dist_to_goal[~package.on_goal]
+                package_shaping = package.dist_to_goal * self.shaping_factor
+                self.rew[~package.on_goal] += (
+                    package.global_shaping[~package.on_goal]
+                    - package_shaping[~package.on_goal]
+                )
+                package.global_shaping = package_shaping
 
-        return -rew
+        return self.rew
 
     def observation(self, agent: Agent):
         # get positions of all entities in this agent's reference frame
-        package_pos = []
+        package_obs = []
         for package in self.world.landmarks[1:]:
-            package_pos.append(package.state.pos - package.goal.state.pos)
-            package_pos.append(package.state.pos - agent.state.pos)
-        return torch.cat([agent.state.pos, agent.state.vel, *package_pos], dim=-1)
+            package_obs.append(package.state.pos - package.goal.state.pos)
+            package_obs.append(package.state.pos - agent.state.pos)
+            package_obs.append(package.state.vel)
+
+        return torch.cat(
+            [
+                agent.state.pos,
+                agent.state.vel,
+                *package_obs,
+            ],
+            dim=-1,
+        )
 
     def done(self):
         return torch.all(

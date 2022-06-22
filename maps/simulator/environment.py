@@ -6,14 +6,15 @@ import gym
 import numpy as np
 import torch
 from gym import spaces
+from ray import rllib
+from ray.rllib.utils.typing import EnvActionType, EnvInfoDict, EnvObsType
+from torch import Tensor
+
 from maps.simulator import core
 from maps.simulator.core import Agent, Box, Line, TorchVectorizedObject
 from maps.simulator.scenario import BaseScenario
 from maps.simulator.utils import Color, X, Y, ALPHABET
 from maps.simulator.utils import VIEWER_MIN_SIZE
-from ray import rllib
-from ray.rllib.utils.typing import EnvActionType, EnvInfoDict, EnvObsType
-from torch import Tensor
 
 
 # environment for all agents in the multiagent world
@@ -169,12 +170,12 @@ class Environment(TorchVectorizedObject):
         rewards = []
         infos = []
         for agent in self.agents:
-            rewards.append(self.scenario.reward(agent))
-            obs.append(self.scenario.observation(agent))
+            rewards.append(self.scenario.reward(agent).clone())
+            obs.append(self.scenario.observation(agent).clone())
             # A dictionary per agent
             infos.append(self.scenario.info(agent))
 
-        dones = self.scenario.done()
+        dones = self.scenario.done().clone()
 
         self.steps += 1
         if self.max_steps is not None:
@@ -647,9 +648,9 @@ class GymWrapper(gym.Env):
         return_info: bool = False,
         options: Optional[dict] = None,
     ):
-        obs = self._env.reset(seed)
+        obs = self._env.reset_at(index=0)
         for i in range(self._env.n_agents):
-            obs[i] = obs[i][0]
+            obs[i] = obs[i]
         return obs
 
     def render(

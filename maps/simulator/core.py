@@ -7,8 +7,9 @@ from abc import ABC, abstractmethod
 from typing import Callable, List, Union, Tuple
 
 import torch
-from maps.simulator.utils import Color, SensorType, X, Y, override, LINE_MIN_DIST
 from torch import Tensor
+
+from maps.simulator.utils import Color, SensorType, X, Y, override, LINE_MIN_DIST
 
 
 class TorchVectorizedObject(object):
@@ -669,14 +670,16 @@ class World(TorchVectorizedObject):
         torch.manual_seed(seed)
         return [seed]
 
-    def is_overlapping(self, entity_a: Entity, entity_b: Entity):
+    def is_overlapping(self, entity_a: Entity, entity_b: Entity, env_index: int = None):
         a_shape = entity_a.shape
         b_shape = entity_b.shape
+        self._check_batch_index(env_index)
+
         if isinstance(a_shape, Sphere) and isinstance(b_shape, Sphere):
             delta_pos = entity_a.state.pos - entity_b.state.pos
             dist = torch.linalg.vector_norm(delta_pos, dim=1)
             dist_min = a_shape.radius + b_shape.radius
-            return dist < dist_min
+            return_value = dist < dist_min
         elif (
             isinstance(entity_a.shape, Box)
             and isinstance(entity_b.shape, Sphere)
@@ -700,7 +703,7 @@ class World(TorchVectorizedObject):
                 box.state.pos - closest_point, dim=1
             )
             dist_min = sphere.shape.radius
-            return (distance_sphere_box < distance_closest_point_box) + (
+            return_value = (distance_sphere_box < distance_closest_point_box) + (
                 distance_sphere_closest_point < dist_min
             )
         # Sphere and line
@@ -720,9 +723,12 @@ class World(TorchVectorizedObject):
             )
             distance = torch.linalg.vector_norm(sphere.state.pos - closest_point, dim=1)
             dist_min = sphere.shape.radius + LINE_MIN_DIST
-            return distance < dist_min
+            return_value = distance < dist_min
         else:
             assert False, "Overlap not computable for give entities"
+        if env_index is not None:
+            return_value = return_value[env_index]
+        return return_value
 
     # update state of the world
     def step(self):
