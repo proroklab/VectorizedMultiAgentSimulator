@@ -611,6 +611,7 @@ class AgentPolicy:
         self.initial_vel_dist_behind_target_frac = 0.3
         self.ball_pos_eps = 0.08
 
+        self.max_shoot_time = 100
         self.max_shoot_dist = 0.6
         self.valid_start_pos_angle = np.cos(np.pi / 8)
         self.valid_start_vel_angle = np.cos(np.pi / 8)
@@ -620,11 +621,23 @@ class AgentPolicy:
         self.touch_eps = 0.01
         self.shoot_on_goal_dist = 0.4
 
-        self.interval_weight = 1.
-        self.separation_weight = 0.0
+        self.possession_lookahead = 0.5
 
-        self.nsamples = 8
-        self.sigma = 1.0
+        self.lane_weight = 1.
+        self.separation_weight = 0.01
+
+        self.attack_lane_weight = 1.
+        self.attack_goal_dist_weight = 0.25
+        self.attack_defender_dist_weight = 0.25
+        self.weight_diff_pass_thres = 0.1
+
+        self.passing_angle = (2 * np.pi / 128) * 1
+        self.shooting_angle = (2 * np.pi / 128) * 3
+        self.shooting_dist = self.max_shoot_dist
+        self.passing_dist = self.max_shoot_dist
+
+        self.nsamples = 1
+        self.sigma = 1.
         self.replan_margin = 0.
 
         self.initialised = False
@@ -671,14 +684,17 @@ class AgentPolicy:
             agent: torch.zeros(self.world.batch_dim).bool() for agent in self.teammates
         }
 
+        self.shooting_timer = {
+            agent: torch.zeros(self.world.batch_dim).int() for agent in self.teammates
+        }
+
         self.team_possession = torch.zeros(self.world.batch_dim).bool()
 
         if len(self.teammates) == 1:
             self.role = {self.teammates[0]: 1.0}
         else:
-            roles = torch.linspace(0, 1, len(self.teammates))
+            roles = torch.linspace(1/len(self.teammates), 1, len(self.teammates))
             self.role = {agent: roles[i] for i, agent in enumerate(self.teammates)}
-
 
 
     def reset(self, env_index = slice(None)):
@@ -692,49 +708,38 @@ class AgentPolicy:
             self.objectives[agent]["start_vel"][env_index] = torch.zeros(self.world.dim_p)
 
 
-    def check_possession(self, env_index=slice(None)):
-        agents_pos = torch.stack([agent.state.pos[env_index] for agent in self.teammates + self.opposition], dim=1)
-        ball_pos = self.ball.state.pos[env_index]
-        disps = ball_pos[:,None,:] - agents_pos
-        dists = disps.norm(dim=-1)
-        mindist_agent = torch.argmin(dists[:,:len(self.teammates)], dim=-1)
-        mindist_team = torch.argmin(dists, dim=-1) < len(self.teammates)
-        for i, agent in enumerate(self.teammates):
-            self.agent_possession[agent][env_index] = (mindist_agent == i)
-        self.team_possession[env_index] = mindist_team
-
-
-    def check_better_positions(self, agent, role, env_index=slice(None)):
-        curr_pos = agent.state.pos[env_index]
-        curr_target = self.objectives[agent]["target_pos"]
-        samples = torch.randn(self.nsamples, curr_pos.shape[0], self.world.dim_p) * self.sigma + curr_pos[None,:,:]
-        test_pos = torch.cat([curr_target[None,:,:], samples], dim=0) # curr_pos[None,:,:],
-        test_pos_shape = test_pos.shape
-        test_pos = self.clamp_pos(test_pos.view(test_pos_shape[0] * test_pos_shape[1], test_pos_shape[2])).view(*test_pos_shape)
-        values = torch.stack([
-                self.get_pos_value(test_pos[i], role=role, agent=agent, env_index=env_index)
-                for i in range(test_pos.shape[0])], dim=0)
-        values[0,:] += self.replan_margin
-        highest_value = values.argmax(dim=0)
-        best_pos = torch.gather(test_pos, dim=0, index=highest_value.unsqueeze(0).unsqueeze(-1).expand(-1, -1, self.world.dim_p))
-        return best_pos[0,:,:]
-
-
     def policy(self, agent):
-        shooting_mask = self.actions[agent]["shooting"] | self.actions[agent]["pre-shooting"]
         possession_mask = self.agent_possession[agent]
+        # Shoot
+        start_shoot_mask, shoot_pos = self.can_shoot(agent)
+        self.shoot(agent, shoot_pos[start_shoot_mask], env_index=start_shoot_mask)
+        # Passing
+        self_attack_value = self.get_attack_value(agent)
+        differential = torch.ones(self_attack_value.shape[0]) * self.weight_diff_pass_thres
+        for teammate in self.teammates:
+            if teammate != agent:
+                can_pass_mask = self.can_pass(teammate)
+                teammate_attack_value = self.get_attack_value(teammate)
+                better_pos_mask = (teammate_attack_value - self_attack_value) > differential
+                pass_mask = can_pass_mask & better_pos_mask & possession_mask
+                self.passto(agent, teammate, env_index=pass_mask)
+        # Move without the ball
+        shooting_mask = self.actions[agent]["shooting"] | self.actions[agent]["pre-shooting"]
         dribble_mask = possession_mask & ~shooting_mask
         move_mask = ~possession_mask & ~shooting_mask
         best_pos = self.check_better_positions(agent, role=self.role[agent])
-        self.dribble(agent, pos=best_pos[dribble_mask], env_index=dribble_mask)
         self.go_to(agent, pos=best_pos[move_mask], vel=torch.zeros(move_mask.sum(), self.world.dim_p), env_index=move_mask)
+        # Dribble with the ball
+        self.dribble_to_goal(agent, env_index=dribble_mask)
+        # If other agent is passing/shooting, stay still
+        other_agent_shooting_mask = self.combine_or([self.actions[otheragent]["pre-shooting"] | self.actions[otheragent]["shooting"] for otheragent in self.teammates if (otheragent != agent)])
+        stay_still_mask = other_agent_shooting_mask & ~shooting_mask
+        self.go_to(agent, pos=agent.state.pos[stay_still_mask], vel=torch.zeros(stay_still_mask.sum(), self.world.dim_p), env_index=stay_still_mask)
 
 
     def run(self, agent, world):
         self.check_possession()
-        # self.dribble_to_goal(agent)
         self.policy(agent)
-        # self.shoot_on_goal(agent)
         control = self.get_action(agent)
         control = torch.clamp(control, min=-1., max=1.)
         agent.action.u = control * agent.u_multiplier
@@ -754,6 +759,10 @@ class AgentPolicy:
         shoot_pos = goal_front + shoot_dir * self.shoot_on_goal_dist
         self.shoot(agent, shoot_pos, env_index=env_index)
         # self.shoot(agent, torch.tensor([-0.6, 0.]).unsqueeze(0), env_index=slice(None))
+
+
+    def passto(self, agent, agent_dest, env_index=slice(None)):
+        self.shoot(agent, agent_dest.state.pos[env_index], env_index=env_index)
 
 
     def shoot(self, agent, pos, env_index=slice(None)):
@@ -782,8 +791,14 @@ class AgentPolicy:
         valid_dist_mask = agent_ball_dist > start_dist
         shooting_mask = self.actions[agent]["shooting"][env_index] | (valid_dist_mask & valid_angle_mask & valid_vel_mask)
         pre_shooting_mask = ~shooting_mask
+        start_shooting_mask = (~self.actions[agent]["shooting"][env_index] & shooting_mask) | (~self.actions[agent]["pre-shooting"][env_index] & pre_shooting_mask)
+        # start_shooting_mask = ~self.actions[agent]["pre-shooting"][env_index] & pre_shooting_mask
         self.actions[agent]["shooting"][env_index] = shooting_mask
         self.actions[agent]["pre-shooting"][env_index] = pre_shooting_mask
+        self.shooting_timer[agent][self.combine_mask(env_index, start_shooting_mask)] = 0
+        self.shooting_timer[agent][self.actions[agent]["shooting"] | self.actions[agent]["pre-shooting"]] += 1
+        # self.shooting_timer[agent][self.actions[agent]["pre-shooting"]] += 1
+
 
         # Shooting
         hit_pos = ball_curr_pos - ball_target_dir * (self.ball.shape.radius + agent.shape.radius)
@@ -816,7 +831,7 @@ class AgentPolicy:
             pos=hit_pos[shooting_mask],
             vel=hit_vel[shooting_mask],
             start_vel=start_vel[shooting_mask],
-            env_index=self.actions[agent]["shooting"],
+            env_index=self.combine_mask(env_index, shooting_mask),
         )
 
         touch_dist = (ball_curr_pos - agent_curr_pos).norm(dim=-1) - (self.ball.shape.radius + agent.shape.radius)
@@ -828,6 +843,10 @@ class AgentPolicy:
         reached_goal_mask = self.combine_mask(env_index, dist <= self.ball_pos_eps)
         self.actions[agent]["shooting"][reached_goal_mask] = False
         self.actions[agent]["pre-shooting"][reached_goal_mask] = False
+
+        max_time_mask = self.shooting_timer[agent] > self.max_shoot_time
+        self.actions[agent]["shooting"][max_time_mask] = False
+        self.actions[agent]["pre-shooting"][max_time_mask] = False
 
 
     def dribble(self, agent, pos, env_index=slice(None)):
@@ -999,6 +1018,10 @@ class AgentPolicy:
         return ans
 
 
+    def combine_or(self, l):
+        return reduce(operator.or_, l, torch.zeros(l[0].shape).bool())
+
+
     def combine_mask(self, env_index, mask):
         if env_index == slice(None):
             return mask
@@ -1015,7 +1038,38 @@ class AgentPolicy:
             return torch.tensor(env_index)[mask]
 
 
-    def get_angle_interval(self, pos, obj, objpos=None, env_index=slice(None)):
+    def check_possession(self, env_index=slice(None)):
+        agents_pos = torch.stack([agent.state.pos[env_index] for agent in self.teammates + self.opposition], dim=1)
+        agents_vel = torch.stack([agent.state.vel[env_index] for agent in self.teammates + self.opposition], dim=1)
+        ball_pos = self.ball.state.pos[env_index]
+        ball_vel = self.ball.state.vel[env_index]
+        disps = ball_pos[:,None,:] - agents_pos
+        relvels = ball_vel[:,None,:] - agents_vel
+        dists = (disps + relvels * self.possession_lookahead).norm(dim=-1)
+        mindist_agent = torch.argmin(dists[:,:len(self.teammates)], dim=-1)
+        mindist_team = torch.argmin(dists, dim=-1) < len(self.teammates)
+        for i, agent in enumerate(self.teammates):
+            self.agent_possession[agent][env_index] = (mindist_agent == i)
+        self.team_possession[env_index] = mindist_team
+
+
+    def check_better_positions(self, agent, role, env_index=slice(None)):
+        curr_pos = agent.state.pos[env_index]
+        curr_target = self.objectives[agent]["target_pos"]
+        samples = torch.randn(self.nsamples, curr_pos.shape[0], self.world.dim_p) * self.sigma + curr_pos[None,:,:]
+        test_pos = torch.cat([curr_target[None,:,:], samples], dim=0) # curr_pos[None,:,:],
+        test_pos_shape = test_pos.shape
+        test_pos = self.clamp_pos(test_pos.view(test_pos_shape[0] * test_pos_shape[1], test_pos_shape[2])).view(*test_pos_shape)
+        values = torch.stack([
+                self.get_pos_value(test_pos[i], role=role, agent=agent, env_index=env_index)
+                for i in range(test_pos.shape[0])], dim=0)
+        values[0,:] += self.replan_margin
+        highest_value = values.argmax(dim=0)
+        best_pos = torch.gather(test_pos, dim=0, index=highest_value.unsqueeze(0).unsqueeze(-1).expand(-1, -1, self.world.dim_p))
+        return best_pos[0,:,:]
+
+
+    def get_angle_interval(self, pos, obj, objpos=None, beams=128, env_index=slice(None)):
         # agent_pos = agent.state.pos[env_index]
         if objpos is not None:
             obj_pos = objpos
@@ -1045,69 +1099,147 @@ class AgentPolicy:
         angle_2 = torch.atan2(dir_side2[:,X], dir_side2[:,Y])
         angle_less = torch.minimum(angle_1, angle_2)
         angle_greater = torch.maximum(angle_1, angle_2)
-        intervals = [None] * angle_1.shape[0]
-        for i in range(angle_1.shape[0]):
-            if torch.isnan(angle_less) or torch.isnan(angle_greater):
-                intervals[i] = portion.empty()
-            elif angle_less[i] < -torch.pi/2 and angle_greater[i] > torch.pi/2:
-                intervals[i] = portion.closed(-torch.pi/2, angle_less[i].item()) | portion.closed(angle_greater[i].item(), torch.pi/2)
-            else:
-                intervals[i] = portion.closed(angle_less[i].item(), angle_greater[i].item())
-        return intervals
+        lidar = torch.zeros(angle_less.shape[0], beams).bool()
+        lidar_angles = torch.linspace(-torch.pi, torch.pi-(2*torch.pi/beams), beams)
+        wraparound_mask = (angle_greater > torch.pi/2) & (angle_less < -torch.pi/2)
+        covered_angles = (angle_less[:,None] <= lidar_angles[None,:]) & (angle_greater[:,None] >= lidar_angles[None,:])
+        covered_angles_wraparound = (angle_less[:,None] >= lidar_angles[None,:]) & (angle_greater[:,None] <= lidar_angles[None,:])
+        lidar[~wraparound_mask] = covered_angles[~wraparound_mask]
+        lidar[wraparound_mask] = covered_angles_wraparound[wraparound_mask]
+        return lidar, lidar_angles
 
 
-    def get_separations(self, pos, agent=None, env_index=slice(None)):
-        top_wall_dist =  -pos[:,Y] + self.world.pitch_width / 2
-        bottom_wall_dist = pos[:, Y] + self.world.pitch_width / 2
-        left_wall_dist = pos[:, X] + self.world.pitch_length / 2
-        right_wall_dist = -pos[:, X] + self.world.pitch_length / 2
-        vertical_wall_disp = torch.zeros(pos.shape)
-        vertical_wall_disp[:,Y] = torch.minimum(top_wall_dist, bottom_wall_dist)
-        vertical_wall_disp[bottom_wall_dist < top_wall_dist, Y] *= -1
-        horizontal_wall_disp = torch.zeros(pos.shape)
-        horizontal_wall_disp[:, X] = torch.minimum(left_wall_dist, right_wall_dist)
-        horizontal_wall_disp[left_wall_dist < right_wall_dist, X] *= -1
-        teammate_disps = []
-        for otheragent in self.teammates:
-            if otheragent != agent:
-                agent_disp = otheragent.state.pos[env_index] - pos
-                teammate_disps.append(agent_disp)
-        return [vertical_wall_disp, horizontal_wall_disp] + teammate_disps
+    def get_separations(self, pos, agent=None, teammate=True, wall=True, opposition=False, env_index=slice(None)):
+        disps = []
+        if wall:
+            top_wall_dist =  -pos[:,Y] + self.world.pitch_width / 2
+            bottom_wall_dist = pos[:, Y] + self.world.pitch_width / 2
+            left_wall_dist = pos[:, X] + self.world.pitch_length / 2
+            right_wall_dist = -pos[:, X] + self.world.pitch_length / 2
+            vertical_wall_disp = torch.zeros(pos.shape)
+            vertical_wall_disp[:,Y] = torch.minimum(top_wall_dist, bottom_wall_dist)
+            vertical_wall_disp[bottom_wall_dist < top_wall_dist, Y] *= -1
+            horizontal_wall_disp = torch.zeros(pos.shape)
+            horizontal_wall_disp[:, X] = torch.minimum(left_wall_dist, right_wall_dist)
+            horizontal_wall_disp[left_wall_dist < right_wall_dist, X] *= -1
+            disps.append(vertical_wall_disp)
+            disps.append(horizontal_wall_disp)
+        if teammate:
+            for otheragent in self.teammates:
+                if otheragent != agent:
+                    agent_disp = otheragent.state.pos[env_index] - pos
+                    disps.append(agent_disp)
+        if opposition:
+            for otheragent in self.opposition:
+                if otheragent != agent:
+                    agent_disp = otheragent.state.pos[env_index] - pos
+                    disps.append(agent_disp)
+        return disps
+
+
+    def get_lane_value(self, pos, agent, opposition=False, env_index=slice(None)):
+        if not opposition:
+            ball_angles, lidar_angles = self.get_angle_interval(pos, self.ball)
+            goal_angles, _ = self.get_angle_interval(pos, self.target_net, env_index=env_index)
+            blocking_angles_list = [self.get_angle_interval(pos, otheragent, env_index=env_index)[0] for otheragent in
+                                    self.teammates + self.opposition if (otheragent != agent)]
+            desired_angles = ball_angles | goal_angles
+            blocking_angles = self.combine_or(blocking_angles_list)
+            unblocked_angles = desired_angles & ~blocking_angles
+            unblocked_angle_ratio = unblocked_angles.sum(dim=-1) / desired_angles.sum(dim=-1)
+            unblocked_angle_ratio[torch.isnan(unblocked_angle_ratio)] = 0.
+            return unblocked_angle_ratio
+        else:
+            opp_lane_value = 0.
+            for opp_agent in self.opposition:
+                opp_agent_pos = opp_agent.state.pos[env_index]
+                opp_desired_angles = self.get_angle_interval(opp_agent_pos, self.own_net, env_index=env_index)[0]
+                opp_blocking_angles_list = [self.get_angle_interval(opp_agent_pos, otheragent, objpos=pos, env_index=env_index)[0]
+                                            for otheragent in self.teammates]
+                opp_unblocked_angles = opp_desired_angles & ~self.combine_or(opp_blocking_angles_list)
+                opp_unblocked_angle_ratio = opp_unblocked_angles.sum(dim=-1) / opp_desired_angles.sum(dim=-1)
+                opp_lane_value += -opp_unblocked_angle_ratio
+            opp_lane_value /= len(self.opposition)
+            return opp_lane_value
 
 
     def get_pos_value(self, pos, role=0.5, agent=None, env_index=slice(None)):
-        # Agent Intervals
-        combine_interval_list = lambda l: reduce(operator.or_, l, portion.empty())
-        domain_single = lambda int: int.upper - int.lower if (not int.empty) else 0.
-        domain = lambda int: reduce(lambda x, y: x + y, list(map(domain_single, int)), 0.)
-        ball_interval = self.get_angle_interval(pos, self.ball, env_index=env_index)
-        goal_interval = self.get_angle_interval(pos, self.target_net, env_index=env_index)
-        blocking_intervals = list(zip(*[self.get_angle_interval(pos, otheragent) for otheragent in self.opposition + self.teammates]))
-        total_intervals = [(ball_int | goal_int).difference(combine_interval_list(opp_ints))
-                           for ball_int, goal_int, opp_ints in zip(ball_interval, goal_interval, blocking_intervals)]
-        total_interval_mags = torch.tensor([domain(interval) for interval in total_intervals])
-        # goal_interval_mag = torch.tensor([domain(interval) for interval in goal_interval])
-        interval_value = total_interval_mags #/ goal_interval_mag
-        # breakpoint()
+        # The value of a position for movement
+        # Single agent's sight on goal and the ball, blocked by teammates and opposition
+        lane_value = self.get_lane_value(pos, agent, opposition=False, env_index=env_index)
         # Agent Separations
         disps = self.get_separations(pos, agent, env_index=env_index)
         dists = torch.stack(list(map(lambda x: x.norm(dim=-1), disps)), dim=-1)
         inv_sq_dists = dists ** (-2)
         separation_value = -inv_sq_dists.sum(dim=-1)
-        # Opposition Intervals
-        other_teammates = self.teammates[:]
-        other_teammates.remove(agent)
-        opposition_goal_intervals = list(zip(*[self.get_angle_interval(otheragent.state.pos[env_index], self.own_net) for otheragent in self.opposition]))
-        opposition_blocking_intervals = list(zip(*[list(zip(*[self.get_angle_interval(otheragent.state.pos[env_index], teamagent) for teamagent in other_teammates] + [self.get_angle_interval(otheragent.state.pos[env_index], agent, objpos=pos)])) for otheragent in self.opposition]))
-        opposition_total_intervals = [[goal_ints[i].difference(combine_interval_list(blocking_ints[i])) for i in range(len(self.opposition))] for goal_ints, blocking_ints in zip(opposition_goal_intervals, opposition_blocking_intervals)]
-        opposition_domains = torch.tensor([[domain(opposition_total_intervals[i][j]) for j in range(len(self.opposition))] for i in range((len(opposition_total_intervals)))])
-        opposition_interval_value = -opposition_domains.sum(dim=-1)
-        # print(role, self.interval_weight * role * interval_value, self.separation_weight * separation_value, self.interval_weight * (1 - role) * opposition_interval_value)
+        # Entire opposition's sight on goal, blocked by all teammates (shared value for all teammates)
+        opp_lane_value = self.get_lane_value(pos, agent, opposition=True, env_index=env_index)
         # Value Calculation
-        values = (self.interval_weight * role * interval_value + \
-                   self.separation_weight * separation_value + \
-                   self.interval_weight * (1 - role) * opposition_interval_value)
+        values = self.separation_weight * separation_value + \
+                 self.lane_weight * role * lane_value + \
+                 self.lane_weight * (1-role) * opp_lane_value
         return values
+
+
+    def get_attack_value(self, agent, env_index=slice(None)):
+        # The value of a position for attacking purposes
+        agent_pos = agent.state.pos[env_index]
+        lane_value = self.attack_lane_weight * self.get_lane_value(agent.state.pos[env_index], agent, opposition=False, env_index=env_index)
+
+        goal_dist = (agent_pos - self.target_net.state.pos[env_index]).norm(dim=-1)
+        goal_dist_value = self.attack_goal_dist_weight * -goal_dist
+
+        opp_disps = self.get_separations(agent_pos, agent, teammate=False, wall=False, opposition=True, env_index=env_index)
+        opp_dists = torch.stack(list(map(lambda x: x.norm(dim=-1), opp_disps)), dim=-1)
+        opp_dist = torch.min(opp_dists, dim=-1)[0]
+        opp_dist_value = self.attack_defender_dist_weight * opp_dist
+        return lane_value + goal_dist_value + opp_dist_value
+
+
+    def can_shoot(self, agent, env_index=slice(None)):
+        # Distance
+        ball_pos = self.ball.state.pos[env_index]
+        goal_dist = (ball_pos - self.target_net.state.pos[env_index]).norm(dim=-1)
+        within_range_mask = goal_dist < self.shooting_dist
+        # Angle
+        beams = 128
+        goal_angles, lidar_angles = self.get_angle_interval(ball_pos, self.target_net, beams=beams, env_index=env_index)
+        blocking_angles_list = [self.get_angle_interval(ball_pos, otheragent, beams=beams, env_index=env_index)[0] for otheragent in
+                                self.teammates + self.opposition if (otheragent != agent)]
+        unblocked_angles = goal_angles & ~self.combine_or(blocking_angles_list)
+        unblocked_angles[:,0] = False
+        unblocked_angles[:,-1] = False
+        indicesxy = torch.where(unblocked_angles[:,:-1].int() - unblocked_angles[:,1:].int())
+        indicesx = indicesxy[0].view(-1,2)[:,0]
+        indicesy = indicesxy[1].view(-1,2)
+        n = torch.zeros(unblocked_angles.shape[0]).int().scatter(index=indicesx, src=(indicesy[:,1] - indicesy[:,0]).int(), dim=0, reduce='add')
+        midpt = torch.zeros(unblocked_angles.shape[0]).float().scatter(index=indicesx, src=(indicesy[:, 1] + indicesy[:, 0]) / 2 * (indicesy[:, 1] - indicesy[:, 0]), dim=0, reduce='add') / n + 0.5
+        within_angle_mask = n * (2*torch.pi/beams) >= self.shooting_angle
+        # Result
+        can_shoot_mask = within_range_mask & within_angle_mask
+        frac = midpt - torch.floor(midpt)
+        shoot_angle = (1-frac) * lidar_angles[torch.ceil(midpt).long()] + (frac) * lidar_angles[torch.floor(midpt).long()]
+        shoot_dir = torch.stack([torch.sin(shoot_angle), torch.cos(shoot_angle)], dim=-1)
+        shoot_pos = ball_pos + shoot_dir * (goal_dist[:,None] + self.shoot_on_goal_dist)
+        return can_shoot_mask, shoot_pos
+
+
+    def can_pass(self, agent_dest, env_index=slice(None)):
+        # Distance
+        ball_pos = self.ball.state.pos[env_index]
+        agent_pos = agent_dest.state.pos[env_index]
+        agent_dist = (ball_pos - agent_pos).norm(dim=-1)
+        within_range_mask = agent_dist <= self.shooting_dist
+        # Angle
+        beams = 128
+        goal_angles, lidar_angles = self.get_angle_interval(ball_pos, agent_dest, beams=beams, env_index=env_index)
+        blocking_angles_list = [self.get_angle_interval(ball_pos, otheragent, beams=beams, env_index=env_index)[0] for otheragent in self.teammates + self.opposition if (otheragent != agent_dest)]
+        unblocked_angles = goal_angles & ~self.combine_or(blocking_angles_list)
+        passing_angle = unblocked_angles.sum(dim=-1) * (2*torch.pi/beams)
+        within_angle_mask = passing_angle >= self.passing_angle
+        can_pass_mask = within_range_mask & within_angle_mask
+        return can_pass_mask
+
 
 ### Run ###
 
@@ -1118,7 +1250,7 @@ def interactive():
         "football",
         continuous=True,
         n_blue_agents=1,
-        n_red_agents=3,
+        n_red_agents=2,
     )
 
 
@@ -1130,11 +1262,11 @@ def multiple_envs():
 
     # Scenario specific variables
     env_args = {
-        "n_blue_agents": 1,
-        "n_red_agents": 1,
+        "n_blue_agents": 2,
+        "n_red_agents": 2,
     }
 
-    num_envs = 6
+    num_envs = 32
     render_env = 0
     device = "cpu"
     n_steps = 10000
@@ -1173,4 +1305,4 @@ def multiple_envs():
 
 
 if __name__ == '__main__':
-    interactive()
+    multiple_envs()
