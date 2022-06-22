@@ -749,7 +749,7 @@ class World(TorchVectorizedObject):
             distance_closest_point_box = torch.linalg.vector_norm(
                 box.state.pos - closest_point, dim=1
             )
-            dist_min = sphere.shape.radius
+            dist_min = sphere.shape.radius + LINE_MIN_DIST
             return_value = (distance_sphere_box < distance_closest_point_box) + (
                 distance_sphere_closest_point < dist_min
             )
@@ -1026,6 +1026,7 @@ class World(TorchVectorizedObject):
             / dist.unsqueeze(-1)
             * penetration.unsqueeze(-1)
         )
+        force[dist > dist_min] = 0
         return +force, -force
 
     # integrate physical state
