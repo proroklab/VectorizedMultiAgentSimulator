@@ -85,6 +85,7 @@ class Scenario(BaseScenario):
             [
                 agent.state.pos,
                 agent.state.vel,
+                self.line.state.rot,
                 (self.desired_velocity - self.line.state.ang_vel.abs()).abs(),
             ],
             dim=-1,

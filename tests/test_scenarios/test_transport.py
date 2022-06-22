@@ -38,12 +38,12 @@ class TestTransport(unittest.TestCase):
                 obs_agent = obs[0]
                 self.assertTrue(
                     (
-                        torch.linalg.vector_norm(obs_agent[:, -2:], dim=1)
+                        torch.linalg.vector_norm(obs_agent[:, 6:8], dim=1)
                         > self.env.agents[0].shape.radius
                     ).all()
                 )
                 action_agent = torch.clamp(
-                    obs_agent[:, -2:],
+                    obs_agent[:, 6:8],
                     min=-self.env.agents[0].u_range,
                     max=self.env.agents[0].u_range,
                 )
