@@ -265,7 +265,7 @@ class Scenario(BaseScenario):
         passages = self.world.landmarks[self.n_agents : -4]
         for passage in passages:
             if not passage.collide:
-                passage_obs.append(agent.state.pos - passage.state.pos)
+                passage_obs.append(passage.state.pos - agent.state.pos)
         return torch.cat(
             [
                 agent.state.pos,
@@ -291,4 +291,4 @@ class Scenario(BaseScenario):
 
 
 if __name__ == "__main__":
-    render_interactively("passage", n_passages=5, shared_reward=False)
+    render_interactively("passage", n_passages=1, shared_reward=False)
