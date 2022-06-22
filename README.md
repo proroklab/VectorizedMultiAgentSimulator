@@ -82,7 +82,11 @@ To know how, just read the documentation of `BaseScenario` and look at the imple
 You can play with a scenario interactively!
 
 Just use the `render_interactively` script. Relevant values will be plotted to screen.
-Move the agent with the arrow keys and switch agents with TAB. You can reset the environment by pressing R
+Move the agent with the arrow keys and switch agents with TAB. You can reset the environment by pressing R.
+If you have more than 1 agent, you can control another one with W,A,S,D and switch the agent with these controls using LSHIFT.
+
+On the screen you will see some data from the agent controlled with arrow keys. This data includes: name, current obs, 
+current reward, total reward so far and environment done flag.
 
 Here is an overview of what it looks like:
 

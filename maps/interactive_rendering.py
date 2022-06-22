@@ -6,6 +6,8 @@ Use this script to interactively play with scenarios
 You can change agent by pressing TAB
 You can reset the environment by pressing R
 You can move agents with the arrow keys
+If you have more than 1 agent, you can control another one with W,A,S,D
+and switch the agent with these controls using LSHIFT
 """
 from operator import add
 
@@ -24,6 +26,8 @@ class InteractiveEnv:
     You can change agent by pressing TAB
     You can reset the environment by pressing R
     You can move agents with the arrow keys
+    If you have more than 1 agent, you can control another one with W,A,S,D
+    and switch the agent with these controls using LSHIFT
     """
 
     def __init__(self, env: GymWrapper):
@@ -31,11 +35,14 @@ class InteractiveEnv:
         self.env = env
         # hard-coded keyboard events
         self.current_agent_index = 0
+        self.current_agent_index2 = 1
         self.n_agents = self.env.unwrapped().n_agents
         self.continuous = self.env.unwrapped().continuous_actions
         self.reset = False
         self.keys = np.array([0, 0, 0, 0])  # up, down, left, right
+        self.keys2 = np.array([0, 0, 0, 0])  # up, down, left, right
         self.u = 0 if not self.continuous else (0.0, 0.0)
+        self.u2 = 0 if not self.continuous else (0.0, 0.0)
 
         env.render()
         self._init_text()
@@ -44,10 +51,11 @@ class InteractiveEnv:
 
         self._cycle()
 
-    def _increment_selected_agent_index(self):
-        self.current_agent_index += 1
-        if self.current_agent_index == self.n_agents:
-            self.current_agent_index = 0
+    def _increment_selected_agent_index(self, index: int):
+        index += 1
+        if index == self.n_agents:
+            index = 0
+        return index
 
     def _cycle(self):
         total_rew = [0] * self.n_agents
@@ -57,37 +65,35 @@ class InteractiveEnv:
                 self.reset = False
                 total_rew = [0] * self.n_agents
 
-            active_agent_index = self.current_agent_index
-
             if self.continuous:
                 action_list = [(0.0, 0.0)] * self.n_agents
             else:
                 action_list = [0] * self.n_agents
-            action_list[active_agent_index] = self.u
+            action_list[self.current_agent_index] = self.u
+            if self.n_agents > 1:
+                action_list[self.current_agent_index2] = self.u2
             obs, rew, done, info = self.env.step(action_list)
 
-            obs[active_agent_index] = np.around(
-                obs[active_agent_index].cpu().tolist(), decimals=2
+            obs[self.current_agent_index] = np.around(
+                obs[self.current_agent_index].cpu().tolist(), decimals=2
             )
-            len_obs = len(obs[active_agent_index])
-            message = f"\t\t{obs[active_agent_index][len_obs//2:]}"
+            len_obs = len(obs[self.current_agent_index])
+            message = f"\t\t{obs[self.current_agent_index][len_obs//2:]}"
             self._write_values(self.text_idx, message)
-            message = f"Obs: {obs[active_agent_index][:len_obs//2]}"
+            message = f"Obs: {obs[self.current_agent_index][:len_obs//2]}"
             self._write_values(self.text_idx + 1, message)
 
-            message = f"Rew: {round(rew[active_agent_index],3)}"
+            message = f"Rew: {round(rew[self.current_agent_index],3)}"
             self._write_values(self.text_idx + 2, message)
 
             total_rew = list(map(add, total_rew, rew))
-            message = f"Total rew: {round(total_rew[active_agent_index], 3)}"
+            message = f"Total rew: {round(total_rew[self.current_agent_index], 3)}"
             self._write_values(self.text_idx + 3, message)
 
             message = f"Done: {done}"
             self._write_values(self.text_idx + 4, message)
 
-            message = (
-                f"Selected: {self.env.unwrapped().agents[active_agent_index].name}"
-            )
+            message = f"Selected: {self.env.unwrapped().agents[self.current_agent_index].name}"
             self._write_values(self.text_idx + 5, message)
 
             self.env.render()
@@ -119,6 +125,7 @@ class InteractiveEnv:
         from pyglet.window import key
 
         u = self.u
+        u2 = self.u2
         if k == key.LEFT:
             self.keys[0] = 1
             u = 1
@@ -132,14 +139,44 @@ class InteractiveEnv:
             self.keys[3] = 1
             u = 4
         elif k == key.TAB:
-            self._increment_selected_agent_index()
+            self.current_agent_index = self._increment_selected_agent_index(
+                self.current_agent_index
+            )
+            while self.current_agent_index == self.current_agent_index2:
+                self.current_agent_index = self._increment_selected_agent_index(
+                    self.current_agent_index
+                )
+
+        elif k == key.A:
+            self.keys2[0] = 1
+            u2 = 1
+        elif k == key.D:
+            self.keys2[1] = 1
+            u2 = 2
+        elif k == key.S:
+            self.keys2[2] = 1
+            u2 = 3
+        elif k == key.W:
+            self.keys2[3] = 1
+            u2 = 4
+        elif k == key.LSHIFT:
+            self.current_agent_index2 = self._increment_selected_agent_index(
+                self.current_agent_index2
+            )
+            while self.current_agent_index == self.current_agent_index2:
+                self.current_agent_index2 = self._increment_selected_agent_index(
+                    self.current_agent_index2
+                )
+
         elif k == key.R:
             self.reset = True
 
         if self.continuous:
             self.u = (self.keys[1] - self.keys[0], self.keys[3] - self.keys[2])
+            self.u2 = (self.keys2[1] - self.keys2[0], self.keys2[3] - self.keys2[2])
         else:
             self.u = u
+            self.u2 = u2
 
     def _key_release(self, k, mod):
         from pyglet.window import key
@@ -152,16 +189,31 @@ class InteractiveEnv:
             self.keys[2] = 0
         elif k == key.UP:
             self.keys[3] = 0
+
+        elif k == key.A:
+            self.keys2[0] = 0
+        elif k == key.D:
+            self.keys2[1] = 0
+        elif k == key.S:
+            self.keys2[2] = 0
+        elif k == key.W:
+            self.keys2[3] = 0
+
         elif k == key.R:
             self.reset = False
 
         if self.continuous:
             self.u = (self.keys[1] - self.keys[0], self.keys[3] - self.keys[2])
+            self.u2 = (self.keys2[1] - self.keys2[0], self.keys2[3] - self.keys2[2])
         else:
             if np.sum(self.keys) == 1:
                 self.u = np.argmax(self.keys) + 1
             else:
                 self.u = 0
+            if np.sum(self.keys2) == 1:
+                self.u2 = np.argmax(self.keys2) + 1
+            else:
+                self.u2 = 0
 
 
 def render_interactively(scenario_name: str, **kwargs):
@@ -171,6 +223,8 @@ def render_interactively(scenario_name: str, **kwargs):
     You can change agent by pressing TAB
     You can reset the environment by pressing R
     You can move agents with the arrow keys
+    If you have more than 1 agent, you can control another one with W,A,S,D
+    and switch the agent with these controls using LSHIFT
     """
     InteractiveEnv(
         GymWrapper(
@@ -193,6 +247,8 @@ if __name__ == "__main__":
     # You can change agent by pressing TAB
     # You can reset the environment by pressing R
     # You can move agents with the arrow keys
+    # If you have more than 1 agent, you can control another one with W,A,S,D
+    # and switch the agent with these controls using LSHIFT
 
     scenario_name = "waterfall"
 
