@@ -47,7 +47,7 @@ class TestPassage(unittest.TestCase):
                     )
 
                     action_agent = torch.clamp(
-                        -2 * dist_to_passage,
+                        2 * dist_to_passage,
                         min=-self.env.agents[i].u_range,
                         max=self.env.agents[i].u_range,
                     )

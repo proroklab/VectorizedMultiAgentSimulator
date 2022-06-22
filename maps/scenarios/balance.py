@@ -21,7 +21,7 @@ class Scenario(BaseScenario):
         self.agent_radius = 0.03
 
         self.shaping_factor = 100
-        self.fall_reward = -1000
+        self.fall_reward = -10
 
         # Make world
         world = World(batch_dim, device, gravity=(0.0, -0.05), y_semidim=1)
@@ -64,7 +64,7 @@ class Scenario(BaseScenario):
 
         floor = Landmark(
             name="floor",
-            collide=False,
+            collide=True,
             shape=Box(length=10, width=1),
             color=Color.WHITE,
         )
@@ -231,9 +231,9 @@ class Scenario(BaseScenario):
                 agent.state.pos - self.line.state.pos,
                 self.package.state.pos - self.package.goal.state.pos,
                 self.package.state.vel,
-                # self.line.state.vel,
-                # self.line.state.ang_vel.unsqueeze(-1),
-                # self.line.state.rot.unsqueeze(-1),
+                self.line.state.vel,
+                self.line.state.ang_vel,
+                self.line.state.rot % (torch.pi * 2),
             ],
             dim=-1,
         )
