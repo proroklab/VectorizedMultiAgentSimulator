@@ -17,6 +17,8 @@ class Scenario(BaseScenario):
         self.package_length = kwargs.get("package_length", 0.6)
         self.package_mass = kwargs.get("package_mass", 50)
 
+        self.shaping_factor = 100
+
         # Make world
         world = World(batch_dim, device, contact_margin=6e-3)
         # Add agents
@@ -73,8 +75,8 @@ class Scenario(BaseScenario):
                             device=self.world.device,
                             dtype=torch.float32,
                         ).uniform_(
-                            -self.package_length / 2,
-                            self.package_length / 2,
+                            -self.package_length / 2 + agent.shape.radius,
+                            self.package_length / 2 - agent.shape.radius,
                         ),
                         torch.zeros(
                             (1, 1)
@@ -83,8 +85,8 @@ class Scenario(BaseScenario):
                             device=self.world.device,
                             dtype=torch.float32,
                         ).uniform_(
-                            -self.package_width / 2,
-                            self.package_width / 2,
+                            -self.package_width / 2 + agent.shape.radius,
+                            self.package_width / 2 - agent.shape.radius,
                         ),
                     ],
                     dim=1,
@@ -106,15 +108,30 @@ class Scenario(BaseScenario):
             ),
             batch_index=env_index,
         )
+        if env_index is None:
+            self.package.global_shaping = (
+                torch.linalg.vector_norm(
+                    self.package.state.pos - self.package.goal.state.pos, dim=1
+                )
+                * self.shaping_factor
+            )
+        else:
+            self.package.global_shaping[env_index] = (
+                torch.linalg.vector_norm(
+                    self.package.state.pos[env_index]
+                    - self.package.goal.state.pos[env_index]
+                )
+                * self.shaping_factor
+            )
 
     def reward(self, agent: Agent):
         is_first = agent == self.world.agents[0]
 
-        rew = torch.zeros(
-            self.world.batch_dim, device=self.world.device, dtype=torch.float32
-        )
-
         if is_first:
+            self.rew = torch.zeros(
+                self.world.batch_dim, device=self.world.device, dtype=torch.float32
+            )
+
             self.package.dist_to_goal = torch.linalg.vector_norm(
                 self.package.state.pos - self.package.goal.state.pos, dim=1
             )
@@ -128,15 +145,27 @@ class Scenario(BaseScenario):
                 Color.GREEN.value, device=self.world.device, dtype=torch.float32
             )
 
-        rew[~self.package.on_goal] += self.package.dist_to_goal[~self.package.on_goal]
+            package_shaping = self.package.dist_to_goal * self.shaping_factor
+            self.rew[~self.package.on_goal] += (
+                self.package.global_shaping[~self.package.on_goal]
+                - package_shaping[~self.package.on_goal]
+            )
+            self.package.global_shaping = package_shaping
 
-        return -rew
+            self.rew[~self.package.on_goal] += (
+                self.package.global_shaping[~self.package.on_goal]
+                - package_shaping[~self.package.on_goal]
+            )
+            self.package.global_shaping = package_shaping
+
+        return self.rew
 
     def observation(self, agent: Agent):
         return torch.cat(
             [
                 agent.state.pos,
                 agent.state.vel,
+                self.package.state.vel,
                 self.package.state.pos - agent.state.pos,
                 self.package.state.pos - self.package.goal.state.pos,
             ],

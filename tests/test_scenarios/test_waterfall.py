@@ -42,3 +42,4 @@ class TestWaterfall(unittest.TestCase):
             if rews is not None:
                 for i in range(self.n_agents):
                     self.assertTrue((new_rews[i] >= rews[i]).all())
+                rews = new_rews

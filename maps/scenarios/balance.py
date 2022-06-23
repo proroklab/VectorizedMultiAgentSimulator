@@ -6,16 +6,22 @@ import torch
 from maps import render_interactively
 from maps.simulator.core import Agent, Landmark, Sphere, World, Line, Box
 from maps.simulator.scenario import BaseScenario
-from maps.simulator.utils import Color, LINE_MIN_DIST, Y
+from maps.simulator.utils import Color, Y
 
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.n_agents = kwargs.get("n_agents", 3)
-        self.package_mass = kwargs.get("package_mass", 10)
+        self.package_mass = kwargs.get("package_mass", 5)
+        self.random_package_pos_on_line = kwargs.get("random_package_pos_on_line", True)
+
+        assert self.n_agents > 1
 
         self.line_length = 0.8
         self.agent_radius = 0.03
+
+        self.shaping_factor = 100
+        self.fall_reward = -10
 
         # Make world
         world = World(batch_dim, device, gravity=(0.0, -0.05), y_semidim=1)
@@ -58,7 +64,7 @@ class Scenario(BaseScenario):
 
         floor = Landmark(
             name="floor",
-            collide=False,
+            collide=True,
             shape=Box(length=10, width=1),
             color=Color.WHITE,
         )
@@ -67,6 +73,7 @@ class Scenario(BaseScenario):
         return world
 
     def reset_world_at(self, env_index: int = None):
+
         goal_pos = torch.cat(
             [
                 torch.zeros(
@@ -98,13 +105,11 @@ class Scenario(BaseScenario):
                     -1.0 + self.line_length / 2,
                     1.0 - self.line_length / 2,
                 ),
-                torch.zeros(
+                torch.full(
                     (1, 1) if env_index is not None else (self.world.batch_dim, 1),
+                    -self.world.y_semidim + self.agent_radius * 2,
                     device=self.world.device,
                     dtype=torch.float32,
-                ).uniform_(
-                    -0.95,
-                    -0.8,
                 ),
             ],
             dim=1,
@@ -116,12 +121,16 @@ class Scenario(BaseScenario):
                     device=self.world.device,
                     dtype=torch.float32,
                 ).uniform_(
-                    -self.line_length / 2 + self.package.shape.radius,
-                    self.line_length / 2 - self.package.shape.radius,
+                    -self.line_length / 2 + self.package.shape.radius
+                    if self.random_package_pos_on_line
+                    else 0.0,
+                    self.line_length / 2 - self.package.shape.radius
+                    if self.random_package_pos_on_line
+                    else 0.0,
                 ),
                 torch.full(
                     (1, 1) if env_index is not None else (self.world.batch_dim, 1),
-                    self.package.shape.radius + LINE_MIN_DIST,
+                    self.package.shape.radius,
                     device=self.world.device,
                     dtype=torch.float32,
                 ),
@@ -138,7 +147,7 @@ class Scenario(BaseScenario):
                         + i
                         * (self.line_length - agent.shape.radius)
                         / (self.n_agents - 1),
-                        -0.1,
+                        -self.agent_radius * 2,
                     ],
                     device=self.world.device,
                     dtype=torch.float32,
@@ -170,26 +179,47 @@ class Scenario(BaseScenario):
             ),
             batch_index=env_index,
         )
+        if env_index is None:
+            self.global_shaping = (
+                torch.linalg.vector_norm(
+                    self.package.state.pos - self.package.goal.state.pos, dim=1
+                )
+                * self.shaping_factor
+            )
+        else:
+            self.global_shaping[env_index] = (
+                torch.linalg.vector_norm(
+                    self.package.state.pos[env_index]
+                    - self.package.goal.state.pos[env_index]
+                )
+                * self.shaping_factor
+            )
 
     def reward(self, agent: Agent):
         is_first = agent == self.world.agents[0]
 
-        rew = torch.zeros(
-            self.world.batch_dim, device=self.world.device, dtype=torch.float32
-        )
-
         if is_first:
-            self.ball_on_the_ground = (
-                self.package.state.pos[:, Y] <= -self.world.y_semidim
+            self.pos_rew = torch.zeros(
+                self.world.batch_dim, device=self.world.device, dtype=torch.float32
             )
+            self.ground_rew = torch.zeros(
+                self.world.batch_dim, device=self.world.device, dtype=torch.float32
+            )
+
+            self.on_the_ground = (
+                self.package.state.pos[:, Y] <= -self.world.y_semidim
+            ) + (self.line.state.pos[:, Y] <= -self.world.y_semidim)
             self.package_dist = torch.linalg.vector_norm(
                 self.package.state.pos - self.package.goal.state.pos, dim=1
             )
 
-        rew[self.ball_on_the_ground] -= 100
-        rew -= self.package_dist
+            self.ground_rew[self.on_the_ground] = self.fall_reward
 
-        return rew
+            global_shaping = self.package_dist * self.shaping_factor
+            self.pos_rew = self.global_shaping - global_shaping
+            self.global_shaping = global_shaping
+
+        return self.ground_rew + self.pos_rew
 
     def observation(self, agent: Agent):
         # get positions of all entities in this agent's reference frame
@@ -198,18 +228,28 @@ class Scenario(BaseScenario):
                 agent.state.pos,
                 agent.state.vel,
                 agent.state.pos - self.package.state.pos,
+                agent.state.pos - self.line.state.pos,
                 self.package.state.pos - self.package.goal.state.pos,
-                self.world.is_overlapping(agent, self.line).unsqueeze(-1),
-                self.world.is_overlapping(self.package, self.line).unsqueeze(-1),
+                self.package.state.vel,
+                self.line.state.vel,
+                self.line.state.ang_vel,
+                self.line.state.rot % (torch.pi * 2),
             ],
             dim=-1,
         )
 
     def done(self):
-        return self.ball_on_the_ground + self.world.is_overlapping(
+        return self.on_the_ground + self.world.is_overlapping(
             self.package, self.package.goal
         )
 
+    def info(self, agent: Agent):
+        info = {"pos_rew": self.pos_rew, "ground_rew": self.ground_rew}
+        # When reset is called before reward()
+        return info
+
 
 if __name__ == "__main__":
-    render_interactively("balance", n_agents=4)
+    render_interactively(
+        "balance", n_agents=3, package_mass=5, random_package_pos_on_line=True
+    )

@@ -449,6 +449,9 @@ class Line(Geom):
         self.linewidth = LineWidth(width)
         self.add_attr(self.linewidth)
 
+    def set_linewidth(self, x):
+        self.linewidth.stroke = x
+
     def render1(self):
         glBegin(GL_LINES)
         glVertex2f(*self.start)
