@@ -21,7 +21,7 @@ class Scenario(BaseScenario):
         # Add agents
         for i in range(n_agents):
             # Constraint: all agents have same action range and multiplier
-            agent = Agent(name=f"agent {i}", u_multiplier=0.7, shape=Sphere(0.03))
+            agent = Agent(name=f"agent {i}", u_multiplier=0.6, shape=Sphere(0.03))
             world.add_agent(agent)
         # Add landmarks
         self.line = Landmark(
@@ -85,6 +85,7 @@ class Scenario(BaseScenario):
             [
                 agent.state.pos,
                 agent.state.vel,
+                self.line.state.rot % (torch.pi * 2),
                 (self.desired_velocity - self.line.state.ang_vel.abs()).abs(),
             ],
             dim=-1,
