@@ -20,7 +20,7 @@ class Scenario(BaseScenario):
         self.init_background(world)
         self.init_walls(world)
         self.init_goals(world)
-        self.init_traj_pts(world)
+        # self.init_traj_pts(world)
         return world
 
 
@@ -50,6 +50,7 @@ class Scenario(BaseScenario):
         self.ball_mass = kwargs.get("ball_mass", 0.1)
         self.ball_size = kwargs.get("ball_size", 0.02)
         self.n_traj_points = kwargs.get("n_traj_points", 8)
+        self.dense_reward_ratio = kwargs.get("dense_reward_ratio", 0.001)
 
 
     def init_world(self, batch_dim: int, device: torch.device):
@@ -73,12 +74,8 @@ class Scenario(BaseScenario):
 
     def init_agents(self, world):
         # Add agents
-        self.blue_controller = None
-        self.red_controller = None
-        if self.ai_blue_agents:
-            self.blue_controller = AgentPolicy()
-        if self.ai_red_agents:
-            self.red_controller = AgentPolicy()
+        self.blue_controller = AgentPolicy(team="Blue")
+        self.red_controller = AgentPolicy(team="Red")
 
         blue_agents = []
         for i in range(self.n_blue_agents):
@@ -543,15 +540,22 @@ class Scenario(BaseScenario):
 
 
     def reward(self, agent: Agent):
-        if agent == self.world.agents[0]:
+        if agent == self.world.agents[0] or (self.ai_blue_agents and self.ai_red_agents):
+            # Sparse Reward
             over_right_line = self.ball.state.pos[:,0] > self.pitch_length / 2 + self.ball_size / 2
-            in_right_goal = self.world.is_overlapping(self.ball, self.red_net)
+            # in_right_goal = self.world.is_overlapping(self.ball, self.red_net)
             over_left_line = self.ball.state.pos[:, 0] < -self.pitch_length / 2 - self.ball_size / 2
-            in_left_goal = self.world.is_overlapping(self.ball, self.blue_net)
-            right_goal = over_right_line & in_right_goal
-            left_goal = over_left_line & in_left_goal
-            self._reward = 1 * right_goal - 1 * left_goal
-            self._done = right_goal | left_goal
+            # in_left_goal = self.world.is_overlapping(self.ball, self.blue_net)
+            blue_score = over_right_line # & in_right_goal
+            red_score = over_left_line # & in_left_goal
+            self._sparse_reward = 1 * blue_score - 1 * red_score
+            self._done = blue_score | red_score
+            # Dense Reward
+            red_value = self.red_controller.get_attack_value(self.ball)
+            blue_value = self.blue_controller.get_attack_value(self.ball)
+            self._dense_reward = 1 * blue_value - 1 * red_value
+            self._reward = self.dense_reward_ratio * self._dense_reward + \
+                           (1-self.dense_reward_ratio) * self._sparse_reward
         return self._reward
 
 
@@ -567,6 +571,8 @@ class Scenario(BaseScenario):
 
 
     def done(self):
+        if self.ai_blue_agents and self.ai_red_agents:
+            self.reward(None)
         return self._done
 
 
@@ -613,9 +619,9 @@ class AgentPolicy:
 
         self.max_shoot_time = 100
         self.max_shoot_dist = 0.6
-        self.valid_start_pos_angle = np.cos(np.pi / 8)
-        self.valid_start_vel_angle = np.cos(np.pi / 8)
-        self.valid_start_dist = 0.2
+        self.valid_start_pos_angle = np.cos(np.pi / 4)
+        self.valid_start_vel_angle = np.cos(np.pi / 4)
+        self.valid_start_dist = 0.12
         self.dist_to_hit_speed = 1.7
         self.start_vel_mag_shoot = 1.0
         self.touch_eps = 0.01
@@ -627,7 +633,7 @@ class AgentPolicy:
         self.separation_weight = 0.01
 
         self.attack_lane_weight = 1.
-        self.attack_goal_dist_weight = 0.25
+        self.attack_goal_dist_weight = 0.35
         self.attack_defender_dist_weight = 0.25
         self.weight_diff_pass_thres = 0.1
 
@@ -693,7 +699,7 @@ class AgentPolicy:
         if len(self.teammates) == 1:
             self.role = {self.teammates[0]: 1.0}
         else:
-            roles = torch.linspace(1/len(self.teammates), 1, len(self.teammates))
+            roles = torch.linspace(1, 1, len(self.teammates))
             self.role = {agent: roles[i] for i, agent in enumerate(self.teammates)}
 
 
@@ -710,11 +716,13 @@ class AgentPolicy:
 
     def policy(self, agent):
         possession_mask = self.agent_possession[agent]
+        shooting_mask = self.actions[agent]["shooting"] | self.actions[agent]["pre-shooting"]
         # Shoot
         start_shoot_mask, shoot_pos = self.can_shoot(agent)
-        self.shoot(agent, shoot_pos[start_shoot_mask], env_index=start_shoot_mask)
+        can_shoot_mask = (start_shoot_mask & possession_mask) | shooting_mask # hmm
+        self.shoot(agent, shoot_pos[can_shoot_mask], env_index=can_shoot_mask)
         # Passing
-        self_attack_value = self.get_attack_value(agent)
+        self_attack_value = self.get_attack_value(self.ball)
         differential = torch.ones(self_attack_value.shape[0]) * self.weight_diff_pass_thres
         for teammate in self.teammates:
             if teammate != agent:
@@ -733,15 +741,16 @@ class AgentPolicy:
         self.dribble_to_goal(agent, env_index=dribble_mask)
         # If other agent is passing/shooting, stay still
         other_agent_shooting_mask = self.combine_or([self.actions[otheragent]["pre-shooting"] | self.actions[otheragent]["shooting"] for otheragent in self.teammates if (otheragent != agent)])
-        stay_still_mask = other_agent_shooting_mask & ~shooting_mask
+        stay_still_mask = other_agent_shooting_mask & ~shooting_mask # hmm
         self.go_to(agent, pos=agent.state.pos[stay_still_mask], vel=torch.zeros(stay_still_mask.sum(), self.world.dim_p), env_index=stay_still_mask)
 
 
     def run(self, agent, world):
+        self.ball.state.pos[torch.any(torch.isnan(self.ball.state.pos), dim=1),:] = torch.zeros(2) # TODO: find why ball pos is nan (sry matteo)
         self.check_possession()
         self.policy(agent)
         control = self.get_action(agent)
-        control = torch.clamp(control, min=-1., max=1.)
+        control = torch.clamp(control, min=-agent.u_range, max=agent.u_range)
         agent.action.u = control * agent.u_multiplier
 
 
@@ -768,6 +777,7 @@ class AgentPolicy:
     def shoot(self, agent, pos, env_index=slice(None)):
         if isinstance(env_index, int):
             env_index = [env_index]
+        self.actions[agent]["dribbling"][env_index] = False
 
         ball_curr_pos = self.ball.state.pos[env_index]
         agent_curr_pos = agent.state.pos[env_index]
@@ -887,7 +897,7 @@ class AgentPolicy:
         self.objectives[agent]["target_vel"][env_index] = vel
         self.objectives[agent]["start_pos"][env_index] = start_pos
         self.objectives[agent]["start_vel"][env_index] = start_vel
-        self.plot_traj(agent, env_index=env_index)
+        # self.plot_traj(agent, env_index=env_index)
 
 
     def get_start_vel(self, pos, vel, start_pos, start_vel_mag):
@@ -1214,6 +1224,7 @@ class AgentPolicy:
         indicesy = indicesxy[1].view(-1,2)
         n = torch.zeros(unblocked_angles.shape[0]).int().scatter(index=indicesx, src=(indicesy[:,1] - indicesy[:,0]).int(), dim=0, reduce='add')
         midpt = torch.zeros(unblocked_angles.shape[0]).float().scatter(index=indicesx, src=(indicesy[:, 1] + indicesy[:, 0]) / 2 * (indicesy[:, 1] - indicesy[:, 0]), dim=0, reduce='add') / n + 0.5
+        midpt[torch.isnan(midpt)] = 0
         within_angle_mask = n * (2*torch.pi/beams) >= self.shooting_angle
         # Result
         can_shoot_mask = within_range_mask & within_angle_mask
@@ -1249,8 +1260,9 @@ def interactive():
     render_interactively(
         "football",
         continuous=True,
-        n_blue_agents=1,
-        n_red_agents=2,
+        n_blue_agents=3,
+        n_red_agents=3,
+        dense_reward_ratio=0.001,
     )
 
 
@@ -1264,9 +1276,11 @@ def multiple_envs():
     env_args = {
         "n_blue_agents": 2,
         "n_red_agents": 2,
+        "ai_red_agents": True,
+        "ai_blue_agents": True,
     }
 
-    num_envs = 32
+    num_envs = 64
     render_env = 0
     device = "cpu"
     n_steps = 10000
@@ -1284,7 +1298,7 @@ def multiple_envs():
     )
 
     step = 0
-    n_agents = env_args["n_blue_agents"]
+    n_agents = 0 #env_args["n_blue_agents"]
     for s in range(n_steps):
         actions = []
         step += 1
@@ -1305,4 +1319,4 @@ def multiple_envs():
 
 
 if __name__ == '__main__':
-    multiple_envs()
+    interactive()
