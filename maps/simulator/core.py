@@ -1027,6 +1027,7 @@ class World(TorchVectorizedObject):
             * penetration.unsqueeze(-1)
         )
         force[dist > dist_min] = 0
+        assert not force.isnan().any()
         return +force, -force
 
     # integrate physical state
