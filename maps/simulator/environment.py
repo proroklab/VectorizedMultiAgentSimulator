@@ -93,6 +93,8 @@ class Environment(TorchVectorizedObject):
         self.render_geoms_xform = None
         self.render_geoms = None
         self.viewer = None
+        self.headless = None
+        self.visible_display = None
 
     def reset(self, seed: int = None):
         """
@@ -304,24 +306,41 @@ class Environment(TorchVectorizedObject):
         :return: Rgb array or None, depending on the mode
         """
         self._check_batch_index(env_index)
+        assert (
+            mode in self.metadata["render.modes"]
+        ), f"Invalid mode {mode} received, allowed modes: {self.metadata['render.modes']}"
         if agent_index_focus is not None:
             assert 0 <= agent_index_focus < self.n_agents, (
                 f"Agent focus in rendering should be a valid agent index"
                 f" between 0 and {self.n_agents}, got {agent_index_focus}"
             )
         shared_viewer = agent_index_focus is None
-        headless = mode == "rgb_array"
         aspect_ratio = self.scenario.viewer_size[X] / self.scenario.viewer_size[Y]
+
+        headless = mode == "rgb_array" and not visualize_when_rgb
+        # First time rendering
+        if self.visible_display is None:
+            self.visible_display = not headless
+            self.headless = headless
+        # All other times headless should be the same
+        else:
+            assert self.visible_display is not headless
 
         # First time rendering
         if self.viewer is None:
-            from maps.simulator import rendering
+            try:
+                import pyglet
+            except ImportError:
+                raise ImportError(
+                    "Cannot import pyg;et: you can install pyglet directly via 'pip install pyglet'."
+                )
 
-            self.viewer = rendering.Viewer(
-                *self.scenario.viewer_size, visible=not headless or visualize_when_rgb
-            )
-        # First time rendering
-        if self.render_geoms is None:
+            try:
+                pyglet.lib.load_library("EGL")
+            except ImportError:
+                self.headless = False
+            pyglet.options["headless"] = self.headless
+
             self._create_rendering_objects()
 
         if self.world.dim_c > 0:
@@ -395,6 +414,9 @@ class Environment(TorchVectorizedObject):
         # import rendering only if we need it (and don't import for headless machines)
         from maps.simulator import rendering
 
+        self.viewer = rendering.Viewer(
+            *self.scenario.viewer_size, visible=self.visible_display
+        )
         self.render_geoms = []
         self.render_geoms_xform = []
         for entity_index, entity in enumerate(self.world.entities):
