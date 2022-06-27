@@ -109,9 +109,6 @@ class Scenario(BaseScenario):
             info = {}
         return info
 
-    def done(self):
-        return torch.zeros(self.world.batch_dim, device=self.world.device)
-
 
 if __name__ == "__main__":
     render_interactively("flocking", n_agents=10, energy_coeff=DEFAULT_ENERGY_COEFF)
