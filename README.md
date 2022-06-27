@@ -1,10 +1,10 @@
-# MultiAgentParticleSimulator (MAPS)
+# VectorizedMultiAgentParticleSimulator (VMAPS)
 
 <p align="center">
 <img src="media/VMAPS_white.gif" alt="drawing"/>  
 </p>
 
-Welcome to **MAPS**!
+Welcome to **VMAPS**!
 
 This repository contains the code for the Multi Agent Particle Simulator (MAPS).
 
