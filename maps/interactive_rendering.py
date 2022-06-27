@@ -30,9 +30,10 @@ class InteractiveEnv:
     and switch the agent with these controls using LSHIFT
     """
 
-    def __init__(self, env: GymWrapper):
+    def __init__(self, env: GymWrapper, control_two_agents: bool = False):
 
         self.env = env
+        self.control_two_agents = control_two_agents
         # hard-coded keyboard events
         self.current_agent_index = 0
         self.current_agent_index2 = 1
@@ -70,7 +71,7 @@ class InteractiveEnv:
             else:
                 action_list = [0] * self.n_agents
             action_list[self.current_agent_index] = self.u
-            if self.n_agents > 1:
+            if self.n_agents > 1 and self.control_two_agents:
                 action_list[self.current_agent_index2] = self.u2
             obs, rew, done, info = self.env.step(action_list)
 
@@ -142,10 +143,11 @@ class InteractiveEnv:
             self.current_agent_index = self._increment_selected_agent_index(
                 self.current_agent_index
             )
-            while self.current_agent_index == self.current_agent_index2:
-                self.current_agent_index = self._increment_selected_agent_index(
-                    self.current_agent_index
-                )
+            if self.control_two_agents:
+                while self.current_agent_index == self.current_agent_index2:
+                    self.current_agent_index = self._increment_selected_agent_index(
+                        self.current_agent_index
+                    )
 
         elif k == key.A:
             self.keys2[0] = 1
@@ -216,7 +218,9 @@ class InteractiveEnv:
                 self.u2 = 0
 
 
-def render_interactively(scenario_name: str, **kwargs):
+def render_interactively(
+    scenario_name: str, control_two_agents: bool = False, **kwargs
+):
     """
     Use this script to interactively play with scenarios
 
@@ -237,7 +241,8 @@ def render_interactively(scenario_name: str, **kwargs):
                 # Environment specific variables
                 **kwargs,
             )
-        )
+        ),
+        control_two_agents=control_two_agents,
     )
 
 
