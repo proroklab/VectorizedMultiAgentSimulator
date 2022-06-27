@@ -1,6 +1,7 @@
 # MultiAgentParticleSimulator (MAPS)
- <p align="center">
-<img src="media/vmaps_white.gif" alt="drawing"/>  
+
+<p align="center">
+<img src="media/VMAPS_white.gif" alt="drawing"/>  
 </p>
 
 Welcome to **MAPS**!
