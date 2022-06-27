@@ -1,10 +1,11 @@
 # MultiAgentParticleSimulator (MAPS)
- 
+ <p align="center">
+<img src="media/vmaps_white.gif" alt="drawing"/>  
+</p>
+
 Welcome to **MAPS**!
 
 This repository contains the code for the Multi Agent Particle Simulator (MAPS).
-
-<img src="media/maps_simple_2.gif" align="right" alt="drawing" width="300"/>  
 
 MAPS is a vectorized simulator designed for simulating agents and entities in a 2D particle world.
 Its primary use is Multi Agent Reinforcement Learning (MARL) as it provides OpenAI gym interfaces
@@ -44,7 +45,7 @@ object with the OpenAI gym interface:
 
 Here is an example:
 ```
- env = make_env(
+ env = maps.make_env(
         scenario_name="simple",
         num_envs=32,
         device="cuda",
