@@ -18,7 +18,7 @@ from ray.tune.integration.wandb import WandbLoggerCallback
 
 from maps import make_env
 
-scenario_name = "waterfall"
+scenario_name = "balance"
 
 # Scenario specific variables.
 # When modifying this also modify env_config and env_creator
@@ -26,7 +26,7 @@ n_agents = 4
 
 # Common variables
 continuous_actions = True
-max_steps = 100
+max_steps = 200
 num_vectorized_envs = 96
 num_workers = 5
 maps_device = "cpu"  # or cuda
@@ -142,15 +142,15 @@ def train():
             "env": scenario_name,
             "kl_coeff": 0.01,
             "kl_target": 0.01,
-            "lambda": 0.99,
+            "lambda": 0.9,
             "clip_param": 0.2,
             "vf_loss_coeff": 1,
             "vf_clip_param": float("inf"),
             "entropy_coeff": 0,
             "train_batch_size": 60000,
             "rollout_fragment_length": 125,
-            "sgd_minibatch_size": 4000,
-            "num_sgd_iter": 32,
+            "sgd_minibatch_size": 4096,
+            "num_sgd_iter": 40,
             "num_gpus": num_gpus,
             "num_workers": num_workers,
             "num_gpus_per_worker": num_gpus_per_worker,
@@ -169,10 +169,10 @@ def train():
                 # Scenario specific variables
                 "n_agents": n_agents,
             },
-            "evaluation_interval": 2,
+            "evaluation_interval": 5,
             "evaluation_duration": 1,
-            "evaluation_num_workers": 0,
-            "evaluation_parallel_to_training": False,
+            "evaluation_num_workers": 1,
+            "evaluation_parallel_to_training": True,
             "evaluation_config": {
                 "num_envs_per_worker": 1,
                 "env_config": {
