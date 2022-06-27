@@ -20,10 +20,10 @@ class Scenario(BaseScenario):
         self.shaping_factor = 100
 
         # Make world
-        world = World(batch_dim, device, x_semidim=1, y_semidim=1)
+        world = World(batch_dim, device)
         # Add agents
         for i in range(n_agents):
-            agent = Agent(name=f"agent {i}", shape=Sphere(0.03), u_multiplier=0.7)
+            agent = Agent(name=f"agent {i}", shape=Sphere(0.03), u_multiplier=0.6)
             world.add_agent(agent)
         # Add landmarks
         goal = Landmark(
