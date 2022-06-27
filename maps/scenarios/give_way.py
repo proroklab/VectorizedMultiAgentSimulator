@@ -11,12 +11,15 @@ from maps.simulator.utils import Color
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.shared_reward = kwargs.get("shared_reward", False)
+        self.shared_reward = kwargs.get("shared_reward", True)
+        self.dense_reward = kwargs.get("dense_reward", True)
+
+        self.shaping_factor = 100
 
         # Make world
-        world = World(batch_dim, device, x_semidim=1, y_semidim=1)
+        world = World(batch_dim, device)
         # Add agents
-        blue_agent = Agent(name="blue agent")
+        blue_agent = Agent(name="blue agent", u_multiplier=0.6)
         blue_goal = Landmark(
             name="blue goal",
             collide=False,
@@ -26,7 +29,7 @@ class Scenario(BaseScenario):
         world.add_agent(blue_agent)
         world.add_landmark(blue_goal)
 
-        green_agent = Agent(name="green agent", color=Color.GREEN)
+        green_agent = Agent(name="green agent", color=Color.GREEN, u_multiplier=0.6)
         green_goal = Landmark(
             name="green goal",
             collide=False,
@@ -84,7 +87,7 @@ class Scenario(BaseScenario):
         self.world.agents[0].goal = self.world.landmarks[0]
         self.world.landmarks[0].set_pos(
             torch.tensor(
-                [0.965, 0.0],
+                [0.96, 0.0],
                 dtype=torch.float32,
                 device=self.world.device,
             ),
@@ -109,7 +112,7 @@ class Scenario(BaseScenario):
         self.world.agents[1].goal = self.world.landmarks[1]
         self.world.landmarks[1].set_pos(
             torch.tensor(
-                [-0.965, 0.0],
+                [-0.96, 0.0],
                 dtype=torch.float32,
                 device=self.world.device,
             ),
@@ -188,6 +191,21 @@ class Scenario(BaseScenario):
             ),
             batch_index=env_index,
         )
+        for agent in self.world.agents:
+            if env_index is None:
+                agent.shaping = (
+                    torch.linalg.vector_norm(
+                        agent.state.pos - agent.goal.state.pos, dim=1
+                    )
+                    * self.shaping_factor
+                )
+            else:
+                agent.shaping[env_index] = (
+                    torch.linalg.vector_norm(
+                        agent.state.pos[env_index] - agent.goal.state.pos[env_index]
+                    )
+                    * self.shaping_factor
+                )
 
     def reward(self, agent: Agent):
         is_first = agent == self.world.agents[0]
@@ -201,29 +219,43 @@ class Scenario(BaseScenario):
         )
 
         if is_first:
-            self.blue_on_goal = (
-                torch.linalg.vector_norm(
-                    blue_agent.state.pos - blue_agent.goal.state.pos,
-                    dim=1,
-                )
-                < blue_agent.goal.shape.radius
+            self.blue_distance = torch.linalg.vector_norm(
+                blue_agent.state.pos - blue_agent.goal.state.pos,
+                dim=1,
             )
-            self.green_on_goal = (
-                torch.linalg.vector_norm(
-                    green_agent.state.pos - green_agent.goal.state.pos,
-                    dim=1,
-                )
-                < green_agent.goal.shape.radius
+            self.green_distance = torch.linalg.vector_norm(
+                green_agent.state.pos - green_agent.goal.state.pos,
+                dim=1,
             )
+            self.blue_on_goal = self.blue_distance < blue_agent.goal.shape.radius
+            self.green_on_goal = self.green_distance < green_agent.goal.shape.radius
+
+            if self.dense_reward:
+                green_shaping = self.green_distance * self.shaping_factor
+                self.green_rew = green_agent.shaping - green_shaping
+                green_agent.shaping = green_shaping
+
+                blue_shaping = self.blue_distance * self.shaping_factor
+                self.blue_rew = blue_agent.shaping - blue_shaping
+                blue_agent.shaping = blue_shaping
 
         if self.shared_reward:
-            rew[self.blue_on_goal * ~blue_agent.goal.eaten] += 1
-            rew[self.green_on_goal * ~green_agent.goal.eaten] += 1
-        else:
-            if agent == blue_agent:
-                rew[self.blue_on_goal * ~blue_agent.goal.eaten] += 1
+            if self.dense_reward:
+                rew += self.green_rew + self.blue_rew
             else:
+                rew[self.blue_on_goal * ~blue_agent.goal.eaten] += 1
                 rew[self.green_on_goal * ~green_agent.goal.eaten] += 1
+        else:
+            if self.dense_reward:
+                if agent == blue_agent:
+                    rew += self.blue_rew
+                else:
+                    rew += self.green_rew
+            else:
+                if agent == blue_agent:
+                    rew[self.blue_on_goal * ~blue_agent.goal.eaten] += 1
+                else:
+                    rew[self.green_on_goal * ~green_agent.goal.eaten] += 1
 
         if is_last:
             blue_agent.goal.eaten[self.blue_on_goal] = True
@@ -231,11 +263,17 @@ class Scenario(BaseScenario):
             blue_agent.goal.render[self.blue_on_goal] = False
             green_agent.goal.render[self.green_on_goal] = False
             self._done = blue_agent.goal.eaten * green_agent.goal.eaten
-        return -rew
+        return rew
 
     def observation(self, agent: Agent):
         return torch.cat(
-            [agent.state.pos, agent.state.vel, agent.goal.state.pos - agent.state.pos],
+            [
+                agent.state.pos,
+                agent.state.vel,
+                torch.linalg.vector_norm(
+                    agent.goal.state.pos - agent.state.pos, dim=1
+                ).unsqueeze(-1),
+            ],
             dim=-1,
         )
 
@@ -244,4 +282,4 @@ class Scenario(BaseScenario):
 
 
 if __name__ == "__main__":
-    render_interactively("give_way", shared_reward=False)
+    render_interactively("give_way", shared_reward=True, dense_reward=True)
