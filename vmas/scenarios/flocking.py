@@ -7,7 +7,7 @@ import torch
 from torch import Tensor
 
 from vmas import render_interactively
-from vmas.simulator.core import Agent, Sphere, World
+from vmas.simulator.core import Agent, Landmark, Sphere, World
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color
 
@@ -29,6 +29,15 @@ class Scenario(BaseScenario):
             agent = Agent(name=f"agent {i}", collide=True)
             world.add_agent(agent)
 
+        # Add landmarks
+        goal = Landmark(
+            name="goal",
+            collide=False,
+            shape=Sphere(radius=0.03),
+            color=Color.GREEN,
+        )
+        world.add_landmark(goal)
+
         return world
 
     def reset_world_at(self, env_index: int = None):
@@ -49,23 +58,52 @@ class Scenario(BaseScenario):
             )
 
     def reward(self, agent: Agent):
-        self.pos_rew = torch.zeros(self.world.batch_dim, device=self.world.device)
-        rew = self.pos_rew
+        # Avoid collisions with each other
+        self.collision_rew = torch.zeros(self.world.batch_dim, device=self.world.device)
+        for a in self.world.agents:
+            if a != agent:
+                self.collision_rew[self.world.is_overlapping(a, agent)] -= 1.0
 
-        return rew
+        # stay close together (separation)
+        agents_rel_pos = [agent.state.pos - a.state.pos for a in self.world.agents]
+        agents_rel_dist = torch.linalg.norm(torch.stack(agents_rel_pos, dim=1), dim=2)
+        agents_max_dist, _ = torch.max(agents_rel_dist, dim=1)
+        self.separation_rew = -agents_max_dist
+
+        # keep moving (reward velocity)
+        self.velocity_rew = torch.linalg.norm(agent.state.vel, dim=1)
+
+        # stay close to target (cohesion)
+        dist_target = torch.linalg.norm(
+            agent.state.pos - self.world.landmarks[0].state.pos, dim=1
+        )
+        self.cohesion_rew = -dist_target
+
+        return (
+            self.collision_rew
+            + self.velocity_rew
+            + self.separation_rew
+            + self.cohesion_rew
+        )
 
     def observation(self, agent: Agent):
         return torch.cat(
             [
                 agent.state.pos,
                 agent.state.vel,
+                self.world.landmarks[0].state.pos - agent.state.pos,
             ],
             dim=-1,
         )
 
     def info(self, agent: Agent) -> Dict[str, Tensor]:
         try:
-            info = {"pos_rew": self.pos_rew}
+            info = {
+                "collision_rew": self.collision_rew,
+                "velocity_rew": self.velocity_rew,
+                "separation_rew": self.separation_rew,
+                "cohesion_rew": self.cohesion_rew,
+            }
         # When reset is called before reward()
         except AttributeError:
             info = {}
