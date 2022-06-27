@@ -8,21 +8,12 @@ from __future__ import division
 
 import math
 import os
-import platform
 import sys
 
 import numpy as np
+import pyglet
 import six
 from gym import error
-
-try:
-    import pyglet
-except ImportError:
-    raise ImportError("HINT: you can install pyglet directly via 'pip install pyglet'.")
-
-pyglet.options["headless"] = True
-if platform.system() == "Darwin":
-    pyglet.options["headless"] = False
 
 try:
     from pyglet.gl import (
