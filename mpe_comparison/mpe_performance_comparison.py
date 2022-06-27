@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 
 import numpy as np
+import tikzplotlib
 import torch
 from matplotlib import pyplot as plt
 
@@ -136,7 +137,7 @@ def run_comparison(maps_device: str, n_steps: int = 100):
 
     low = 1
     high = 30000
-    num = 100
+    num = 75
 
     list_n_envs = np.linspace(low, high, num)
 
@@ -181,6 +182,10 @@ def run_comparison(maps_device: str, n_steps: int = 100):
     )
 
     save_folder = os.path.dirname(os.path.realpath(__file__))
+    tikzplotlib.clean_figure()
+    tikzplotlib.save(
+        f"{save_folder}/maps_vs_mpe_graphs/{figure_name}.tex",
+    )
     plt.savefig(f"{save_folder}/maps_vs_mpe_graphs/{figure_name}.pdf")
 
 
