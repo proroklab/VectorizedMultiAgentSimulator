@@ -12,9 +12,9 @@ from maps.simulator.utils import Color
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         n_agents = kwargs.get("n_agents", 4)
-        line_length = kwargs.get("line_length", 2)
+        self.line_length = kwargs.get("line_length", 2)
         line_mass = kwargs.get("line_mass", 30)
-        self.desired_velocity = kwargs.get("desired_velocity", 0.1)
+        self.desired_velocity = kwargs.get("desired_velocity", 0.05)
 
         # Make world
         world = World(batch_dim, device)
@@ -28,7 +28,7 @@ class Scenario(BaseScenario):
             name="line",
             collide=True,
             rotatable=True,
-            shape=Line(length=line_length),
+            shape=Line(length=self.line_length),
             mass=line_mass,
             color=Color.BLACK,
         )
@@ -81,12 +81,26 @@ class Scenario(BaseScenario):
         return -self.rew
 
     def observation(self, agent: Agent):
+
+        line_end_1 = torch.cat(
+            [
+                (self.line_length / 2) * torch.cos(self.line.state.rot),
+                (self.line_length / 2) * torch.sin(self.line.state.rot),
+            ],
+            dim=1,
+        )
+        line_end_2 = -line_end_1
+
         return torch.cat(
             [
                 agent.state.pos,
                 agent.state.vel,
-                self.line.state.rot % (torch.pi * 2),
-                (self.desired_velocity - self.line.state.ang_vel.abs()).abs(),
+                self.line.state.pos - agent.state.pos,
+                line_end_1 - agent.state.pos,
+                line_end_2 - agent.state.pos,
+                self.line.state.rot % torch.pi,
+                self.line.state.ang_vel.abs(),
+                (self.line.state.ang_vel.abs() - self.desired_velocity).abs(),
             ],
             dim=-1,
         )
@@ -94,5 +108,5 @@ class Scenario(BaseScenario):
 
 if __name__ == "__main__":
     render_interactively(
-        "wheel", desired_velocity=0.1, n_agents=4, line_length=2, line_mass=30
+        "wheel", desired_velocity=0.05, n_agents=4, line_length=2, line_mass=30
     )
