@@ -1284,7 +1284,7 @@ def multiple_envs():
 
     num_envs = 64
     render_env = 0
-    device = "cpu"
+    device = "cuda"
     n_steps = 10000
 
     action = [0., 0.]
