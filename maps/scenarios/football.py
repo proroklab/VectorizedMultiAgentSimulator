@@ -213,7 +213,7 @@ class Scenario(BaseScenario):
             name=f"Centre Line",
             collide=False,
             movable=False,
-            shape=Line(length=self.pitch_width - 2 * self.agent_size, width=6),
+            shape=Line(length=self.pitch_width - 2 * self.agent_size),
             color=Color.WHITE,
         )
         world.add_landmark(centre_line)
@@ -222,7 +222,7 @@ class Scenario(BaseScenario):
             name=f"Right Line",
             collide=False,
             movable=False,
-            shape=Line(length=self.pitch_width - 2 * self.agent_size, width=6),
+            shape=Line(length=self.pitch_width - 2 * self.agent_size),
             color=Color.WHITE,
         )
         world.add_landmark(right_line)
@@ -231,7 +231,7 @@ class Scenario(BaseScenario):
             name=f"Left Line",
             collide=False,
             movable=False,
-            shape=Line(length=self.pitch_width - 2 * self.agent_size, width=6),
+            shape=Line(length=self.pitch_width - 2 * self.agent_size),
             color=Color.WHITE,
         )
         world.add_landmark(left_line)
@@ -240,7 +240,7 @@ class Scenario(BaseScenario):
             name=f"Top Line",
             collide=False,
             movable=False,
-            shape=Line(length=self.pitch_length - 2 * self.agent_size, width=6),
+            shape=Line(length=self.pitch_length - 2 * self.agent_size),
             color=Color.WHITE,
         )
         world.add_landmark(top_line)
@@ -249,7 +249,7 @@ class Scenario(BaseScenario):
             name=f"Bottom Line",
             collide=False,
             movable=False,
-            shape=Line(length=self.pitch_length - 2 * self.agent_size, width=6),
+            shape=Line(length=self.pitch_length - 2 * self.agent_size),
             color=Color.WHITE,
         )
         world.add_landmark(bottom_line)
@@ -320,7 +320,6 @@ class Scenario(BaseScenario):
             movable=False,
             shape=Line(
                 length=self.pitch_width / 2 - self.agent_size - self.goal_size / 2,
-                width=1,
             ),
             color=Color.WHITE,
         )
@@ -332,7 +331,6 @@ class Scenario(BaseScenario):
             movable=False,
             shape=Line(
                 length=self.pitch_width / 2 - self.agent_size - self.goal_size / 2,
-                width=1,
             ),
             color=Color.WHITE,
         )
@@ -344,7 +342,6 @@ class Scenario(BaseScenario):
             movable=False,
             shape=Line(
                 length=self.pitch_width / 2 - self.agent_size - self.goal_size / 2,
-                width=1,
             ),
             color=Color.WHITE,
         )
@@ -356,7 +353,6 @@ class Scenario(BaseScenario):
             movable=False,
             shape=Line(
                 length=self.pitch_width / 2 - self.agent_size - self.goal_size / 2,
-                width=1,
             ),
             color=Color.WHITE,
         )
@@ -444,7 +440,7 @@ class Scenario(BaseScenario):
             name=f"Right Goal Back",
             collide=True,
             movable=False,
-            shape=Line(length=self.goal_size, width=6),
+            shape=Line(length=self.goal_size),
             color=Color.WHITE,
         )
         world.add_landmark(right_goal_back)
@@ -453,7 +449,7 @@ class Scenario(BaseScenario):
             name=f"Left Goal Back",
             collide=True,
             movable=False,
-            shape=Line(length=self.goal_size, width=6),
+            shape=Line(length=self.goal_size),
             color=Color.WHITE,
         )
         world.add_landmark(left_goal_back)
@@ -462,7 +458,7 @@ class Scenario(BaseScenario):
             name=f"Right Goal Top",
             collide=True,
             movable=False,
-            shape=Line(length=self.goal_depth, width=6),
+            shape=Line(length=self.goal_depth),
             color=Color.WHITE,
         )
         world.add_landmark(right_goal_top)
@@ -471,7 +467,7 @@ class Scenario(BaseScenario):
             name=f"Left Goal Top",
             collide=True,
             movable=False,
-            shape=Line(length=self.goal_depth, width=6),
+            shape=Line(length=self.goal_depth),
             color=Color.WHITE,
         )
         world.add_landmark(left_goal_top)
@@ -480,7 +476,7 @@ class Scenario(BaseScenario):
             name=f"Right Goal Bottom",
             collide=True,
             movable=False,
-            shape=Line(length=self.goal_depth, width=6),
+            shape=Line(length=self.goal_depth),
             color=Color.WHITE,
         )
         world.add_landmark(right_goal_bottom)
@@ -489,7 +485,7 @@ class Scenario(BaseScenario):
             name=f"Left Goal Bottom",
             collide=True,
             movable=False,
-            shape=Line(length=self.goal_depth, width=6),
+            shape=Line(length=self.goal_depth),
             color=Color.WHITE,
         )
         world.add_landmark(left_goal_bottom)

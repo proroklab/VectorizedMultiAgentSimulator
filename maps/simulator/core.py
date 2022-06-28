@@ -85,12 +85,11 @@ class Sphere(Shape):
 
 
 class Line(Shape):
-    def __init__(self, length: float = 0.5, width: float = 2):
+    def __init__(self, length: float = 0.5):
         super().__init__()
         assert length > 0, f"Length must be > 0, got {length}"
-        assert width > 0, f"Width must be > 0, got {width}"
         self._length = length
-        self._width = width
+        self._width = 2
 
     @property
     def length(self):
