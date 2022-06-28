@@ -1,5 +1,5 @@
 import torch
-import numpy as np
+import math
 from functools import reduce
 import operator
 
@@ -108,7 +108,7 @@ class Scenario(BaseScenario):
         for agent in self.blue_agents:
             agent.set_pos(
                 torch.rand(
-                    self.world.dim_p
+                    (1, self.world.dim_p)
                     if env_index is not None
                     else (self.world.batch_dim, self.world.dim_p),
                     device=self.world.device
@@ -124,7 +124,7 @@ class Scenario(BaseScenario):
         for agent in self.red_agents:
             agent.set_pos(
                 torch.rand(
-                    self.world.dim_p
+                    (1, self.world.dim_p)
                     if env_index is not None
                     else (self.world.batch_dim, self.world.dim_p),
                     device=self.world.device
@@ -585,12 +585,12 @@ def ball_action_script(ball, world):
     dist_thres = world.agent_size * 2
     vel_thres = 0.1
     impulse = 0.01
-    upper = 1 - torch.minimum(world.pitch_width / 2 - ball.state.pos[:,1], torch.tensor(dist_thres)) / dist_thres
-    lower = 1 - torch.minimum(world.pitch_width / 2 + ball.state.pos[:,1], torch.tensor(dist_thres)) / dist_thres
-    right = 1 - torch.minimum(world.pitch_length / 2 - ball.state.pos[:, 0], torch.tensor(dist_thres)) / dist_thres
-    left = 1 - torch.minimum(world.pitch_length / 2 + ball.state.pos[:, 0], torch.tensor(dist_thres)) / dist_thres
-    vertical_vel = 1 - torch.minimum(torch.abs(ball.state.vel[:,1]), torch.tensor(vel_thres)) / vel_thres
-    horizontal_vel = 1 - torch.minimum(torch.abs(ball.state.vel[:, 1]), torch.tensor(vel_thres)) / vel_thres
+    upper = 1 - torch.minimum(world.pitch_width / 2 - ball.state.pos[:,1], torch.tensor(dist_thres, device=world.device)) / dist_thres
+    lower = 1 - torch.minimum(world.pitch_width / 2 + ball.state.pos[:,1], torch.tensor(dist_thres, device=world.device)) / dist_thres
+    right = 1 - torch.minimum(world.pitch_length / 2 - ball.state.pos[:, 0], torch.tensor(dist_thres, device=world.device)) / dist_thres
+    left = 1 - torch.minimum(world.pitch_length / 2 + ball.state.pos[:, 0], torch.tensor(dist_thres, device=world.device)) / dist_thres
+    vertical_vel = 1 - torch.minimum(torch.abs(ball.state.vel[:,1]), torch.tensor(vel_thres, device=world.device)) / vel_thres
+    horizontal_vel = 1 - torch.minimum(torch.abs(ball.state.vel[:, 1]), torch.tensor(vel_thres, device=world.device)) / vel_thres
     dist_action = torch.stack([left-right, lower-upper], dim=1)
     vel_action = torch.stack([horizontal_vel, vertical_vel], dim=1)
     actions = dist_action * vel_action * impulse
@@ -620,8 +620,8 @@ class AgentPolicy:
 
         self.max_shoot_time = 100
         self.max_shoot_dist = 0.6
-        self.valid_start_pos_angle = np.cos(np.pi / 4)
-        self.valid_start_vel_angle = np.cos(np.pi / 4)
+        self.valid_start_pos_angle = math.cos(torch.pi / 4)
+        self.valid_start_vel_angle = math.cos(torch.pi / 4)
         self.valid_start_dist = 0.12
         self.dist_to_hit_speed = 1.7
         self.start_vel_mag_shoot = 1.0
@@ -638,8 +638,8 @@ class AgentPolicy:
         self.attack_defender_dist_weight = 0.25
         self.weight_diff_pass_thres = 0.1
 
-        self.passing_angle = (2 * np.pi / 128) * 1
-        self.shooting_angle = (2 * np.pi / 128) * 3
+        self.passing_angle = (2 * torch.pi / 128) * 1
+        self.shooting_angle = (2 * torch.pi / 128) * 3
         self.shooting_dist = self.max_shoot_dist
         self.passing_dist = self.max_shoot_dist
 
@@ -700,7 +700,7 @@ class AgentPolicy:
         if len(self.teammates) == 1:
             self.role = {self.teammates[0]: 1.0}
         else:
-            roles = torch.linspace(1, 1, len(self.teammates), device=world.device)
+            roles = torch.linspace(0.5, 1, len(self.teammates), device=world.device)
             self.role = {agent: roles[i] for i, agent in enumerate(self.teammates)}
 
 
@@ -747,7 +747,6 @@ class AgentPolicy:
 
 
     def run(self, agent, world):
-        self.ball.state.pos[torch.any(torch.isnan(self.ball.state.pos), dim=1),:] = torch.zeros(2, device=self.world.device) # TODO: find why ball pos is nan (sry matteo)
         self.check_possession()
         self.policy(agent)
         control = self.get_action(agent)
@@ -964,7 +963,7 @@ class AgentPolicy:
 
 
     def plot_traj(self, agent, env_index=0):
-        for i, u in enumerate(np.linspace(0,1,len(self.world.traj_points[self.team_name][agent]))):
+        for i, u in enumerate(torch.linspace(0,1,len(self.world.traj_points[self.team_name][agent]))):
             pointi = self.world.traj_points[self.team_name][agent][i]
             num_envs = self.objectives[agent]["start_pos"][env_index, :].shape[0]
             posi = self.hermite(
@@ -1305,4 +1304,4 @@ def multiple_envs():
 
 
 if __name__ == '__main__':
-    multiple_envs()
+    interactive()
