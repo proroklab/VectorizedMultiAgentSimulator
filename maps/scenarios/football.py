@@ -922,13 +922,13 @@ class AgentPolicy:
     def get_action(self, agent, env_index=slice(None)):
         curr_pos = agent.state.pos[env_index, :]
         curr_vel = agent.state.vel[env_index, :]
-        u_start = np.zeros((curr_pos.shape[0],))
+        u_start = torch.zeros(curr_pos.shape[0], device=self.world.device)
         des_curr_pos = self.hermite(
             self.objectives[agent]["start_pos"][env_index, :],
             self.objectives[agent]["target_pos"][env_index, :],
             self.objectives[agent]["start_vel"][env_index, :],
             self.objectives[agent]["target_vel"][env_index, :],
-            u = np.minimum(u_start + self.pos_lookahead, 1.),
+            u = torch.minimum(u_start + self.pos_lookahead, torch.tensor(1., device=self.world.device)),
             deriv = 0,
         )
         des_curr_vel = self.hermite(
@@ -936,7 +936,7 @@ class AgentPolicy:
             self.objectives[agent]["target_pos"][env_index, :],
             self.objectives[agent]["start_vel"][env_index, :],
             self.objectives[agent]["target_vel"][env_index, :],
-            u = np.minimum(u_start + self.vel_lookahead, 1.),
+            u = torch.minimum(u_start + self.vel_lookahead, torch.tensor(1., device=self.world.device)),
             deriv = 1,
         )
         des_curr_pos = torch.as_tensor(des_curr_pos, device=self.world.device)
@@ -947,23 +947,18 @@ class AgentPolicy:
 
     def hermite(self, p0, p1, p0dot, p1dot, u=0.1, deriv=0):
         # Formatting
-        u = self.to_numpy(u)
-        p0 = self.to_numpy(p0)
-        p1 = self.to_numpy(p1)
-        p0dot = self.to_numpy(p0dot)
-        p1dot = self.to_numpy(p1dot)
         u = u.reshape((-1,))
 
         # Calculation
-        U = np.array([self.nPr(3,deriv) * (u ** max(0,3-deriv)),
+        U = torch.stack([self.nPr(3,deriv) * (u ** max(0,3-deriv)),
                       self.nPr(2,deriv) * (u ** max(0,2-deriv)),
                       self.nPr(1,deriv) * (u ** max(0,1-deriv)),
-                      self.nPr(0,deriv) * (u ** 0)], dtype=np.float64).T
-        A = np.array([[2. ,-2., 1., 1.],
+                      self.nPr(0,deriv) * (u ** 0)], dim=1).float()
+        A = torch.tensor([[2. ,-2., 1., 1.],
                       [-3., 3.,-2.,-1.],
                       [0. , 0., 1., 0.],
-                      [1. , 0., 0., 0.]])
-        P = np.stack([p0, p1, p0dot, p1dot], axis=1)
+                      [1. , 0., 0., 0.]], device=U.device)
+        P = torch.stack([p0, p1, p0dot, p1dot], dim=1)
         ans = U[:,None,:] @ A[None,:,:] @ P
         ans = ans.squeeze(1)
         return ans
@@ -1284,7 +1279,7 @@ def multiple_envs():
 
     num_envs = 64
     render_env = 0
-    device = "cuda"
+    device = "cpu"
     n_steps = 10000
 
     action = [0., 0.]
@@ -1312,12 +1307,12 @@ def multiple_envs():
                 ).repeat(num_envs, 1)
             )
         obs, rews, dones, info = env.step(actions)
-        # env.render(
-        #     mode="rgb_array",
-        #     agent_index_focus=None,
-        #     visualize_when_rgb=True,
-        #     env_index=render_env,
-        # )
+        env.render(
+            mode="rgb_array",
+            agent_index_focus=None,
+            visualize_when_rgb=True,
+            env_index=render_env,
+        )
 
 
 if __name__ == '__main__':
