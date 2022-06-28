@@ -276,9 +276,9 @@ class Scenario(BaseScenario):
             for a in self.world.agents:
                 if a != agent:
                     self.rew[self.world.is_overlapping(a, agent)] -= 10
-            for l in self.world.landmarks[self.n_agents : -4]:
-                if l.collide:
-                    self.rew[self.world.is_overlapping(agent, l)] -= 10
+            for landmark in self.world.landmarks[self.n_agents : -4]:
+                if landmark.collide:
+                    self.rew[self.world.is_overlapping(agent, landmark)] -= 10
 
         return self.rew
 
