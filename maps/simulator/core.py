@@ -669,6 +669,38 @@ class World(TorchVectorizedObject):
         torch.manual_seed(seed)
         return [seed]
 
+    def raycast(
+        self, pos: torch.Tensor, angles: torch.Tensor, max_ray_length: float = 2.0
+    ):
+        assert pos.ndim == 3 and angles.ndim == 2
+        assert pos.shape[0] == angles.shape[0] and pos.shape[1] == angles.shape[1]
+        assert pos.shape[2] == 2
+
+        def _get_closest_dist_to_entities(pos_local):
+            all_entity_dists = []
+            for entity in self.entities:
+                entity_dists = []
+                for i in range(pos_local.shape[1]):
+                    entity_dists.append(
+                        self.get_distance_from_point(entity, pos_local[:, i])
+                    )
+                all_entity_dists.append(torch.stack(entity_dists, dim=1))
+            closest_entity_dists, _ = torch.min(
+                torch.stack(all_entity_dists, dim=2), dim=2
+            )
+            return closest_entity_dists
+
+        current_pos = pos.clone()
+        angle_vec = torch.stack([torch.sin(angles), torch.cos(angles)], dim=2)
+        ray_lengths = torch.zeros_like(angles)
+        dists = _get_closest_dist_to_entities(current_pos)
+        while (ray_lengths < max_ray_length).any() and (dists > 1e-2).any():
+            current_pos += angle_vec * dists.unsqueeze(2)
+            ray_lengths += dists
+            dists = _get_closest_dist_to_entities(current_pos)
+
+        return ray_lengths
+
     def get_distance_from_point(
         self, entity: Entity, test_point_pos, env_index: int = None
     ):
