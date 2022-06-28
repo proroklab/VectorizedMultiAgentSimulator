@@ -678,7 +678,7 @@ class World(TorchVectorizedObject):
         if isinstance(a_shape, Sphere) and isinstance(b_shape, Sphere):
             delta_pos = entity_a.state.pos - entity_b.state.pos
             dist = torch.linalg.vector_norm(delta_pos, dim=1)
-            return_value = dist
+            return_value = dist - (a_shape.radius + b_shape.radius)
         elif (
             isinstance(entity_a.shape, Box)
             and isinstance(entity_b.shape, Sphere)
@@ -695,7 +695,7 @@ class World(TorchVectorizedObject):
             distance_sphere_closest_point = torch.linalg.vector_norm(
                 sphere.state.pos - closest_point, dim=1
             )
-            return_value = distance_sphere_closest_point
+            return_value = distance_sphere_closest_point - (sphere.shape.radius + LINE_MIN_DIST)
         # Sphere and line
         elif (
             isinstance(entity_a.shape, Line)
@@ -712,7 +712,7 @@ class World(TorchVectorizedObject):
                 line.state.pos, line.state.rot, line.shape.length, sphere
             )
             distance = torch.linalg.vector_norm(sphere.state.pos - closest_point, dim=1)
-            return_value = distance
+            return_value = distance - (sphere.shape.radius + LINE_MIN_DIST)
         else:
             assert False, "Distance not computable for give entities"
         if env_index is not None:
@@ -725,8 +725,7 @@ class World(TorchVectorizedObject):
         self._check_batch_index(env_index)
 
         if isinstance(a_shape, Sphere) and isinstance(b_shape, Sphere):
-            dist_min = a_shape.radius + b_shape.radius
-            return self.get_distance(entity_a, entity_b, env_index) < dist_min
+            return self.get_distance(entity_a, entity_b, env_index) < 0
         elif (
             isinstance(entity_a.shape, Box)
             and isinstance(entity_b.shape, Sphere)
@@ -760,13 +759,7 @@ class World(TorchVectorizedObject):
             or isinstance(entity_b.shape, Line)
             and isinstance(entity_a.shape, Sphere)
         ):
-            line, sphere = (
-                (entity_a, entity_b)
-                if isinstance(entity_b.shape, Sphere)
-                else (entity_b, entity_a)
-            )
-            dist_min = sphere.shape.radius + LINE_MIN_DIST
-            return self.get_distance(entity_a, entity_b, env_index) < dist_min
+            return self.get_distance(entity_a, entity_b, env_index) < 0
 
         else:
             assert False, "Overlap not computable for give entities"
