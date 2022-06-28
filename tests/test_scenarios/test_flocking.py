@@ -20,13 +20,14 @@ class TestDispersion(unittest.TestCase):
             device="cpu",
             continuous_actions=self.continuous_actions,
             rllib_wrapped=False,
+            max_steps=100,
             # Environment specific variables
             n_agents=self.n_agents,
         )
         self.env.seed(0)
 
     def test_heuristic(self):
-        for n_agents in [5]:
+        for n_agents in [1, 10, 20]:
             self.setup_env(
                 n_agents=n_agents,
             )
@@ -36,21 +37,28 @@ class TestDispersion(unittest.TestCase):
             while not all_done.all():
                 actions = []
                 for i in range(n_agents):
-                    action_agent = torch.zeros(25, 2)
-                    actions.append(action_agent)
+                    agent_phase_shift = 2 * torch.pi / n_agents * i
+                    angular_v_rad_per_step = 1 / 15
+                    agent_dist_to_target = 0.5
+                    angle = self.env.steps * angular_v_rad_per_step + agent_phase_shift
+                    desired_pos = (
+                        torch.stack([torch.cos(angle), torch.sin(angle)], dim=1)
+                        * agent_dist_to_target
+                    )
+                    delta_pos = desired_pos - obs[i][:, :2]
+                    action = torch.clamp(
+                        delta_pos * 2,
+                        min=-self.env.agents[i].u_range,
+                        max=self.env.agents[i].u_range,
+                    )
+                    actions.append(action)
 
                 obs, rews, dones, _ = self.env.step(actions)
-                self.env.render()
                 for i in range(n_agents):
                     total_rew[:, i] += rews[i]
                 if dones.any():
-                    # Done envs should have exactly sum of rewards equal to num_agents
-                    self.assertTrue(
-                        torch.equal(
-                            total_rew[dones].sum(-1).to(torch.long),
-                            torch.full((dones.sum(),), n_agents),
-                        )
-                    )
+                    self.assertTrue((total_rew[dones] < -5.0).all())
+                    self.assertTrue((total_rew[dones] > -200.0).all())
                     total_rew[dones] = 0
                     all_done += dones
                     for env_index, done in enumerate(dones):
