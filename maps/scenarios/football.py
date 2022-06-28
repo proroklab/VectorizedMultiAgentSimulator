@@ -1,6 +1,5 @@
 import torch
 import numpy as np
-import portion
 from functools import reduce
 import operator
 
@@ -1009,16 +1008,6 @@ class AgentPolicy:
             return torch.any(pos != orig_pos, dim=-1)
         else:
             return pos
-
-
-    def to_numpy(self, x):
-        if isinstance(x, np.ndarray):
-            return x
-        elif isinstance(x, torch.Tensor):
-            return x.cpu().numpy()
-        elif isinstance(x, list):
-            return np.array(x)
-        return np.array(x)
 
 
     def nPr(self, n, r):
