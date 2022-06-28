@@ -1026,6 +1026,7 @@ class World(TorchVectorizedObject):
             / dist.unsqueeze(-1)
             * penetration.unsqueeze(-1)
         )
+        force[dist == 0.0] = 0.0
         force[dist > dist_min] = 0
         assert not force.isnan().any()
         return +force, -force
