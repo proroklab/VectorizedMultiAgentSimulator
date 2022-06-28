@@ -17,7 +17,7 @@ def use_maps_env(render: bool = False):
     # Scenario specific variables
     n_agents = 3
 
-    num_envs = 100000
+    num_envs = 50000
     continuous_actions = False
     device = "cuda"  # or cuda or any other torch device
     wrapped = False
