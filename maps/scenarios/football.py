@@ -922,7 +922,7 @@ class AgentPolicy:
     def get_action(self, agent, env_index=slice(None)):
         curr_pos = agent.state.pos[env_index, :]
         curr_vel = agent.state.vel[env_index, :]
-        u_start = torch.zeros(curr_pos.shape[0], device=self.world.device)
+        u_start = np.zeros((curr_pos.shape[0],))
         des_curr_pos = self.hermite(
             self.objectives[agent]["start_pos"][env_index, :],
             self.objectives[agent]["target_pos"][env_index, :],
@@ -1015,7 +1015,7 @@ class AgentPolicy:
         if isinstance(x, np.ndarray):
             return x
         elif isinstance(x, torch.Tensor):
-            return x.numpy()
+            return x.cpu().numpy()
         elif isinstance(x, list):
             return np.array(x)
         return np.array(x)
@@ -1284,7 +1284,7 @@ def multiple_envs():
 
     num_envs = 64
     render_env = 0
-    device = "cuda"
+    device = "cpu"
     n_steps = 10000
 
     action = [0., 0.]
@@ -1312,12 +1312,12 @@ def multiple_envs():
                 ).repeat(num_envs, 1)
             )
         obs, rews, dones, info = env.step(actions)
-        # env.render(
-        #     mode="rgb_array",
-        #     agent_index_focus=None,
-        #     visualize_when_rgb=True,
-        #     env_index=render_env,
-        # )
+        env.render(
+            mode="rgb_array",
+            agent_index_focus=None,
+            visualize_when_rgb=True,
+            env_index=render_env,
+        )
 
 
 if __name__ == '__main__':
