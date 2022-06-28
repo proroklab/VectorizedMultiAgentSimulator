@@ -1312,12 +1312,12 @@ def multiple_envs():
                 ).repeat(num_envs, 1)
             )
         obs, rews, dones, info = env.step(actions)
-        env.render(
-            mode="rgb_array",
-            agent_index_focus=None,
-            visualize_when_rgb=True,
-            env_index=render_env,
-        )
+        # env.render(
+        #     mode="rgb_array",
+        #     agent_index_focus=None,
+        #     visualize_when_rgb=True,
+        #     env_index=render_env,
+        # )
 
 
 if __name__ == '__main__':
