@@ -159,7 +159,7 @@ class Scenario(BaseScenario):
     def init_ball(self, world):
         # Add Ball
         ball = Agent(
-            name=f"Ball",
+            name="Ball",
             shape=Sphere(radius=self.ball_size),
             action_script=ball_action_script,
             max_speed=self.ball_max_speed,
@@ -183,7 +183,7 @@ class Scenario(BaseScenario):
     def init_background(self, world):
         # Add landmarks
         background = Landmark(
-            name=f"Background",
+            name="Background",
             collide=False,
             movable=False,
             shape=Box(length=self.pitch_length, width=self.pitch_width),
@@ -192,7 +192,7 @@ class Scenario(BaseScenario):
         world.add_landmark(background)
 
         centre_circle_outer = Landmark(
-            name=f"Centre Circle Outer",
+            name="Centre Circle Outer",
             collide=False,
             movable=False,
             shape=Sphere(radius=self.goal_size / 2),
@@ -201,7 +201,7 @@ class Scenario(BaseScenario):
         world.add_landmark(centre_circle_outer)
 
         centre_circle_inner = Landmark(
-            name=f"Centre Circle Inner",
+            name="Centre Circle Inner",
             collide=False,
             movable=False,
             shape=Sphere(self.goal_size / 2 - 0.02),
@@ -210,7 +210,7 @@ class Scenario(BaseScenario):
         world.add_landmark(centre_circle_inner)
 
         centre_line = Landmark(
-            name=f"Centre Line",
+            name="Centre Line",
             collide=False,
             movable=False,
             shape=Line(length=self.pitch_width - 2 * self.agent_size),
@@ -219,7 +219,7 @@ class Scenario(BaseScenario):
         world.add_landmark(centre_line)
 
         right_line = Landmark(
-            name=f"Right Line",
+            name="Right Line",
             collide=False,
             movable=False,
             shape=Line(length=self.pitch_width - 2 * self.agent_size),
@@ -228,7 +228,7 @@ class Scenario(BaseScenario):
         world.add_landmark(right_line)
 
         left_line = Landmark(
-            name=f"Left Line",
+            name="Left Line",
             collide=False,
             movable=False,
             shape=Line(length=self.pitch_width - 2 * self.agent_size),
@@ -237,7 +237,7 @@ class Scenario(BaseScenario):
         world.add_landmark(left_line)
 
         top_line = Landmark(
-            name=f"Top Line",
+            name="Top Line",
             collide=False,
             movable=False,
             shape=Line(length=self.pitch_length - 2 * self.agent_size),
@@ -246,7 +246,7 @@ class Scenario(BaseScenario):
         world.add_landmark(top_line)
 
         bottom_line = Landmark(
-            name=f"Bottom Line",
+            name="Bottom Line",
             collide=False,
             movable=False,
             shape=Line(length=self.pitch_length - 2 * self.agent_size),
@@ -315,7 +315,7 @@ class Scenario(BaseScenario):
     def init_walls(self, world):
 
         right_top_wall = Landmark(
-            name=f"Right Top Wall",
+            name="Right Top Wall",
             collide=True,
             movable=False,
             shape=Line(
@@ -326,7 +326,7 @@ class Scenario(BaseScenario):
         world.add_landmark(right_top_wall)
 
         left_top_wall = Landmark(
-            name=f"Left Top Wall",
+            name="Left Top Wall",
             collide=True,
             movable=False,
             shape=Line(
@@ -337,7 +337,7 @@ class Scenario(BaseScenario):
         world.add_landmark(left_top_wall)
 
         right_bottom_wall = Landmark(
-            name=f"Right Bottom Wall",
+            name="Right Bottom Wall",
             collide=True,
             movable=False,
             shape=Line(
@@ -348,7 +348,7 @@ class Scenario(BaseScenario):
         world.add_landmark(right_bottom_wall)
 
         left_bottom_wall = Landmark(
-            name=f"Left Bottom Wall",
+            name="Left Bottom Wall",
             collide=True,
             movable=False,
             shape=Line(
@@ -437,7 +437,7 @@ class Scenario(BaseScenario):
 
     def init_goals(self, world):
         right_goal_back = Landmark(
-            name=f"Right Goal Back",
+            name="Right Goal Back",
             collide=True,
             movable=False,
             shape=Line(length=self.goal_size),
@@ -446,7 +446,7 @@ class Scenario(BaseScenario):
         world.add_landmark(right_goal_back)
 
         left_goal_back = Landmark(
-            name=f"Left Goal Back",
+            name="Left Goal Back",
             collide=True,
             movable=False,
             shape=Line(length=self.goal_size),
@@ -455,7 +455,7 @@ class Scenario(BaseScenario):
         world.add_landmark(left_goal_back)
 
         right_goal_top = Landmark(
-            name=f"Right Goal Top",
+            name="Right Goal Top",
             collide=True,
             movable=False,
             shape=Line(length=self.goal_depth),
@@ -464,7 +464,7 @@ class Scenario(BaseScenario):
         world.add_landmark(right_goal_top)
 
         left_goal_top = Landmark(
-            name=f"Left Goal Top",
+            name="Left Goal Top",
             collide=True,
             movable=False,
             shape=Line(length=self.goal_depth),
@@ -473,7 +473,7 @@ class Scenario(BaseScenario):
         world.add_landmark(left_goal_top)
 
         right_goal_bottom = Landmark(
-            name=f"Right Goal Bottom",
+            name="Right Goal Bottom",
             collide=True,
             movable=False,
             shape=Line(length=self.goal_depth),
@@ -482,7 +482,7 @@ class Scenario(BaseScenario):
         world.add_landmark(right_goal_bottom)
 
         left_goal_bottom = Landmark(
-            name=f"Left Goal Bottom",
+            name="Left Goal Bottom",
             collide=True,
             movable=False,
             shape=Line(length=self.goal_depth),
@@ -491,7 +491,7 @@ class Scenario(BaseScenario):
         world.add_landmark(left_goal_bottom)
 
         blue_net = Landmark(
-            name=f"Blue Net",
+            name="Blue Net",
             collide=False,
             movable=False,
             shape=Box(length=self.goal_depth, width=self.goal_size),
@@ -500,7 +500,7 @@ class Scenario(BaseScenario):
         world.add_landmark(blue_net)
 
         red_net = Landmark(
-            name=f"Red Net",
+            name="Red Net",
             collide=False,
             movable=False,
             shape=Box(length=self.goal_depth, width=self.goal_size),
@@ -710,7 +710,7 @@ class Scenario(BaseScenario):
         return self._done
 
 
-### Ball Physics ###
+""" Ball Physics """
 
 
 def ball_action_script(ball, world):
@@ -776,7 +776,7 @@ def ball_action_script(ball, world):
     ball.action.u = actions
 
 
-### Agent Policy ###
+""" Agent Policy """
 
 
 class AgentPolicy:
@@ -1304,9 +1304,11 @@ class AgentPolicy:
             ans = ans * k
         return ans
 
-    def combine_or(self, l):
+    def combine_or(self, seq):
         return reduce(
-            operator.or_, l, torch.zeros(l[0].shape, device=self.world.device).bool()
+            operator.or_,
+            seq,
+            torch.zeros(seq[0].shape, device=self.world.device).bool(),
         )
 
     def combine_mask(self, env_index, mask):
@@ -1651,7 +1653,7 @@ class AgentPolicy:
         return can_pass_mask
 
 
-### Run ###
+""" Run """
 
 
 def interactive():
