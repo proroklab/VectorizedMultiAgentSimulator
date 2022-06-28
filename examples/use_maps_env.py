@@ -12,14 +12,14 @@ from maps import make_env
 
 def use_maps_env(render: bool = False):
 
-    scenario_name = "football"
+    scenario_name = "waterfall"
 
     # Scenario specific variables
-    n_agents = 3
+    n_agents = 4
 
-    num_envs = 1000
+    num_envs = 32
     continuous_actions = False
-    device = "cuda"  # or cuda or any other torch device
+    device = "cpu"  # or cuda or any other torch device
     wrapped = False
     n_steps = 100
 
@@ -103,4 +103,4 @@ def use_maps_env(render: bool = False):
 
 
 if __name__ == "__main__":
-    use_maps_env(render=False)
+    use_maps_env(render=True)
