@@ -28,7 +28,11 @@ class TestFootball(unittest.TestCase):
     def test_ai_vs_random(self):
         n_agents = 3
         self.setup_env(
-            n_red_agents=n_agents, n_blue_agents=n_agents, ai_red_agents=True, ai_blue_agents=False, dense_reward_ratio=0,
+            n_red_agents=n_agents,
+            n_blue_agents=n_agents,
+            ai_red_agents=True,
+            ai_blue_agents=False,
+            dense_reward_ratio=0,
         )
         all_done = torch.full((self.n_envs,), False)
         obs = self.env.reset()
