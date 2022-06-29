@@ -669,6 +669,45 @@ class World(TorchVectorizedObject):
         torch.manual_seed(seed)
         return [seed]
 
+    def get_box_ray_intersection(
+        self, box: Entity, pos: torch.Tensor, angles: torch.Tensor
+    ):
+        """
+        Inspired from https://tavianator.com/2011/ray_box.html
+        Checks if ray originating from pos at angle intersects with a box and if so
+        at what point it intersects.
+        """
+        assert pos.ndim == 2 and angles.ndim == 1
+        assert pos.shape[0] == angles.shape[0]
+        assert isinstance(box.shape, Box)
+
+        pos_origin = pos - box.state.pos
+        pos_aabb = World._rotate_vector(pos_origin, -box.state.rot)
+        ray_dir_world = torch.stack([torch.cos(angles), torch.sin(angles)], dim=-1)
+        ray_dir_aabb = World._rotate_vector(ray_dir_world, -box.state.rot)
+
+        tx1 = (-box.shape.length / 2 - pos_aabb[:, X]) / ray_dir_aabb[:, X]
+        tx2 = (box.shape.length / 2 - pos_aabb[:, X]) / ray_dir_aabb[:, X]
+        tx = torch.stack([tx1, tx2], dim=-1)
+        tmin, _ = torch.min(tx, dim=-1)
+        tmax, _ = torch.max(tx, dim=-1)
+
+        ty1 = (-box.shape.width / 2 - pos_aabb[:, Y]) / ray_dir_aabb[:, Y]
+        ty2 = (box.shape.width / 2 - pos_aabb[:, Y]) / ray_dir_aabb[:, Y]
+        ty = torch.stack([ty1, ty2], dim=-1)
+        tymin, _ = torch.min(ty, dim=-1)
+        tymax, _ = torch.max(ty, dim=-1)
+        tmin, _ = torch.max(torch.stack([tmin, tymin], dim=-1), dim=-1)
+        tmax, _ = torch.min(torch.stack([tmax, tymax], dim=-1), dim=-1)
+
+        intersect_aabb = tmin * ray_dir_aabb + pos_aabb
+        intersect_world = (
+            World._rotate_vector(intersect_aabb, box.state.rot) + box.state.pos
+        )
+
+        collision = (tmax >= tmin) and (tmin > 0.0)
+        return collision, intersect_world
+
     def raycast(
         self, pos: torch.Tensor, angles: torch.Tensor, max_ray_length: float = 2.0
     ):
