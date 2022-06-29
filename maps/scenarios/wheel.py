@@ -5,6 +5,7 @@ import torch
 
 from maps import render_interactively
 from maps.simulator.core import Agent, Landmark, World, Line, Sphere
+from maps.simulator.heuristic_policy import BaseHeuristicPolicy
 from maps.simulator.scenario import BaseScenario
 from maps.simulator.utils import Color
 
@@ -104,6 +105,40 @@ class Scenario(BaseScenario):
             ],
             dim=-1,
         )
+
+
+class HeuristicPolicy(BaseHeuristicPolicy):
+    def compute_action(
+        self, observation: torch.Tensor, u_range: float = None
+    ) -> torch.Tensor:
+        assert self.continuous_actions is True, "Heuristic for continuous actions only"
+
+        index_line_extrema = 6
+
+        pos_agent = observation[:, :2]
+        pos_end1_agent = observation[:, index_line_extrema : index_line_extrema + 2]
+        pos_end2_agent = observation[:, index_line_extrema + 2 : index_line_extrema + 4]
+
+        pos_end1 = pos_end1_agent + pos_agent
+        pos_end2 = pos_end2_agent + pos_agent
+
+        pos_end1_shifted = World._rotate_vector(
+            pos_end1, torch.tensor(torch.pi / 4, device=observation.device)
+        )
+        pos_end2_shifted = World._rotate_vector(
+            pos_end2, torch.tensor(torch.pi / 4, device=observation.device)
+        )
+
+        pos_end1_shifted_agent = pos_end1_shifted - pos_agent
+        pos_end2_shifted_agent = pos_end2_shifted - pos_agent
+
+        action_agent = torch.clamp(
+            pos_end2_shifted_agent,
+            min=-u_range,
+            max=u_range,
+        )
+
+        return action_agent
 
 
 if __name__ == "__main__":
