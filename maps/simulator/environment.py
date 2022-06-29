@@ -154,6 +154,8 @@ class Environment(TorchVectorizedObject):
                 actions[i] = torch.tensor(
                     actions[i], dtype=torch.float32, device=self.device
                 )
+            if len(actions[i].shape) == 1:
+                actions[i].unsqueeze_(-1)
             assert (
                 actions[i].shape[0] == self.num_envs
             ), f"Actions used in input of env must be of len {self.num_envs}, got {actions[i].shape[0]}"
