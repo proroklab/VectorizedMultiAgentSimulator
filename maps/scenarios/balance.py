@@ -5,6 +5,7 @@ import torch
 
 from maps import render_interactively
 from maps.simulator.core import Agent, Landmark, Sphere, World, Line, Box
+from maps.simulator.heuristic_policy import BaseHeuristicPolicy
 from maps.simulator.scenario import BaseScenario
 from maps.simulator.utils import Color, Y
 
@@ -247,6 +248,37 @@ class Scenario(BaseScenario):
         info = {"pos_rew": self.pos_rew, "ground_rew": self.ground_rew}
         # When reset is called before reward()
         return info
+
+
+class HeuristicPolicy(BaseHeuristicPolicy):
+    def compute_action(
+        self, observation: torch.Tensor, u_range: float = None
+    ) -> torch.Tensor:
+        batch_dim = observation.shape[0]
+
+        index_package_goal_pos = 8
+        dist_package_goal = observation[
+            :, index_package_goal_pos : index_package_goal_pos + 2
+        ]
+        y_distance_ge_0 = dist_package_goal[:, Y] >= 0
+
+        if self.continuous_actions:
+            action_agent = torch.clamp(
+                torch.stack(
+                    [
+                        torch.zeros(batch_dim, device=observation.device),
+                        -dist_package_goal[:, Y],
+                    ],
+                    dim=1,
+                ),
+                min=-u_range,
+                max=u_range,
+            )
+            action_agent[:, Y][y_distance_ge_0] = 0
+        else:
+            action_agent = torch.full((batch_dim,), 4, device=observation.device)
+            action_agent[y_distance_ge_0] = 0
+        return action_agent
 
 
 if __name__ == "__main__":
