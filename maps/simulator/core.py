@@ -669,15 +669,38 @@ class World(TorchVectorizedObject):
         torch.manual_seed(seed)
         return [seed]
 
+    def get_distance_from_point(
+        self, entity: Entity, test_point_pos, env_index: int = None
+    ):
+        self._check_batch_index(env_index)
+
+        if isinstance(entity.shape, Sphere):
+            delta_pos = entity.state.pos - test_point_pos
+            dist = torch.linalg.vector_norm(delta_pos, dim=1)
+            return_value = dist - entity.shape.radius
+        elif isinstance(entity.shape, Box):
+            closest_point = self._get_closest_point_box(entity, test_point_pos)
+            distance = torch.linalg.vector_norm(test_point_pos - closest_point, dim=1)
+            return_value = distance - LINE_MIN_DIST
+        elif isinstance(entity.shape, Line):
+            closest_point = self._get_closest_point_line(
+                entity.state.pos, entity.state.rot, entity.shape.length, test_point_pos
+            )
+            distance = torch.linalg.vector_norm(test_point_pos - closest_point, dim=1)
+            return_value = distance - LINE_MIN_DIST
+        else:
+            assert False, "Distance not computable for given entity"
+        if env_index is not None:
+            return_value = return_value[env_index]
+        return return_value
+
     def get_distance(self, entity_a: Entity, entity_b: Entity, env_index: int = None):
         a_shape = entity_a.shape
         b_shape = entity_b.shape
-        self._check_batch_index(env_index)
 
         if isinstance(a_shape, Sphere) and isinstance(b_shape, Sphere):
-            delta_pos = entity_a.state.pos - entity_b.state.pos
-            dist = torch.linalg.vector_norm(delta_pos, dim=1)
-            return_value = dist - (a_shape.radius + b_shape.radius)
+            dist = self.get_distance_from_point(entity_a, entity_b.state.pos, env_index)
+            return_value = dist - b_shape.radius
         elif (
             isinstance(entity_a.shape, Box)
             and isinstance(entity_b.shape, Sphere)
@@ -689,15 +712,8 @@ class World(TorchVectorizedObject):
                 if isinstance(entity_b.shape, Sphere)
                 else (entity_b, entity_a)
             )
-            closest_point = self._get_closest_point_box_sphere(box, sphere)
-
-            distance_sphere_closest_point = torch.linalg.vector_norm(
-                sphere.state.pos - closest_point, dim=1
-            )
-            return_value = distance_sphere_closest_point - (
-                sphere.shape.radius + LINE_MIN_DIST
-            )
-        # Sphere and line
+            dist = self.get_distance_from_point(box, sphere.state.pos, env_index)
+            return_value = dist - sphere.shape.radius
         elif (
             isinstance(entity_a.shape, Line)
             and isinstance(entity_b.shape, Sphere)
@@ -709,15 +725,10 @@ class World(TorchVectorizedObject):
                 if isinstance(entity_b.shape, Sphere)
                 else (entity_b, entity_a)
             )
-            closest_point = self._get_closest_point_line_sphere(
-                line.state.pos, line.state.rot, line.shape.length, sphere
-            )
-            distance = torch.linalg.vector_norm(sphere.state.pos - closest_point, dim=1)
-            return_value = distance - (sphere.shape.radius + LINE_MIN_DIST)
+            dist = self.get_distance_from_point(line, sphere.state.pos, env_index)
+            return_value = dist - sphere.shape.radius
         else:
-            assert False, "Distance not computable for give entities"
-        if env_index is not None:
-            return_value = return_value[env_index]
+            assert False, "Distance not computable for given entities"
         return return_value
 
     def is_overlapping(self, entity_a: Entity, entity_b: Entity, env_index: int = None):
@@ -738,7 +749,7 @@ class World(TorchVectorizedObject):
                 if isinstance(entity_b.shape, Sphere)
                 else (entity_b, entity_a)
             )
-            closest_point = self._get_closest_point_box_sphere(box, sphere)
+            closest_point = self._get_closest_point_box(box, sphere.state.pos)
 
             distance_sphere_closest_point = torch.linalg.vector_norm(
                 sphere.state.pos - closest_point, dim=1
@@ -875,8 +886,8 @@ class World(TorchVectorizedObject):
                 if isinstance(entity_b.shape, Sphere)
                 else (entity_b, entity_a)
             )
-            closest_point = self._get_closest_point_line_sphere(
-                line.state.pos, line.state.rot, line.shape.length, sphere
+            closest_point = self._get_closest_point_line(
+                line.state.pos, line.state.rot, line.shape.length, sphere.state.pos
             )
             force_sphere, force_line = self._get_collision_forces(
                 sphere.state.pos,
@@ -903,7 +914,7 @@ class World(TorchVectorizedObject):
                 if isinstance(entity_b.shape, Sphere)
                 else (entity_b, entity_a)
             )
-            closest_point = self._get_closest_point_box_sphere(box, sphere)
+            closest_point = self._get_closest_point_box(box, sphere.state.pos)
             force_sphere, force_box = self._get_collision_forces(
                 sphere.state.pos,
                 closest_point,
@@ -922,10 +933,10 @@ class World(TorchVectorizedObject):
 
         return (force_a, torque_a), (force_b, torque_b)
 
-    def _get_closest_point_box_sphere(self, box: Entity, sphere: Entity):
-        assert isinstance(box.shape, Box) and isinstance(sphere.shape, Sphere)
+    def _get_closest_point_box(self, box: Entity, test_point_pos):
+        assert isinstance(box.shape, Box)
 
-        closest_points = self._get_all_points_box_sphere(box, sphere)
+        closest_points = self._get_all_points_box(box, test_point_pos)
         closest_point = torch.full(
             (self.batch_dim, self.dim_p),
             float("inf"),
@@ -936,7 +947,7 @@ class World(TorchVectorizedObject):
             (self.batch_dim,), float("inf"), device=self.device, dtype=torch.float32
         )
         for p in closest_points:
-            d = torch.linalg.vector_norm(sphere.state.pos - p, dim=1)
+            d = torch.linalg.vector_norm(test_point_pos - p, dim=1)
             is_closest = d < distance
             closest_point[is_closest] = p[is_closest]
             distance[is_closest] = d[is_closest]
@@ -945,8 +956,8 @@ class World(TorchVectorizedObject):
 
         return closest_point
 
-    def _get_all_points_box_sphere(self, box: Entity, sphere: Entity):
-        assert isinstance(box.shape, Box) and isinstance(sphere.shape, Sphere)
+    def _get_all_points_box(self, box: Entity, test_point_pos):
+        assert isinstance(box.shape, Box)
 
         # Rotate normal vector by the angle of the box
         rotated_vector = World._rotate_vector(self._normal_vector, box.state.rot)
@@ -963,27 +974,21 @@ class World(TorchVectorizedObject):
         closest_points = []
 
         for i, p in enumerate([p1, p2, p3, p4]):
-            point = self._get_closest_point_line_sphere(
+            point = self._get_closest_point_line(
                 p,
                 box.state.rot + torch.pi / 2 if i <= 1 else box.state.rot,
                 box.shape.width if i <= 1 else box.shape.length,
-                sphere,
+                test_point_pos,
             )
             closest_points.append(point)
 
         return closest_points
 
-    def _get_closest_point_line_sphere(
-        self, line_pos, line_rot, line_length, sphere: Entity
-    ):
-        assert isinstance(sphere.shape, Sphere)
-
-        sphere_pos = sphere.state.pos
-
+    def _get_closest_point_line(self, line_pos, line_rot, line_length, test_point_pos):
         # Rotate it by the angle of the line
         rotated_vector = World._rotate_vector(self._normal_vector, line_rot)
         # Get distance between line and sphere
-        delta_pos = line_pos - sphere_pos
+        delta_pos = line_pos - test_point_pos
         # Dot product of distance and line vector
         dot_p = torch.einsum("bs,bs->b", delta_pos, rotated_vector).unsqueeze(-1)
         # Coordinates of the closes point
