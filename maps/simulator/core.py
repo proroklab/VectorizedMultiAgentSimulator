@@ -708,6 +708,30 @@ class World(TorchVectorizedObject):
         collision = (tmax >= tmin) and (tmin > 0.0)
         return collision, intersect_world
 
+    def get_sphere_ray_intersection(
+        self, sphere: Entity, pos: torch.Tensor, angles: torch.Tensor
+    ):
+        """
+        Inspired by https://www.bluebill.net/circle_ray_intersection.html
+        Checks if ray originating from pos at angle intersects with a sphere and if so
+        at what point it intersects.
+        """
+        assert pos.ndim == 2 and angles.ndim == 1
+        assert pos.shape[0] == angles.shape[0]
+        assert isinstance(sphere.shape, Sphere)
+
+        u = sphere.state.pos - pos
+        ray_dir_world = torch.stack([torch.cos(angles), torch.sin(angles)], dim=-1)
+        u_dot_ray = torch.bmm(u.unsqueeze(1), ray_dir_world.unsqueeze(2)).squeeze(1)
+        u1 = u_dot_ray * ray_dir_world
+        u2 = u - u1
+        d = torch.linalg.norm(u2, dim=1)
+        m = torch.sqrt(sphere.shape.radius**2 - d**2)
+        first_intersection = pos + u1 - m * ray_dir_world
+        ray_intersects = d <= sphere.shape.radius
+        sphere_is_in_front = u_dot_ray > 0.0
+        return ray_intersects and sphere_is_in_front, first_intersection
+
     def raycast(
         self, pos: torch.Tensor, angles: torch.Tensor, max_ray_length: float = 2.0
     ):
