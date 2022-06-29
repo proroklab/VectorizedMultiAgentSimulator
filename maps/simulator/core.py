@@ -689,7 +689,7 @@ class World(TorchVectorizedObject):
             distance = torch.linalg.vector_norm(test_point_pos - closest_point, dim=1)
             return_value = distance - LINE_MIN_DIST
         else:
-            assert False, "Distance not computable for give entities"
+            assert False, "Distance not computable for given entity"
         if env_index is not None:
             return_value = return_value[env_index]
         return return_value
@@ -697,7 +697,6 @@ class World(TorchVectorizedObject):
     def get_distance(self, entity_a: Entity, entity_b: Entity, env_index: int = None):
         a_shape = entity_a.shape
         b_shape = entity_b.shape
-        self._check_batch_index(env_index)
 
         if isinstance(a_shape, Sphere) and isinstance(b_shape, Sphere):
             dist = self.get_distance_from_point(entity_a, entity_b.state.pos, env_index)
@@ -729,9 +728,7 @@ class World(TorchVectorizedObject):
             dist = self.get_distance_from_point(line, sphere.state.pos, env_index)
             return_value = dist - sphere.shape.radius
         else:
-            assert False, "Distance not computable for give entities"
-        if env_index is not None:
-            return_value = return_value[env_index]
+            assert False, "Distance not computable for given entities"
         return return_value
 
     def is_overlapping(self, entity_a: Entity, entity_b: Entity, env_index: int = None):
