@@ -669,6 +669,91 @@ class World(TorchVectorizedObject):
         torch.manual_seed(seed)
         return [seed]
 
+    def get_box_ray_intersection(
+        self, box: Entity, pos: torch.Tensor, angles: torch.Tensor
+    ):
+        """
+        Inspired from https://tavianator.com/2011/ray_box.html
+        Checks if ray originating from pos at angle intersects with a box and if so
+        at what point it intersects.
+        """
+        assert pos.ndim == 2 and angles.ndim == 1
+        assert pos.shape[0] == angles.shape[0]
+        assert isinstance(box.shape, Box)
+
+        pos_origin = pos - box.state.pos
+        pos_aabb = World._rotate_vector(pos_origin, -box.state.rot)
+        ray_dir_world = torch.stack([torch.cos(angles), torch.sin(angles)], dim=-1)
+        ray_dir_aabb = World._rotate_vector(ray_dir_world, -box.state.rot)
+
+        tx1 = (-box.shape.length / 2 - pos_aabb[:, X]) / ray_dir_aabb[:, X]
+        tx2 = (box.shape.length / 2 - pos_aabb[:, X]) / ray_dir_aabb[:, X]
+        tx = torch.stack([tx1, tx2], dim=-1)
+        tmin, _ = torch.min(tx, dim=-1)
+        tmax, _ = torch.max(tx, dim=-1)
+
+        ty1 = (-box.shape.width / 2 - pos_aabb[:, Y]) / ray_dir_aabb[:, Y]
+        ty2 = (box.shape.width / 2 - pos_aabb[:, Y]) / ray_dir_aabb[:, Y]
+        ty = torch.stack([ty1, ty2], dim=-1)
+        tymin, _ = torch.min(ty, dim=-1)
+        tymax, _ = torch.max(ty, dim=-1)
+        tmin, _ = torch.max(torch.stack([tmin, tymin], dim=-1), dim=-1)
+        tmax, _ = torch.min(torch.stack([tmax, tymax], dim=-1), dim=-1)
+
+        intersect_aabb = tmin * ray_dir_aabb + pos_aabb
+        intersect_world = (
+            World._rotate_vector(intersect_aabb, box.state.rot) + box.state.pos
+        )
+
+        collision = (tmax >= tmin) and (tmin > 0.0)
+        return collision, intersect_world
+
+    def get_sphere_ray_intersection(
+        self, sphere: Entity, pos: torch.Tensor, angles: torch.Tensor
+    ):
+        """
+        Inspired by https://www.bluebill.net/circle_ray_intersection.html
+        Checks if ray originating from pos at angle intersects with a sphere and if so
+        at what point it intersects.
+        """
+        assert pos.ndim == 2 and angles.ndim == 1
+        assert pos.shape[0] == angles.shape[0]
+        assert isinstance(sphere.shape, Sphere)
+
+        u = sphere.state.pos - pos
+        ray_dir_world = torch.stack([torch.cos(angles), torch.sin(angles)], dim=-1)
+        u_dot_ray = torch.bmm(u.unsqueeze(1), ray_dir_world.unsqueeze(2)).squeeze(1)
+        u1 = u_dot_ray * ray_dir_world
+        u2 = u - u1
+        d = torch.linalg.norm(u2, dim=1)
+        m = torch.sqrt(sphere.shape.radius**2 - d**2)
+        first_intersection = pos + u1 - m * ray_dir_world
+        ray_intersects = d <= sphere.shape.radius
+        sphere_is_in_front = u_dot_ray.squeeze(1) > 0.0
+        return ray_intersects and sphere_is_in_front, first_intersection
+
+    def raycast(self, pos: torch.Tensor, angles: torch.Tensor):
+        assert pos.ndim == 2 and angles.ndim == 1
+        assert pos.shape[0] == angles.shape[0]
+
+        dists = []
+        for entity in self.landmarks:
+            if isinstance(entity.shape, Box):
+                collision, intersect = self.get_box_ray_intersection(
+                    entity, pos, angles
+                )
+            elif isinstance(entity.shape, Sphere):
+                collision, intersect = self.get_sphere_ray_intersection(
+                    entity, pos, angles
+                )
+            else:
+                assert False, f"Shape {entity.shape} currently not handled"
+            d = torch.linalg.norm(pos - intersect, dim=1)
+            d[~collision] = float("inf")
+            dists.append(d)
+        dist, _ = torch.min(torch.stack(dists, dim=-1), dim=-1)
+        return dist
+
     def get_distance_from_point(
         self, entity: Entity, test_point_pos, env_index: int = None
     ):
