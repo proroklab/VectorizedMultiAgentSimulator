@@ -2,10 +2,8 @@
 #  All rights reserved.
 import unittest
 
-import torch
-
 from maps import make_env
-from maps.simulator.utils import Y
+from maps.scenarios import balance
 
 
 class TestBalance(unittest.TestCase):
@@ -30,8 +28,10 @@ class TestBalance(unittest.TestCase):
         self.env.seed(0)
 
     def test_heuristic(self):
+
         for n_agents in [2, 5, 6, 10]:
             self.setup_env(n_agents=n_agents, random_package_pos_on_line=False)
+            policy = balance.HeuristicPolicy(self.continuous_actions)
 
             obs = self.env.reset()
             rews = None
@@ -41,25 +41,9 @@ class TestBalance(unittest.TestCase):
                 for i in range(n_agents):
                     obs_agent = obs[i]
 
-                    dist_package_goal = obs_agent[:, 8:10]
-                    y_distance_is_0 = dist_package_goal[:, Y] >= 0
-
-                    action_agent = torch.clamp(
-                        torch.stack(
-                            [
-                                torch.zeros(self.n_envs),
-                                -dist_package_goal[:, Y]
-                                + torch.randn(
-                                    self.n_envs,
-                                )
-                                * 0.3,
-                            ],
-                            dim=1,
-                        ),
-                        min=-self.env.agents[i].u_range,
-                        max=self.env.agents[i].u_range,
+                    action_agent = policy.compute_action(
+                        obs_agent, self.env.agents[i].u_range
                     )
-                    action_agent[:, Y][y_distance_is_0] = 0
 
                     actions.append(action_agent)
 
