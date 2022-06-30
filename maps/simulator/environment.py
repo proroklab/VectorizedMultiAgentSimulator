@@ -173,12 +173,12 @@ class Environment(TorchVectorizedObject):
         rewards = []
         infos = []
         for agent in self.agents:
-            rewards.append(self.scenario.reward(agent).clone().squeeze())
+            rewards.append(self.scenario.reward(agent).clone())
             obs.append(self.scenario.observation(agent).clone())
             # A dictionary per agent
             infos.append(self.scenario.info(agent))
 
-        dones = self.scenario.done().clone().squeeze()
+        dones = self.scenario.done().clone()
 
         self.steps += 1
         if self.max_steps is not None:

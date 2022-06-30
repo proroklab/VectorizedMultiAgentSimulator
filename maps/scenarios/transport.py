@@ -78,6 +78,7 @@ class Scenario(BaseScenario):
                 ),
                 batch_index=env_index,
             )
+            package.on_goal = self.world.is_overlapping(package, package.goal)
             if env_index is None:
                 package.global_shaping = (
                     torch.linalg.vector_norm(
@@ -161,6 +162,7 @@ class Scenario(BaseScenario):
             package_obs.append(package.state.pos - package.goal.state.pos)
             package_obs.append(package.state.pos - agent.state.pos)
             package_obs.append(package.state.vel)
+            package_obs.append(package.on_goal.unsqueeze(-1))
 
         return torch.cat(
             [
@@ -174,7 +176,7 @@ class Scenario(BaseScenario):
     def done(self):
         return torch.all(
             torch.stack(
-                [package.on_goal for package in self.world.landmarks[1:]],
+                [package.on_goal for package in self.packages],
                 dim=1,
             ),
             dim=-1,
