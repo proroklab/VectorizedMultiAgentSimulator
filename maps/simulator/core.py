@@ -729,10 +729,31 @@ class World(TorchVectorizedObject):
         m = torch.sqrt(sphere.shape.radius**2 - d**2)
         first_intersection = pos + u1 - m * ray_dir_world
         ray_intersects = d <= sphere.shape.radius
-        sphere_is_in_front = u_dot_ray > 0.0
+        sphere_is_in_front = u_dot_ray.squeeze(1) > 0.0
         return ray_intersects and sphere_is_in_front, first_intersection
 
-    def raycast(
+    def raycast(self, pos: torch.Tensor, angles: torch.Tensor):
+        assert pos.ndim == 2 and angles.ndim == 1
+        assert pos.shape[0] == angles.shape[0]
+
+        dists = []
+        for entity in self.landmarks:
+            if isinstance(entity.shape, Box):
+                collision, intersect = self.get_box_ray_intersection(
+                    entity, pos, angles
+                )
+            elif isinstance(entity.shape, Sphere):
+                collision, intersect = self.get_sphere_ray_intersection(
+                    entity, pos, angles
+                )
+            else:
+                assert False, f"Shape {entity.shape} currently not handled"
+            d = torch.linalg.norm(pos - intersect, dim=1)
+            d[~collision] = float("inf")
+            dists.append(d)
+        dist, _ = torch.min(torch.stack(dists, dim=-1), dim=-1)
+        return dist
+
         self, pos: torch.Tensor, angles: torch.Tensor, max_ray_length: float = 2.0
     ):
         assert pos.ndim == 3 and angles.ndim == 2
