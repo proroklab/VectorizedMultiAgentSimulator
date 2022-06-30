@@ -420,31 +420,13 @@ class Environment(TorchVectorizedObject):
         )
         self.render_geoms = []
         self.render_geoms_xform = []
-        for entity_index, entity in enumerate(self.world.entities):
-            if isinstance(entity.shape, core.Sphere):
-                geom = rendering.make_circle(entity.shape.radius)
-            elif isinstance(entity.shape, Line):
-                geom = rendering.Line(
-                    (-entity.shape.length / 2, 0),
-                    (entity.shape.length / 2, 0),
-                    width=entity.shape.width,
-                )
-            elif isinstance(entity.shape, Box):
-                l, r, t, b = (
-                    -entity.shape.length / 2,
-                    entity.shape.length / 2,
-                    entity.shape.width / 2,
-                    -entity.shape.width / 2,
-                )
-                geom = rendering.make_polygon([(l, b), (l, t), (r, t), (r, b)])
-            else:
-                assert (
-                    False
-                ), f"Entity shape not supported in rendering for {entity.name}"
-            xform = rendering.Transform()
-            geom.add_attr(xform)
-            self.render_geoms.append(geom)
-            self.render_geoms_xform.append(xform)
+        for entity in self.world.entities:
+            geoms = entity.shape.render()
+            for geom in geoms:
+                xform = rendering.Transform()
+                geom.add_attr(xform)
+                self.render_geoms.append(geom)
+                self.render_geoms_xform.append(xform)
 
         # add geoms to viewer
         self.viewer.geoms = []

@@ -7,8 +7,10 @@ from abc import ABC, abstractmethod
 from typing import Callable, List, Union, Tuple
 
 import torch
-from maps.simulator.utils import Color, SensorType, X, Y, override, LINE_MIN_DIST
 from torch import Tensor
+from maps.simulator.utils import Color, SensorType, X, Y, override, LINE_MIN_DIST
+from maps.simulator import rendering
+from maps.simulator.rendering import Geom
 
 
 class TorchVectorizedObject(object):
@@ -48,6 +50,10 @@ class Shape(ABC):
     def moment_of_inertia(self, mass: float):
         raise NotImplementedError
 
+    @abstractmethod
+    def render(self) -> List[Geom]:
+        raise NotImplementedError
+
 
 class Box(Shape):
     def __init__(self, length: float = 0.3, width: float = 0.1):
@@ -68,6 +74,15 @@ class Box(Shape):
     def moment_of_inertia(self, mass: float):
         return (1 / 12) * mass * (self.length**2 + self.width**2)
 
+    def render(self) -> List[Geom]:
+        l, r, t, b = (
+            -self.length / 2,
+            self.length / 2,
+            self.width / 2,
+            -self.width / 2,
+        )
+        return [rendering.make_polygon([(l, b), (l, t), (r, t), (r, b)])]
+
 
 class Sphere(Shape):
     def __init__(self, radius: float = 0.05):
@@ -81,6 +96,9 @@ class Sphere(Shape):
 
     def moment_of_inertia(self, mass: float):
         return (1 / 2) * mass * self.radius**2
+
+    def render(self) -> List[Geom]:
+        return [rendering.make_circle(self.radius)]
 
 
 class Line(Shape):
@@ -100,6 +118,15 @@ class Line(Shape):
 
     def moment_of_inertia(self, mass: float):
         return (1 / 12) * mass * (self.length**2)
+
+    def render(self) -> List[Geom]:
+        return [
+            rendering.Line(
+                (-self.length / 2, 0),
+                (self.length / 2, 0),
+                width=self.width,
+            )
+        ]
 
 
 class EntityState(TorchVectorizedObject):
