@@ -7,9 +7,8 @@ from abc import ABC, abstractmethod
 from typing import Callable, List, Union, Tuple
 
 import torch
-from torch import Tensor
-
 from maps.simulator.utils import Color, SensorType, X, Y, override, LINE_MIN_DIST
+from torch import Tensor
 
 
 class TorchVectorizedObject(object):
@@ -669,7 +668,7 @@ class World(TorchVectorizedObject):
         torch.manual_seed(seed)
         return [seed]
 
-    def get_box_ray_intersection(
+    def _get_box_ray_intersection(
         self, box: Entity, pos: torch.Tensor, angles: torch.Tensor
     ):
         """
@@ -708,7 +707,7 @@ class World(TorchVectorizedObject):
         collision = (tmax >= tmin) and (tmin > 0.0)
         return collision, intersect_world
 
-    def get_sphere_ray_intersection(
+    def _get_sphere_ray_intersection(
         self, sphere: Entity, pos: torch.Tensor, angles: torch.Tensor
     ):
         """
@@ -739,15 +738,15 @@ class World(TorchVectorizedObject):
         dists = []
         for entity in self.landmarks:
             if isinstance(entity.shape, Box):
-                collision, intersect = self.get_box_ray_intersection(
+                collision, intersect = self._get_box_ray_intersection(
                     entity, pos, angles
                 )
             elif isinstance(entity.shape, Sphere):
-                collision, intersect = self.get_sphere_ray_intersection(
+                collision, intersect = self._get_sphere_ray_intersection(
                     entity, pos, angles
                 )
             else:
-                assert False, f"Shape {entity.shape} currently not handled"
+                assert False, f"Shape {entity.shape} currently not handled by raycast"
             d = torch.linalg.norm(pos - intersect, dim=1)
             d[~collision] = float("inf")
             dists.append(d)

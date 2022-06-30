@@ -6,15 +6,14 @@ import gym
 import numpy as np
 import torch
 from gym import spaces
-from ray import rllib
-from ray.rllib.utils.typing import EnvActionType, EnvInfoDict, EnvObsType
-from torch import Tensor
-
 from maps.simulator import core
 from maps.simulator.core import Agent, Box, Line, TorchVectorizedObject
 from maps.simulator.scenario import BaseScenario
 from maps.simulator.utils import Color, X, Y, ALPHABET
 from maps.simulator.utils import VIEWER_MIN_SIZE
+from ray import rllib
+from ray.rllib.utils.typing import EnvActionType, EnvInfoDict, EnvObsType
+from torch import Tensor
 
 
 # environment for all agents in the multiagent world
