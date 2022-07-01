@@ -1,13 +1,13 @@
+#  Copyright (c) 2022. Matteo Bettini
+#  All rights reserved.
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import List, Union
 
-import torch
-
-from maps.simulator import rendering
-from maps.simulator.rendering import Geom
 import maps.simulator.core
+import torch
 
 
 class Sensor(ABC):
@@ -29,7 +29,7 @@ class Sensor(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def render(self, env_index: int = 0) -> List[Geom]:
+    def render(self, env_index: int = 0):
         raise NotImplementedError
 
 
@@ -68,10 +68,12 @@ class Lidar(Sensor):
         self._last_measurement = measurement.swapaxes(1, 0)
         return measurement
 
-    def render(self, env_index: int = 0) -> List[Geom]:
+    def render(self, env_index: int = 0):
+        from maps.simulator import rendering
+
         self.measure()
 
-        geoms: List[Geom] = []
+        geoms: List[rendering.Geom] = []
         if self._last_measurement is not None:
             for angle, dist in zip(self._angles, self._last_measurement):
                 ray = rendering.Line(

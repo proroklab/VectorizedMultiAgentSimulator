@@ -405,7 +405,10 @@ class Environment(TorchVectorizedObject):
             )
 
         for entity in self.world.entities:
-            [self.viewer.add_onetime(geom) for geom in entity.render()]
+            [
+                self.viewer.add_onetime(geom)
+                for geom in entity.render(env_index=env_index)
+            ]
 
         # render to display or array
         return self.viewer.render(return_rgb_array=mode == "rgb_array")
