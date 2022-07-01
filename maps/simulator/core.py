@@ -8,9 +8,11 @@ from typing import Callable, List, Union, Tuple
 
 import torch
 from torch import Tensor
-from maps.simulator.utils import Color, SensorType, X, Y, override, LINE_MIN_DIST
+
+from maps.simulator.utils import Color, X, Y, override, LINE_MIN_DIST
 from maps.simulator import rendering
 from maps.simulator.rendering import Geom
+from maps.simulator.sensors import Sensor
 
 
 class TorchVectorizedObject(object):
@@ -489,7 +491,7 @@ class Agent(Entity):
         u_range: float = 1.0,
         u_multiplier: float = 1.0,
         action_script: Callable[[Agent, World], None] = None,
-        sensors: Union[SensorType, List[SensorType]] = None,
+        sensors: List[Sensor] = None,
         c_noise: float = None,
         silent: bool = True,
         adversary: bool = False,
@@ -523,7 +525,9 @@ class Agent(Entity):
         # script behavior to execute
         self._action_script = action_script
         # agents sensors
-        self._sensors = sensors
+        self._sensors = []
+        if self._sensors is not None:
+            [self.add_sensor(sensor) for sensor in sensors]
         # non differentiable communication noise
         self._c_noise = c_noise
         # cannot send communication signals
@@ -535,6 +539,10 @@ class Agent(Entity):
         self._action = Action()
         # state
         self._state = AgentState()
+
+    def add_sensor(self, sensor: Sensor):
+        sensor.agent = self
+        self._sensors.append(sensor)
 
     @Entity.batch_dim.setter
     def batch_dim(self, batch_dim: int):
@@ -610,6 +618,9 @@ class Agent(Entity):
         geoms = super().render(env_index)
         for geom in geoms:
             geom.set_color(*self.color, alpha=0.5)
+        if self._sensors is not None:
+            for sensor in self._sensors:
+                geoms += sensor.render()
         return geoms
 
 
