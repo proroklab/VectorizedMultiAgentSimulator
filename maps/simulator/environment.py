@@ -6,11 +6,10 @@ import gym
 import numpy as np
 import torch
 from gym import spaces
-from maps.simulator import core
-from maps.simulator.core import Agent, Box, Line, TorchVectorizedObject
+from maps.simulator.core import Agent, TorchVectorizedObject
 from maps.simulator.scenario import BaseScenario
-from maps.simulator.utils import Color, X, Y, ALPHABET
 from maps.simulator.utils import VIEWER_MIN_SIZE
+from maps.simulator.utils import X, Y, ALPHABET
 from ray import rllib
 from ray.rllib.utils.typing import EnvActionType, EnvInfoDict, EnvObsType
 from torch import Tensor
@@ -342,8 +341,9 @@ class Environment(TorchVectorizedObject):
                 self.headless = False
             pyglet.options["headless"] = self.headless
 
-            self._create_rendering_objects()
+            self._init_rendering()
 
+        # Render comm messages
         if self.world.dim_c > 0:
             idx = 0
             for agent in self.world.agents:
@@ -403,74 +403,31 @@ class Environment(TorchVectorizedObject):
                 pos[Y] - cam_range[Y],
                 pos[Y] + cam_range[Y],
             )
-        # update geometry positions
-        for e, entity in enumerate(self.world.entities):
-            self._set_entity_render_color(e, env_index)
-            self.render_geoms_xform[e].set_translation(*entity.state.pos[env_index])
-            self.render_geoms_xform[e].set_rotation(entity.state.rot[env_index])
+
+        for entity in self.world.entities:
+            [
+                self.viewer.add_onetime(geom)
+                for geom in entity.render(env_index=env_index)
+            ]
+
         # render to display or array
         return self.viewer.render(return_rgb_array=mode == "rgb_array")
 
-    def _create_rendering_objects(self):
-        # import rendering only if we need it (and don't import for headless machines)
+    def _init_rendering(self):
         from maps.simulator import rendering
 
         self.viewer = rendering.Viewer(
             *self.scenario.viewer_size, visible=self.visible_display
         )
-        self.render_geoms = []
-        self.render_geoms_xform = []
-        for entity_index, entity in enumerate(self.world.entities):
-            if isinstance(entity.shape, core.Sphere):
-                geom = rendering.make_circle(entity.shape.radius)
-            elif isinstance(entity.shape, Line):
-                geom = rendering.Line(
-                    (-entity.shape.length / 2, 0),
-                    (entity.shape.length / 2, 0),
-                    width=entity.shape.width,
-                )
-            elif isinstance(entity.shape, Box):
-                l, r, t, b = (
-                    -entity.shape.length / 2,
-                    entity.shape.length / 2,
-                    entity.shape.width / 2,
-                    -entity.shape.width / 2,
-                )
-                geom = rendering.make_polygon([(l, b), (l, t), (r, t), (r, b)])
-            else:
-                assert (
-                    False
-                ), f"Entity shape not supported in rendering for {entity.name}"
-            xform = rendering.Transform()
-            geom.add_attr(xform)
-            self.render_geoms.append(geom)
-            self.render_geoms_xform.append(xform)
 
-        # add geoms to viewer
-        self.viewer.geoms = []
-        for geom in self.render_geoms:
-            self.viewer.add_geom(geom)
-        self.viewer.text_lines = []
         idx = 0
         if self.world.dim_c > 0:
+            self.viewer.text_lines = []
             for agent in self.world.agents:
                 if not agent.silent:
                     text_line = rendering.TextLine(self.viewer.window, idx)
                     self.viewer.text_lines.append(text_line)
                     idx += 1
-
-    def _set_entity_render_color(self, entity_index: int, env_index: int):
-        entity = self.world.entities[entity_index]
-        if not entity.render[env_index]:
-            self.render_geoms[entity_index].set_color(*Color.WHITE.value, alpha=0)
-        else:
-            color = entity.color
-            if isinstance(color, torch.Tensor) and len(color.shape) > 1:
-                color = color[env_index]
-            if isinstance(entity, Agent):
-                self.render_geoms[entity_index].set_color(*color, alpha=0.5)
-            else:
-                self.render_geoms[entity_index].set_color(*color)
 
 
 class VectorEnvWrapper(rllib.VectorEnv):
