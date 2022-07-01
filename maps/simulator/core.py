@@ -695,8 +695,12 @@ class World(TorchVectorizedObject):
         torch.manual_seed(seed)
         return [seed]
 
-    def _get_box_ray_intersection(
-        self, box: Entity, pos: torch.Tensor, angles: torch.Tensor
+    def get_box_ray_dist(
+        self,
+        box: Entity,
+        pos: torch.Tensor,
+        angles: torch.Tensor,
+        max_range: float = float("inf"),
     ):
         """
         Inspired from https://tavianator.com/2011/ray_box.html
@@ -732,10 +736,16 @@ class World(TorchVectorizedObject):
         )
 
         collision = (tmax >= tmin) and (tmin > 0.0)
-        return collision, intersect_world
+        dist = torch.linalg.norm(pos - intersect_world, dim=1)
+        dist[~collision] = max_range
+        return dist
 
-    def _get_sphere_ray_intersection(
-        self, sphere: Entity, pos: torch.Tensor, angles: torch.Tensor
+    def get_sphere_ray_dist(
+        self,
+        sphere: Entity,
+        pos: torch.Tensor,
+        angles: torch.Tensor,
+        max_range: float = float("inf"),
     ):
         """
         Inspired by https://www.bluebill.net/circle_ray_intersection.html
@@ -756,26 +766,25 @@ class World(TorchVectorizedObject):
         first_intersection = pos + u1 - m * ray_dir_world
         ray_intersects = d <= sphere.shape.radius
         sphere_is_in_front = u_dot_ray.squeeze(1) > 0.0
-        return ray_intersects and sphere_is_in_front, first_intersection
 
-    def raycast(self, pos: torch.Tensor, angles: torch.Tensor):
+        dist = torch.linalg.norm(pos - first_intersection, dim=1)
+        dist[~(ray_intersects and sphere_is_in_front)] = max_range
+        return dist
+
+    def raycast(
+        self, pos: torch.Tensor, angles: torch.Tensor, max_range: float = float("inf")
+    ):
         assert pos.ndim == 2 and angles.ndim == 1
         assert pos.shape[0] == angles.shape[0]
 
         dists = []
         for entity in self.landmarks:
             if isinstance(entity.shape, Box):
-                collision, intersect = self._get_box_ray_intersection(
-                    entity, pos, angles
-                )
+                d = self.get_box_ray_dist(entity, pos, angles, max_range)
             elif isinstance(entity.shape, Sphere):
-                collision, intersect = self._get_sphere_ray_intersection(
-                    entity, pos, angles
-                )
+                d = self.get_sphere_ray_dist(entity, pos, angles, max_range)
             else:
-                assert False, f"Shape {entity.shape} currently not handled by raycast"
-            d = torch.linalg.norm(pos - intersect, dim=1)
-            d[~collision] = float("inf")
+                assert False, f"Shape {entity.shape} currently not handled"
             dists.append(d)
         dist, _ = torch.min(torch.stack(dists, dim=-1), dim=-1)
         return dist
