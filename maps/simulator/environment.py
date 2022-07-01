@@ -6,11 +6,10 @@ import gym
 import numpy as np
 import torch
 from gym import spaces
-from maps.simulator import core
-from maps.simulator.core import Agent, Box, Line, TorchVectorizedObject
+from maps.simulator.core import Agent, TorchVectorizedObject
 from maps.simulator.scenario import BaseScenario
-from maps.simulator.utils import Color, X, Y, ALPHABET
 from maps.simulator.utils import VIEWER_MIN_SIZE
+from maps.simulator.utils import X, Y, ALPHABET
 from ray import rllib
 from ray.rllib.utils.typing import EnvActionType, EnvInfoDict, EnvObsType
 from torch import Tensor
@@ -342,12 +341,9 @@ class Environment(TorchVectorizedObject):
                 self.headless = False
             pyglet.options["headless"] = self.headless
 
-            from maps.simulator import rendering
+            self._init_rendering()
 
-            self.viewer = rendering.Viewer(
-                *self.scenario.viewer_size, visible=self.visible_display
-            )
-
+        # Render comm messages
         if self.world.dim_c > 0:
             idx = 0
             for agent in self.world.agents:
@@ -411,7 +407,15 @@ class Environment(TorchVectorizedObject):
         for entity in self.world.entities:
             [self.viewer.add_onetime(geom) for geom in entity.render()]
 
+        # render to display or array
+        return self.viewer.render(return_rgb_array=mode == "rgb_array")
+
+    def _init_rendering(self):
         from maps.simulator import rendering
+
+        self.viewer = rendering.Viewer(
+            *self.scenario.viewer_size, visible=self.visible_display
+        )
 
         idx = 0
         if self.world.dim_c > 0:
@@ -421,9 +425,6 @@ class Environment(TorchVectorizedObject):
                     text_line = rendering.TextLine(self.viewer.window, idx)
                     self.viewer.text_lines.append(text_line)
                     idx += 1
-
-        # render to display or array
-        return self.viewer.render(return_rgb_array=mode == "rgb_array")
 
 
 class VectorEnvWrapper(rllib.VectorEnv):
