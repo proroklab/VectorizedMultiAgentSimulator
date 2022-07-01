@@ -51,7 +51,7 @@ class Shape(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def render(self) -> List[Geom]:
+    def get_geometry(self) -> Geom:
         raise NotImplementedError
 
 
@@ -74,14 +74,14 @@ class Box(Shape):
     def moment_of_inertia(self, mass: float):
         return (1 / 12) * mass * (self.length**2 + self.width**2)
 
-    def render(self) -> List[Geom]:
+    def get_geometry(self) -> Geom:
         l, r, t, b = (
             -self.length / 2,
             self.length / 2,
             self.width / 2,
             -self.width / 2,
         )
-        return [rendering.make_polygon([(l, b), (l, t), (r, t), (r, b)])]
+        return rendering.make_polygon([(l, b), (l, t), (r, t), (r, b)])
 
 
 class Sphere(Shape):
@@ -97,8 +97,8 @@ class Sphere(Shape):
     def moment_of_inertia(self, mass: float):
         return (1 / 2) * mass * self.radius**2
 
-    def render(self) -> List[Geom]:
-        return [rendering.make_circle(self.radius)]
+    def get_geometry(self) -> Geom:
+        return rendering.make_circle(self.radius)
 
 
 class Line(Shape):
@@ -119,14 +119,12 @@ class Line(Shape):
     def moment_of_inertia(self, mass: float):
         return (1 / 12) * mass * (self.length**2)
 
-    def render(self) -> List[Geom]:
-        return [
-            rendering.Line(
-                (-self.length / 2, 0),
-                (self.length / 2, 0),
-                width=self.width,
-            )
-        ]
+    def get_geometry(self) -> Geom:
+        return rendering.Line(
+            (-self.length / 2, 0),
+            (self.length / 2, 0),
+            width=self.width,
+        )
 
 
 class EntityState(TorchVectorizedObject):
@@ -275,7 +273,7 @@ class Action(TorchVectorizedObject):
 
 
 # properties and state of physical world entity
-class Entity(TorchVectorizedObject, ABC):
+class Entity(TorchVectorizedObject):
     def __init__(
         self,
         name: str,
@@ -325,7 +323,7 @@ class Entity(TorchVectorizedObject, ABC):
         self._state.device = device
 
     @property
-    def render(self):
+    def is_rendering(self):
         if self._render is None:
             self.reset_render()
         return self._render
@@ -426,6 +424,23 @@ class Entity(TorchVectorizedObject, ABC):
             new = new.to(self.device)
             value = prop.fget(entity)
             value[batch_index] = new
+
+    def render(self, env_index: int = 0) -> List[Geom]:
+        geom = self.shape.get_geometry()
+        xform = rendering.Transform()
+        geom.add_attr(xform)
+
+        xform.set_translation(*self.state.pos[env_index])
+        xform.set_rotation(self.state.rot[env_index])
+
+        if not self.is_rendering[env_index]:
+            geom.set_color(*Color.WHITE.value, alpha=0)
+        else:
+            color = self.color
+            if isinstance(color, torch.Tensor) and len(color.shape) > 1:
+                color = color[env_index]
+            geom.set_color(*color)
+        return [geom]
 
 
 # properties of landmark entities
@@ -590,6 +605,12 @@ class Agent(Entity):
             self.state.c = torch.zeros(
                 self.batch_dim, dim_c, device=self.device, dtype=torch.float32
             )
+
+    def render(self, env_index: int = 0) -> List[Geom]:
+        geoms = super().render(env_index)
+        for geom in geoms:
+            geom.set_color(*self.color, alpha=0.5)
+        return geoms
 
 
 # Multi-agent world

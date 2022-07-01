@@ -342,7 +342,11 @@ class Environment(TorchVectorizedObject):
                 self.headless = False
             pyglet.options["headless"] = self.headless
 
-            self._create_rendering_objects()
+            from maps.simulator import rendering
+
+            self.viewer = rendering.Viewer(
+                *self.scenario.viewer_size, visible=self.visible_display
+            )
 
         if self.world.dim_c > 0:
             idx = 0
@@ -403,56 +407,23 @@ class Environment(TorchVectorizedObject):
                 pos[Y] - cam_range[Y],
                 pos[Y] + cam_range[Y],
             )
-        # update geometry positions
-        for e, entity in enumerate(self.world.entities):
-            self._set_entity_render_color(e, env_index)
-            self.render_geoms_xform[e].set_translation(*entity.state.pos[env_index])
-            self.render_geoms_xform[e].set_rotation(entity.state.rot[env_index])
-        # render to display or array
-        return self.viewer.render(return_rgb_array=mode == "rgb_array")
 
-    def _create_rendering_objects(self):
-        # import rendering only if we need it (and don't import for headless machines)
+        for entity in self.world.entities:
+            [self.viewer.add_onetime(geom) for geom in entity.render()]
+
         from maps.simulator import rendering
 
-        self.viewer = rendering.Viewer(
-            *self.scenario.viewer_size, visible=self.visible_display
-        )
-        self.render_geoms = []
-        self.render_geoms_xform = []
-        for entity in self.world.entities:
-            geoms = entity.shape.render()
-            for geom in geoms:
-                xform = rendering.Transform()
-                geom.add_attr(xform)
-                self.render_geoms.append(geom)
-                self.render_geoms_xform.append(xform)
-
-        # add geoms to viewer
-        self.viewer.geoms = []
-        for geom in self.render_geoms:
-            self.viewer.add_geom(geom)
-        self.viewer.text_lines = []
         idx = 0
         if self.world.dim_c > 0:
+            self.viewer.text_lines = []
             for agent in self.world.agents:
                 if not agent.silent:
                     text_line = rendering.TextLine(self.viewer.window, idx)
                     self.viewer.text_lines.append(text_line)
                     idx += 1
 
-    def _set_entity_render_color(self, entity_index: int, env_index: int):
-        entity = self.world.entities[entity_index]
-        if not entity.render[env_index]:
-            self.render_geoms[entity_index].set_color(*Color.WHITE.value, alpha=0)
-        else:
-            color = entity.color
-            if isinstance(color, torch.Tensor) and len(color.shape) > 1:
-                color = color[env_index]
-            if isinstance(entity, Agent):
-                self.render_geoms[entity_index].set_color(*color, alpha=0.5)
-            else:
-                self.render_geoms[entity_index].set_color(*color)
+        # render to display or array
+        return self.viewer.render(return_rgb_array=mode == "rgb_array")
 
 
 class VectorEnvWrapper(rllib.VectorEnv):

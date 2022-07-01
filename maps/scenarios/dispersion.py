@@ -73,7 +73,7 @@ class Scenario(BaseScenario):
             else:
                 landmark.eaten[env_index] = False
                 landmark.just_eaten[env_index] = False
-                landmark.render[env_index] = True
+                landmark.is_rendering[env_index] = True
 
     def reward(self, agent: Agent):
         is_first = agent == self.world.agents[0]
@@ -115,7 +115,7 @@ class Scenario(BaseScenario):
             if is_last:
                 landmark.eaten += landmark.just_eaten
                 landmark.just_eaten[:] = False
-                landmark.render[landmark.eaten] = False
+                landmark.is_rendering[landmark.eaten] = False
 
         if self.penalise_by_time:
             rews[rews == 0] = -0.01

@@ -196,7 +196,7 @@ class Scenario(BaseScenario):
         passages = [self.world.landmarks[self.n_agents : -4][i] for i in order]
         for i, passage in enumerate(passages):
             if not passage.collide:
-                passage.render[:] = False
+                passage.is_rendering[:] = False
             passage.set_pos(
                 torch.tensor(
                     [

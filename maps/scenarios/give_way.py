@@ -100,7 +100,7 @@ class Scenario(BaseScenario):
             self.world.landmarks[0].reset_render()
         else:
             self.world.landmarks[0].eaten[env_index] = False
-            self.world.landmarks[0].render[env_index] = True
+            self.world.landmarks[0].is_rendering[env_index] = True
         self.world.agents[1].set_pos(
             torch.tensor(
                 [0.85, 0.0],
@@ -125,7 +125,7 @@ class Scenario(BaseScenario):
             self.world.landmarks[1].reset_render()
         else:
             self.world.landmarks[1].eaten[env_index] = False
-            self.world.landmarks[1].render[env_index] = True
+            self.world.landmarks[1].is_rendering[env_index] = True
 
         # Floor
         self.world.landmarks[2].set_pos(
@@ -260,8 +260,8 @@ class Scenario(BaseScenario):
         if is_last:
             blue_agent.goal.eaten[self.blue_on_goal] = True
             green_agent.goal.eaten[self.green_on_goal] = True
-            blue_agent.goal.render[self.blue_on_goal] = False
-            green_agent.goal.render[self.green_on_goal] = False
+            blue_agent.goal.is_rendering[self.blue_on_goal] = False
+            green_agent.goal.is_rendering[self.green_on_goal] = False
             self._done = blue_agent.goal.eaten * green_agent.goal.eaten
         return rew
 
