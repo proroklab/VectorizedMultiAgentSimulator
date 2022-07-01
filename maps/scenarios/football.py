@@ -1,4 +1,5 @@
-#  Copyright (c) 2022. Matteo Bettini
+#  Copyright (c) 2022.
+#  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
 import math
@@ -6,7 +7,6 @@ import operator
 from functools import reduce
 
 import torch
-
 from maps.simulator.core import Agent, World, Landmark, Sphere, Box, Line
 from maps.simulator.scenario import BaseScenario
 from maps.simulator.utils import Color, X, Y

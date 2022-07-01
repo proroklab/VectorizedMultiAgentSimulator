@@ -1,15 +1,15 @@
-#  Copyright (c) 2022. Matteo Bettini
+#  Copyright (c) 2022.
+#  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import math
 from typing import Dict
 
 import torch
-from torch import Tensor
-
 from maps import render_interactively
 from maps.simulator.core import Agent, Landmark, Sphere, World
 from maps.simulator.scenario import BaseScenario
 from maps.simulator.utils import Color
+from torch import Tensor
 
 DEFAULT_ENERGY_COEFF = 0.02
 

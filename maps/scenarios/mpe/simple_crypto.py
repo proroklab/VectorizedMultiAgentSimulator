@@ -4,6 +4,10 @@ Scenario:
 adversary to goal. Adversary is rewarded for its distance to the goal.
 """
 
+#  Copyright (c) 2022.
+#  ProrokLab (https://www.proroklab.org/)
+#  All rights reserved.
+
 import torch
 
 from maps.simulator.core import World, Agent

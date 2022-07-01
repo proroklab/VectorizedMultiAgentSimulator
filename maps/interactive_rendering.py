@@ -1,4 +1,5 @@
-#  Copyright (c) 2022. Matteo Bettini
+#  Copyright (c) 2022.
+#  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 """
 Use this script to interactively play with scenarios
@@ -12,7 +13,6 @@ and switch the agent with these controls using LSHIFT
 from operator import add
 
 import numpy as np
-
 from maps.make_env import make_env
 from maps.simulator.environment import GymWrapper
 

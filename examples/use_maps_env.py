@@ -1,4 +1,5 @@
-#  Copyright (c) 2022. Matteo Bettini
+#  Copyright (c) 2022.
+#  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import os
 import time
@@ -6,7 +7,6 @@ import time
 import numpy as np
 import torch
 from PIL import Image
-
 from maps import make_env
 
 

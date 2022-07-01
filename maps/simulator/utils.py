@@ -1,4 +1,5 @@
-#  Copyright (c) 2022. Matteo Bettini
+#  Copyright (c) 2022.
+#  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import os
 from enum import Enum
