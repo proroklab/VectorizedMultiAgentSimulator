@@ -4,15 +4,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Callable, List, Union, Tuple
+from typing import Callable, List, Tuple
 
 import torch
-from torch import Tensor
-
-from maps.simulator.utils import Color, X, Y, override, LINE_MIN_DIST
-from maps.simulator import rendering
-from maps.simulator.rendering import Geom
 from maps.simulator.sensors import Sensor
+from maps.simulator.utils import Color, X, Y, override, LINE_MIN_DIST
+from torch import Tensor
 
 
 class TorchVectorizedObject(object):
@@ -53,7 +50,7 @@ class Shape(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_geometry(self) -> Geom:
+    def get_geometry(self):
         raise NotImplementedError
 
 
@@ -76,7 +73,9 @@ class Box(Shape):
     def moment_of_inertia(self, mass: float):
         return (1 / 12) * mass * (self.length**2 + self.width**2)
 
-    def get_geometry(self) -> Geom:
+    def get_geometry(self):
+        from maps.simulator import rendering
+
         l, r, t, b = (
             -self.length / 2,
             self.length / 2,
@@ -99,7 +98,9 @@ class Sphere(Shape):
     def moment_of_inertia(self, mass: float):
         return (1 / 2) * mass * self.radius**2
 
-    def get_geometry(self) -> Geom:
+    def get_geometry(self):
+        from maps.simulator import rendering
+
         return rendering.make_circle(self.radius)
 
 
@@ -121,7 +122,9 @@ class Line(Shape):
     def moment_of_inertia(self, mass: float):
         return (1 / 12) * mass * (self.length**2)
 
-    def get_geometry(self) -> Geom:
+    def get_geometry(self):
+        from maps.simulator import rendering
+
         return rendering.Line(
             (-self.length / 2, 0),
             (self.length / 2, 0),
@@ -427,7 +430,11 @@ class Entity(TorchVectorizedObject):
             value = prop.fget(entity)
             value[batch_index] = new
 
-    def render(self, env_index: int = 0) -> List[Geom]:
+    def render(self, env_index: int = 0):
+        from maps.simulator import rendering
+
+        if not self.is_rendering[env_index]:
+            return []
         geom = self.shape.get_geometry()
         xform = rendering.Transform()
         geom.add_attr(xform)
@@ -435,13 +442,11 @@ class Entity(TorchVectorizedObject):
         xform.set_translation(*self.state.pos[env_index])
         xform.set_rotation(self.state.rot[env_index])
 
-        if not self.is_rendering[env_index]:
-            geom.set_color(*Color.WHITE.value, alpha=0)
-        else:
-            color = self.color
-            if isinstance(color, torch.Tensor) and len(color.shape) > 1:
-                color = color[env_index]
-            geom.set_color(*color)
+        color = self.color
+        if isinstance(color, torch.Tensor) and len(color.shape) > 1:
+            color = color[env_index]
+        geom.set_color(*color)
+
         return [geom]
 
 
@@ -525,9 +530,10 @@ class Agent(Entity):
         # script behavior to execute
         self._action_script = action_script
         # agents sensors
-        self._sensors = []
-        if self._sensors is not None:
+        if sensors is not None:
             [self.add_sensor(sensor) for sensor in sensors]
+        else:
+            self._sensors = []
         # non differentiable communication noise
         self._c_noise = c_noise
         # cannot send communication signals
@@ -614,13 +620,15 @@ class Agent(Entity):
                 self.batch_dim, dim_c, device=self.device, dtype=torch.float32
             )
 
-    def render(self, env_index: int = 0) -> List[Geom]:
+    def render(self, env_index: int = 0):
         geoms = super().render(env_index)
+        if len(geoms) == 0:
+            return geoms
         for geom in geoms:
             geom.set_color(*self.color, alpha=0.5)
         if self._sensors is not None:
             for sensor in self._sensors:
-                geoms += sensor.render()
+                geoms += sensor.render(env_index=env_index)
         return geoms
 
 
@@ -727,7 +735,7 @@ class World(TorchVectorizedObject):
         torch.manual_seed(seed)
         return [seed]
 
-    def get_box_ray_dist(
+    def _get_box_ray_dist(
         self,
         box: Entity,
         pos: Tensor,
@@ -772,7 +780,7 @@ class World(TorchVectorizedObject):
         dist[~collision] = max_range
         return dist
 
-    def get_sphere_ray_dist(
+    def _get_sphere_ray_dist(
         self,
         sphere: Entity,
         pos: Tensor,
@@ -810,11 +818,11 @@ class World(TorchVectorizedObject):
         dists = []
         for entity in self.entities:
             if isinstance(entity.shape, Box):
-                d = self.get_box_ray_dist(entity, pos, angles, max_range)
+                d = self._get_box_ray_dist(entity, pos, angles, max_range)
             elif isinstance(entity.shape, Sphere):
-                d = self.get_sphere_ray_dist(entity, pos, angles, max_range)
+                d = self._get_sphere_ray_dist(entity, pos, angles, max_range)
             else:
-                assert False, f"Shape {entity.shape} currently not handled"
+                assert False, f"Shape {entity.shape} currently not handled by raycast"
             dists.append(d)
         dist, _ = torch.min(torch.stack(dists, dim=-1), dim=-1)
         return dist
