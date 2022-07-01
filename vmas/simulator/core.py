@@ -736,11 +736,11 @@ class World(TorchVectorizedObject):
         torch.manual_seed(seed)
         return [seed]
 
-    def _get_box_ray_dist(
+    def _cast_ray_to_box(
         self,
         box: Entity,
-        pos: Tensor,
-        angles: Tensor,
+        ray_origin: Tensor,
+        ray_direction: Tensor,
         max_range: float = float("inf"),
     ):
         """
@@ -748,13 +748,15 @@ class World(TorchVectorizedObject):
         Checks if ray originating from pos at angle intersects with a box and if so
         at what point it intersects.
         """
-        assert pos.ndim == 2 and angles.ndim == 1
-        assert pos.shape[0] == angles.shape[0]
+        assert ray_origin.ndim == 2 and ray_direction.ndim == 1
+        assert ray_origin.shape[0] == ray_direction.shape[0]
         assert isinstance(box.shape, Box)
 
-        pos_origin = pos - box.state.pos
+        pos_origin = ray_origin - box.state.pos
         pos_aabb = World._rotate_vector(pos_origin, -box.state.rot)
-        ray_dir_world = torch.stack([torch.cos(angles), torch.sin(angles)], dim=-1)
+        ray_dir_world = torch.stack(
+            [torch.cos(ray_direction), torch.sin(ray_direction)], dim=-1
+        )
         ray_dir_aabb = World._rotate_vector(ray_dir_world, -box.state.rot)
 
         tx1 = (-box.shape.length / 2 - pos_aabb[:, X]) / ray_dir_aabb[:, X]
@@ -777,15 +779,15 @@ class World(TorchVectorizedObject):
         )
 
         collision = (tmax >= tmin) and (tmin > 0.0)
-        dist = torch.linalg.norm(pos - intersect_world, dim=1)
+        dist = torch.linalg.norm(ray_origin - intersect_world, dim=1)
         dist[~collision] = max_range
         return dist
 
-    def _get_sphere_ray_dist(
+    def _cast_ray_to_sphere(
         self,
         sphere: Entity,
-        pos: Tensor,
-        angles: Tensor,
+        ray_origin: Tensor,
+        ray_direction: Tensor,
         max_range: float = float("inf"),
     ):
         """
@@ -793,37 +795,39 @@ class World(TorchVectorizedObject):
         Checks if ray originating from pos at angle intersects with a sphere and if so
         at what point it intersects.
         """
-        assert pos.ndim == 2 and angles.ndim == 1
-        assert pos.shape[0] == angles.shape[0]
+        assert ray_origin.ndim == 2 and ray_direction.ndim == 1
+        assert ray_origin.shape[0] == ray_direction.shape[0]
         assert isinstance(sphere.shape, Sphere)
 
-        u = sphere.state.pos - pos
-        ray_dir_world = torch.stack([torch.cos(angles), torch.sin(angles)], dim=-1)
+        u = sphere.state.pos - ray_origin
+        ray_dir_world = torch.stack(
+            [torch.cos(ray_direction), torch.sin(ray_direction)], dim=-1
+        )
         u_dot_ray = torch.bmm(u.unsqueeze(1), ray_dir_world.unsqueeze(2)).squeeze(1)
         u1 = u_dot_ray * ray_dir_world
         u2 = u - u1
         d = torch.linalg.norm(u2, dim=1)
         m = torch.sqrt(sphere.shape.radius**2 - d**2)
-        first_intersection = pos + u1 - m * ray_dir_world
+        first_intersection = ray_origin + u1 - m * ray_dir_world
         ray_intersects = d <= sphere.shape.radius
         sphere_is_in_front = u_dot_ray.squeeze(1) > 0.0
 
-        dist = torch.linalg.norm(pos - first_intersection, dim=1)
+        dist = torch.linalg.norm(ray_origin - first_intersection, dim=1)
         dist[~(ray_intersects and sphere_is_in_front)] = max_range
         return dist
 
-    def raycast(self, pos: Tensor, angles: Tensor, max_range: float = float("inf")):
+    def cast_ray(self, pos: Tensor, angles: Tensor, max_range: float = float("inf")):
         assert pos.ndim == 2 and angles.ndim == 1
         assert pos.shape[0] == angles.shape[0]
 
         dists = []
         for entity in self.entities:
             if isinstance(entity.shape, Box):
-                d = self._get_box_ray_dist(entity, pos, angles, max_range)
+                d = self._cast_ray_to_box(entity, pos, angles, max_range)
             elif isinstance(entity.shape, Sphere):
-                d = self._get_sphere_ray_dist(entity, pos, angles, max_range)
+                d = self._cast_ray_to_sphere(entity, pos, angles, max_range)
             else:
-                assert False, f"Shape {entity.shape} currently not handled by raycast"
+                assert False, f"Shape {entity.shape} currently not handled by cast_ray"
             dists.append(d)
         dist, _ = torch.min(torch.stack(dists, dim=-1), dim=-1)
         return dist
