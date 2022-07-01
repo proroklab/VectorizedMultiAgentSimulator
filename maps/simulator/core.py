@@ -278,7 +278,7 @@ class Action(TorchVectorizedObject):
 
 
 # properties and state of physical world entity
-class Entity(TorchVectorizedObject):
+class Entity(TorchVectorizedObject, ABC):
     def __init__(
         self,
         name: str,
