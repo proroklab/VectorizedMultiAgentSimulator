@@ -1,7 +1,8 @@
 """
 2D rendering framework
 """
-#  Copyright (c) 2022. Matteo Bettini
+#  Copyright (c) 2022.
+#  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
 from __future__ import division

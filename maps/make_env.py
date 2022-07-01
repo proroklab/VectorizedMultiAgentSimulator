@@ -7,7 +7,8 @@ After producing the env object, can be used similarly to an OpenAI gym
 environment.
 """
 
-#  Copyright (c) 2022. Matteo Bettini
+#  Copyright (c) 2022.
+#  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
 from maps import scenarios

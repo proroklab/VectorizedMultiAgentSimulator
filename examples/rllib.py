@@ -1,4 +1,5 @@
-#  Copyright (c) 2022. Matteo Bettini
+#  Copyright (c) 2022.
+#  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
 import os
@@ -7,6 +8,7 @@ from typing import Dict, Optional
 import numpy as np
 import ray
 import wandb
+from maps import make_env
 from ray import tune
 from ray.rllib import BaseEnv, Policy, RolloutWorker
 from ray.rllib.agents import DefaultCallbacks, MultiCallbacks
@@ -15,8 +17,6 @@ from ray.rllib.evaluation import Episode, MultiAgentEpisode
 from ray.rllib.utils.typing import PolicyID
 from ray.tune import register_env
 from ray.tune.integration.wandb import WandbLoggerCallback
-
-from maps import make_env
 
 scenario_name = "balance"
 

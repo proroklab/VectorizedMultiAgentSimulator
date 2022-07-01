@@ -1,14 +1,14 @@
-#  Copyright (c) 2022. Matteo Bettini
+#  Copyright (c) 2022.
+#  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
 from abc import ABC, abstractmethod
 from typing import Dict
 
 import torch
-from torch import Tensor
-
 from maps.simulator.core import World, Agent
 from maps.simulator.utils import INITIAL_VIEWER_SIZE
+from torch import Tensor
 
 
 class BaseScenario(ABC):
