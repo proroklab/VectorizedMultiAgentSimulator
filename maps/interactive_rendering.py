@@ -109,7 +109,6 @@ class InteractiveEnv:
             self.text_idx = len(self.env.unwrapped().viewer.text_lines)
         except AttributeError:
             self.text_idx = 0
-            self.env.unwrapped().viewer.text_lines = []
 
         for i in range(N_TEXT_LINES_INTERACTIVE):
             text_line = rendering.TextLine(
