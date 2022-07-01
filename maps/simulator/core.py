@@ -530,10 +530,9 @@ class Agent(Entity):
         # script behavior to execute
         self._action_script = action_script
         # agents sensors
+        self._sensors = []
         if sensors is not None:
             [self.add_sensor(sensor) for sensor in sensors]
-        else:
-            self._sensors = []
         # non differentiable communication noise
         self._c_noise = c_noise
         # cannot send communication signals
