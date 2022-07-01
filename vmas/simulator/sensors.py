@@ -62,7 +62,7 @@ class Lidar(Sensor):
         dists = []
         for angle in self._angles:
             dists.append(
-                self._world.raycast(
+                self._world.cast_ray(
                     self.agent.state.pos, angle, max_range=self._max_range
                 )
             )
