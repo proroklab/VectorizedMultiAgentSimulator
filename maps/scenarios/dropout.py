@@ -77,7 +77,7 @@ class Scenario(BaseScenario):
                 landmark.reset_render()
             else:
                 landmark.eaten[env_index] = False
-                landmark.render[env_index] = True
+                landmark.is_rendering[env_index] = True
 
     def reward(self, agent: Agent):
         is_first = agent == self.world.agents[0]
@@ -103,7 +103,7 @@ class Scenario(BaseScenario):
 
         if is_last:
             self.world.landmarks[0].eaten[self.any_eaten] = True
-            self.world.landmarks[0].render[self.any_eaten] = False
+            self.world.landmarks[0].is_rendering[self.any_eaten] = False
 
         # Assumption: all agents have same action range and multiplier
         if is_first:

@@ -4,10 +4,11 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Callable, List, Union, Tuple
+from typing import Callable, List, Tuple
 
 import torch
-from maps.simulator.utils import Color, SensorType, X, Y, override, LINE_MIN_DIST
+from maps.simulator.sensors import Sensor
+from maps.simulator.utils import Color, X, Y, override, LINE_MIN_DIST
 from torch import Tensor
 
 
@@ -48,6 +49,10 @@ class Shape(ABC):
     def moment_of_inertia(self, mass: float):
         raise NotImplementedError
 
+    @abstractmethod
+    def get_geometry(self):
+        raise NotImplementedError
+
 
 class Box(Shape):
     def __init__(self, length: float = 0.3, width: float = 0.1):
@@ -68,6 +73,17 @@ class Box(Shape):
     def moment_of_inertia(self, mass: float):
         return (1 / 12) * mass * (self.length**2 + self.width**2)
 
+    def get_geometry(self):
+        from maps.simulator import rendering
+
+        l, r, t, b = (
+            -self.length / 2,
+            self.length / 2,
+            self.width / 2,
+            -self.width / 2,
+        )
+        return rendering.make_polygon([(l, b), (l, t), (r, t), (r, b)])
+
 
 class Sphere(Shape):
     def __init__(self, radius: float = 0.05):
@@ -81,6 +97,11 @@ class Sphere(Shape):
 
     def moment_of_inertia(self, mass: float):
         return (1 / 2) * mass * self.radius**2
+
+    def get_geometry(self):
+        from maps.simulator import rendering
+
+        return rendering.make_circle(self.radius)
 
 
 class Line(Shape):
@@ -100,6 +121,15 @@ class Line(Shape):
 
     def moment_of_inertia(self, mass: float):
         return (1 / 12) * mass * (self.length**2)
+
+    def get_geometry(self):
+        from maps.simulator import rendering
+
+        return rendering.Line(
+            (-self.length / 2, 0),
+            (self.length / 2, 0),
+            width=self.width,
+        )
 
 
 class EntityState(TorchVectorizedObject):
@@ -248,7 +278,7 @@ class Action(TorchVectorizedObject):
 
 
 # properties and state of physical world entity
-class Entity(TorchVectorizedObject, ABC):
+class Entity(TorchVectorizedObject):
     def __init__(
         self,
         name: str,
@@ -298,7 +328,7 @@ class Entity(TorchVectorizedObject, ABC):
         self._state.device = device
 
     @property
-    def render(self):
+    def is_rendering(self):
         if self._render is None:
             self.reset_render()
         return self._render
@@ -400,6 +430,25 @@ class Entity(TorchVectorizedObject, ABC):
             value = prop.fget(entity)
             value[batch_index] = new
 
+    def render(self, env_index: int = 0):
+        from maps.simulator import rendering
+
+        if not self.is_rendering[env_index]:
+            return []
+        geom = self.shape.get_geometry()
+        xform = rendering.Transform()
+        geom.add_attr(xform)
+
+        xform.set_translation(*self.state.pos[env_index])
+        xform.set_rotation(self.state.rot[env_index])
+
+        color = self.color
+        if isinstance(color, torch.Tensor) and len(color.shape) > 1:
+            color = color[env_index]
+        geom.set_color(*color)
+
+        return [geom]
+
 
 # properties of landmark entities
 class Landmark(Entity):
@@ -447,7 +496,7 @@ class Agent(Entity):
         u_range: float = 1.0,
         u_multiplier: float = 1.0,
         action_script: Callable[[Agent, World], None] = None,
-        sensors: Union[SensorType, List[SensorType]] = None,
+        sensors: List[Sensor] = None,
         c_noise: float = None,
         silent: bool = True,
         adversary: bool = False,
@@ -481,7 +530,10 @@ class Agent(Entity):
         # script behavior to execute
         self._action_script = action_script
         # agents sensors
-        self._sensors = sensors
+        if sensors is not None:
+            [self.add_sensor(sensor) for sensor in sensors]
+        else:
+            self._sensors = []
         # non differentiable communication noise
         self._c_noise = c_noise
         # cannot send communication signals
@@ -493,6 +545,10 @@ class Agent(Entity):
         self._action = Action()
         # state
         self._state = AgentState()
+
+    def add_sensor(self, sensor: Sensor):
+        sensor.agent = self
+        self._sensors.append(sensor)
 
     @Entity.batch_dim.setter
     def batch_dim(self, batch_dim: int):
@@ -563,6 +619,17 @@ class Agent(Entity):
             self.state.c = torch.zeros(
                 self.batch_dim, dim_c, device=self.device, dtype=torch.float32
             )
+
+    def render(self, env_index: int = 0):
+        geoms = super().render(env_index)
+        if len(geoms) == 0:
+            return geoms
+        for geom in geoms:
+            geom.set_color(*self.color, alpha=0.5)
+        if self._sensors is not None:
+            for sensor in self._sensors:
+                geoms += sensor.render(env_index=env_index)
+        return geoms
 
 
 # Multi-agent world
@@ -668,8 +735,12 @@ class World(TorchVectorizedObject):
         torch.manual_seed(seed)
         return [seed]
 
-    def _get_box_ray_intersection(
-        self, box: Entity, pos: torch.Tensor, angles: torch.Tensor
+    def _get_box_ray_dist(
+        self,
+        box: Entity,
+        pos: Tensor,
+        angles: Tensor,
+        max_range: float = float("inf"),
     ):
         """
         Inspired from https://tavianator.com/2011/ray_box.html
@@ -705,10 +776,16 @@ class World(TorchVectorizedObject):
         )
 
         collision = (tmax >= tmin) and (tmin > 0.0)
-        return collision, intersect_world
+        dist = torch.linalg.norm(pos - intersect_world, dim=1)
+        dist[~collision] = max_range
+        return dist
 
-    def _get_sphere_ray_intersection(
-        self, sphere: Entity, pos: torch.Tensor, angles: torch.Tensor
+    def _get_sphere_ray_dist(
+        self,
+        sphere: Entity,
+        pos: Tensor,
+        angles: Tensor,
+        max_range: float = float("inf"),
     ):
         """
         Inspired by https://www.bluebill.net/circle_ray_intersection.html
@@ -729,26 +806,23 @@ class World(TorchVectorizedObject):
         first_intersection = pos + u1 - m * ray_dir_world
         ray_intersects = d <= sphere.shape.radius
         sphere_is_in_front = u_dot_ray.squeeze(1) > 0.0
-        return ray_intersects and sphere_is_in_front, first_intersection
 
-    def raycast(self, pos: torch.Tensor, angles: torch.Tensor):
+        dist = torch.linalg.norm(pos - first_intersection, dim=1)
+        dist[~(ray_intersects and sphere_is_in_front)] = max_range
+        return dist
+
+    def raycast(self, pos: Tensor, angles: Tensor, max_range: float = float("inf")):
         assert pos.ndim == 2 and angles.ndim == 1
         assert pos.shape[0] == angles.shape[0]
 
         dists = []
-        for entity in self.landmarks:
+        for entity in self.entities:
             if isinstance(entity.shape, Box):
-                collision, intersect = self._get_box_ray_intersection(
-                    entity, pos, angles
-                )
+                d = self._get_box_ray_dist(entity, pos, angles, max_range)
             elif isinstance(entity.shape, Sphere):
-                collision, intersect = self._get_sphere_ray_intersection(
-                    entity, pos, angles
-                )
+                d = self._get_sphere_ray_dist(entity, pos, angles, max_range)
             else:
                 assert False, f"Shape {entity.shape} currently not handled by raycast"
-            d = torch.linalg.norm(pos - intersect, dim=1)
-            d[~collision] = float("inf")
             dists.append(d)
         dist, _ = torch.min(torch.stack(dists, dim=-1), dim=-1)
         return dist
