@@ -808,7 +808,7 @@ class World(TorchVectorizedObject):
         assert pos.shape[0] == angles.shape[0]
 
         dists = []
-        for entity in self.landmarks:
+        for entity in self.entities:
             if isinstance(entity.shape, Box):
                 d = self.get_box_ray_dist(entity, pos, angles, max_range)
             elif isinstance(entity.shape, Sphere):
