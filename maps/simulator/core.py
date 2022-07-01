@@ -719,8 +719,8 @@ class World(TorchVectorizedObject):
     def get_box_ray_dist(
         self,
         box: Entity,
-        pos: torch.Tensor,
-        angles: torch.Tensor,
+        pos: Tensor,
+        angles: Tensor,
         max_range: float = float("inf"),
     ):
         """
@@ -764,8 +764,8 @@ class World(TorchVectorizedObject):
     def get_sphere_ray_dist(
         self,
         sphere: Entity,
-        pos: torch.Tensor,
-        angles: torch.Tensor,
+        pos: Tensor,
+        angles: Tensor,
         max_range: float = float("inf"),
     ):
         """
@@ -792,9 +792,7 @@ class World(TorchVectorizedObject):
         dist[~(ray_intersects and sphere_is_in_front)] = max_range
         return dist
 
-    def raycast(
-        self, pos: torch.Tensor, angles: torch.Tensor, max_range: float = float("inf")
-    ):
+    def raycast(self, pos: Tensor, angles: Tensor, max_range: float = float("inf")):
         assert pos.ndim == 2 and angles.ndim == 1
         assert pos.shape[0] == angles.shape[0]
 
