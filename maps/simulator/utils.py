@@ -22,10 +22,6 @@ class Color(Enum):
     BLACK = (0.15, 0.15, 0.15)
 
 
-class SensorType(Enum):
-    LIDAR = 1
-
-
 def override(cls):
     """Decorator for documenting method overrides."""
 
