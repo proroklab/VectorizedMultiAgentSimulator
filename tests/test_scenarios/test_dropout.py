@@ -1,11 +1,12 @@
-#  Copyright (c) 2022. Matteo Bettini
+#  Copyright (c) 2022.
+#  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import unittest
 
 import torch
 
-from maps import make_env
-from maps.scenarios.dropout import DEFAULT_ENERGY_COEFF
+from vmas import make_env
+from vmas.scenarios.dropout import DEFAULT_ENERGY_COEFF
 
 
 class TestDropout(unittest.TestCase):

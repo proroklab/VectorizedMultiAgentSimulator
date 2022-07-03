@@ -8,7 +8,6 @@ from typing import Dict, Optional
 import numpy as np
 import ray
 import wandb
-from maps import make_env
 from ray import tune
 from ray.rllib import BaseEnv, Policy, RolloutWorker
 from ray.rllib.agents import DefaultCallbacks, MultiCallbacks
@@ -17,6 +16,8 @@ from ray.rllib.evaluation import Episode, MultiAgentEpisode
 from ray.rllib.utils.typing import PolicyID
 from ray.tune import register_env
 from ray.tune.integration.wandb import WandbLoggerCallback
+
+from vmas import make_env
 
 scenario_name = "balance"
 
@@ -29,7 +30,7 @@ continuous_actions = True
 max_steps = 200
 num_vectorized_envs = 96
 num_workers = 5
-maps_device = "cpu"  # or cuda
+vmas_device = "cpu"  # or cuda
 
 
 def env_creator(config: Dict):
@@ -120,7 +121,7 @@ def train():
     RLLIB_NUM_GPUS = int(os.environ.get("RLLIB_NUM_GPUS", "0"))
     num_gpus = 0.001 if RLLIB_NUM_GPUS > 0 else 0  # Driver GPU
     num_gpus_per_worker = (
-        (RLLIB_NUM_GPUS - num_gpus) / (num_workers + 1) if maps_device == "cuda" else 0
+        (RLLIB_NUM_GPUS - num_gpus) / (num_workers + 1) if vmas_device == "cuda" else 0
     )
 
     tune.run(
@@ -161,7 +162,7 @@ def train():
             "use_critic": True,
             "batch_mode": "truncate_episodes",
             "env_config": {
-                "device": maps_device,
+                "device": vmas_device,
                 "num_envs": num_vectorized_envs,
                 "scenario_name": scenario_name,
                 "continuous_actions": continuous_actions,

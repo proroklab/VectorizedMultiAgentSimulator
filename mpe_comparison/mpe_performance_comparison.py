@@ -1,4 +1,5 @@
-#  Copyright (c) 2022. Matteo Bettini
+#  Copyright (c) 2022.
+#  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
 import argparse
@@ -15,7 +16,7 @@ import tikzplotlib
 import torch
 from matplotlib import pyplot as plt
 
-import maps
+import vmas
 
 
 def mpe_make_env(scenario_name):
@@ -54,11 +55,11 @@ def run_mpe_simple_spread(n_envs: int, n_steps: int):
     return total_time
 
 
-def run_maps_simple_spread(n_envs: int, n_steps: int, device: str):
+def run_vmas_simple_spread(n_envs: int, n_steps: int, device: str):
     n_envs = int(n_envs)
     n_steps = int(n_steps)
     n_agents = 3
-    env = maps.make_env(
+    env = vmas.make_env(
         "simple_spread",
         device=device,
         num_envs=n_envs,
@@ -109,7 +110,7 @@ def get_device_name(torch_device: str):
 
 def store_pickled_evaluation(name: str, evaluation: list):
     save_folder = (
-        f"{os.path.dirname(os.path.realpath(__file__))}/maps_vs_mpe_graphs/pickled"
+        f"{os.path.dirname(os.path.realpath(__file__))}/vmas_vs_mpe_graphs/pickled"
     )
     file = f"{save_folder}/{name}.pkl"
 
@@ -120,7 +121,7 @@ def load_pickled_evaluation(
     name: str,
 ):
     save_folder = (
-        f"{os.path.dirname(os.path.realpath(__file__))}/maps_vs_mpe_graphs/pickled"
+        f"{os.path.dirname(os.path.realpath(__file__))}/vmas_vs_mpe_graphs/pickled"
     )
     file = Path(f"{save_folder}/{name}.pkl")
 
@@ -129,36 +130,36 @@ def load_pickled_evaluation(
     return None
 
 
-def run_comparison(maps_device: str, n_steps: int = 100):
-    device_name = get_device_name(maps_device)
+def run_comparison(vmas_device: str, n_steps: int = 100):
+    device_name = get_device_name(vmas_device)
 
     mpe_times = []
-    maps_times = []
+    vmas_times = []
 
     low = 1
     high = 30000
-    num = 75
+    num = 100
 
     list_n_envs = np.linspace(low, high, num)
 
-    figure_name = f"MAPS_vs_MPE_{n_steps}_steps_{device_name.lower().replace(' ','_')}"
+    figure_name = f"VMAS_vs_MPE_{n_steps}_steps_{device_name.lower().replace(' ','_')}"
     figure_name_pkl = figure_name + f"_range_{low}_{high}_num_{num}"
 
     evaluation = load_pickled_evaluation(figure_name_pkl)
     if evaluation is None:
         for n_envs in list_n_envs:
             mpe_times.append(run_mpe_simple_spread(n_envs=n_envs, n_steps=n_steps))
-            maps_times.append(
-                run_maps_simple_spread(
-                    n_envs=n_envs, n_steps=n_steps, device=maps_device
+            vmas_times.append(
+                run_vmas_simple_spread(
+                    n_envs=n_envs, n_steps=n_steps, device=vmas_device
                 )
             )
         store_pickled_evaluation(
-            name=figure_name_pkl, evaluation=[mpe_times, maps_times]
+            name=figure_name_pkl, evaluation=[mpe_times, vmas_times]
         )
     else:
         mpe_times = evaluation[0]
-        maps_times = evaluation[1]
+        vmas_times = evaluation[1]
 
     fig, ax = plt.subplots()
     ax.plot(
@@ -168,14 +169,14 @@ def run_comparison(maps_device: str, n_steps: int = 100):
     )
     ax.plot(
         list_n_envs,
-        maps_times,
-        label="MAPS",
+        vmas_times,
+        label="VMAS",
     )
     plt.xlabel("Number of parallel environments", fontsize=14)
     plt.ylabel("Seconds", fontsize=14)
     ax.legend(loc="upper left")
 
-    fig.suptitle("MAPS vs MPE", fontsize=16)
+    fig.suptitle("VMAS vs MPE", fontsize=16)
     ax.set_title(
         f"Execution time of 'simple_spread' for {n_steps} steps on {device_name}",
         fontsize=8,
@@ -184,22 +185,22 @@ def run_comparison(maps_device: str, n_steps: int = 100):
     save_folder = os.path.dirname(os.path.realpath(__file__))
     tikzplotlib.clean_figure()
     tikzplotlib.save(
-        f"{save_folder}/maps_vs_mpe_graphs/{figure_name}.tex",
+        f"{save_folder}/vmas_vs_mpe_graphs/{figure_name}.tex",
     )
-    plt.savefig(f"{save_folder}/maps_vs_mpe_graphs/{figure_name}.pdf")
+    plt.savefig(f"{save_folder}/vmas_vs_mpe_graphs/{figure_name}.pdf")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Run a time comparison between MAPS and MPE"
+        description="Run a time comparison between VMAS and MPE"
     )
 
     parser.add_argument(
         "--cuda",
         action="store_true",
-        help="Use cuda device for MAPS",
+        help="Use cuda device for VMAS",
     )
 
     args = parser.parse_args()
 
-    run_comparison(maps_device="cuda" if args.cuda else "cpu")
+    run_comparison(vmas_device="cuda" if args.cuda else "cpu")
