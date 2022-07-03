@@ -23,7 +23,6 @@ class TestPassage(unittest.TestCase):
             num_envs=self.n_envs,
             device="cpu",
             continuous_actions=self.continuous_actions,
-            rllib_wrapped=False,
             # Environment specific variables
             **kwargs,
         )

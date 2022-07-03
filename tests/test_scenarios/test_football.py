@@ -20,7 +20,6 @@ class TestFootball(unittest.TestCase):
             num_envs=self.n_envs,
             device="cpu",
             continuous_actions=True,
-            rllib_wrapped=False,
             # Environment specific variables
             **kwargs,
         )

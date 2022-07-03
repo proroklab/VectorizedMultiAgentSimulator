@@ -20,7 +20,6 @@ class TestWaterfall(unittest.TestCase):
             num_envs=self.n_envs,
             device="cpu",
             continuous_actions=self.continuous_actions,
-            rllib_wrapped=False,
             # Environment specific variables
             n_agents=self.n_agents,
         )

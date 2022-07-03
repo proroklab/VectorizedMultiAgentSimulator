@@ -12,7 +12,8 @@ environment.
 #  All rights reserved.
 
 from vmas import scenarios
-from vmas.simulator.environment import VectorEnvWrapper, Environment
+from vmas.simulator.environment import Environment
+from vmas.simulator.environment import Wrapper
 
 
 def make_env(
@@ -20,7 +21,7 @@ def make_env(
     num_envs: int = 32,
     device: str = "cpu",
     continuous_actions: bool = True,
-    rllib_wrapped: bool = False,
+    wrapper: Wrapper = None,
     max_steps: int = None,
     **kwargs,
 ):
@@ -35,4 +36,4 @@ def make_env(
         **kwargs,
     )
 
-    return VectorEnvWrapper(env) if rllib_wrapped else env
+    return wrapper.get_env(env) if wrapper is not None else env

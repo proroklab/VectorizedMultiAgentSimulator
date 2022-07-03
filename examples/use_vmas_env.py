@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from PIL import Image
 
-from vmas import make_env
+from vmas import make_env, Wrapper
 
 
 def use_vmas_env(render: bool = False):
@@ -21,7 +21,7 @@ def use_vmas_env(render: bool = False):
     num_envs = 32
     continuous_actions = False
     device = "cpu"  # or cuda or any other torch device
-    wrapped = False
+    wrapper = Wrapper.RLLIB
     n_steps = 100
 
     simple_2d_action = (
@@ -33,7 +33,7 @@ def use_vmas_env(render: bool = False):
         num_envs=num_envs,
         device=device,
         continuous_actions=continuous_actions,
-        rllib_wrapped=wrapped,
+        wrapper=wrapper,
         # Environment specific variables
         n_agents=n_agents,
     )
@@ -45,7 +45,7 @@ def use_vmas_env(render: bool = False):
         actions = []
         step += 1
         print(f"Step {step}")
-        if wrapped:  # Rllib interface
+        if wrapper is Wrapper.RLLIB:  # Rllib interface
             for i in range(num_envs):
                 actions_per_env = []
                 for j in range(n_agents):
@@ -62,7 +62,7 @@ def use_vmas_env(render: bool = False):
                         )  # Can give the camera an agent index to focus onß
                     )
                 )
-        else:  # Same as before, with faster VMAS interface
+        elif wrapper is None:  # Same as before, with faster VMAS interface
             for i in range(n_agents):
                 actions.append(
                     torch.tensor(
@@ -99,7 +99,7 @@ def use_vmas_env(render: bool = False):
     total_time = time.time() - init_time
     print(
         f"It took: {total_time}s for {n_steps} steps of {num_envs} parallel environments on device {device}"
-        f" for {'wrapped' if wrapped else 'unwrapped'} simulator"
+        f" for {wrapper.name}{' wrapped' if wrapper is not None else ''} simulator"
     )
 
 

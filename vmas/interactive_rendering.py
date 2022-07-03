@@ -238,7 +238,6 @@ def render_interactively(
                 num_envs=1,
                 device="cpu",
                 continuous_actions=True,
-                rllib_wrapped=False,
                 # Environment specific variables
                 **kwargs,
             )

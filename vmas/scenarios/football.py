@@ -1694,7 +1694,6 @@ def multiple_envs():
         num_envs=num_envs,
         device=device,
         continuous_actions=True,
-        rllib_wrapped=False,
         # Environment specific variables
         **env_args,
     )
