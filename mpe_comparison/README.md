@@ -1,4 +1,4 @@
-# MAPS vs MPE
+# VMAS vs MPE
 
 ## Installing MPE
 ```

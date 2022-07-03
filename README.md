@@ -1,14 +1,14 @@
-# VectorizedMultiAgentParticleSimulator (VMAPS)
+# VectorizedMultiAgentSimulator (VMAS)
 
 <p align="center">
-<img src="media/VMAPS_white.gif" alt="drawing"/>  
+<img src="media/VMAS_white.gif" alt="drawing"/>  
 </p>
 
-Welcome to **VMAPS**!
+Welcome to **VMAS**!
 
-This repository contains the code for the Multi Agent Particle Simulator (MAPS).
+This repository contains the code for the Multi Agent Particle Simulator (VMAS).
 
-MAPS is a vectorized simulator designed for simulating agents and entities in a 2D particle world.
+VMAS is a vectorized simulator designed for simulating agents and entities in a 2D particle world.
 Its primary use is Multi Agent Reinforcement Learning (MARL) as it provides OpenAI gym interfaces
 for all scenarios. It simulates basic body dynamics and elastic collisions. The implementation 
 is written in PyTorch to provide environment vectorization (multiple environments can be stepped parallely 
@@ -20,7 +20,7 @@ additional shapes for entities (boxes, lines) and related collision rules.
 ## How to use
 
 ### Notebook &ensp; [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1ipcNWJH0LKv6eLNs05tPrcLQHisbFaFU?usp=sharing)
-Here is a simple notebook that you can run to create, step and render any environment. It reproduces the `use_maps_env.py` script in the `examples` folder.
+Here is a simple notebook that you can run to create, step and render any environment. It reproduces the `use_vmas_env.py` script in the `examples` folder.
 
 ### Install
 
@@ -46,7 +46,7 @@ object with the OpenAI gym interface:
 
 Here is an example:
 ```
- env = maps.make_env(
+ env = vmas.make_env(
         scenario_name="simple",
         num_envs=32,
         device="cuda",
@@ -113,9 +113,9 @@ env.render(
 
 |                                    Gif                                     |                             Agent focus                             |
 |:--------------------------------------------------------------------------:|:-------------------------------------------------------------------:|
-|        <img src="media/maps_simple.gif" alt="drawing" width="260"/>        | With ` agent_index_focus=None` the camera keeps focus on all agents |
-| <img src="media/maps_simple_focus_agent_0.gif" alt="drawing" width="260"/> |       With ` agent_index_focus=0` the camera follows agent 0        |
-| <img src="media/maps_simple_focus_agent_4.gif" alt="drawing" width="260"/> |       With ` agent_index_focus=4` the camera follows agent 4        |
+|        <img src="media/vmas_simple.gif" alt="drawing" width="260"/>        | With ` agent_index_focus=None` the camera keeps focus on all agents |
+| <img src="media/vmas_simple_focus_agent_0.gif" alt="drawing" width="260"/> |       With ` agent_index_focus=0` the camera follows agent 0        |
+| <img src="media/vmas_simple_focus_agent_4.gif" alt="drawing" width="260"/> |       With ` agent_index_focus=4` the camera follows agent 4        |
 
 ### Rendering on server machines
 To render in machines without a display use `mode=rgb_array`. Make sure you have OpenGL and Pyglet installed.
@@ -132,7 +132,7 @@ xvfb-run -s \"-screen 0 1400x900x24\" python <your_script.py>
 To create a fake screen you need to have `Xvfb` installed.
 
 ## List of environments
-### MAPS
+### VMAS
 |                                                                                      |                                                                                    |                                                                                                            |
 |--------------------------------------------------------------------------------------|------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
 | **<p align="center">dropout</p>** <br/> <img src="media/scenarios/dropout.gif"/>     | **<p align="center">football</p>** <br/> <img src="media/scenarios/football.gif"/> | **<p align="center">transport</p>** <br/> <img src="media/scenarios/transport.gif"/>                       |
