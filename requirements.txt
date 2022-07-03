@@ -1,6 +1,6 @@
-numpy~=1.22
-torch~=1.12
-pyglet~=1.5.26
-ray[rllib]~=1.13
+numpy
+torch
+pyglet>=1.5
+ray[rllib]>=1.13
 gym # ==0.22
-wandb~=0.12
+wandb
