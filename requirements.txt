@@ -1,5 +1,5 @@
 numpy~=1.22
-torch~=1.11
+torch~=1.12
 pyglet~=1.5.26
 ray[rllib]~=1.13
 gym # ==0.22
