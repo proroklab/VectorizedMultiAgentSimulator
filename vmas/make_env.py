@@ -21,7 +21,7 @@ def make_env(
     num_envs: int = 32,
     device: str = "cpu",
     continuous_actions: bool = True,
-    wrapper: Wrapper = None,
+    wrapper: Wrapper = None,  # One of: None, vmas.Wrapper.RLLIB, and vmas.Wrapper.GYM
     max_steps: int = None,
     **kwargs,
 ):
