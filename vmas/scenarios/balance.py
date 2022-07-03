@@ -235,7 +235,7 @@ class Scenario(BaseScenario):
                 self.package.state.vel,
                 self.line.state.vel,
                 self.line.state.ang_vel,
-                self.line.state.rot % (torch.pi * 2),
+                self.line.state.rot % torch.pi,
             ],
             dim=-1,
         )
