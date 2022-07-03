@@ -1,6 +1,7 @@
 #  Copyright (c) 2022.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
+from enum import Enum
 from typing import List, Optional, Tuple
 
 import gym
@@ -679,3 +680,14 @@ class GymWrapper(gym.Env):
                 )
             actions[i][0] = act
         return actions
+
+
+class Wrapper(Enum):
+    RLLIB = 0
+    GYM = 1
+
+    def get_env(self, env: Environment):
+        if self is self.RLLIB:
+            return VectorEnvWrapper(env)
+        elif self is self.GYM:
+            return GymWrapper(env)
