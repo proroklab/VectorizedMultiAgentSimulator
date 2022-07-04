@@ -12,20 +12,17 @@ from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color
 from vmas.simulator.sensors import Lidar
 
-DEFAULT_ENERGY_COEFF = 0.02
-
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         n_agents = kwargs.get("n_agents", 4)
-        self.energy_coeff = kwargs.get(
-            "energy_coeff", DEFAULT_ENERGY_COEFF
-        )  # Weight of team energy penalty
+        n_obstacles = kwargs.get("n_obstacles", 5)
+        self._min_dist_between_entities = kwargs.get("min_dist_between_entities", 0.15)
 
         # Make world
         world = World(batch_dim, device)
         # Add agents
-        goal_entity_filter: Callable[[Entity], bool] = lambda e: e.name == "goal"
+        goal_entity_filter: Callable[[Entity], bool] = lambda e: e.name == "target"
         for i in range(n_agents):
             # Constraint: all agents have same action range and multiplier
             agent = Agent(
@@ -43,16 +40,8 @@ class Scenario(BaseScenario):
             world.add_agent(agent)
 
         # Add landmarks
-        goal = Landmark(
-            name="goal",
-            collide=False,
-            shape=Sphere(radius=0.03),
-            color=Color.GREEN,
-        )
-        world.add_landmark(goal)
-
         self.obstacles = []
-        for i in range(5):
+        for i in range(n_obstacles):
             obstacle = Landmark(
                 name=f"obstacle_{i}",
                 collide=True,
@@ -63,39 +52,46 @@ class Scenario(BaseScenario):
             world.add_landmark(obstacle)
             self.obstacles.append(obstacle)
 
+        self._target = Landmark(
+            name="target",
+            collide=False,
+            shape=Sphere(radius=0.03),
+            color=Color.GREEN,
+        )
+        world.add_landmark(self._target)
+
         return world
 
     def reset_world_at(self, env_index: int = None):
-        for agent in self.world.agents:
-            # Random pos between -1 and 1
-            agent.set_pos(
-                torch.zeros(
+        occupied_positions = []
+        for entity in self.obstacles + self.world.agents:
+            pos = None
+            while True:
+                proposed_pos = torch.empty(
                     (1, self.world.dim_p)
                     if env_index is not None
                     else (self.world.batch_dim, self.world.dim_p),
                     device=self.world.device,
                     dtype=torch.float32,
-                ).uniform_(
-                    -1.0,
-                    1.0,
-                ),
-                batch_index=env_index,
-            )
+                ).uniform_(-1.0, 1.0)
+                if pos is None:
+                    pos = proposed_pos
+                if len(occupied_positions) == 0:
+                    break
+
+                overlaps = [
+                    torch.linalg.norm(pos - o, dim=1) < self._min_dist_between_entities
+                    for o in occupied_positions
+                ]
+                overlaps = torch.any(torch.stack(overlaps, dim=-1), dim=-1)
+                if torch.any(overlaps, dim=0):
+                    pos[overlaps] = proposed_pos[overlaps]
+                else:
+                    break
+
+            occupied_positions.append(pos)
+            entity.set_pos(pos, batch_index=env_index)
         for obstacle in self.obstacles:
-            # Random pos between -1 and 1
-            obstacle.set_pos(
-                torch.zeros(
-                    (1, self.world.dim_p)
-                    if env_index is not None
-                    else (self.world.batch_dim, self.world.dim_p),
-                    device=self.world.device,
-                    dtype=torch.float32,
-                ).uniform_(
-                    -1.0,
-                    1.0,
-                ),
-                batch_index=env_index,
-            )
             obstacle.set_rot(
                 torch.zeros(
                     (1,) if env_index is not None else (self.world.batch_dim,),
@@ -125,9 +121,7 @@ class Scenario(BaseScenario):
         self.velocity_rew = torch.linalg.norm(agent.state.vel, dim=1)
 
         # stay close to target (cohesion)
-        dist_target = torch.linalg.norm(
-            agent.state.pos - self.world.landmarks[0].state.pos, dim=1
-        )
+        dist_target = torch.linalg.norm(agent.state.pos - self._target.state.pos, dim=1)
         self.cohesion_rew = -dist_target
 
         return (
@@ -142,7 +136,7 @@ class Scenario(BaseScenario):
             [
                 agent.state.pos,
                 agent.state.vel,
-                self.world.landmarks[0].state.pos - agent.state.pos,
+                self._target.state.pos - agent.state.pos,
                 agent.sensors[0].measure(),
             ],
             dim=-1,
@@ -163,4 +157,4 @@ class Scenario(BaseScenario):
 
 
 if __name__ == "__main__":
-    render_interactively("flocking", n_agents=10, energy_coeff=DEFAULT_ENERGY_COEFF)
+    render_interactively("flocking", n_agents=10)
