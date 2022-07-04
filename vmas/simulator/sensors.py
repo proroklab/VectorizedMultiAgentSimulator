@@ -43,7 +43,7 @@ class Lidar(Sensor):
         angle_end: float = 2 * torch.pi,
         n_rays: int = 8,
         max_range: float = 1.0,
-        entity_filter: Callable[[maps.simulator.core.Entity], bool] = lambda _: False,
+        entity_filter: Callable[[vmas.simulator.core.Entity], bool] = lambda _: False,
     ):
         super().__init__(world)
         if (angle_start - angle_end) % (torch.pi * 2) < 1e-5:
@@ -66,7 +66,7 @@ class Lidar(Sensor):
 
     @entity_filter.setter
     def entity_filter(
-        self, entity_filter: Callable[[maps.simulator.core.Entity], bool]
+        self, entity_filter: Callable[[vmas.simulator.core.Entity], bool]
     ):
         self._entity_filter = entity_filter
 
