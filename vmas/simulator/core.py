@@ -777,12 +777,12 @@ class World(TorchVectorizedObject):
         tmin, _ = torch.max(torch.stack([tmin, tymin], dim=-1), dim=-1)
         tmax, _ = torch.min(torch.stack([tmax, tymax], dim=-1), dim=-1)
 
-        intersect_aabb = tmin * ray_dir_aabb + pos_aabb
+        intersect_aabb = tmin.unsqueeze(1) * ray_dir_aabb + pos_aabb
         intersect_world = (
             World._rotate_vector(intersect_aabb, box.state.rot) + box.state.pos
         )
 
-        collision = (tmax >= tmin) and (tmin > 0.0)
+        collision = (tmax >= tmin) & (tmin > 0.0)
         dist = torch.linalg.norm(ray_origin - intersect_world, dim=1)
         dist[~collision] = max_range
         return dist
@@ -812,12 +812,12 @@ class World(TorchVectorizedObject):
         u2 = u - u1
         d = torch.linalg.norm(u2, dim=1)
         m = torch.sqrt(sphere.shape.radius**2 - d**2)
-        first_intersection = ray_origin + u1 - m * ray_dir_world
+        first_intersection = ray_origin + u1 - m.unsqueeze(1) * ray_dir_world
         ray_intersects = d <= sphere.shape.radius
         sphere_is_in_front = u_dot_ray.squeeze(1) > 0.0
 
         dist = torch.linalg.norm(ray_origin - first_intersection, dim=1)
-        dist[~(ray_intersects and sphere_is_in_front)] = max_range
+        dist[~(ray_intersects & sphere_is_in_front)] = max_range
         return dist
 
     def _cast_ray_to_line(
@@ -861,13 +861,13 @@ class World(TorchVectorizedObject):
             return v[:, X] * w[:, Y] - v[:, Y] * w[:, X]
 
         rxs = cross(r, s)
-        t = cross(q - p, s / rxs)
-        u = cross(q - p, r / rxs)
-        d = torch.linalg.norm(u * s, dim=1)
+        t = cross(q - p, s / rxs.unsqueeze(1))
+        u = cross(q - p, r / rxs.unsqueeze(1))
+        d = torch.linalg.norm(u.unsqueeze(1) * s, dim=1)
 
         perpendicular = rxs == 0.0
-        above_line = t < -0.5
-        below_line = t > 0.5
+        above_line = t > 0.5
+        below_line = t < -0.5
         behind_line = u < 0.0
         d[perpendicular] = max_range
         d[above_line] = max_range
