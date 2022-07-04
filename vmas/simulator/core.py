@@ -816,6 +816,61 @@ class World(TorchVectorizedObject):
         dist[~(ray_intersects and sphere_is_in_front)] = max_range
         return dist
 
+    def _cast_ray_to_line(
+        self,
+        line: Entity,
+        ray_origin: Tensor,
+        ray_direction: Tensor,
+        max_range: float = float("inf"),
+    ):
+        """
+        Inspired by https://stackoverflow.com/questions/563198/how-do-you-detect-where-two-line-segments-intersect/565282#565282
+        Computes distance of ray originating from pos at angle to a line and sets distance to
+        max_range if there is no intersection.
+        """
+        assert ray_origin.ndim == 2 and ray_direction.ndim == 1
+        assert ray_origin.shape[0] == ray_direction.shape[0]
+        assert isinstance(line.shape, Line)
+
+        p = line.state.pos
+        r = (
+            torch.stack(
+                [
+                    torch.cos(line.state.rot.squeeze(1)),
+                    torch.sin(line.state.rot.squeeze(1)),
+                ],
+                dim=-1,
+            )
+            * line.shape.length
+        )
+
+        q = ray_origin
+        s = torch.stack(
+            [
+                torch.cos(ray_direction),
+                torch.sin(ray_direction),
+            ],
+            dim=-1,
+        )
+
+        def cross(v, w):
+            return v[:, X] * w[:, Y] - v[:, Y] * w[:, X]
+
+        rxs = cross(r, s)
+        t = cross(q - p, s / rxs)
+        u = cross(q - p, r / rxs)
+        d = torch.linalg.norm(u * s, dim=1)
+
+        perpendicular = rxs == 0.0
+        above_line = t < -0.5
+        below_line = t > 0.5
+        behind_line = u < 0.0
+        d[perpendicular] = max_range
+        d[above_line] = max_range
+        d[below_line] = max_range
+        d[behind_line] = max_range
+        return d
+
     def cast_ray(self, pos: Tensor, angles: Tensor, max_range: float = float("inf")):
         assert pos.ndim == 2 and angles.ndim == 1
         assert pos.shape[0] == angles.shape[0]
@@ -826,6 +881,8 @@ class World(TorchVectorizedObject):
                 d = self._cast_ray_to_box(entity, pos, angles, max_range)
             elif isinstance(entity.shape, Sphere):
                 d = self._cast_ray_to_sphere(entity, pos, angles, max_range)
+            elif isinstance(entity.shape, Line):
+                d = self._cast_ray_to_line(entity, pos, angles, max_range)
             else:
                 assert False, f"Shape {entity.shape} currently not handled by cast_ray"
             dists.append(d)
