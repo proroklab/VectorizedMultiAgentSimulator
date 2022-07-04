@@ -745,8 +745,8 @@ class World(TorchVectorizedObject):
     ):
         """
         Inspired from https://tavianator.com/2011/ray_box.html
-        Checks if ray originating from pos at angle intersects with a box and if so
-        at what point it intersects.
+        Computes distance of ray originating from pos at angle to a box and sets distance to
+        max_range if there is no intersection.
         """
         assert ray_origin.ndim == 2 and ray_direction.ndim == 1
         assert ray_origin.shape[0] == ray_direction.shape[0]
@@ -792,8 +792,8 @@ class World(TorchVectorizedObject):
     ):
         """
         Inspired by https://www.bluebill.net/circle_ray_intersection.html
-        Checks if ray originating from pos at angle intersects with a sphere and if so
-        at what point it intersects.
+        Computes distance of ray originating from pos at angle to a sphere and sets distance to
+        max_range if there is no intersection.
         """
         assert ray_origin.ndim == 2 and ray_direction.ndim == 1
         assert ray_origin.shape[0] == ray_direction.shape[0]
