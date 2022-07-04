@@ -22,11 +22,13 @@ class Scenario(BaseScenario):
         # Make world
         world = World(batch_dim, device)
         # Add agents
-        goal_entity_filter: Callable[[Entity], bool] = lambda e: e.name == "target"
+        goal_entity_filter: Callable[
+            [Entity], bool
+        ] = lambda e: e.name != "target" and not e.name.startswith("agent")
         for i in range(n_agents):
             # Constraint: all agents have same action range and multiplier
             agent = Agent(
-                name=f"agent {i}",
+                name=f"agent_{i}",
                 collide=True,
                 sensors=[
                     Lidar(
