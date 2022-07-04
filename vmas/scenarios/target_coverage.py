@@ -17,7 +17,7 @@ class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         n_agents = kwargs.get("n_agents", 4)
         n_targets = kwargs.get("n_targets", 5)
-        self._min_dist_between_entities = kwargs.get("min_dist_between_entities", 0.15)
+        self._min_dist_between_entities = kwargs.get("min_dist_between_entities", 0.25)
 
         # Make world
         world = World(batch_dim, device)
@@ -36,21 +36,24 @@ class Scenario(BaseScenario):
                 sensors=[
                     Lidar(
                         world,
+                        angle_start=0.05,
+                        angle_end=2 * torch.pi + 0.05,
                         n_rays=12,
                         max_range=0.5,
                         entity_filter=entity_filter_agents,
+                        render_color=Color.BLUE,
                     ),
                     Lidar(
                         world,
                         n_rays=12,
                         max_range=0.5,
                         entity_filter=entity_filter_targets,
+                        render_color=Color.GREEN,
                     ),
                 ],
             )
             world.add_agent(agent)
 
-        # Add landmarks
         self._targets = []
         for i in range(n_targets):
             obstacle = Landmark(
