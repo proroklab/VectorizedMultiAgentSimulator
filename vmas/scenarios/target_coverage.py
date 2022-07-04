@@ -7,7 +7,7 @@ import torch
 from torch import Tensor
 
 from vmas import render_interactively
-from vmas.simulator.core import Agent, Landmark, Sphere, World, Entity, Box
+from vmas.simulator.core import Agent, Landmark, Sphere, World, Entity, Line
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color
 from vmas.simulator.sensors import Lidar
@@ -20,7 +20,7 @@ class Scenario(BaseScenario):
         self._min_dist_between_entities = kwargs.get("min_dist_between_entities", 0.25)
 
         # Make world
-        world = World(batch_dim, device)
+        world = World(batch_dim, device, x_semidim=1, y_semidim=1)
         # Add agents
         entity_filter_agents: Callable[[Entity], bool] = lambda e: e.name.startswith(
             "agent"
@@ -54,17 +54,28 @@ class Scenario(BaseScenario):
             )
             world.add_agent(agent)
 
+        self._border = []
+        for i in range(4):
+            border = Landmark(
+                name=f"border {i}",
+                shape=Line(length=2.0),
+                collide=False,
+                color=Color.BLACK,
+            )
+            self._border.append(border)
+            world.add_landmark(border)
+
         self._targets = []
         for i in range(n_targets):
-            obstacle = Landmark(
+            target = Landmark(
                 name=f"target_{i}",
                 collide=True,
                 movable=False,
                 shape=Sphere(radius=0.05),
                 color=Color.GREEN,
             )
-            world.add_landmark(obstacle)
-            self._targets.append(obstacle)
+            world.add_landmark(target)
+            self._targets.append(target)
 
         return world
 
@@ -97,6 +108,37 @@ class Scenario(BaseScenario):
 
             occupied_positions.append(pos)
             entity.set_pos(pos, batch_index=env_index)
+
+        for i, border in enumerate(self._border):
+            border.set_pos(
+                torch.tensor(
+                    [
+                        0.0
+                        if i % 2
+                        else (
+                            self.world.x_semidim if i == 0 else -self.world.x_semidim
+                        ),
+                        0.0
+                        if not i % 2
+                        else (
+                            self.world.x_semidim if i == 1 else -self.world.x_semidim
+                        ),
+                    ],
+                    dtype=torch.float32,
+                    device=self.world.device,
+                ),
+                batch_index=env_index,
+            )
+            border.set_rot(
+                torch.tensor(
+                    [
+                        torch.pi / 2 if not i % 2 else 0.0,
+                    ],
+                    dtype=torch.float32,
+                    device=self.world.device,
+                ),
+                batch_index=env_index,
+            )
 
     def reward(self, agent: Agent):
         # Avoid collisions with each other
