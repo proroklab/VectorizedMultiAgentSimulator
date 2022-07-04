@@ -890,7 +890,7 @@ class World(TorchVectorizedObject):
             torch.full((self.batch_dim,), fill_value=max_range, device=self.device)
         ]
         for entity in self.entities:
-            if entity_filter(entity):
+            if not entity_filter(entity):
                 continue
             if isinstance(entity.shape, Box):
                 d = self._cast_ray_to_box(entity, pos, angles, max_range)
