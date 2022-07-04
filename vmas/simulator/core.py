@@ -598,6 +598,10 @@ class Agent(Entity):
         return self._silent
 
     @property
+    def sensors(self):
+        return self._sensors
+
+    @property
     def u_noise(self):
         return self._u_noise
 
