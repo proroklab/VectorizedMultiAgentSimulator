@@ -88,8 +88,6 @@ class Lidar(Sensor):
     def render(self, env_index: int = 0):
         from vmas.simulator import rendering
 
-        self.measure()
-
         geoms: List[rendering.Geom] = []
         if self._last_measurement is not None:
             for angle, dist in zip(self._angles, self._last_measurement):
