@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import List, Union
+from typing import List, Union, Callable
 
 import torch
 
@@ -43,6 +43,7 @@ class Lidar(Sensor):
         angle_end: float = 2 * torch.pi,
         n_rays: int = 8,
         max_range: float = 1.0,
+        entity_filter: Callable[[maps.simulator.core.Entity], bool] = lambda _: False,
     ):
         super().__init__(world)
         if (angle_start - angle_end) % (torch.pi * 2) < 1e-5:
@@ -57,13 +58,27 @@ class Lidar(Sensor):
         self._angles = angles.repeat(self._world.batch_dim, 1).swapaxes(1, 0)
         self._max_range = max_range
         self._last_measurement = None
+        self._entity_filter = entity_filter
+
+    @property
+    def entity_filter(self):
+        return self._entity_filter
+
+    @entity_filter.setter
+    def entity_filter(
+        self, entity_filter: Callable[[maps.simulator.core.Entity], bool]
+    ):
+        self._entity_filter = entity_filter
 
     def measure(self):
         dists = []
         for angle in self._angles:
             dists.append(
                 self._world.cast_ray(
-                    self.agent.state.pos, angle, max_range=self._max_range
+                    self.agent.state.pos,
+                    angle,
+                    max_range=self._max_range,
+                    entity_filter=self.entity_filter,
                 )
             )
         measurement = torch.stack(dists, dim=1)
