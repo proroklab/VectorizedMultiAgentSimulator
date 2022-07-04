@@ -4,7 +4,7 @@ import unittest
 
 import torch
 
-from maps import make_env
+from vmas import make_env
 
 
 class TestDispersion(unittest.TestCase):
