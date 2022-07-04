@@ -94,7 +94,7 @@ class Scenario(BaseScenario):
         for obstacle in self.obstacles:
             obstacle.set_rot(
                 torch.zeros(
-                    (1,) if env_index is not None else (self.world.batch_dim,),
+                    (1, 1) if env_index is not None else (self.world.batch_dim, 1),
                     device=self.world.device,
                     dtype=torch.float32,
                 ).uniform_(
