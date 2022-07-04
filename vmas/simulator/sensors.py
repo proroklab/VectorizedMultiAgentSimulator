@@ -10,6 +10,7 @@ from typing import List, Union, Callable
 import torch
 
 import vmas.simulator.core
+import vmas.simulator.utils
 
 
 class Sensor(ABC):
@@ -44,6 +45,7 @@ class Lidar(Sensor):
         n_rays: int = 8,
         max_range: float = 1.0,
         entity_filter: Callable[[vmas.simulator.core.Entity], bool] = lambda _: True,
+        render_color: vmas.simulator.utils.Color = vmas.simulator.utils.Color.GRAY,
     ):
         super().__init__(world)
         if (angle_start - angle_end) % (torch.pi * 2) < 1e-5:
@@ -59,6 +61,7 @@ class Lidar(Sensor):
         self._max_range = max_range
         self._last_measurement = None
         self._entity_filter = entity_filter
+        self._render_color = render_color
 
     @property
     def entity_filter(self):
@@ -102,6 +105,7 @@ class Lidar(Sensor):
                 ray.add_attr(xform)
 
                 ray_circ = rendering.make_circle(0.01)
+                ray_circ.set_color(*self._render_color.value)
                 xform = rendering.Transform()
                 rot = torch.stack([torch.cos(angle), torch.sin(angle)], dim=-1)
                 pos_circ = self.agent.state.pos + rot * dist.unsqueeze(1)
