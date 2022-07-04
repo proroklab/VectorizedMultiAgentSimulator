@@ -871,12 +871,23 @@ class World(TorchVectorizedObject):
         d[behind_line] = max_range
         return d
 
-    def cast_ray(self, pos: Tensor, angles: Tensor, max_range: float = float("inf")):
+    def cast_ray(
+        self,
+        pos: Tensor,
+        angles: Tensor,
+        max_range: float = float("inf"),
+        entity_filter: Callable[[Entity], bool] = lambda _: False,
+    ):
         assert pos.ndim == 2 and angles.ndim == 1
         assert pos.shape[0] == angles.shape[0]
 
-        dists = []
+        # Initialize with full max_range to avoid dists being empty when all entities are filtered
+        dists = [
+            torch.full((self.batch_dim,), fill_value=max_range, device=self.device)
+        ]
         for entity in self.entities:
+            if entity_filter(entity):
+                continue
             if isinstance(entity.shape, Box):
                 d = self._cast_ray_to_box(entity, pos, angles, max_range)
             elif isinstance(entity.shape, Sphere):
