@@ -48,7 +48,7 @@ class Scenario(BaseScenario):
                 name=f"obstacle_{i}",
                 collide=True,
                 movable=False,
-                shape=Box(width=0.1, length=0.1),
+                shape=Sphere(radius=0.1),
                 color=Color.RED,
             )
             world.add_landmark(obstacle)
@@ -93,18 +93,6 @@ class Scenario(BaseScenario):
 
             occupied_positions.append(pos)
             entity.set_pos(pos, batch_index=env_index)
-        for obstacle in self.obstacles:
-            obstacle.set_rot(
-                torch.zeros(
-                    (1, 1) if env_index is not None else (self.world.batch_dim, 1),
-                    device=self.world.device,
-                    dtype=torch.float32,
-                ).uniform_(
-                    -torch.pi,
-                    torch.pi,
-                ),
-                batch_index=env_index,
-            )
 
     def reward(self, agent: Agent):
         # Avoid collisions with each other
