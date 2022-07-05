@@ -79,35 +79,50 @@ class Scenario(BaseScenario):
 
         return world
 
+    def _find_random_pos_for_entity(
+        self, occupied_positions: torch.Tensor, env_index: int = None
+    ):
+        pos = None
+        while True:
+            p_shape = (
+                (1, 1, self.world.dim_p)
+                if env_index is not None
+                else (self.world.batch_dim, 1, self.world.dim_p)
+            )
+            proposed_pos = torch.empty(
+                p_shape,
+                device=self.world.device,
+                dtype=torch.float32,
+            ).uniform_(-1.0, 1.0)
+            if pos is None:
+                pos = proposed_pos
+            if occupied_positions.shape[1] == 0:
+                break
+
+            dist = torch.cdist(occupied_positions, pos)
+            overlaps = torch.any(
+                (dist < self._min_dist_between_entities).squeeze(2), dim=1
+            )
+            if torch.any(overlaps, dim=0):
+                pos[overlaps] = proposed_pos[overlaps]
+            else:
+                break
+        return pos
+
     def reset_world_at(self, env_index: int = None):
-        occupied_positions = []
-        for entity in self._targets + self.world.agents:
-            pos = None
-            while True:
-                proposed_pos = torch.empty(
-                    (1, self.world.dim_p)
-                    if env_index is not None
-                    else (self.world.batch_dim, self.world.dim_p),
-                    device=self.world.device,
-                    dtype=torch.float32,
-                ).uniform_(-1.0, 1.0)
-                if pos is None:
-                    pos = proposed_pos
-                if len(occupied_positions) == 0:
-                    break
-
-                overlaps = [
-                    torch.linalg.norm(pos - o, dim=1) < self._min_dist_between_entities
-                    for o in occupied_positions
-                ]
-                overlaps = torch.any(torch.stack(overlaps, dim=-1), dim=-1)
-                if torch.any(overlaps, dim=0):
-                    pos[overlaps] = proposed_pos[overlaps]
-                else:
-                    break
-
-            occupied_positions.append(pos)
-            entity.set_pos(pos, batch_index=env_index)
+        p_shape = (
+            (1, self.world.dim_p)
+            if env_index is not None
+            else (self.world.batch_dim, self.world.dim_p)
+        )
+        occupied_positions = torch.zeros(
+            (p_shape[0], 0, p_shape[1]), device=self.world.device
+        )
+        placable_entities = self._targets + self.world.agents
+        for entity in placable_entities:
+            pos = self._find_random_pos_for_entity(occupied_positions, env_index)
+            occupied_positions = torch.cat([occupied_positions, pos], dim=1)
+            entity.set_pos(pos.squeeze(1), batch_index=env_index)
 
         for i, border in enumerate(self._border):
             border.set_pos(
