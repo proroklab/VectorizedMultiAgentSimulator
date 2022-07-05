@@ -95,7 +95,8 @@ if __name__ == "__main__":
     run_heuristic(
         scenario_name="transport",
         heuristic=TransportHeuristic,
-        n_envs=32,
+        n_envs=300,
+        n_steps=200,
         render=True,
-        save=False
+        save=False,
     )

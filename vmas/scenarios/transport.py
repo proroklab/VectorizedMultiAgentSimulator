@@ -194,9 +194,10 @@ class HeuristicPolicy(BaseHeuristicPolicy):
         self.start_vel_behind_ratio = 0.5 # component of start vel pointing directly behind target (other component is normal)
         self.start_vel_mag = 1.0 # magnitude of start_vel (determines speed along the whole trajectory, as spline is recalculated continuously)
         self.hit_vel_mag = 1.0
-        self.dribble_slowdown_dist = 0.
         self.package_radius = 0.15 / 2
-        self.agent_radius = 0.03
+        self.agent_radius = -0.02
+        self.dribble_slowdown_dist = 0.
+        self.speed = 0.95
 
     def compute_action(
         self, observation: torch.Tensor, u_range: float = None
@@ -209,7 +210,8 @@ class HeuristicPolicy(BaseHeuristicPolicy):
         package_pos = observation[:,6:8] + agent_pos
         goal_pos = -observation[:,4:6] + package_pos
         # control = self.get_action(goal_pos, curr_pos=agent_pos, curr_vel=agent_vel)
-        control = self.dribble(agent_pos, package_pos, goal_pos) * 4
+        control = self.dribble(agent_pos, package_pos, goal_pos)
+        control *= self.speed * u_range
         return torch.clamp(control, -u_range, u_range)
 
     def dribble(self, agent_pos, package_pos, goal_pos, agent_vel=None):
@@ -218,7 +220,7 @@ class HeuristicPolicy(BaseHeuristicPolicy):
         direction = package_disp / ball_dist[:, None]
         hit_pos = package_pos - direction * (self.package_radius + self.agent_radius)
         hit_vel = direction * self.hit_vel_mag
-        start_vel = self.get_start_vel(hit_pos, hit_vel, agent_pos, self.start_vel_mag)
+        start_vel = self.get_start_vel(hit_pos, hit_vel, agent_pos, self.start_vel_mag * 2)
         slowdown_mask = ball_dist <= self.dribble_slowdown_dist
         hit_vel[slowdown_mask, :] *= (
             ball_dist[slowdown_mask, None] / self.dribble_slowdown_dist
@@ -295,7 +297,7 @@ class HeuristicPolicy(BaseHeuristicPolicy):
         if target_vel is None: # If None, target_vel is assumed to be 0
             target_vel = torch.zeros(target_pos.shape, device=self.device)
         if start_vel is None: # If None, start_vel is calculated with get_start_vel
-            start_vel = self.get_start_vel(target_pos, target_vel, start_pos, self.start_vel_mag)
+            start_vel = self.get_start_vel(target_pos, target_vel, start_pos, self.start_vel_mag * 2)
 
         u_start = torch.ones(curr_pos.shape[0], device=self.device) * self.lookahead
         des_curr_pos = self.hermite(
