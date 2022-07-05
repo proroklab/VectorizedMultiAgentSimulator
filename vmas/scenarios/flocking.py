@@ -125,7 +125,7 @@ class Scenario(BaseScenario):
             [
                 agent.state.pos,
                 agent.state.vel,
-                self._target.state.pos - agent.state.pos,
+                self._target.state.pos,
                 agent.sensors[0].measure(),
             ],
             dim=-1,
