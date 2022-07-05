@@ -6,6 +6,7 @@ import unittest
 import torch
 
 from vmas import make_env
+from vmas.scenarios import transport
 
 
 class TestTransport(unittest.TestCase):
@@ -27,7 +28,7 @@ class TestTransport(unittest.TestCase):
             # Environment specific variables
             **kwargs
         )
-        self.env.seed(0)
+        # self.env.seed(0)
 
     def test_not_passing_through_packages(self):
         self.setup_env(n_agents=1)
@@ -53,3 +54,30 @@ class TestTransport(unittest.TestCase):
                 action_agent *= self.env.agents[0].u_range
 
                 obs, rews, dones, _ = self.env.step([action_agent])
+
+    def test_heuristic(self):
+
+        for n_agents in [4]:
+            self.setup_env(n_agents=n_agents, random_package_pos_on_line=False)
+            policy = transport.HeuristicPolicy(self.continuous_actions)
+
+            obs = self.env.reset()
+            rews = None
+
+            for _ in range(100):
+                actions = []
+                for i in range(n_agents):
+                    obs_agent = obs[i]
+
+                    action_agent = policy.compute_action(
+                        obs_agent, self.env.agents[i].u_range
+                    )
+
+                    actions.append(action_agent)
+
+                obs, new_rews, dones, _ = self.env.step(actions)
+
+                if rews is not None:
+                    for i in range(self.n_agents):
+                        self.assertTrue((new_rews[i] >= rews[i]).all())
+                    rews = new_rews
