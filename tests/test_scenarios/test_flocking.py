@@ -7,7 +7,7 @@ import torch
 from vmas import make_env
 
 
-class TestDispersion(unittest.TestCase):
+class TestFlocking(unittest.TestCase):
     def setup_env(self, n_agents: int) -> None:
         super().setUp()
         self.n_agents = n_agents
