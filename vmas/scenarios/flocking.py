@@ -9,8 +9,9 @@ from torch import Tensor
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, Sphere, World, Entity, Box
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color
+from vmas.simulator.utils import Color, X, Y
 from vmas.simulator.sensors import Lidar
+from vmas.simulator.heuristic_policy import BaseHeuristicPolicy
 
 
 class Scenario(BaseScenario):
@@ -22,9 +23,7 @@ class Scenario(BaseScenario):
         # Make world
         world = World(batch_dim, device)
         # Add agents
-        goal_entity_filter: Callable[
-            [Entity], bool
-        ] = lambda e: e.name != "target" and not e.name.startswith("agent")
+        goal_entity_filter: Callable[[Entity], bool] = lambda e: e.name != "target"
         for i in range(n_agents):
             # Constraint: all agents have same action range and multiplier
             agent = Agent(
@@ -144,6 +143,51 @@ class Scenario(BaseScenario):
         except AttributeError:
             info = {}
         return info
+
+
+class HeuristicPolicy(BaseHeuristicPolicy):
+    def compute_action(
+        self, observation: torch.Tensor, u_range: float = None
+    ) -> torch.Tensor:
+        assert self.continuous_actions
+
+        # First calculate the closest point to a circle of radius circle_radius given the current position
+        circle_origin = torch.zeros(1, 2)
+        circle_radius = 0.3
+        current_pos = observation[:, :2]
+        v = current_pos - circle_origin
+        closest_point_on_circ = (
+            circle_origin + v / torch.linalg.norm(v, dim=1).unsqueeze(1) * circle_radius
+        )
+
+        # calculate the normal vector of the vector from the origin of the circle to that closest point
+        # on the circle. Adding this scaled normal vector to the other vector gives us a target point we
+        # try to reach, thus resulting in a circular motion.
+        closest_point_on_circ_normal = torch.stack(
+            [closest_point_on_circ[:, Y], -closest_point_on_circ[:, X]], dim=1
+        )
+        closest_point_on_circ_normal /= torch.linalg.norm(
+            closest_point_on_circ_normal, dim=1
+        ).unsqueeze(1)
+        closest_point_on_circ_normal *= 0.1
+        des_pos = closest_point_on_circ + closest_point_on_circ_normal
+
+        # Move away from other agents and obstcles within visibility range
+        lidar = observation[:, 6:18]
+        object_visible = torch.any(lidar < 0.1, dim=1)
+        _, object_dir_index = torch.min(lidar, dim=1)
+        object_dir = object_dir_index / lidar.shape[1] * 2 * torch.pi
+        object_vec = torch.stack([torch.cos(object_dir), torch.sin(object_dir)], dim=1)
+        des_pos_object = current_pos - object_vec * 0.1
+        des_pos[object_visible] = des_pos_object[object_visible]
+
+        action = torch.clamp(
+            (des_pos - current_pos) * 10,
+            min=-u_range,
+            max=u_range,
+        )
+
+        return action
 
 
 if __name__ == "__main__":
