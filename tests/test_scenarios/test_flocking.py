@@ -45,7 +45,6 @@ class TestFlocking(unittest.TestCase):
                     actions.append(action_agent)
 
                 obs, new_rews, dones, _ = self.env.step(actions)
-                self.env.render()
 
                 if rews is not None:
                     for i in range(n_agents):
