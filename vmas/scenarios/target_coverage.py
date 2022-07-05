@@ -54,17 +54,6 @@ class Scenario(BaseScenario):
             )
             world.add_agent(agent)
 
-        self._border = []
-        for i in range(4):
-            border = Landmark(
-                name=f"border {i}",
-                shape=Line(length=2.0),
-                collide=False,
-                color=Color.BLACK,
-            )
-            self._border.append(border)
-            world.add_landmark(border)
-
         self._targets = []
         for i in range(n_targets):
             target = Landmark(
@@ -123,37 +112,6 @@ class Scenario(BaseScenario):
             pos = self._find_random_pos_for_entity(occupied_positions, env_index)
             occupied_positions = torch.cat([occupied_positions, pos], dim=1)
             entity.set_pos(pos.squeeze(1), batch_index=env_index)
-
-        for i, border in enumerate(self._border):
-            border.set_pos(
-                torch.tensor(
-                    [
-                        0.0
-                        if i % 2
-                        else (
-                            self.world.x_semidim if i == 0 else -self.world.x_semidim
-                        ),
-                        0.0
-                        if not i % 2
-                        else (
-                            self.world.x_semidim if i == 1 else -self.world.x_semidim
-                        ),
-                    ],
-                    dtype=torch.float32,
-                    device=self.world.device,
-                ),
-                batch_index=env_index,
-            )
-            border.set_rot(
-                torch.tensor(
-                    [
-                        torch.pi / 2 if not i % 2 else 0.0,
-                    ],
-                    dtype=torch.float32,
-                    device=self.world.device,
-                ),
-                batch_index=env_index,
-            )
 
     def reward(self, agent: Agent):
         # Avoid collisions with each other
