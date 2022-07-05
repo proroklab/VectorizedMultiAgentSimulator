@@ -1,7 +1,7 @@
 #  Copyright (c) 2022. Jan Blumenkamp
 #  All rights reserved.
 import math
-from typing import Dict, Callable
+from typing import Dict, Callable, Optional
 
 import torch
 from torch import Tensor
@@ -17,7 +17,10 @@ class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         n_agents = kwargs.get("n_agents", 4)
         n_targets = kwargs.get("n_targets", 5)
-        self._min_dist_between_entities = kwargs.get("min_dist_between_entities", 0.25)
+        self._min_dist_between_entities = kwargs.get("min_dist_between_entities", 0.2)
+        self._lidar_range = kwargs.get("lidar_range", 0.5)
+        self._covering_range = kwargs.get("covering_range", 0.3)
+        self._agents_per_target = kwargs.get("agents_per_target", 2)
 
         # Make world
         world = World(batch_dim, device, x_semidim=1, y_semidim=1)
@@ -39,14 +42,14 @@ class Scenario(BaseScenario):
                         angle_start=0.05,
                         angle_end=2 * torch.pi + 0.05,
                         n_rays=12,
-                        max_range=0.5,
+                        max_range=self._lidar_range,
                         entity_filter=entity_filter_agents,
                         render_color=Color.BLUE,
                     ),
                     Lidar(
                         world,
                         n_rays=12,
-                        max_range=0.5,
+                        max_range=self._lidar_range,
                         entity_filter=entity_filter_targets,
                         render_color=Color.GREEN,
                     ),
@@ -71,15 +74,11 @@ class Scenario(BaseScenario):
     def _find_random_pos_for_entity(
         self, occupied_positions: torch.Tensor, env_index: int = None
     ):
+        batch_size = 1 if env_index is not None else self.world.batch_dim
         pos = None
         while True:
-            p_shape = (
-                (1, 1, self.world.dim_p)
-                if env_index is not None
-                else (self.world.batch_dim, 1, self.world.dim_p)
-            )
             proposed_pos = torch.empty(
-                p_shape,
+                (batch_size, 1, self.world.dim_p),
                 device=self.world.device,
                 dtype=torch.float32,
             ).uniform_(-1.0, 1.0)
@@ -99,13 +98,9 @@ class Scenario(BaseScenario):
         return pos
 
     def reset_world_at(self, env_index: int = None):
-        p_shape = (
-            (1, self.world.dim_p)
-            if env_index is not None
-            else (self.world.batch_dim, self.world.dim_p)
-        )
+        batch_size = 1 if env_index is not None else self.world.batch_dim
         occupied_positions = torch.zeros(
-            (p_shape[0], 0, p_shape[1]), device=self.world.device
+            (batch_size, 0, self.world.dim_p), device=self.world.device
         )
         placable_entities = self._targets + self.world.agents
         for entity in placable_entities:
@@ -119,6 +114,25 @@ class Scenario(BaseScenario):
         for a in self.world.agents:
             if a != agent:
                 self.collision_rew[self.world.is_overlapping(a, agent)] -= 1.0
+
+        if agent == self.world.agents[0]:
+            agent_pos = torch.stack([a.state.pos for a in self.world.agents], dim=1)
+            target_pos = torch.stack([t.state.pos for t in self._targets], dim=1)
+            agent_target_dists = torch.cdist(agent_pos, target_pos)
+            agents_per_target = torch.sum(
+                (agent_target_dists < self._covering_range).type(torch.int), dim=1
+            )
+            covered_targets = agents_per_target == self._agents_per_target
+
+            for i, target in enumerate(self._targets):
+                occupied_positions = [agent_pos] + [
+                    o.state.pos.unsqueeze(1) for o in self._targets if o is not target
+                ]
+                occupied_positions = torch.cat(occupied_positions, dim=1)
+                pos = self._find_random_pos_for_entity(occupied_positions)
+                target.state.pos[covered_targets[:, i]] = pos[
+                    covered_targets[:, i]
+                ].squeeze(1)
 
         return self.collision_rew
 
@@ -137,9 +151,6 @@ class Scenario(BaseScenario):
         try:
             info = {
                 "collision_rew": self.collision_rew,
-                "velocity_rew": self.velocity_rew,
-                "separation_rew": self.separation_rew,
-                "cohesion_rew": self.cohesion_rew,
             }
         # When reset is called before reward()
         except AttributeError:
@@ -148,4 +159,4 @@ class Scenario(BaseScenario):
 
 
 if __name__ == "__main__":
-    render_interactively("target_coverage", n_agents=5)
+    render_interactively("target_coverage", n_agents=4)
