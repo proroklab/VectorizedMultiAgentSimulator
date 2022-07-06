@@ -22,8 +22,7 @@ Alongside VMAS's scenarios, we port and vectorize all the scenarios in MPE.
 ### Notebooks
 -  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1ipcNWJH0LKv6eLNs05tPrcLQHisbFaFU?usp=sharing) &ensp; **Using a VMAS environment**.
  Here is a simple notebook that you can run to create, step and render any scenario in VMAS. It reproduces the `use_vmas_env.py` script in the `examples` folder.
-- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)]()  &ensp;  **Using VMAS in RLlib**.  In this notebook, we show how to use any VMAS scenario in RLlib. It reproduces the `rllib.py` script in the `examples` folder.
-
+- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1a7B4d_qzjTYdOr8r1ojhzbV6xp88Z86H?usp=sharing)  &ensp;  **Using VMAS in RLlib**.  In this notebook, we show how to use any VMAS scenario in RLlib. It reproduces the `rllib.py` script in the `examples` folder.
 
 
 ### Install
@@ -183,7 +182,9 @@ To create a fake screen you need to have `Xvfb` installed.
 
 ## TODOS
 
-- [ ] Implement resampling of random position until valid
+- [ ] Link video of experiments
+- [ ] Add lidar section
+- [ ] Custom actions for scenario
 - [X] Implement LIDAR
 - [ ] Implement 1D camera sensor
 - [ ] Move simulation core from force-based to impulse-based
