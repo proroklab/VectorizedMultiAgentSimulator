@@ -12,11 +12,16 @@ VMAS is a vectorized framework designed for efficient MARL benchmarking.
 It is comprised of a vectorized 2D physics engine written in PyTorch and a set of challenging multi-robot scenarios.
 Scenario creation is made simple and modular to incentivize contributions.
 VMAS simulates agents and landmarks of different shapes and supports rotations, elastic collisions and custom gravity.
-Holonomic motion models are used for the agents to simplify simulation.
+Holonomic motion models are used for the agents to simplify simulation. Custom sensors such as LIDARs are available and the simulator supports inter-agent communication.
 Vectorization in [PyTorch](https://pytorch.org/) allows VMAPS to perform simulations in a batch, seamlessly scaling to tens of thousands of parallel environments on accelerated hardware.
 VMAS has an interface compatible with [OpenAI Gym](https://github.com/openai/gym) and with the [RLlib](https://docs.ray.io/en/latest/rllib/index.html) library, enabling out-of-the-box integration with a wide range of RL algorithms. 
 The implementation is inspired by [OpenAI's MPE](https://github.com/openai/multiagent-particle-envs). 
 Alongside VMAS's scenarios, we port and vectorize all the scenarios in MPE.
+
+### [Video]()
+Watch the presentation video of VMAS, showing its structure, scenarios and experiments.
+
+[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/YOUTUBE_VIDEO_ID_HERE/0.jpg)](https://www.youtube.com/watch?v=YOUTUBE_VIDEO_ID_HERE)
 
 ## How to use
 ### Notebooks
