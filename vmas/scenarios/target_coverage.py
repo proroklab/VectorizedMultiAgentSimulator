@@ -1,7 +1,9 @@
 #  Copyright (c) 2022.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-from typing import Dict, Callable
+
+import typing
+from typing import Dict, Callable, List
 
 import torch
 from torch import Tensor
@@ -11,6 +13,9 @@ from vmas.simulator.heuristic_policy import BaseHeuristicPolicy
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.sensors import Lidar
 from vmas.simulator.utils import Color, X, Y
+
+if typing.TYPE_CHECKING:
+    from vmas.simulator.rendering import Geom
 
 
 class Scenario(BaseScenario):
@@ -156,6 +161,19 @@ class Scenario(BaseScenario):
         except AttributeError:
             info = {}
         return info
+
+    def extra_render(self, env_index: int = 0) -> "List[Geom]":
+        from vmas.simulator import rendering
+
+        geoms: List[Geom] = []
+        for target in self._targets:
+            range_circle = rendering.make_circle(self._covering_range, filled=False)
+            xform = rendering.Transform()
+            xform.set_translation(*target.state.pos[env_index])
+            range_circle.add_attr(xform)
+            range_circle.set_color(*Color.GREEN.value)
+            geoms.append(range_circle)
+        return geoms
 
 
 class HeuristicPolicy(BaseHeuristicPolicy):
