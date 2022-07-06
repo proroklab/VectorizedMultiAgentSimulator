@@ -181,7 +181,7 @@ class HeuristicPolicy(BaseHeuristicPolicy):
         assert self.continuous_actions
 
         # First calculate the closest point to a circle of radius circle_radius given the current position
-        circle_origin = torch.zeros(1, 2)
+        circle_origin = torch.zeros(1, 2, device=observation.device)
         circle_radius = 0.75
         current_pos = observation[:, :2]
         v = current_pos - circle_origin
