@@ -4,10 +4,10 @@
 import unittest
 
 from vmas import make_env
-from vmas.scenarios import target_coverage
+from vmas.scenarios import discovery
 
 
-class TestTargetCoverage(unittest.TestCase):
+class TestDiscovery(unittest.TestCase):
     def setup_env(
         self,
         **kwargs,
@@ -16,7 +16,7 @@ class TestTargetCoverage(unittest.TestCase):
 
         self.n_envs = 25
         self.env = make_env(
-            scenario_name="target_coverage",
+            scenario_name="discovery",
             num_envs=self.n_envs,
             device="cpu",
             # Environment specific variables
@@ -28,7 +28,7 @@ class TestTargetCoverage(unittest.TestCase):
 
         for n_agents in [5, 10]:
             self.setup_env(n_agents=n_agents, random_package_pos_on_line=False)
-            policy = target_coverage.HeuristicPolicy(True)
+            policy = discovery.HeuristicPolicy(True)
 
             obs = self.env.reset()
             rews = None
