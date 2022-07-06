@@ -11,7 +11,5 @@ class BaseHeuristicPolicy(ABC):
         self.continuous_actions = continuous_action
 
     @abstractmethod
-    def compute_action(
-        self, observation: torch.Tensor, u_range: float = None
-    ) -> torch.Tensor:
+    def compute_action(self, observation: torch.Tensor, u_range: float) -> torch.Tensor:
         raise NotImplementedError

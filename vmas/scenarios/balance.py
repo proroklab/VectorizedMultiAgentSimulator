@@ -252,9 +252,7 @@ class Scenario(BaseScenario):
 
 
 class HeuristicPolicy(BaseHeuristicPolicy):
-    def compute_action(
-        self, observation: torch.Tensor, u_range: float = None
-    ) -> torch.Tensor:
+    def compute_action(self, observation: torch.Tensor, u_range: float) -> torch.Tensor:
         batch_dim = observation.shape[0]
 
         index_package_goal_pos = 8
