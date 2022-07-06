@@ -1,7 +1,7 @@
 # VectorizedMultiAgentSimulator (VMAS)
 
 <p align="center">
-<img src="media/VMAS_white.gif" alt="drawing"/>  
+<img src="media/VMAS_scenarios.gif" alt="drawing"/>  
 </p>
 
 Welcome to **VMAS**!
