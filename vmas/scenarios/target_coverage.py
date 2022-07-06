@@ -1,17 +1,16 @@
-#  Copyright (c) 2022. Jan Blumenkamp
+#  Copyright (c) 2022.
+#  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-import math
-from typing import Dict, Callable, Optional
+from typing import Dict, Callable
 
 import torch
 from torch import Tensor
-
 from vmas import render_interactively
-from vmas.simulator.core import Agent, Landmark, Sphere, World, Entity, Line
-from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, X, Y
-from vmas.simulator.sensors import Lidar
+from vmas.simulator.core import Agent, Landmark, Sphere, World, Entity
 from vmas.simulator.heuristic_policy import BaseHeuristicPolicy
+from vmas.simulator.scenario import BaseScenario
+from vmas.simulator.sensors import Lidar
+from vmas.simulator.utils import Color, X, Y
 
 
 class Scenario(BaseScenario):
@@ -160,9 +159,7 @@ class Scenario(BaseScenario):
 
 
 class HeuristicPolicy(BaseHeuristicPolicy):
-    def compute_action(
-        self, observation: torch.Tensor, u_range: float = None
-    ) -> torch.Tensor:
+    def compute_action(self, observation: torch.Tensor, u_range: float) -> torch.Tensor:
         assert self.continuous_actions
 
         # First calculate the closest point to a circle of radius circle_radius given the current position

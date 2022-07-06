@@ -11,11 +11,8 @@ from vmas.simulator.heuristic_policy import BaseHeuristicPolicy
 
 
 class RandomPolicy(BaseHeuristicPolicy):
-    def compute_action(
-        self, observation: torch.Tensor, u_range: float = None
-    ) -> torch.Tensor:
+    def compute_action(self, observation: torch.Tensor, u_range: float) -> torch.Tensor:
         n_envs = observation.shape[0]
-        u_range = u_range if (u_range is not None) else 1.0
         return torch.clamp(torch.randn(n_envs, 2), -u_range, u_range)
 
 
@@ -52,7 +49,7 @@ def run_heuristic(
         step += 1
         actions = [None] * len(obs)
         for i in range(len(obs)):
-            actions[i] = policy.compute_action(obs[i])
+            actions[i] = policy.compute_action(obs[i], u_range=env.agents[i].u_range)
         obs, rews, dones, info = env.step(actions)
         rewards = torch.stack(rews, dim=1)
         global_reward = rewards.mean(dim=1)
