@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+import typing
 from typing import Callable, List, Tuple
 
 import torch
@@ -12,6 +13,9 @@ from torch import Tensor
 
 from vmas.simulator.sensors import Sensor
 from vmas.simulator.utils import Color, X, Y, override, LINE_MIN_DIST
+
+if typing.TYPE_CHECKING:
+    from vmas.simulator.rendering import Geom
 
 
 class TorchVectorizedObject(object):
@@ -75,7 +79,7 @@ class Box(Shape):
     def moment_of_inertia(self, mass: float):
         return (1 / 12) * mass * (self.length**2 + self.width**2)
 
-    def get_geometry(self):
+    def get_geometry(self) -> "Geom":
         from vmas.simulator import rendering
 
         l, r, t, b = (
@@ -100,7 +104,7 @@ class Sphere(Shape):
     def moment_of_inertia(self, mass: float):
         return (1 / 2) * mass * self.radius**2
 
-    def get_geometry(self):
+    def get_geometry(self) -> "Geom":
         from vmas.simulator import rendering
 
         return rendering.make_circle(self.radius)
@@ -124,7 +128,7 @@ class Line(Shape):
     def moment_of_inertia(self, mass: float):
         return (1 / 12) * mass * (self.length**2)
 
-    def get_geometry(self):
+    def get_geometry(self) -> "Geom":
         from vmas.simulator import rendering
 
         return rendering.Line(
@@ -432,7 +436,7 @@ class Entity(TorchVectorizedObject, ABC):
             value = prop.fget(entity)
             value[batch_index] = new
 
-    def render(self, env_index: int = 0):
+    def render(self, env_index: int = 0) -> "List[Geom]":
         from vmas.simulator import rendering
 
         if not self.is_rendering[env_index]:
@@ -625,7 +629,7 @@ class Agent(Entity):
                 self.batch_dim, dim_c, device=self.device, dtype=torch.float32
             )
 
-    def render(self, env_index: int = 0):
+    def render(self, env_index: int = 0) -> "List[Geom]":
         geoms = super().render(env_index)
         if len(geoms) == 0:
             return geoms

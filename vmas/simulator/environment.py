@@ -413,6 +413,9 @@ class Environment(TorchVectorizedObject):
                 for geom in entity.render(env_index=env_index)
             ]
 
+        for geom in self.scenario.extra_render(env_index):
+            self.viewer.add_onetime(geom)
+
         # render to display or array
         return self.viewer.render(return_rgb_array=mode == "rgb_array")
 
