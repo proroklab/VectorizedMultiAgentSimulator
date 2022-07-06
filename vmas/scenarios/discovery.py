@@ -229,4 +229,4 @@ class HeuristicPolicy(BaseHeuristicPolicy):
 
 
 if __name__ == "__main__":
-    render_interactively("target_coverage", n_agents=4)
+    render_interactively("discovery", n_agents=4)
