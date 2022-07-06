@@ -3,6 +3,7 @@
 #  All rights reserved.
 import os
 import time
+
 import torch
 from PIL import Image
 from vmas import make_env
@@ -19,14 +20,14 @@ class RandomPolicy(BaseHeuristicPolicy):
 
 
 def run_heuristic(
-        scenario_name: str = "transport",
-        heuristic: BaseHeuristicPolicy = RandomPolicy,
-        n_steps: int = 200,
-        n_envs: int = 32,
-        env_kwargs: dict = {},
-        render: bool = False,
-        save: bool = False,
-        device: str = "cpu",
+    scenario_name: str = "transport",
+    heuristic: BaseHeuristicPolicy = RandomPolicy,
+    n_steps: int = 200,
+    n_envs: int = 32,
+    env_kwargs: dict = {},
+    render: bool = False,
+    save: bool = False,
+    device: str = "cpu",
 ):
 
     # Scenario specific variables
@@ -92,6 +93,7 @@ def run_heuristic(
 
 if __name__ == "__main__":
     from vmas.scenarios.transport import HeuristicPolicy as TransportHeuristic
+
     run_heuristic(
         scenario_name="transport",
         heuristic=TransportHeuristic,
