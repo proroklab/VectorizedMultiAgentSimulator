@@ -4,7 +4,6 @@
 import unittest
 
 import torch
-
 from vmas import make_env
 from vmas.scenarios import transport
 
@@ -28,7 +27,7 @@ class TestTransport(unittest.TestCase):
             # Environment specific variables
             **kwargs
         )
-        # self.env.seed(0)
+        self.env.seed(0)
 
     def test_not_passing_through_packages(self):
         self.setup_env(n_agents=1)
