@@ -20,8 +20,8 @@ if typing.TYPE_CHECKING:
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        n_agents = kwargs.get("n_agents", 4)
-        n_targets = kwargs.get("n_targets", 5)
+        n_agents = kwargs.get("n_agents", 5)
+        n_targets = kwargs.get("n_targets", 4)
         self._min_dist_between_entities = kwargs.get("min_dist_between_entities", 0.2)
         self._lidar_range = kwargs.get("lidar_range", 0.5)
         self._covering_range = kwargs.get("covering_range", 0.3)
