@@ -23,7 +23,7 @@ class Scenario(BaseScenario):
         n_agents = kwargs.get("n_agents", 5)
         n_targets = kwargs.get("n_targets", 4)
         self._min_dist_between_entities = kwargs.get("min_dist_between_entities", 0.2)
-        self._lidar_range = kwargs.get("lidar_range", 0.5)
+        self._lidar_range = kwargs.get("lidar_range", 0.3)
         self._covering_range = kwargs.get("covering_range", 0.3)
         self._agents_per_target = kwargs.get("agents_per_target", 2)
 
@@ -203,7 +203,7 @@ class HeuristicPolicy(BaseHeuristicPolicy):
 
         # Move away from other agents within visibility range
         lidar_agents = observation[:, 4:16]
-        agent_visible = torch.any(lidar_agents < 0.3, dim=1)
+        agent_visible = torch.any(lidar_agents < 0.15, dim=1)
         _, agent_dir_index = torch.min(lidar_agents, dim=1)
         agent_dir = agent_dir_index / lidar_agents.shape[1] * 2 * torch.pi
         agent_vec = torch.stack([torch.cos(agent_dir), torch.sin(agent_dir)], dim=1)
@@ -212,7 +212,7 @@ class HeuristicPolicy(BaseHeuristicPolicy):
 
         # Move towards targets within visibility range
         lidar_targets = observation[:, 16:28]
-        target_visible = torch.any(lidar_targets < 0.5, dim=1)
+        target_visible = torch.any(lidar_targets < 0.3, dim=1)
         _, target_dir_index = torch.min(lidar_targets, dim=1)
         target_dir = target_dir_index / lidar_targets.shape[1] * 2 * torch.pi
         target_vec = torch.stack([torch.cos(target_dir), torch.sin(target_dir)], dim=1)
