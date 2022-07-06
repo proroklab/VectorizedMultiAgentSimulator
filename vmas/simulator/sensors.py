@@ -5,12 +5,16 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+import typing
 from typing import List, Union, Callable
 
 import torch
 
 import vmas.simulator.core
 import vmas.simulator.utils
+
+if typing.TYPE_CHECKING:
+    from vmas.simulator.rendering import Geom
 
 
 class Sensor(ABC):
@@ -32,7 +36,7 @@ class Sensor(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def render(self, env_index: int = 0):
+    def render(self, env_index: int = 0) -> "List[Geom]":
         raise NotImplementedError
 
 
@@ -88,7 +92,7 @@ class Lidar(Sensor):
         self._last_measurement = measurement.swapaxes(1, 0)
         return measurement
 
-    def render(self, env_index: int = 0):
+    def render(self, env_index: int = 0) -> "List[Geom]":
         from vmas.simulator import rendering
 
         geoms: List[rendering.Geom] = []

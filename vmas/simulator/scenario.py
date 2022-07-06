@@ -1,15 +1,18 @@
 #  Copyright (c) 2022.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-
+import typing
 from abc import ABC, abstractmethod
-from typing import Dict
+from typing import Dict, List
 
 import torch
 from torch import Tensor
 
 from vmas.simulator.core import World, Agent
 from vmas.simulator.utils import INITIAL_VIEWER_SIZE
+
+if typing.TYPE_CHECKING:
+    from vmas.simulator.rendering import Geom
 
 
 class BaseScenario(ABC):
@@ -223,3 +226,14 @@ class BaseScenario(ABC):
         :return: info: A dict with a key for each info of interest, and a tensor value  of shape (n_envs, info_size)
         """
         return {}
+
+    def extra_render(self, env_index: int = 0) -> "List[Geom]":
+        """
+        This function facilitates additional user/scenario-level rendering for a specific environment index.
+        The returned list is a list of geometries. It is the user's responsibility to set attributes such as color,
+        position and rotation.
+
+        :param env_index: index of the environment to render.
+        :return: A list of geometries to render for the current time step.
+        """
+        return []
