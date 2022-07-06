@@ -199,12 +199,9 @@ class HeuristicPolicy(BaseHeuristicPolicy):
         self.dribble_slowdown_dist = 0.0
         self.speed = 0.95
 
-    def compute_action(
-        self, observation: torch.Tensor, u_range: float = None
-    ) -> torch.Tensor:
+    def compute_action(self, observation: torch.Tensor, u_range: float) -> torch.Tensor:
         self.n_env = observation.shape[0]
         self.device = observation.device
-        u_range = u_range if (u_range is not None) else 1.0
         agent_pos = observation[:, :2]
         agent_vel = observation[:, 2:4]
         package_pos = observation[:, 6:8] + agent_pos
