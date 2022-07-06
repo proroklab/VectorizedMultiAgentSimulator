@@ -32,7 +32,7 @@ class Scenario(BaseScenario):
                     Lidar(
                         world,
                         n_rays=12,
-                        max_range=0.5,
+                        max_range=0.2,
                         entity_filter=goal_entity_filter,
                     )
                 ],
