@@ -18,16 +18,17 @@ VMAS has an interface compatible with [OpenAI Gym](https://github.com/openai/gym
 The implementation is inspired by [OpenAI's MPE](https://github.com/openai/multiagent-particle-envs). 
 Alongside VMAS's scenarios, we port and vectorize all the scenarios in MPE.
 
-### [Video]()
+### [Video](https://youtu.be/aaDRYfiesAY)
 Watch the presentation video of VMAS, showing its structure, scenarios, and experiments.
 
-[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/YOUTUBE_VIDEO_ID_HERE/0.jpg)](https://www.youtube.com/watch?v=YOUTUBE_VIDEO_ID_HERE)
+[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/aaDRYfiesAY/0.jpg)](https://www.youtube.com/watch?v=aaDRYfiesAY)
 
 ## How to use
 ### Notebooks
--  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1ipcNWJH0LKv6eLNs05tPrcLQHisbFaFU?usp=sharing) &ensp; **Using a VMAS environment**.
+-  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/proroklab/VectorizedMultiAgentSimulator/blob/main/notebooks/VMAS_Use_vmas_environment.ipynb) &ensp; **Using a VMAS environment**.
  Here is a simple notebook that you can run to create, step and render any scenario in VMAS. It reproduces the `use_vmas_env.py` script in the `examples` folder.
-- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1a7B4d_qzjTYdOr8r1ojhzbV6xp88Z86H?usp=sharing)  &ensp;  **Using VMAS in RLlib**.  In this notebook, we show how to use any VMAS scenario in RLlib. It reproduces the `rllib.py` script in the `examples` folder.
+- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/proroklab/VectorizedMultiAgentSimulator/blob/main/notebooks/VMAS_RLlib.ipynb)  &ensp;  **Using VMAS in RLlib**.  In this notebook, we show how to use any VMAS scenario in RLlib. It reproduces the `rllib.py` script in the `examples` folder.
+
 
 
 ### Install
