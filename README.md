@@ -23,6 +23,8 @@ Watch the presentation video of VMAS, showing its structure, scenarios, and expe
 
 [![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/aaDRYfiesAY/0.jpg)](https://www.youtube.com/watch?v=aaDRYfiesAY)
 
+### [Paper]()
+
 ## How to use
 ### Notebooks
 -  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/proroklab/VectorizedMultiAgentSimulator/blob/main/notebooks/VMAS_Use_vmas_environment.ipynb) &ensp; **Using a VMAS environment**.
