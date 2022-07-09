@@ -192,8 +192,8 @@ To create a fake screen you need to have `Xvfb` installed.
 
 ## TODOS
 
-- [ ] Link video of experiments
-- [ ] Add LIDAR section
+- [X] Link video of experiments
+- [X] Add LIDAR section
 - [ ] Custom actions for scenario
 - [X] Implement LIDAR
 - [ ] Implement 1D camera sensor
