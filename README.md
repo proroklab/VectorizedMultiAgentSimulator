@@ -18,13 +18,25 @@ VMAS has an interface compatible with [OpenAI Gym](https://github.com/openai/gym
 The implementation is inspired by [OpenAI's MPE](https://github.com/openai/multiagent-particle-envs). 
 Alongside VMAS's scenarios, we port and vectorize all the scenarios in MPE.
 
+### [Paper](https://arxiv.org/abs/2207.03530)
+The arXiv paper can be found [here](https://arxiv.org/abs/2207.03530).
+
+To cite VMAS use:
+```
+@article{bettini2022vmas
+  author = {Bettini, Matteo and Kortvelesy, Ryan and Blumenkamp, Jan and Prorok, Amanda},
+  title = {VMAS: A Vectorized Multi-Agent Simulator for Collective Robot Learning},
+  year = {2022},
+  journal={arXiv preprint arXiv:2207.03530},
+  url = {https://arxiv.org/abs/2207.03530},
+}
+```
+
 ### [Video](https://youtu.be/aaDRYfiesAY)
 Watch the presentation video of VMAS, showing its structure, scenarios, and experiments.
 
 [![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/aaDRYfiesAY/0.jpg)](https://www.youtube.com/watch?v=aaDRYfiesAY)
 
-### [Paper](https://arxiv.org/abs/2207.03530)
-The arXiv paper can be found [here](https://arxiv.org/abs/2207.03530).
 ## How to use
 ### Notebooks
 -  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/proroklab/VectorizedMultiAgentSimulator/blob/main/notebooks/VMAS_Use_vmas_environment.ipynb) &ensp; **Using a VMAS environment**.
