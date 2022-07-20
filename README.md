@@ -21,21 +21,24 @@ Alongside VMAS's scenarios, we port and vectorize all the scenarios in MPE.
 ### [Paper](https://arxiv.org/abs/2207.03530)
 The arXiv paper can be found [here](https://arxiv.org/abs/2207.03530).
 
-To cite VMAS use:
+If you use VMAS in your research, **cite** it using:
 ```
 @article{bettini2022vmas
-  author = {Bettini, Matteo and Kortvelesy, Ryan and Blumenkamp, Jan and Prorok, Amanda},
   title = {VMAS: A Vectorized Multi-Agent Simulator for Collective Robot Learning},
+  author = {Bettini, Matteo and Kortvelesy, Ryan and Blumenkamp, Jan and Prorok, Amanda},
   year = {2022},
   journal={arXiv preprint arXiv:2207.03530},
-  url = {https://arxiv.org/abs/2207.03530},
+  url = {https://arxiv.org/abs/2207.03530}
 }
 ```
 
 ### [Video](https://youtu.be/aaDRYfiesAY)
 Watch the presentation video of VMAS, showing its structure, scenarios, and experiments.
 
-[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/aaDRYfiesAY/0.jpg)](https://www.youtube.com/watch?v=aaDRYfiesAY)
+<p align="center">
+
+[![VMAS Video](https://img.youtube.com/vi/aaDRYfiesAY/0.jpg)](https://www.youtube.com/watch?v=aaDRYfiesAY)
+</p>
 
 ## How to use
 ### Notebooks
