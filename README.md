@@ -4,7 +4,7 @@
 <img src="media/VMAS_scenarios.gif" alt="drawing"/>  
 </p>
 
-Welcome to **VMAS**!
+### Welcome to **VMAS**!
 
 This repository contains the code for the Vectorized Multi-Agent Simulator (VMAS).
 
