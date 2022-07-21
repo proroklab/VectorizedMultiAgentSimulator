@@ -4,15 +4,24 @@
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 import typing
+from abc import ABC, abstractmethod
 from typing import Callable, List, Tuple
 
 import torch
 from torch import Tensor
 
+from vmas.simulator.joints import JointConstraint
 from vmas.simulator.sensors import Sensor
-from vmas.simulator.utils import Color, X, Y, override, LINE_MIN_DIST
+from vmas.simulator.utils import (
+    Color,
+    X,
+    Y,
+    override,
+    LINE_MIN_DIST,
+    COLLISION_FORCE,
+    JOINT_FORCE,
+)
 
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
@@ -509,7 +518,7 @@ class Agent(Entity):
         name: str,
         shape: Shape = Sphere(),
         movable: bool = True,
-        rotatable: bool = False,
+        rotatable: bool = True,
         collide: bool = True,
         density: float = 25.0,  # Unused for now
         mass: float = 1.0,
@@ -671,7 +680,8 @@ class World(TorchVectorizedObject):
         x_semidim: float = None,
         y_semidim: float = None,
         dim_c: int = 0,
-        contact_force: float = 1e2,
+        collision_force: float = COLLISION_FORCE,
+        joint_force: float = JOINT_FORCE,
         contact_margin: float = 1e-3,
         gravity: Tuple[float, float] = (0.0, 0.0),
     ):
@@ -695,8 +705,11 @@ class World(TorchVectorizedObject):
         # gravity
         self._gravity = torch.tensor(gravity, device=self.device, dtype=torch.float32)
         # contact response parameters
-        self._contact_force = contact_force
+        self._collision_force = collision_force
+        self._joint_force = joint_force
         self._contact_margin = contact_margin
+        # joints
+        self._joints = {}
         # Pairs of collidable shapes
         self._collidable_pairs = [{Sphere, Sphere}, {Sphere, Box}, {Sphere, Line}]
         # Horizontal unit vector
@@ -717,6 +730,11 @@ class World(TorchVectorizedObject):
         landmark.device = self._device
         landmark._spawn(self.dim_p)
         self._landmarks.append(landmark)
+
+    def add_joint(self, joint: JointConstraint):
+        self._joints.update(
+            {frozenset({joint.entity_a.name, joint.entity_b.name}): joint}
+        )
 
     @property
     def agents(self) -> List[Agent]:
@@ -1098,9 +1116,25 @@ class World(TorchVectorizedObject):
         # simple (but inefficient) collision response
         for a, entity_a in enumerate(self.entities):
             for b, entity_b in enumerate(self.entities):
-                if b <= a or not self._collides(entity_a, entity_b):
+                if b <= a:
                     continue
-                (f_a, t_a), (f_b, t_b) = self._get_collision_force(entity_a, entity_b)
+                f_a = f_b = t_a = t_b = 0
+                if frozenset({entity_a.name, entity_b.name}) in self._joints:
+                    joint = self._joints[frozenset({entity_a.name, entity_b.name})]
+                    (jf_a, jt_a), (jf_b, jt_b) = self._get_joint_forces(joint)
+                    f_a += jf_a
+                    f_b += jf_b
+                    t_a += jt_a
+                    t_b += jt_b
+                if not self._collides(entity_a, entity_b):
+                    continue
+                (cf_a, ct_a), (cf_b, ct_b) = self._get_collision_force(
+                    entity_a, entity_b
+                )
+                f_a += cf_a
+                f_b += cf_b
+                t_a += ct_a
+                t_b += ct_b
                 if entity_a.movable:
                     force[:, a] += f_a
                 if entity_a.rotatable:
@@ -1119,16 +1153,41 @@ class World(TorchVectorizedObject):
             return True
         return False
 
+    def _get_joint_forces(self, joint: JointConstraint):
+        pos_point_a = joint.pos_point_a()
+        pos_point_b = joint.pos_point_b()
+        force_a_attractive, force_b_attractive = self._get_constraint_forces(
+            pos_point_a,
+            pos_point_b,
+            dist_min=joint.dist,
+            attractive=True,
+            force_multiplier=self._joint_force,
+        )
+        force_a_repulsive, force_b_repulsive = self._get_constraint_forces(
+            pos_point_a,
+            pos_point_b,
+            dist_min=joint.dist,
+            attractive=False,
+            force_multiplier=self._joint_force,
+        )
+        force_a = force_a_attractive + force_a_repulsive
+        force_b = force_b_attractive + force_b_repulsive
+        r_a = pos_point_a - joint.entity_a.state.pos
+        r_b = pos_point_b - joint.entity_b.state.pos
+        torque_a = World._compute_torque(force_a, r_a)
+        torque_b = World._compute_torque(force_b, r_b)
+        return (force_a, torque_a), (force_b, torque_b)
+
     # get collision forces for any contact between two entities
     # collisions among lines and boxes or these objects among themselves will be ignored
     def _get_collision_force(self, entity_a, entity_b):
-
         # Sphere and sphere
         if isinstance(entity_a.shape, Sphere) and isinstance(entity_b.shape, Sphere):
-            force_a, force_b = self._get_collision_forces(
+            force_a, force_b = self._get_constraint_forces(
                 entity_a.state.pos,
                 entity_b.state.pos,
                 dist_min=entity_a.shape.radius + entity_b.shape.radius,
+                force_multiplier=self._collision_force,
             )
             torque_a = 0
             torque_b = 0
@@ -1147,10 +1206,11 @@ class World(TorchVectorizedObject):
             closest_point = self._get_closest_point_line(
                 line.state.pos, line.state.rot, line.shape.length, sphere.state.pos
             )
-            force_sphere, force_line = self._get_collision_forces(
+            force_sphere, force_line = self._get_constraint_forces(
                 sphere.state.pos,
                 closest_point,
                 dist_min=sphere.shape.radius + LINE_MIN_DIST,
+                force_multiplier=self._collision_force,
             )
             r = closest_point - line.state.pos
             torque_line = World._compute_torque(force_line, r)
@@ -1173,10 +1233,11 @@ class World(TorchVectorizedObject):
                 else (entity_b, entity_a)
             )
             closest_point = self._get_closest_point_box(box, sphere.state.pos)
-            force_sphere, force_box = self._get_collision_forces(
+            force_sphere, force_box = self._get_constraint_forces(
                 sphere.state.pos,
                 closest_point,
                 dist_min=sphere.shape.radius + LINE_MIN_DIST,
+                force_multiplier=self._collision_force,
             )
             r = closest_point - box.state.pos
             torque_box = World._compute_torque(force_box, r)
@@ -1262,31 +1323,41 @@ class World(TorchVectorizedObject):
         )
         return closest_point
 
-    def _get_collision_forces(
-        self, pos_a: Tensor, pos_b: Tensor, dist_min: float
+    def _get_constraint_forces(
+        self,
+        pos_a: Tensor,
+        pos_b: Tensor,
+        dist_min: float,
+        force_multiplier: float,
+        attractive: bool = False,
     ) -> Tensor:
         delta_pos = pos_a - pos_b
         dist = torch.linalg.vector_norm(delta_pos, dim=1)
+        sign = -1 if attractive else 1
 
         # softmax penetration
         k = self._contact_margin
         penetration = (
             torch.logaddexp(
                 torch.tensor(0.0, dtype=torch.float32, device=self.device),
-                -(dist - dist_min) / k,
+                (dist_min - dist) * sign / k,
             )
             * k
         )
         force = (
-            self._contact_force
+            sign
+            * force_multiplier
             * delta_pos
             / dist.unsqueeze(-1)
             * penetration.unsqueeze(-1)
         )
         force[dist == 0.0] = 0.0
-        force[dist > dist_min] = 0
+        if not attractive:
+            force[dist > dist_min] = 0
+        else:
+            force[dist < dist_min] = 0
         assert not force.isnan().any()
-        return +force, -force
+        return force, -force
 
     # integrate physical state
     def _integrate_state(self, force, torque):
@@ -1336,6 +1407,8 @@ class World(TorchVectorizedObject):
     def _rotate_vector(vector: Tensor, angle: Tensor):
         if len(angle.shape) > 1:
             angle = angle.squeeze(-1)
+        if len(vector.shape) == 1:
+            vector = vector.unsqueeze(0)
         cos = torch.cos(angle)
         sin = torch.sin(angle)
         return torch.stack(
