@@ -59,7 +59,6 @@ class Scenario(BaseScenario):
             device,
             dt=0.1,
             damping=0.05,
-            contact_force=1e2,
             x_semidim=self.pitch_length / 2 + self.goal_depth - self.agent_size,
             y_semidim=self.pitch_width / 2 - self.agent_size,
         )
