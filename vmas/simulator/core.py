@@ -56,6 +56,10 @@ class Shape(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def get_delta_from_anchor(self, anchor: Tuple[float, float]) -> Tuple[float, float]:
+        raise NotImplementedError
+
+    @abstractmethod
     def get_geometry(self):
         raise NotImplementedError
 
@@ -75,6 +79,9 @@ class Box(Shape):
     @property
     def width(self):
         return self._width
+
+    def get_delta_from_anchor(self, anchor: Tuple[float, float]) -> Tuple[float, float]:
+        return anchor[X] * self.length / 2, anchor[Y] * self.width / 2
 
     def moment_of_inertia(self, mass: float):
         return (1 / 12) * mass * (self.length**2 + self.width**2)
@@ -100,6 +107,15 @@ class Sphere(Shape):
     @property
     def radius(self):
         return self._radius
+
+    def get_delta_from_anchor(self, anchor: Tuple[float, float]) -> Tuple[float, float]:
+        delta = torch.tensor([anchor[X] * self.radius, anchor[Y] * self.radius]).to(
+            torch.float32
+        )
+        delta_norm = torch.linalg.vector_norm(delta)
+        if delta_norm > self.radius:
+            delta /= delta_norm * self.radius
+        return delta.tolist()
 
     def moment_of_inertia(self, mass: float):
         return (1 / 2) * mass * self.radius**2
@@ -127,6 +143,9 @@ class Line(Shape):
 
     def moment_of_inertia(self, mass: float):
         return (1 / 12) * mass * (self.length**2)
+
+    def get_delta_from_anchor(self, anchor: Tuple[float, float]) -> Tuple[float, float]:
+        return anchor[X] * self.length / 2, 0.0
 
     def get_geometry(self) -> "Geom":
         from vmas.simulator import rendering
