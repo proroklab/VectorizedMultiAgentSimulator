@@ -6,22 +6,62 @@ import torch
 
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World, Landmark, Sphere, Box, Line
+from vmas.simulator.joints import Joint
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color
 
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        n_agents = kwargs.get("n_agents", 5)
+        self.n_agents = kwargs.get("n_agents", 5)
+
+        self.agent_dist = 0.1
+        self.agent_radius = 0.04
 
         # Make world
-        world = World(batch_dim, device, dt=0.1, damping=0.25)
+        world = World(batch_dim, device, dt=0.1, damping=0.25, substeps=2)
         # Add agents
-        for i in range(n_agents):
+        for i in range(self.n_agents):
             agent = Agent(
-                name=f"agent {i}", shape=Sphere(radius=0.04), u_multiplier=0.8
+                name=f"agent {i}",
+                shape=Sphere(radius=self.agent_radius),
+                u_multiplier=0.8,
             )
             world.add_agent(agent)
+        # Add joints
+        for i in range(self.n_agents - 1):
+            joint = Joint(
+                world.agents[i],
+                world.agents[i + 1],
+                anchor_a=(1, 0),
+                anchor_b=(-1, 0),
+                dist=self.agent_dist,
+                collidable=True,
+                width=0,
+                mass=1,
+            )
+            world.add_joint(joint)
+        landmark = Landmark(
+            name="joined landmark",
+            collide=True,
+            movable=True,
+            rotatable=True,
+            shape=Box(length=self.agent_radius * 2, width=0.3),
+            color=Color.GREEN,
+        )
+        world.add_landmark(landmark)
+        joint = Joint(
+            world.agents[-1],
+            landmark,
+            anchor_a=(1, 0),
+            anchor_b=(-1, 0),
+            dist=self.agent_dist,
+            collidable=True,
+            width=0,
+            mass=1,
+        )
+        world.add_joint(joint)
+
         # Add landmarks
         for i in range(5):
             landmark = Landmark(
@@ -45,16 +85,18 @@ class Scenario(BaseScenario):
         return world
 
     def reset_world_at(self, env_index: int = None):
-        for i, agent in enumerate(self.world.agents):
+        for i, agent in enumerate(
+            self.world.agents + [self.world.landmarks[self.n_agents - 1]]
+        ):
             agent.set_pos(
                 torch.tensor(
-                    [-0.2 + 0.1 * i, 1.0],
+                    [-0.2 + (self.agent_dist + 2 * self.agent_radius) * i, 1.0],
                     dtype=torch.float32,
                     device=self.world.device,
                 ),
                 batch_index=env_index,
             )
-        for i, landmark in enumerate(self.world.landmarks[:-1]):
+        for i, landmark in enumerate(self.world.landmarks[self.n_agents + 1 : -1]):
             landmark.set_pos(
                 torch.tensor(
                     [0.2 if i % 2 else -0.2, 0.6 - 0.3 * i],
@@ -100,4 +142,4 @@ class Scenario(BaseScenario):
 
 
 if __name__ == "__main__":
-    render_interactively("waterfall", n_agents=5)
+    render_interactively("waterfall", n_agents=5, control_two_agents=True)

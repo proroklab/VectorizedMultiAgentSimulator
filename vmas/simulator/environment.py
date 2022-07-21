@@ -410,6 +410,12 @@ class Environment(TorchVectorizedObject):
         for geom in self.scenario.extra_render(env_index):
             self.viewer.add_onetime(geom)
 
+        for joint in self.world.joints:
+            [
+                self.viewer.add_onetime(geom)
+                for geom in joint.render(env_index=env_index)
+            ]
+
         for entity in self.world.entities:
             [
                 self.viewer.add_onetime(geom)

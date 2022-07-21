@@ -11,7 +11,7 @@ from typing import Callable, List, Tuple
 import torch
 from torch import Tensor
 
-from vmas.simulator.joints import JointConstraint
+from vmas.simulator.joints import JointConstraint, Joint
 from vmas.simulator.sensors import Sensor
 from vmas.simulator.utils import (
     Color,
@@ -21,6 +21,7 @@ from vmas.simulator.utils import (
     LINE_MIN_DIST,
     COLLISION_FORCE,
     JOINT_FORCE,
+    Observable,
 )
 
 if typing.TYPE_CHECKING:
@@ -124,7 +125,7 @@ class Sphere(Shape):
         delta_norm = torch.linalg.vector_norm(delta)
         if delta_norm > self.radius:
             delta /= delta_norm * self.radius
-        return delta.tolist()
+        return tuple(delta.tolist())
 
     def moment_of_inertia(self, mass: float):
         return (1 / 2) * mass * self.radius**2
@@ -312,7 +313,7 @@ class Action(TorchVectorizedObject):
 
 
 # properties and state of physical world entity
-class Entity(TorchVectorizedObject, ABC):
+class Entity(TorchVectorizedObject, Observable, ABC):
     def __init__(
         self,
         name: str,
@@ -324,8 +325,10 @@ class Entity(TorchVectorizedObject, ABC):
         shape: Shape = Sphere(),
         max_speed: float = None,
         color=Color.GRAY,
+        is_joint: bool = False,
     ):
-        super().__init__()
+        TorchVectorizedObject.__init__(self)
+        Observable.__init__(self)
         # name
         self._name = name
         # entity can move / be pushed
@@ -344,6 +347,8 @@ class Entity(TorchVectorizedObject, ABC):
         self._color = color
         # shape
         self._shape = shape
+        # is joint
+        self._is_joint = is_joint
         # state
         self._state = EntityState()
         # entity goal
@@ -369,6 +374,10 @@ class Entity(TorchVectorizedObject, ABC):
 
     def reset_render(self):
         self._render = torch.full((self.batch_dim,), True, device=self.device)
+
+    @property
+    def is_joint(self):
+        return self._is_joint
 
     @property
     def mass(self):
@@ -463,6 +472,7 @@ class Entity(TorchVectorizedObject, ABC):
             new = new.to(self.device)
             value = prop.fget(entity)
             value[batch_index] = new
+        self.notify_observers()
 
     def render(self, env_index: int = 0) -> "List[Geom]":
         from vmas.simulator import rendering
@@ -497,6 +507,7 @@ class Landmark(Entity):
         mass: float = 1.0,
         max_speed: float = None,
         color=Color.GRAY,
+        is_joint: bool = False,
     ):
         super().__init__(
             name,
@@ -508,6 +519,7 @@ class Landmark(Entity):
             shape,
             max_speed,
             color,
+            is_joint,
         )
 
 
@@ -676,6 +688,7 @@ class World(TorchVectorizedObject):
         batch_dim: int,
         device: torch.device,
         dt: float = 0.1,
+        substeps: int = 1,  # if you use joints, higher this value to gain simulation stability
         damping: float = 0.25,
         x_semidim: float = None,
         y_semidim: float = None,
@@ -700,6 +713,8 @@ class World(TorchVectorizedObject):
         self._dim_c = dim_c
         # simulation timestep
         self._dt = dt
+        self._substeps = substeps
+        self._sub_dt = self._dt / self._substeps
         # physical damping
         self._damping = damping
         # gravity
@@ -731,10 +746,18 @@ class World(TorchVectorizedObject):
         landmark._spawn(self.dim_p)
         self._landmarks.append(landmark)
 
-    def add_joint(self, joint: JointConstraint):
-        self._joints.update(
-            {frozenset({joint.entity_a.name, joint.entity_b.name}): joint}
-        )
+    def add_joint(self, joint: Joint):
+        assert self._substeps > 1, "For joints, world substeps needs to be more than 1"
+        if joint.landmark is not None:
+            self.add_landmark(joint.landmark)
+        for constraint in joint.joint_constraints:
+            self._joints.update(
+                {
+                    frozenset(
+                        {constraint.entity_a.name, constraint.entity_b.name}
+                    ): constraint
+                }
+            )
 
     @property
     def agents(self) -> List[Agent]:
@@ -759,6 +782,10 @@ class World(TorchVectorizedObject):
     @property
     def dim_c(self):
         return self._dim_c
+
+    @property
+    def joints(self):
+        return self._joints.values()
 
     # return all entities in the world
     @property
@@ -1057,37 +1084,38 @@ class World(TorchVectorizedObject):
 
     # update state of the world
     def step(self):
-        # set actions for scripted agents
-        for agent in self.scripted_agents:
-            agent.action_callback(self)
-        # gather forces applied to entities
-        force = torch.zeros(
-            self._batch_dim,
-            len(self.entities),
-            self._dim_p,
-            device=self.device,
-            dtype=torch.float32,
-        )
-        torque = torch.zeros(
-            self._batch_dim,
-            len(self.entities),
-            1,
-            device=self.device,
-            dtype=torch.float32,
-        )
+        for _ in range(self._substeps):
+            # set actions for scripted agents
+            for agent in self.scripted_agents:
+                agent.action_callback(self)
+            # gather forces applied to entities
+            force = torch.zeros(
+                self._batch_dim,
+                len(self.entities),
+                self._dim_p,
+                device=self.device,
+                dtype=torch.float32,
+            )
+            torque = torch.zeros(
+                self._batch_dim,
+                len(self.entities),
+                1,
+                device=self.device,
+                dtype=torch.float32,
+            )
 
-        # apply agent physical controls
-        self._apply_action_force(force)
-        # apply gravity
-        self._apply_gravity(force)
-        # apply environment forces
-        self._apply_environment_force(force, torque)
-        # integrate physical state
-        self._integrate_state(force, torque)
-        # update non-differentiable comm state
-        if self._dim_c > 0:
-            for agent in self._agents:
-                self._update_comm_state(agent)
+            # apply agent physical controls
+            self._apply_action_force(force)
+            # apply gravity
+            self._apply_gravity(force)
+            # apply environment forces
+            self._apply_environment_force(force, torque)
+            # integrate physical state
+            self._integrate_state(force, torque)
+            # update non-differentiable comm state
+            if self._dim_c > 0:
+                for agent in self._agents:
+                    self._update_comm_state(agent)
 
     def _apply_gravity(self, force):
         if not (self._gravity == 0.0).all():
@@ -1118,23 +1146,17 @@ class World(TorchVectorizedObject):
             for b, entity_b in enumerate(self.entities):
                 if b <= a:
                     continue
-                f_a = f_b = t_a = t_b = 0
                 if frozenset({entity_a.name, entity_b.name}) in self._joints:
                     joint = self._joints[frozenset({entity_a.name, entity_b.name})]
-                    (jf_a, jt_a), (jf_b, jt_b) = self._get_joint_forces(joint)
-                    f_a += jf_a
-                    f_b += jf_b
-                    t_a += jt_a
-                    t_b += jt_b
-                if not self._collides(entity_a, entity_b):
-                    continue
-                (cf_a, ct_a), (cf_b, ct_b) = self._get_collision_force(
-                    entity_a, entity_b
-                )
-                f_a += cf_a
-                f_b += cf_b
-                t_a += ct_a
-                t_b += ct_b
+                    (f_a, t_a), (f_b, t_b) = self._get_joint_forces(
+                        entity_a, entity_b, joint
+                    )
+                else:
+                    if not self._collides(entity_a, entity_b):
+                        continue
+                    (f_a, t_a), (f_b, t_b) = self._get_collision_force(
+                        entity_a, entity_b
+                    )
                 if entity_a.movable:
                     force[:, a] += f_a
                 if entity_a.rotatable:
@@ -1153,9 +1175,11 @@ class World(TorchVectorizedObject):
             return True
         return False
 
-    def _get_joint_forces(self, joint: JointConstraint):
-        pos_point_a = joint.pos_point_a()
-        pos_point_b = joint.pos_point_b()
+    def _get_joint_forces(
+        self, entity_a: Entity, entity_b: Entity, joint: JointConstraint
+    ):
+        pos_point_a = joint.pos_point(entity_a)
+        pos_point_b = joint.pos_point(entity_b)
         force_a_attractive, force_b_attractive = self._get_constraint_forces(
             pos_point_a,
             pos_point_b,
@@ -1172,8 +1196,8 @@ class World(TorchVectorizedObject):
         )
         force_a = force_a_attractive + force_a_repulsive
         force_b = force_b_attractive + force_b_repulsive
-        r_a = pos_point_a - joint.entity_a.state.pos
-        r_b = pos_point_b - joint.entity_b.state.pos
+        r_a = pos_point_a - entity_a.state.pos
+        r_b = pos_point_b - entity_b.state.pos
         torque_a = World._compute_torque(force_a, r_a)
         torque_b = World._compute_torque(force_b, r_b)
         return (force_a, torque_a), (force_b, torque_b)
@@ -1365,14 +1389,14 @@ class World(TorchVectorizedObject):
             if entity.movable:
                 # Compute translation
                 entity.state.vel = entity.state.vel * (1 - self._damping)
-                entity.state.vel += (force[:, i] / entity.mass) * self._dt
+                entity.state.vel += (force[:, i] / entity.mass) * self._sub_dt
                 if entity.max_speed is not None:
                     speed = torch.linalg.norm(entity.state.vel, dim=1)
                     new_vel = entity.state.vel / speed.unsqueeze(-1) * entity.max_speed
                     entity.state.vel[speed > entity.max_speed] = new_vel[
                         speed > entity.max_speed
                     ]
-                new_pos = entity.state.pos + entity.state.vel * self._dt
+                new_pos = entity.state.pos + entity.state.vel * self._sub_dt
                 if self._x_semidim is not None:
                     new_pos[:, X] = torch.clamp(
                         new_pos[:, X], -self._x_semidim, self._x_semidim
@@ -1387,8 +1411,8 @@ class World(TorchVectorizedObject):
                 entity.state.ang_vel = entity.state.ang_vel * (1 - self._damping)
                 entity.state.ang_vel += (
                     torque[:, i] / entity.moment_of_inertia
-                ) * self._dt
-                entity.state.rot += entity.state.ang_vel * self._dt
+                ) * self._sub_dt
+                entity.state.rot += entity.state.ang_vel * self._sub_dt
 
     def _update_comm_state(self, agent):
         # set communication state (directly for now)
