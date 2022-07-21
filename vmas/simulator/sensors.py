@@ -10,10 +10,10 @@ from typing import List, Union, Callable
 
 import torch
 
+import vmas.simulator.core
 import vmas.simulator.utils
 
 if typing.TYPE_CHECKING:
-    import vmas.simulator.core
     from vmas.simulator.rendering import Geom
 
 
