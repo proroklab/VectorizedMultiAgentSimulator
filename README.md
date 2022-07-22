@@ -104,7 +104,7 @@ customizable. Examples are: world damping, gravity, simulation timestep, non-dif
 - **Non-differentiable communication**: Scenarios can require agents to perform discrete or continuous communication actions.
 - **Gravity**: VMAS supports customizable gravity.
 - **Sensors**: Our simulator implements ray casting, which can be used to simulate a wide range of distance-based sensors that can be added to agents. We currently support LIDARs. To see available sensors, have a look at the `sensors` script.
-- **Joints**: Our simulator supports joints. Joints are constraints that keep entities at a specified distance. The user can specify the anchor points on the two objects, the distance (including 0), the thickness of the joint, and if he wants the joint to be collidable. Have a look at the waterfall scenario to see how you can use joints.
+- **Joints**: Our simulator supports joints. Joints are constraints that keep entities at a specified distance. The user can specify the anchor points on the two objects, the distance (including 0), the thickness of the joint, if the joint is allowed to rotate at either anchor point, and if he wants the joint to be collidable. Have a look at the waterfall scenario to see how you can use joints.
 
 ## Creating a new scenario
 

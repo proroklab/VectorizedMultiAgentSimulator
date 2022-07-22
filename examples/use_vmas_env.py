@@ -22,7 +22,7 @@ def use_vmas_env(render: bool = False):
     continuous_actions = False
     device = "cpu"  # or cuda or any other torch device
     wrapper = Wrapper.RLLIB
-    n_steps = 500
+    n_steps = 200
 
     simple_2d_action = (
         [0, 0.5] if continuous_actions else [3]

@@ -1166,30 +1166,29 @@ class World(TorchVectorizedObject):
 
     # gather physical forces acting on entities
     def _apply_environment_force(self, force, torque):
-        # simple (but inefficient) collision response
+        def apply_env_forces(f_a, t_a, f_b, t_b):
+            if entity_a.movable:
+                force[:, a] += f_a
+            if entity_a.rotatable:
+                torque[:, a] += t_a
+            if entity_b.movable:
+                force[:, b] += f_b
+            if entity_b.rotatable:
+                torque[:, b] += t_b
+
         for a, entity_a in enumerate(self.entities):
             for b, entity_b in enumerate(self.entities):
                 if b <= a:
                     continue
+                # Joints
                 if frozenset({entity_a.name, entity_b.name}) in self._joints:
                     joint = self._joints[frozenset({entity_a.name, entity_b.name})]
-                    (f_a, t_a), (f_b, t_b) = self._get_joint_forces(
-                        entity_a, entity_b, joint
-                    )
-                else:
-                    if not self._collides(entity_a, entity_b):
+                    apply_env_forces(*self._get_joint_forces(entity_a, entity_b, joint))
+                    if joint.dist == 0:
                         continue
-                    (f_a, t_a), (f_b, t_b) = self._get_collision_force(
-                        entity_a, entity_b
-                    )
-                if entity_a.movable:
-                    force[:, a] += f_a
-                if entity_a.rotatable:
-                    torque[:, a] += t_a
-                if entity_b.movable:
-                    force[:, b] += f_b
-                if entity_b.rotatable:
-                    torque[:, b] += t_b
+                # Collisions
+                if self._collides(entity_a, entity_b):
+                    apply_env_forces(*self._get_collision_force(entity_a, entity_b))
 
     def _collides(self, a: Entity, b: Entity) -> bool:
         if (not a.collide) or (not b.collide) or a is b:
@@ -1223,9 +1222,12 @@ class World(TorchVectorizedObject):
         force_b = force_b_attractive + force_b_repulsive
         r_a = pos_point_a - entity_a.state.pos
         r_b = pos_point_b - entity_b.state.pos
-        torque_a = World._compute_torque(force_a, r_a)
-        torque_b = World._compute_torque(force_b, r_b)
-        return (force_a, torque_a), (force_b, torque_b)
+        if joint.rotate:
+            torque_a = World._compute_torque(force_a, r_a)
+            torque_b = World._compute_torque(force_b, r_b)
+        else:
+            torque_a = torque_b = 0
+        return force_a, torque_a, force_b, torque_b
 
     # get collision forces for any contact between two entities
     # collisions among lines and boxes or these objects among themselves will be ignored
@@ -1299,7 +1301,7 @@ class World(TorchVectorizedObject):
         else:
             assert False
 
-        return (force_a, torque_a), (force_b, torque_b)
+        return force_a, torque_a, force_b, torque_b
 
     def _get_closest_point_box(self, box: Entity, test_point_pos):
         assert isinstance(box.shape, Box)
