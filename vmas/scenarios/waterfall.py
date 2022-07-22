@@ -5,7 +5,7 @@
 import torch
 
 from vmas import render_interactively
-from vmas.simulator.core import Agent, World, Landmark, Sphere, Box, Line
+from vmas.simulator.core import Agent, World, Sphere, Landmark, Box, Line
 from vmas.simulator.joints import Joint
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color
@@ -14,53 +14,60 @@ from vmas.simulator.utils import Color
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.n_agents = kwargs.get("n_agents", 5)
+        self.with_joints = kwargs.get("joints", True)
 
         self.agent_dist = 0.1
         self.agent_radius = 0.04
 
         # Make world
-        world = World(batch_dim, device, dt=0.1, damping=0.25, substeps=2)
+        world = World(batch_dim, device, dt=0.1, damping=0.1, substeps=2)
         # Add agents
         for i in range(self.n_agents):
             agent = Agent(
                 name=f"agent {i}",
                 shape=Sphere(radius=self.agent_radius),
-                u_multiplier=0.8,
+                u_multiplier=0.7,
+                rotatable=True,
             )
             world.add_agent(agent)
-        # Add joints
-        for i in range(self.n_agents - 1):
+        if self.with_joints or True:
+            # Add joints
+            for i in range(self.n_agents - 1):
+                joint = Joint(
+                    world.agents[i],
+                    world.agents[i + 1],
+                    anchor_a=(1, 0),
+                    anchor_b=(-1, 0),
+                    dist=self.agent_dist,
+                    rotate_a=True,
+                    rotate_b=True,
+                    collidable=True,
+                    width=0,
+                    mass=1,
+                )
+                world.add_joint(joint)
+            landmark = Landmark(
+                name="joined landmark",
+                collide=True,
+                movable=True,
+                rotatable=True,
+                shape=Box(length=self.agent_radius * 2, width=0.3),
+                color=Color.GREEN,
+            )
+            world.add_landmark(landmark)
             joint = Joint(
-                world.agents[i],
-                world.agents[i + 1],
+                world.agents[-1],
+                landmark,
                 anchor_a=(1, 0),
                 anchor_b=(-1, 0),
                 dist=self.agent_dist,
+                rotate_a=True,
+                rotate_b=True,
                 collidable=True,
                 width=0,
                 mass=1,
             )
             world.add_joint(joint)
-        landmark = Landmark(
-            name="joined landmark",
-            collide=True,
-            movable=True,
-            rotatable=True,
-            shape=Box(length=self.agent_radius * 2, width=0.3),
-            color=Color.GREEN,
-        )
-        world.add_landmark(landmark)
-        joint = Joint(
-            world.agents[-1],
-            landmark,
-            anchor_a=(1, 0),
-            anchor_b=(-1, 0),
-            dist=self.agent_dist,
-            collidable=True,
-            width=0,
-            mass=1,
-        )
-        world.add_joint(joint)
 
         # Add landmarks
         for i in range(5):
@@ -96,7 +103,9 @@ class Scenario(BaseScenario):
                 ),
                 batch_index=env_index,
             )
-        for i, landmark in enumerate(self.world.landmarks[self.n_agents + 1 : -1]):
+        for i, landmark in enumerate(
+            self.world.landmarks[(self.n_agents + 1) if self.with_joints else 0 : -1]
+        ):
             landmark.set_pos(
                 torch.tensor(
                     [0.2 if i % 2 else -0.2, 0.6 - 0.3 * i],
@@ -142,4 +151,4 @@ class Scenario(BaseScenario):
 
 
 if __name__ == "__main__":
-    render_interactively("waterfall", n_agents=5, control_two_agents=True)
+    render_interactively("waterfall", n_agents=5, joints=True, control_two_agents=True)

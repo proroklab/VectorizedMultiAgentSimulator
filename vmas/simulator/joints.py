@@ -24,6 +24,8 @@ class Joint(vmas.simulator.utils.Observer):
         entity_b: vmas.simulator.core.Entity,
         anchor_a: Tuple[float, float] = (0.0, 0.0),
         anchor_b: Tuple[float, float] = (0.0, 0.0),
+        rotate_a: bool = True,
+        rotate_b: bool = True,
         dist: float = 0.0,
         collidable: bool = False,
         width: float = 0.0,
@@ -43,22 +45,29 @@ class Joint(vmas.simulator.utils.Observer):
 
         self.entity_a = entity_a
         self.entity_b = entity_b
+        self.landmark = None
         self.joint_constraints = []
 
-        if not collidable:
+        if dist == 0:
             self.joint_constraints.append(
-                JointConstraint(entity_a, entity_b, anchor_a, anchor_b, dist)
+                JointConstraint(
+                    entity_a,
+                    entity_b,
+                    anchor_a=anchor_a,
+                    anchor_b=anchor_b,
+                    dist=dist,
+                    rotate=rotate_a and rotate_b,
+                ),
             )
-            self.landmark = None
         else:
             entity_a.subscribe(self)
             entity_b.subscribe(self)
 
             self.landmark = vmas.simulator.core.Landmark(
                 name=f"joint {entity_a.name} {entity_b.name}",
-                collide=True,
+                collide=collidable,
                 movable=True,
-                rotatable=True,
+                rotatable=rotate_a and rotate_b,
                 mass=mass,
                 shape=vmas.simulator.core.Box(length=dist, width=width)
                 if width != 0
@@ -73,6 +82,7 @@ class Joint(vmas.simulator.utils.Observer):
                     anchor_a=(-1, 0),
                     anchor_b=anchor_a,
                     dist=0.0,
+                    rotate=rotate_a,
                 ),
                 JointConstraint(
                     self.landmark,
@@ -80,6 +90,7 @@ class Joint(vmas.simulator.utils.Observer):
                     anchor_a=(1, 0),
                     anchor_b=anchor_b,
                     dist=0.0,
+                    rotate=rotate_b,
                 ),
             ]
 
@@ -113,6 +124,7 @@ class JointConstraint:
         anchor_a: Tuple[float, float] = (0.0, 0.0),
         anchor_b: Tuple[float, float] = (0.0, 0.0),
         dist: float = 0.0,
+        rotate: bool = True,
     ):
         assert entity_a != entity_b, "Cannot join same entity"
         for anchor in (anchor_a, anchor_b):
@@ -126,6 +138,7 @@ class JointConstraint:
         self.anchor_a = anchor_a
         self.anchor_b = anchor_b
         self.dist = dist
+        self.rotate = rotate
 
     def get_delta_anchor(self, entity: vmas.simulator.core.Entity):
         if entity == self.entity_a:
