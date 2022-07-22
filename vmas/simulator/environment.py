@@ -106,7 +106,7 @@ class Environment(TorchVectorizedObject):
         if seed is not None:
             self.seed(seed)
         # reset world
-        self.scenario.reset_world_at(env_index=None)
+        self.scenario.env_reset_world_at(env_index=None)
         self.steps = torch.zeros(self.num_envs, device=self.device)
         # record observations for each agent
         obs = []
@@ -120,7 +120,7 @@ class Environment(TorchVectorizedObject):
         Returns observations for all agents in that environment
         """
         self._check_batch_index(index)
-        self.scenario.reset_world_at(index)
+        self.scenario.env_reset_world_at(index)
         self.steps[index] = 0
         obs = []
         for agent in self.agents:
