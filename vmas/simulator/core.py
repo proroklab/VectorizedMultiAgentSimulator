@@ -1109,7 +1109,7 @@ class World(TorchVectorizedObject):
 
     # update state of the world
     def step(self):
-        for _ in range(self._substeps):
+        for substep in range(self._substeps):
             # set actions for scripted agents
             for agent in self.scripted_agents:
                 agent.action_callback(self)
@@ -1136,7 +1136,7 @@ class World(TorchVectorizedObject):
             # apply environment forces
             self._apply_environment_force(force, torque)
             # integrate physical state
-            self._integrate_state(force, torque)
+            self._integrate_state(force, torque, substep)
             # update non-differentiable comm state
             if self._dim_c > 0:
                 for agent in self._agents:
@@ -1409,11 +1409,12 @@ class World(TorchVectorizedObject):
         return force, -force
 
     # integrate physical state
-    def _integrate_state(self, force, torque):
+    def _integrate_state(self, force, torque, substep):
         for i, entity in enumerate(self.entities):
             if entity.movable:
                 # Compute translation
-                entity.state.vel = entity.state.vel * (1 - self._damping)
+                if substep == 0:
+                    entity.state.vel = entity.state.vel * (1 - self._damping)
                 entity.state.vel += (force[:, i] / entity.mass) * self._sub_dt
                 if entity.max_speed is not None:
                     speed = torch.linalg.norm(entity.state.vel, dim=1)
@@ -1433,7 +1434,8 @@ class World(TorchVectorizedObject):
                 entity.state.pos = new_pos
             if entity.rotatable:
                 # Compute rotation
-                entity.state.ang_vel = entity.state.ang_vel * (1 - self._damping)
+                if substep == 0:
+                    entity.state.ang_vel = entity.state.ang_vel * (1 - self._damping)
                 entity.state.ang_vel += (
                     torque[:, i] / entity.moment_of_inertia
                 ) * self._sub_dt
