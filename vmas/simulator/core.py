@@ -447,6 +447,18 @@ class Entity(TorchVectorizedObject, Observable, ABC):
             self.batch_dim, 1, device=self.device, dtype=torch.float32
         )
 
+    def _reset(self, env_index: int):
+        if env_index is None:
+            self.state.pos[:] = 0.0
+            self.state.vel[:] = 0.0
+            self.state.rot[:] = 0.0
+            self.state.ang_vel[:] = 0.0
+        else:
+            self.state.pos[env_index] = 0.0
+            self.state.vel[env_index] = 0.0
+            self.state.rot[env_index] = 0.0
+            self.state.ang_vel[env_index] = 0.0
+
     def set_pos(self, pos: Tensor, batch_index: int):
         self._set_state_property(EntityState.pos, self.state, pos, batch_index)
 
@@ -669,6 +681,15 @@ class Agent(Entity):
                 self.batch_dim, dim_c, device=self.device, dtype=torch.float32
             )
 
+    @override(Entity)
+    def _reset(self, env_index: int):
+        super()._reset(env_index)
+        if self.state.c is not None:
+            if env_index is None:
+                self.state.c = 0.0
+            else:
+                self.state.c[env_index] = 0.0
+
     def render(self, env_index: int = 0) -> "List[Geom]":
         geoms = super().render(env_index)
         if len(geoms) == 0:
@@ -758,6 +779,10 @@ class World(TorchVectorizedObject):
                     ): constraint
                 }
             )
+
+    def reset(self, env_index: int):
+        for e in self.entities:
+            e._reset(env_index)
 
     @property
     def agents(self) -> List[Agent]:

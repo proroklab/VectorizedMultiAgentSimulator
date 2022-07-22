@@ -42,6 +42,10 @@ class BaseScenario(ABC):
         self._world = self.make_world(batch_dim, device, **kwargs)
         return self._world
 
+    def env_reset_world_at(self, env_index: int):
+        self.world.reset(env_index)
+        self.reset_world_at(env_index)
+
     @abstractmethod
     def make_world(self, batch_dim: int, device: torch.device, **kwargs) -> World:
         """
