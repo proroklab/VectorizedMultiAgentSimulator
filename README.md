@@ -100,7 +100,7 @@ These shapes are supported for elastic collisions. For details on which collidab
 - **Faster than physics engines**: Our simulator is extremely lightweight, using only tensor operations. It is perfect for 
 running MARL training at scale with multi-agent collisions and interactions.
 - **Customizable**: When creating a new scenario of your own, the world, agent and landmarks are highly
-customizable. Examples are: world damping, gravity, simulation timestep, non-differentiable communication, agent sensors (e.g. LIDAR), and masses.
+customizable. Examples are: drag, friction, gravity, simulation timestep, non-differentiable communication, agent sensors (e.g. LIDAR), and masses.
 - **Non-differentiable communication**: Scenarios can require agents to perform discrete or continuous communication actions.
 - **Gravity**: VMAS supports customizable gravity.
 - **Sensors**: Our simulator implements ray casting, which can be used to simulate a wide range of distance-based sensors that can be added to agents. We currently support LIDARs. To see available sensors, have a look at the `sensors` script.

@@ -710,7 +710,7 @@ class World(TorchVectorizedObject):
         device: torch.device,
         dt: float = 0.1,
         substeps: int = 1,  # if you use joints, higher this value to gain simulation stability
-        damping: float = 0.25,
+        drag: float = 0.25,
         x_semidim: float = None,
         y_semidim: float = None,
         dim_c: int = 0,
@@ -736,8 +736,8 @@ class World(TorchVectorizedObject):
         self._dt = dt
         self._substeps = substeps
         self._sub_dt = self._dt / self._substeps
-        # physical damping
-        self._damping = damping
+        # drag coefficient
+        self._drag = drag
         # gravity
         self._gravity = torch.tensor(gravity, device=self.device, dtype=torch.float32)
         # contact response parameters
@@ -1109,86 +1109,92 @@ class World(TorchVectorizedObject):
 
     # update state of the world
     def step(self):
+        # set actions for scripted agents
+        for agent in self.scripted_agents:
+            agent.action_callback(self)
+
+        # forces
+        self.force = torch.zeros(
+            self._batch_dim,
+            len(self.entities),
+            self._dim_p,
+            device=self.device,
+            dtype=torch.float32,
+        )
+        self.torque = torch.zeros(
+            self._batch_dim,
+            len(self.entities),
+            1,
+            device=self.device,
+            dtype=torch.float32,
+        )
+
         for substep in range(self._substeps):
-            # set actions for scripted agents
-            for agent in self.scripted_agents:
-                agent.action_callback(self)
             # gather forces applied to entities
-            force = torch.zeros(
-                self._batch_dim,
-                len(self.entities),
-                self._dim_p,
-                device=self.device,
-                dtype=torch.float32,
-            )
-            torque = torch.zeros(
-                self._batch_dim,
-                len(self.entities),
-                1,
-                device=self.device,
-                dtype=torch.float32,
-            )
+            self.force[:] = 0
+            self.torque[:] = 0
 
-            # apply agent physical controls
-            self._apply_action_force(force)
-            # apply gravity
-            self._apply_gravity(force)
-            # apply environment forces
-            self._apply_environment_force(force, torque)
-            # integrate physical state
-            self._integrate_state(force, torque, substep)
-            # update non-differentiable comm state
-            if self._dim_c > 0:
-                for agent in self._agents:
-                    self._update_comm_state(agent)
-
-    def _apply_gravity(self, force):
-        if not (self._gravity == 0.0).all():
             for i, entity in enumerate(self.entities):
-                if entity.movable:
-                    force[:, i] += entity.mass * self._gravity
+                # apply agent physical controls
+                self._apply_action_force(entity, i)
+                # apply gravity
+                self._apply_gravity(entity, i)
+                # apply environment forces
+                self._apply_environment_force(entity, i)
+                # integrate physical state
+            for i, entity in enumerate(self.entities):
+                self._integrate_state(entity, i, substep)
+
+        # update non-differentiable comm state
+        if self._dim_c > 0:
+            for agent in self._agents:
+                self._update_comm_state(agent)
 
     # gather agent action forces
-    def _apply_action_force(self, force):
-        # set applied forces
-        for i, agent in enumerate(self._agents, start=len(self.landmarks)):
-            if agent.movable:
+    def _apply_action_force(self, entity: Entity, index: int):
+        if isinstance(entity, Agent):
+            # set applied forces
+            if entity.movable:
                 noise = (
                     torch.randn(
-                        *agent.action.u.shape, device=self.device, dtype=torch.float32
+                        *entity.action.u.shape, device=self.device, dtype=torch.float32
                     )
-                    * agent.u_noise
-                    if agent.u_noise
+                    * entity.u_noise
+                    if entity.u_noise
                     else 0.0
                 )
-                force[:, i] = agent.action.u + noise
-        assert not force.isnan().any()
+                self.force[:, index] += entity.action.u + noise
+            assert not self.force.isnan().any()
+
+    def _apply_gravity(self, entity: Entity, index: int):
+        if not (self._gravity == 0.0).all():
+            if entity.movable:
+                self.force[:, index] += entity.mass * self._gravity
 
     # gather physical forces acting on entities
-    def _apply_environment_force(self, force, torque):
+    def _apply_environment_force(self, entity_a: Entity, a: int):
         def apply_env_forces(f_a, t_a, f_b, t_b):
             if entity_a.movable:
-                force[:, a] += f_a
+                self.force[:, a] += f_a
             if entity_a.rotatable:
-                torque[:, a] += t_a
+                self.torque[:, a] += t_a
             if entity_b.movable:
-                force[:, b] += f_b
+                self.force[:, b] += f_b
             if entity_b.rotatable:
-                torque[:, b] += t_b
+                self.torque[:, b] += t_b
 
-        for a, entity_a in enumerate(self.entities):
-            for b, entity_b in enumerate(self.entities):
-                if b <= a:
+        for b, entity_b in enumerate(self.entities):
+            if b <= a:
+                continue
+            # Joints
+            if frozenset({entity_a.name, entity_b.name}) in self._joints:
+                joint = self._joints[frozenset({entity_a.name, entity_b.name})]
+                apply_env_forces(*self._get_joint_forces(entity_a, entity_b, joint))
+                if joint.dist == 0:
                     continue
-                # Joints
-                if frozenset({entity_a.name, entity_b.name}) in self._joints:
-                    joint = self._joints[frozenset({entity_a.name, entity_b.name})]
-                    apply_env_forces(*self._get_joint_forces(entity_a, entity_b, joint))
-                    if joint.dist == 0:
-                        continue
-                # Collisions
-                if self._collides(entity_a, entity_b):
-                    apply_env_forces(*self._get_collision_force(entity_a, entity_b))
+            # Collisions
+            if self._collides(entity_a, entity_b):
+                apply_env_forces(*self._get_collision_force(entity_a, entity_b))
 
     def _collides(self, a: Entity, b: Entity) -> bool:
         if (not a.collide) or (not b.collide) or a is b:
@@ -1411,37 +1417,36 @@ class World(TorchVectorizedObject):
         return force, -force
 
     # integrate physical state
-    def _integrate_state(self, force, torque, substep):
-        for i, entity in enumerate(self.entities):
-            if entity.movable:
-                # Compute translation
-                if substep == 0:
-                    entity.state.vel = entity.state.vel * (1 - self._damping)
-                entity.state.vel += (force[:, i] / entity.mass) * self._sub_dt
-                if entity.max_speed is not None:
-                    speed = torch.linalg.norm(entity.state.vel, dim=1)
-                    new_vel = entity.state.vel / speed.unsqueeze(-1) * entity.max_speed
-                    entity.state.vel[speed > entity.max_speed] = new_vel[
-                        speed > entity.max_speed
-                    ]
-                new_pos = entity.state.pos + entity.state.vel * self._sub_dt
-                if self._x_semidim is not None:
-                    new_pos[:, X] = torch.clamp(
-                        new_pos[:, X], -self._x_semidim, self._x_semidim
-                    )
-                if self._y_semidim is not None:
-                    new_pos[:, Y] = torch.clamp(
-                        new_pos[:, Y], -self._y_semidim, self._y_semidim
-                    )
-                entity.state.pos = new_pos
-            if entity.rotatable:
-                # Compute rotation
-                if substep == 0:
-                    entity.state.ang_vel = entity.state.ang_vel * (1 - self._damping)
-                entity.state.ang_vel += (
-                    torque[:, i] / entity.moment_of_inertia
-                ) * self._sub_dt
-                entity.state.rot += entity.state.ang_vel * self._sub_dt
+    def _integrate_state(self, entity: Entity, index: int, substep: int):
+        if entity.movable:
+            # Compute translation
+            if substep == 0:
+                entity.state.vel = entity.state.vel * (1 - self._drag)
+            entity.state.vel += (self.force[:, index] / entity.mass) * self._sub_dt
+            if entity.max_speed is not None:
+                speed = torch.linalg.norm(entity.state.vel, dim=1)
+                new_vel = entity.state.vel / speed.unsqueeze(-1) * entity.max_speed
+                entity.state.vel[speed > entity.max_speed] = new_vel[
+                    speed > entity.max_speed
+                ]
+            new_pos = entity.state.pos + entity.state.vel * self._sub_dt
+            if self._x_semidim is not None:
+                new_pos[:, X] = torch.clamp(
+                    new_pos[:, X], -self._x_semidim, self._x_semidim
+                )
+            if self._y_semidim is not None:
+                new_pos[:, Y] = torch.clamp(
+                    new_pos[:, Y], -self._y_semidim, self._y_semidim
+                )
+            entity.state.pos = new_pos
+        if entity.rotatable:
+            # Compute rotation
+            if substep == 0:
+                entity.state.ang_vel = entity.state.ang_vel * (1 - self._drag)
+            entity.state.ang_vel += (
+                self.torque[:, index] / entity.moment_of_inertia
+            ) * self._sub_dt
+            entity.state.rot += entity.state.ang_vel * self._sub_dt
 
     def _update_comm_state(self, agent):
         # set communication state (directly for now)

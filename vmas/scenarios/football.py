@@ -58,7 +58,7 @@ class Scenario(BaseScenario):
             batch_dim,
             device,
             dt=0.1,
-            damping=0.05,
+            drag=0.05,
             x_semidim=self.pitch_length / 2 + self.goal_depth - self.agent_size,
             y_semidim=self.pitch_width / 2 - self.agent_size,
         )

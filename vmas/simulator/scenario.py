@@ -67,7 +67,7 @@ class BaseScenario(ABC):
             ...         n_agents = kwargs.get("n_agents", 5)
             ...
             ...         # Create world
-            ...         world = World(batch_dim, device, dt=0.1, damping=0.25, dim_c=0)
+            ...         world = World(batch_dim, device, dt=0.1, drag=0.25, dim_c=0)
             ...         # Add agents
             ...         for i in range(n_agents):
             ...             agent = Agent(
