@@ -151,4 +151,4 @@ class Scenario(BaseScenario):
 
 
 if __name__ == "__main__":
-    render_interactively("waterfall", n_agents=5, joints=False, control_two_agents=True)
+    render_interactively("waterfall", n_agents=5, joints=True, control_two_agents=True)
