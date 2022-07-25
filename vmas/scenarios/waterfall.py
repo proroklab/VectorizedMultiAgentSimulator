@@ -20,7 +20,7 @@ class Scenario(BaseScenario):
         self.agent_radius = 0.04
 
         # Make world
-        world = World(batch_dim, device, dt=0.1, damping=0.1, substeps=2)
+        world = World(batch_dim, device, dt=0.1, damping=0.25, substeps=2)
         # Add agents
         for i in range(self.n_agents):
             agent = Agent(
@@ -30,7 +30,7 @@ class Scenario(BaseScenario):
                 rotatable=True,
             )
             world.add_agent(agent)
-        if self.with_joints or True:
+        if self.with_joints:
             # Add joints
             for i in range(self.n_agents - 1):
                 joint = Joint(
@@ -151,4 +151,4 @@ class Scenario(BaseScenario):
 
 
 if __name__ == "__main__":
-    render_interactively("waterfall", n_agents=5, joints=True, control_two_agents=True)
+    render_interactively("waterfall", n_agents=5, joints=False, control_two_agents=True)
