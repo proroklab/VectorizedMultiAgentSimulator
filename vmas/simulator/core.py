@@ -711,6 +711,8 @@ class World(TorchVectorizedObject):
         dt: float = 0.1,
         substeps: int = 1,  # if you use joints, higher this value to gain simulation stability
         drag: float = 0.25,
+        linear_friction: float = 0.0,
+        angular_friction: float = 0.0,
         x_semidim: float = None,
         y_semidim: float = None,
         dim_c: int = 0,
@@ -740,7 +742,10 @@ class World(TorchVectorizedObject):
         self._drag = drag
         # gravity
         self._gravity = torch.tensor(gravity, device=self.device, dtype=torch.float32)
-        # contact response parameters
+        # friction coefficients
+        self._linear_friction = linear_friction
+        self._angular_friction = angular_friction
+        # constraint response parameters
         self._collision_force = collision_force
         self._joint_force = joint_force
         self._contact_margin = contact_margin
@@ -1139,10 +1144,12 @@ class World(TorchVectorizedObject):
                 self._apply_action_force(entity, i)
                 # apply gravity
                 self._apply_gravity(entity, i)
-                # apply environment forces
+                # apply friction
+                self._apply_friction_force(entity, i)
+                # apply environment forces (constraints)
                 self._apply_environment_force(entity, i)
-                # integrate physical state
             for i, entity in enumerate(self.entities):
+                # integrate physical state
                 self._integrate_state(entity, i, substep)
 
         # update non-differentiable comm state
@@ -1170,6 +1177,24 @@ class World(TorchVectorizedObject):
         if not (self._gravity == 0.0).all():
             if entity.movable:
                 self.force[:, index] += entity.mass * self._gravity
+
+    def _apply_friction_force(self, entity: Entity, index: int):
+        def get_friction_acc(velocity: Tensor, coeff: float):
+            speed = torch.linalg.norm(velocity, dim=1)
+            in_motion = speed > coeff * self._sub_dt
+            friction_force = -(velocity / speed.unsqueeze(-1)) * coeff
+            friction_force[~in_motion] = -(velocity[~in_motion]) / self._sub_dt
+            return friction_force
+
+        if self._linear_friction > 0:
+            self.force[:, index] += (
+                get_friction_acc(entity.state.vel, self._linear_friction) * entity.mass
+            )
+        if self._angular_friction > 0:
+            self.torque[:, index] += (
+                get_friction_acc(entity.state.ang_vel, self._angular_friction)
+                * entity.moment_of_inertia
+            )
 
     # gather physical forces acting on entities
     def _apply_environment_force(self, entity_a: Entity, a: int):
@@ -1417,6 +1442,7 @@ class World(TorchVectorizedObject):
         return force, -force
 
     # integrate physical state
+    # uses semi-implicit euler with sub-stepping
     def _integrate_state(self, entity: Entity, index: int, substep: int):
         if entity.movable:
             # Compute translation
