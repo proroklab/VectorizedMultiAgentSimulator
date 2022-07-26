@@ -46,14 +46,15 @@ class Scenario(BaseScenario):
             int((2 * world.x_semidim + 2 * self.agent_radius) // self.passage_length)
         ):
             removed = i < self.n_passages
-            package = Landmark(
+            passage = Landmark(
                 name=f"passage {i}",
                 collide=not removed,
                 movable=False,
                 shape=Box(length=self.passage_length, width=self.passage_width),
                 color=Color.RED,
+                collision_filter=lambda e: not isinstance(e.shape, Box),
             )
-            world.add_landmark(package)
+            world.add_landmark(passage)
         for i in range(4):
             border = Landmark(
                 name=f"border {i}",
