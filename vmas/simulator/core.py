@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import math
 import typing
 from abc import ABC, abstractmethod
 from typing import Callable, List, Tuple
@@ -101,7 +102,7 @@ class Box(Shape):
         return (1 / 12) * mass * (self.length**2 + self.width**2)
 
     def circumscribed_radius(self):
-        return max(self.length / 2, self.width / 2)
+        return math.sqrt((self.length / 2) ** 2 + (self.width / 2) ** 2)
 
     def get_geometry(self) -> "Geom":
         from vmas.simulator import rendering
