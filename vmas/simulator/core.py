@@ -73,6 +73,10 @@ class Shape(ABC):
     def get_geometry(self):
         raise NotImplementedError
 
+    @abstractmethod
+    def circumscribed_radius(self):
+        raise NotImplementedError
+
 
 class Box(Shape):
     def __init__(self, length: float = 0.3, width: float = 0.1):
@@ -95,6 +99,9 @@ class Box(Shape):
 
     def moment_of_inertia(self, mass: float):
         return (1 / 12) * mass * (self.length**2 + self.width**2)
+
+    def circumscribed_radius(self):
+        return max(self.length / 2, self.width / 2)
 
     def get_geometry(self) -> "Geom":
         from vmas.simulator import rendering
@@ -130,6 +137,9 @@ class Sphere(Shape):
     def moment_of_inertia(self, mass: float):
         return (1 / 2) * mass * self.radius**2
 
+    def circumscribed_radius(self):
+        return self.radius
+
     def get_geometry(self) -> "Geom":
         from vmas.simulator import rendering
 
@@ -153,6 +163,9 @@ class Line(Shape):
 
     def moment_of_inertia(self, mass: float):
         return (1 / 12) * mass * (self.length**2)
+
+    def circumscribed_radius(self):
+        return self.length / 2
 
     def get_delta_from_anchor(self, anchor: Tuple[float, float]) -> Tuple[float, float]:
         return anchor[X] * self.length / 2, 0.0
@@ -326,6 +339,7 @@ class Entity(TorchVectorizedObject, Observable, ABC):
         max_speed: float = None,
         color=Color.GRAY,
         is_joint: bool = False,
+        collision_filter: Callable[[Entity], bool] = lambda _: True,
     ):
         TorchVectorizedObject.__init__(self)
         Observable.__init__(self)
@@ -349,6 +363,8 @@ class Entity(TorchVectorizedObject, Observable, ABC):
         self._shape = shape
         # is joint
         self._is_joint = is_joint
+        # collision filter
+        self._collision_filter = collision_filter
         # state
         self._state = EntityState()
         # entity goal
@@ -374,6 +390,11 @@ class Entity(TorchVectorizedObject, Observable, ABC):
 
     def reset_render(self):
         self._render = torch.full((self.batch_dim,), True, device=self.device)
+
+    def collides(self, entity: Entity):
+        if not self.collide:
+            return False
+        return self._collision_filter(entity)
 
     @property
     def is_joint(self):
@@ -520,6 +541,7 @@ class Landmark(Entity):
         max_speed: float = None,
         color=Color.GRAY,
         is_joint: bool = False,
+        collision_filter: Callable[[Entity], bool] = lambda _: True,
     ):
         super().__init__(
             name,
@@ -532,6 +554,7 @@ class Landmark(Entity):
             max_speed,
             color,
             is_joint,
+            collision_filter,
         )
 
 
@@ -558,6 +581,7 @@ class Agent(Entity):
         c_noise: float = None,
         silent: bool = True,
         adversary: bool = False,
+        collision_filter: Callable[[Entity], bool] = lambda _: True,
     ):
         super().__init__(
             name,
@@ -569,6 +593,8 @@ class Agent(Entity):
             shape,
             max_speed,
             color,
+            is_joint=False,
+            collision_filter=collision_filter,
         )
         if obs_range == 0.0:
             assert sensors is None, f"Blind agent cannot have sensors, got {sensors}"
@@ -1222,10 +1248,15 @@ class World(TorchVectorizedObject):
                 apply_env_forces(*self._get_collision_force(entity_a, entity_b))
 
     def _collides(self, a: Entity, b: Entity) -> bool:
-        if (not a.collide) or (not b.collide) or a is b:
+        if (not a.collides(b)) or (not b.collides(a)) or a is b:
             return False
         a_shape = a.shape
         b_shape = b.shape
+        if (
+            torch.linalg.vector_norm(a.state.pos - b.state.pos, dim=1)
+            > a.shape.circumscribed_radius() + b.shape.circumscribed_radius()
+        ).all():
+            return False
         if {a_shape.__class__, b_shape.__class__} in self._collidable_pairs:
             return True
         return False
