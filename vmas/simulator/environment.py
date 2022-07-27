@@ -369,9 +369,9 @@ class Environment(TorchVectorizedObject):
                 idx += 1
 
         if aspect_ratio < 1:
-            cam_range = torch.tensor([VIEWER_MIN_SIZE, VIEWER_MIN_SIZE / aspect_ratio])
+            cam_range = torch.tensor([VIEWER_MIN_SIZE, VIEWER_MIN_SIZE / aspect_ratio],device=self.device)
         else:
-            cam_range = torch.tensor([VIEWER_MIN_SIZE * aspect_ratio, VIEWER_MIN_SIZE])
+            cam_range = torch.tensor([VIEWER_MIN_SIZE * aspect_ratio, VIEWER_MIN_SIZE],device=self.device)
 
         if shared_viewer:
             # zoom out to fit everyone
