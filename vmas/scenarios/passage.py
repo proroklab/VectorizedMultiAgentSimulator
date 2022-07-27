@@ -55,14 +55,6 @@ class Scenario(BaseScenario):
                 collision_filter=lambda e: not isinstance(e.shape, Box),
             )
             world.add_landmark(passage)
-        for i in range(4):
-            border = Landmark(
-                name=f"border {i}",
-                shape=Line(length=2 + self.agent_radius * 2),
-                collide=False,
-                color=Color.BLACK,
-            )
-            world.add_landmark(border)
 
         return world
 
@@ -194,8 +186,8 @@ class Scenario(BaseScenario):
                     * self.shaping_factor
                 )
 
-        order = torch.randperm(len(self.world.landmarks[self.n_agents : -4])).tolist()
-        passages = [self.world.landmarks[self.n_agents : -4][i] for i in order]
+        order = torch.randperm(len(self.world.landmarks[self.n_agents :])).tolist()
+        passages = [self.world.landmarks[self.n_agents :][i] for i in order]
         for i, passage in enumerate(passages):
             if not passage.collide:
                 passage.is_rendering[:] = False
@@ -207,40 +199,6 @@ class Scenario(BaseScenario):
                         + self.passage_length / 2
                         + self.passage_length * i,
                         0.0,
-                    ],
-                    dtype=torch.float32,
-                    device=self.world.device,
-                ),
-                batch_index=env_index,
-            )
-        for i, border in enumerate(self.world.landmarks[-4:]):
-            border.set_pos(
-                torch.tensor(
-                    [
-                        0.0
-                        if i % 2
-                        else (
-                            self.world.x_semidim + self.agent_radius
-                            if i == 0
-                            else -self.world.x_semidim - self.agent_radius
-                        ),
-                        0.0
-                        if not i % 2
-                        else (
-                            self.world.x_semidim + self.agent_radius
-                            if i == 1
-                            else -self.world.x_semidim - self.agent_radius
-                        ),
-                    ],
-                    dtype=torch.float32,
-                    device=self.world.device,
-                ),
-                batch_index=env_index,
-            )
-            border.set_rot(
-                torch.tensor(
-                    [
-                        torch.pi / 2 if not i % 2 else 0.0,
                     ],
                     dtype=torch.float32,
                     device=self.world.device,
@@ -278,7 +236,7 @@ class Scenario(BaseScenario):
             for a in self.world.agents:
                 if a != agent:
                     self.rew[self.world.is_overlapping(a, agent)] -= 10
-            for landmark in self.world.landmarks[self.n_agents : -4]:
+            for landmark in self.world.landmarks[self.n_agents :]:
                 if landmark.collide:
                     self.rew[self.world.is_overlapping(agent, landmark)] -= 10
 
@@ -287,7 +245,7 @@ class Scenario(BaseScenario):
     def observation(self, agent: Agent):
         # get positions of all entities in this agent's reference frame
         passage_obs = []
-        passages = self.world.landmarks[self.n_agents : -4]
+        passages = self.world.landmarks[self.n_agents :]
         for passage in passages:
             if not passage.collide:
                 passage_obs.append(passage.state.pos - agent.state.pos)
@@ -313,6 +271,39 @@ class Scenario(BaseScenario):
             ),
             dim=1,
         )
+
+    def extra_render(self, env_index: int = 0):
+        from vmas.simulator import rendering
+
+        geoms = []
+        for i in range(4):
+            geom = Line(length=2 + self.agent_radius * 2).get_geometry()
+            xform = rendering.Transform()
+            geom.add_attr(xform)
+
+            xform.set_translation(
+                0.0
+                if i % 2
+                else (
+                    self.world.x_semidim + self.agent_radius
+                    if i == 0
+                    else -self.world.x_semidim - self.agent_radius
+                ),
+                0.0
+                if not i % 2
+                else (
+                    self.world.x_semidim + self.agent_radius
+                    if i == 1
+                    else -self.world.x_semidim - self.agent_radius
+                ),
+            )
+            xform.set_rotation(torch.pi / 2 if not i % 2 else 0.0)
+            color = Color.BLACK.value
+            if isinstance(color, torch.Tensor) and len(color.shape) > 1:
+                color = color[env_index]
+            geom.set_color(*color)
+            geoms.append(geom)
+        return geoms
 
 
 if __name__ == "__main__":
