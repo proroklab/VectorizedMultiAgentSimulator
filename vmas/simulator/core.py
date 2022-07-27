@@ -80,12 +80,13 @@ class Shape(ABC):
 
 
 class Box(Shape):
-    def __init__(self, length: float = 0.3, width: float = 0.1):
+    def __init__(self, length: float = 0.3, width: float = 0.1, hollow: bool = False):
         super().__init__()
         assert length > 0, f"Length must be > 0, got {length}"
         assert width > 0, f"Width must be > 0, got {length}"
         self._length = length
         self._width = width
+        self.hollow = hollow
 
     @property
     def length(self):
@@ -1103,7 +1104,26 @@ class World(TorchVectorizedObject):
         b_shape = entity_b.shape
         self._check_batch_index(env_index)
 
-        if isinstance(a_shape, Sphere) and isinstance(b_shape, Sphere):
+        # Sphere sphere, sphere line, line line, line box, box box
+        if (
+            (isinstance(a_shape, Sphere) and isinstance(b_shape, Sphere))
+            or (
+                (
+                    isinstance(entity_a.shape, Line)
+                    and isinstance(entity_b.shape, Sphere)
+                    or isinstance(entity_b.shape, Line)
+                    and isinstance(entity_a.shape, Sphere)
+                )
+            )
+            or (isinstance(entity_a.shape, Line) and isinstance(entity_b.shape, Line))
+            or (
+                isinstance(entity_a.shape, Box)
+                and isinstance(entity_b.shape, Line)
+                or isinstance(entity_b.shape, Box)
+                and isinstance(entity_a.shape, Line)
+            )
+            or (isinstance(entity_a.shape, Box) and isinstance(entity_b.shape, Box))
+        ):
             return self.get_distance(entity_a, entity_b, env_index) < 0
         elif (
             isinstance(entity_a.shape, Box)
@@ -1131,15 +1151,6 @@ class World(TorchVectorizedObject):
             return_value = (distance_sphere_box < distance_closest_point_box) + (
                 distance_sphere_closest_point < dist_min
             )
-        # Sphere and line
-        elif (
-            isinstance(entity_a.shape, Line)
-            and isinstance(entity_b.shape, Sphere)
-            or isinstance(entity_b.shape, Line)
-            and isinstance(entity_a.shape, Sphere)
-        ):
-            return self.get_distance(entity_a, entity_b, env_index) < 0
-
         else:
             assert False, "Overlap not computable for give entities"
         if env_index is not None:
@@ -1353,14 +1364,21 @@ class World(TorchVectorizedObject):
                 if isinstance(entity_b.shape, Sphere)
                 else (entity_b, entity_a)
             )
-            closest_point = self._get_closest_point_box(box, sphere.state.pos)
+            closest_point_box = self._get_closest_point_box(box, sphere.state.pos)
+            if not box.shape.hollow:
+                inner_point_box, d = self.get_inner_point_box(
+                    sphere.state.pos, closest_point_box, box.state.pos
+                )
+            else:
+                inner_point_box = closest_point_box
+                d = 0
             force_sphere, force_box = self._get_constraint_forces(
                 sphere.state.pos,
-                closest_point,
-                dist_min=sphere.shape.radius + LINE_MIN_DIST,
+                inner_point_box,
+                dist_min=sphere.shape.radius + LINE_MIN_DIST + d,
                 force_multiplier=self._collision_force,
             )
-            r = closest_point - box.state.pos
+            r = closest_point_box - box.state.pos
             torque_box = World._compute_torque(force_box, r)
 
             force_a, torque_a, force_b, torque_b = (
@@ -1381,7 +1399,7 @@ class World(TorchVectorizedObject):
             force_a, force_b = self._get_constraint_forces(
                 point_a,
                 point_b,
-                dist_min=2 * LINE_MIN_DIST,
+                dist_min=LINE_MIN_DIST,
                 force_multiplier=self._collision_force,
             )
             r_a = point_a - entity_a.state.pos
@@ -1404,11 +1422,18 @@ class World(TorchVectorizedObject):
             point_box, point_line = self._get_closest_line_box(
                 box, line.state.pos, line.state.rot, line.shape.length
             )
+            if not box.shape.hollow:
+                inner_point_box, d = self.get_inner_point_box(
+                    point_line, point_box, box.state.pos
+                )
+            else:
+                inner_point_box = point_box
+                d = 0
 
             force_box, force_line = self._get_constraint_forces(
-                point_box,
+                inner_point_box,
                 point_line,
-                dist_min=2 * LINE_MIN_DIST,
+                dist_min=LINE_MIN_DIST + d,
                 force_multiplier=self._collision_force,
             )
             r_box = point_box - box.state.pos
@@ -1422,13 +1447,27 @@ class World(TorchVectorizedObject):
                 if isinstance(entity_a.shape, Line)
                 else (force_box, torque_box, force_line, torque_line)
             )
-        # Line and box
+        # Box and box
         elif isinstance(entity_a.shape, Box) and isinstance(entity_b.shape, Box):
             point_a, point_b = self._get_closest_box_box(entity_a, entity_b)
+            if not entity_a.shape.hollow:
+                inner_point_a, d_a = self.get_inner_point_box(
+                    point_b, point_a, entity_a.state.pos
+                )
+            else:
+                inner_point_a = point_a
+                d_a = 0
+            if not entity_b.shape.hollow:
+                inner_point_b, d_b = self.get_inner_point_box(
+                    point_a, point_b, entity_b.state.pos
+                )
+            else:
+                inner_point_b = point_b
+                d_b = 0
             force_a, force_b = self._get_constraint_forces(
-                point_a,
-                point_b,
-                dist_min=LINE_MIN_DIST,
+                inner_point_a,
+                inner_point_b,
+                dist_min=d_a + d_b + LINE_MIN_DIST,
                 force_multiplier=self._collision_force,
             )
             r_a = point_a - entity_a.state.pos
@@ -1439,6 +1478,14 @@ class World(TorchVectorizedObject):
             assert False
 
         return force_a, torque_a, force_b, torque_b
+
+    def get_inner_point_box(self, outside_point, surface_point, box_center):
+        v = surface_point - outside_point
+        u = box_center - surface_point
+        v_norm = torch.linalg.vector_norm(v, dim=1).unsqueeze(-1)
+        x_magnitude = torch.einsum("bs,bs->b", v, u).unsqueeze(-1) / v_norm
+        x = (v / v_norm) * x_magnitude
+        return surface_point + x, torch.abs(x_magnitude.squeeze(-1))
 
     def _get_closest_box_box(self, a: Entity, b: Entity):
         lines_a = self._get_all_lines_box(a)

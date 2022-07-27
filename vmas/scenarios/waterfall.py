@@ -20,7 +20,9 @@ class Scenario(BaseScenario):
         self.agent_radius = 0.04
 
         # Make world
-        world = World(batch_dim, device, dt=0.1, drag=0.25, substeps=3)
+        world = World(
+            batch_dim, device, dt=0.1, drag=0.25, substeps=5, collision_force=500
+        )
         # Add agents
         for i in range(self.n_agents):
             agent = Agent(

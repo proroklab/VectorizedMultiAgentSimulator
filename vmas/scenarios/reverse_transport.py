@@ -40,7 +40,9 @@ class Scenario(BaseScenario):
             collide=True,
             movable=True,
             mass=50,
-            shape=Box(length=self.package_length, width=self.package_width),
+            shape=Box(
+                length=self.package_length, width=self.package_width, hollow=True
+            ),
             color=Color.RED,
         )
         self.package.goal = goal
