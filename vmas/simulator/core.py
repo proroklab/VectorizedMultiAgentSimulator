@@ -1276,6 +1276,8 @@ class World(TorchVectorizedObject):
             > a.shape.circumscribed_radius() + b.shape.circumscribed_radius()
         ).all():
             return False
+        if not a.movable and not a.rotatable and not b.movable and not b.rotatable:
+            return False
         if {a_shape.__class__, b_shape.__class__} in self._collidable_pairs:
             return True
         return False
@@ -1367,7 +1369,7 @@ class World(TorchVectorizedObject):
             closest_point_box = self._get_closest_point_box(box, sphere.state.pos)
             if not box.shape.hollow:
                 inner_point_box, d = self.get_inner_point_box(
-                    sphere.state.pos, closest_point_box, box.state.pos
+                    sphere.state.pos, closest_point_box, box
                 )
             else:
                 inner_point_box = closest_point_box
@@ -1424,7 +1426,7 @@ class World(TorchVectorizedObject):
             )
             if not box.shape.hollow:
                 inner_point_box, d = self.get_inner_point_box(
-                    point_line, point_box, box.state.pos
+                    point_line, point_box, box
                 )
             else:
                 inner_point_box = point_box
@@ -1452,14 +1454,14 @@ class World(TorchVectorizedObject):
             point_a, point_b = self._get_closest_box_box(entity_a, entity_b)
             if not entity_a.shape.hollow:
                 inner_point_a, d_a = self.get_inner_point_box(
-                    point_b, point_a, entity_a.state.pos
+                    point_b, point_a, entity_a
                 )
             else:
                 inner_point_a = point_a
                 d_a = 0
             if not entity_b.shape.hollow:
                 inner_point_b, d_b = self.get_inner_point_box(
-                    point_a, point_b, entity_b.state.pos
+                    point_a, point_b, entity_b
                 )
             else:
                 inner_point_b = point_b
@@ -1479,12 +1481,14 @@ class World(TorchVectorizedObject):
 
         return force_a, torque_a, force_b, torque_b
 
-    def get_inner_point_box(self, outside_point, surface_point, box_center):
+    def get_inner_point_box(self, outside_point, surface_point, box):
         v = surface_point - outside_point
-        u = box_center - surface_point
+        u = box.state.pos - surface_point
         v_norm = torch.linalg.vector_norm(v, dim=1).unsqueeze(-1)
         x_magnitude = torch.einsum("bs,bs->b", v, u).unsqueeze(-1) / v_norm
         x = (v / v_norm) * x_magnitude
+        x[v_norm.repeat(1, 2) == 0] = surface_point[v_norm.repeat(1, 2) == 0]
+        x_magnitude[v_norm == 0] = 0
         return surface_point + x, torch.abs(x_magnitude.squeeze(-1))
 
     def _get_closest_box_box(self, a: Entity, b: Entity):
@@ -1541,6 +1545,10 @@ class World(TorchVectorizedObject):
         point_a1, point_a2 = self.get_line_extrema(line_pos, line_rot, line_length)
         point_b1, point_b2 = self.get_line_extrema(line2_pos, line2_rot, line2_length)
 
+        point_i, d_i = self._get_intersection_point_line_line(
+            point_a1, point_a2, point_b1, point_b2
+        )
+
         point_a1_line_b = self._get_closest_point_line(
             line2_pos, line2_rot, line2_length, point_a1
         )
@@ -1572,17 +1580,67 @@ class World(TorchVectorizedObject):
             device=self.device,
             dtype=torch.float32,
         )
-        distance = torch.full(
+        min_distance = torch.full(
             (self.batch_dim,), float("inf"), device=self.device, dtype=torch.float32
         )
         for p1, p2 in point_pairs:
             d = torch.linalg.vector_norm(p1 - p2, dim=1)
-            is_closest = d < distance
+            is_closest = d < min_distance
             closest_point_1[is_closest] = p1[is_closest]
             closest_point_2[is_closest] = p2[is_closest]
-            distance[is_closest] = d[is_closest]
+            min_distance[is_closest] = d[is_closest]
+
+        closest_point_1[d_i == 0] = point_i[d_i == 0]
+        closest_point_2[d_i == 0] = point_i[d_i == 0]
 
         return closest_point_1, closest_point_2
+
+    def _get_intersection_point_line_line(self, point_a1, point_a2, point_b1, point_b2):
+        """
+        Taken from:
+        https://stackoverflow.com/questions/563198/how-do-you-detect-where-two-line-segments-intersect
+        """
+        r = point_a2 - point_a1
+        s = point_b2 - point_b1
+        p = point_a1
+        q = point_b1
+        cross_q_minus_p_r = World._cross(q - p, r)
+        cross_q_minus_p_s = World._cross(q - p, s)
+        cross_r_s = World._cross(r, s)
+        u = cross_q_minus_p_r / cross_r_s
+        t = cross_q_minus_p_s / cross_r_s
+        t_in_range = (0 <= t) * (t <= 1)
+        u_in_range = (0 <= u) * (u <= 1)
+
+        cross_r_s_is_zero = cross_r_s == 0
+        cross_q_minus_p_r_is_zero = cross_q_minus_p_r == 0
+
+        distance = torch.full(
+            (self.batch_dim,), float("inf"), device=self.device, dtype=torch.float32
+        )
+        point = torch.full(
+            (self.batch_dim, self.dim_p),
+            float("inf"),
+            device=self.device,
+            dtype=torch.float32,
+        )
+
+        point[
+            ~cross_r_s_is_zero.repeat(1, 2)
+            * u_in_range.repeat(1, 2)
+            * t_in_range.repeat(1, 2)
+        ] = (p + t * r)[
+            ~cross_r_s_is_zero.repeat(1, 2)
+            * u_in_range.repeat(1, 2)
+            * t_in_range.repeat(1, 2)
+        ]
+        distance[
+            ~cross_r_s_is_zero.squeeze(-1)
+            * u_in_range.squeeze(-1)
+            * t_in_range.squeeze(-1)
+        ] = 0
+
+        return point, distance
 
     def _get_closest_point_box(self, box: Entity, test_point_pos):
         assert isinstance(box.shape, Box)
@@ -1795,5 +1853,11 @@ class World(TorchVectorizedObject):
         )
 
     @staticmethod
+    def _cross(vector_a: Tensor, vector_b: Tensor):
+        return (
+            vector_a[:, X] * vector_b[:, Y] - vector_a[:, Y] * vector_b[:, X]
+        ).unsqueeze(1)
+
+    @staticmethod
     def _compute_torque(f: Tensor, r: Tensor) -> Tensor:
-        return (r[:, X] * f[:, Y] - r[:, Y] * f[:, X]).unsqueeze(1)
+        return World._cross(r, f)

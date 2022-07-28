@@ -80,6 +80,9 @@ class Scenario(BaseScenario):
                 rotatable=True,
                 shape=Box(length=0.3, width=0.1),
                 color=Color.RED,
+                collision_filter=lambda e: False
+                if isinstance(e.shape, Box) and e.name != "joined landmark"
+                else True,
             )
             world.add_landmark(landmark)
         floor = Landmark(
