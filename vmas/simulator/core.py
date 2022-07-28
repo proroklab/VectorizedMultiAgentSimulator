@@ -1082,6 +1082,8 @@ class World(TorchVectorizedObject):
             )
             dist = self.get_distance_from_point(box, sphere.state.pos, env_index)
             return_value = dist - sphere.shape.radius
+            is_overlapping = self.is_overlapping(entity_a, entity_b)
+            return_value[is_overlapping] = -1
         elif (
             isinstance(entity_a.shape, Line)
             and isinstance(entity_b.shape, Sphere)
@@ -1095,6 +1097,37 @@ class World(TorchVectorizedObject):
             )
             dist = self.get_distance_from_point(line, sphere.state.pos, env_index)
             return_value = dist - sphere.shape.radius
+        elif isinstance(entity_a.shape, Line) and isinstance(entity_b.shape, Line):
+            point_a, point_b = self._get_closest_points_line_line(
+                entity_a.state.pos,
+                entity_a.state.rot,
+                entity_a.shape.length,
+                entity_b.state.pos,
+                entity_b.state.rot,
+                entity_b.shape.length,
+            )
+            dist = torch.linalg.vector_norm(point_a - point_b, dim=1)
+            return_value = dist - LINE_MIN_DIST
+        elif (
+            isinstance(entity_a.shape, Box)
+            and isinstance(entity_b.shape, Line)
+            or isinstance(entity_b.shape, Box)
+            and isinstance(entity_a.shape, Line)
+        ):
+            box, line = (
+                (entity_a, entity_b)
+                if isinstance(entity_b.shape, Line)
+                else (entity_b, entity_a)
+            )
+            point_box, point_line = self._get_closest_line_box(
+                box, line.state.pos, line.state.rot, line.shape.length
+            )
+            dist = torch.linalg.vector_norm(point_box - point_line, dim=1)
+            return_value = dist - LINE_MIN_DIST
+        elif isinstance(entity_a.shape, Box) and isinstance(entity_b.shape, Box):
+            point_a, point_b = self._get_closest_box_box(entity_a, entity_b)
+            dist = torch.linalg.vector_norm(point_a - point_b, dim=1)
+            return_value = dist - LINE_MIN_DIST
         else:
             assert False, "Distance not computable for given entities"
         return return_value
