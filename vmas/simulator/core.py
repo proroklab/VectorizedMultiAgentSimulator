@@ -456,6 +456,14 @@ class Entity(TorchVectorizedObject, Observable, ABC):
     def goal(self, goal: Entity):
         self._goal = goal
 
+    @property
+    def collision_filter(self):
+        return self._collision_filter
+
+    @collision_filter.setter
+    def collision_filter(self, collision_filter: Callable[[Entity], bool]):
+        self._collision_filter = collision_filter
+
     def _spawn(self, dim_p: int):
         self.state.pos = torch.zeros(
             self.batch_dim, dim_p, device=self.device, dtype=torch.float32
@@ -497,6 +505,9 @@ class Entity(TorchVectorizedObject, Observable, ABC):
     def _set_state_property(
         self, prop, entity: EntityState, new: Tensor, batch_index: int
     ):
+        assert (
+            self.batch_dim is not None
+        ), f"Tried to set property of {self.name} without adding it to the world"
         self._check_batch_index(batch_index)
         if batch_index is None:
             if len(new.shape) > 1 and new.shape[0] == self.batch_dim:
