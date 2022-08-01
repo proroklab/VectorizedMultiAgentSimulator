@@ -211,13 +211,14 @@ class Scenario(BaseScenario):
                 torch.stack(
                     [
                         torch.linalg.vector_norm(
-                            self.joint.landmark.state.pos - p.state.pos, dim=1
-                        )
+                            self.joint.landmark.state.pos[env_index]
+                            - p.state.pos[env_index],
+                        ).unsqueeze(-1)
                         for p in self.passages
                         if not p.collide
                     ],
                     dim=1,
-                ).min(dim=1)[0][env_index]
+                ).min(dim=1)[0]
                 * self.pos_shaping_factor
             )
             self.joint.pos_shaping_post[env_index] = (
@@ -250,7 +251,11 @@ class Scenario(BaseScenario):
                 self.world.batch_dim, device=self.world.device, dtype=torch.float32
             )
 
-            passed = self.joint.landmark.state.pos[:, Y] > 0
+            joint_passed = self.joint.landmark.state.pos[:, Y] > 0
+            # all_passed = torch.all(
+            #     torch.stack([a.state.pos[:, Y] for a in self.world.agents], dim=1) > 0,
+            #     dim=1,
+            # )
 
             # Pos shaping
             joint_dist_to_closest_pass = torch.stack(
@@ -264,9 +269,9 @@ class Scenario(BaseScenario):
                 dim=1,
             ).min(dim=1)[0]
             joint_shaping = joint_dist_to_closest_pass * self.pos_shaping_factor
-            self.rew[~passed] += (
-                self.joint.pos_shaping_pre[~passed] - joint_shaping[~passed]
-            )
+            self.rew[~joint_passed] += (self.joint.pos_shaping_pre - joint_shaping)[
+                ~joint_passed
+            ]
             self.joint.pos_shaping_pre = joint_shaping
 
             joint_dist_to_goal = torch.linalg.vector_norm(
@@ -274,9 +279,9 @@ class Scenario(BaseScenario):
                 dim=1,
             )
             joint_shaping = joint_dist_to_goal * self.pos_shaping_factor
-            self.rew[passed] += (
-                self.joint.pos_shaping_post[passed] - joint_shaping[passed]
-            )
+            self.rew[joint_passed] += (self.joint.pos_shaping_post - joint_shaping)[
+                joint_passed
+            ]
             self.joint.pos_shaping_post = joint_shaping
 
             # Rot shaping
@@ -284,7 +289,9 @@ class Scenario(BaseScenario):
                 get_line_angle_0_90(self.joint.landmark.state.rot) - self.middle_angle,
             ).squeeze(-1)
             joint_shaping = joint_dist_to_90_rot * self.rot_shaping_factor
-            self.rew[~passed] += (self.joint.rot_shaping_pre - joint_shaping)[~passed]
+            self.rew[~joint_passed] += (self.joint.rot_shaping_pre - joint_shaping)[
+                ~joint_passed
+            ]
             self.joint.rot_shaping_pre = joint_shaping
 
             joint_dist_to_goal_rot = torch.abs(
@@ -292,7 +299,9 @@ class Scenario(BaseScenario):
                 - get_line_angle_0_90(self.goal.state.rot),
             ).squeeze(-1)
             joint_shaping = joint_dist_to_goal_rot * self.rot_shaping_factor
-            self.rew[passed] += (self.joint.rot_shaping_post - joint_shaping)[passed]
+            self.rew[joint_passed] += (self.joint.rot_shaping_post - joint_shaping)[
+                joint_passed
+            ]
             self.joint.rot_shaping_post = joint_shaping
 
             # Agent collisions
@@ -305,11 +314,10 @@ class Scenario(BaseScenario):
 
             # Joint collisions
             for i, p in enumerate(self.passages):
-                if p.collide:
-                    if p.neighbour:
-                        self.rew[
-                            self.world.is_overlapping(p, self.joint.landmark)
-                        ] += self.collision_reward
+                if p.collide and p.neighbour:
+                    self.rew[
+                        self.world.is_overlapping(p, self.joint.landmark)
+                    ] += self.collision_reward
 
         return self.rew
 
