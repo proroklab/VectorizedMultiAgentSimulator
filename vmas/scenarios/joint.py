@@ -1,7 +1,7 @@
 #  Copyright (c) 2022.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-
+import math
 
 import torch
 from torch import Tensor
@@ -24,6 +24,8 @@ class Scenario(BaseScenario):
         self.n_passages = kwargs.get("n_passages", 1)
         self.fixed_passage = kwargs.get("fixed_passage", True)
         self.joint_length = kwargs.get("joint_length", 0.5)
+        self.random_start_angle = kwargs.get("random_start_angle", False)
+        self.random_goal_angle = kwargs.get("random_goal_angle", False)
 
         assert 1 <= self.n_passages <= 20
 
@@ -91,81 +93,98 @@ class Scenario(BaseScenario):
         return world
 
     def reset_world_at(self, env_index: int = None):
+        start_angle = torch.zeros(
+            (1, 1) if env_index is not None else (self.world.batch_dim, 1),
+            device=self.world.device,
+            dtype=torch.float32,
+        ).uniform_(
+            -torch.pi / 2 if self.random_start_angle else 0,
+            torch.pi / 2 if self.random_start_angle else 0,
+        )
+
+        goal_angle = torch.zeros(
+            (1, 1) if env_index is not None else (self.world.batch_dim, 1),
+            device=self.world.device,
+            dtype=torch.float32,
+        ).uniform_(
+            -torch.pi / 2 if self.random_goal_angle else 0,
+            torch.pi / 2 if self.random_goal_angle else 0,
+        )
+
+        start_delta_x = (self.joint_length / 2) * torch.cos(start_angle)
+        start_delta_x_abs = start_delta_x.abs()
+        min_x_start = -self.world.x_semidim + (self.agent_radius + start_delta_x_abs)
+        max_x_start = self.world.x_semidim - (self.agent_radius + start_delta_x_abs)
+        start_delta_y = (self.joint_length / 2) * torch.sin(start_angle)
+        start_delta_y_abs = start_delta_y.abs()
+        min_y_start = -self.world.y_semidim + (self.agent_radius + start_delta_y_abs)
+        max_y_start = (
+            -2 * self.agent_radius - self.passage_width / 2 - start_delta_y_abs
+        )
+
+        goal_delta_x = (self.joint_length / 2) * torch.cos(goal_angle)
+        goal_delta_x_abs = goal_delta_x.abs()
+        min_x_goal = -self.world.x_semidim + (self.agent_radius + goal_delta_x_abs)
+        max_x_goal = self.world.x_semidim - (self.agent_radius + goal_delta_x_abs)
+        goal_delta_y = (self.joint_length / 2) * torch.sin(goal_angle)
+        goal_delta_y_abs = goal_delta_y.abs()
+        min_y_goal = 2 * self.agent_radius + self.passage_width / 2 + goal_delta_y_abs
+        max_y_goal = self.world.y_semidim - (self.agent_radius + goal_delta_y_abs)
+
         joint_pos = torch.cat(
             [
-                torch.zeros(
+                (min_x_start - max_x_start)
+                * torch.rand(
                     (1, 1) if env_index is not None else (self.world.batch_dim, 1),
                     device=self.world.device,
                     dtype=torch.float32,
-                ).uniform_(
-                    -1 + (self.agent_radius + self.joint_length / 2),
-                    1 - (self.agent_radius + self.joint_length / 2),
-                ),
-                torch.zeros(
+                )
+                + max_x_start,
+                (min_y_start - max_y_start)
+                * torch.rand(
                     (1, 1) if env_index is not None else (self.world.batch_dim, 1),
                     device=self.world.device,
                     dtype=torch.float32,
-                ).uniform_(
-                    -1 + self.agent_radius,
-                    -2 * self.agent_radius - self.passage_width / 2,
-                ),
+                )
+                + max_y_start,
             ],
             dim=1,
         )
         goal_pos = torch.cat(
             [
-                torch.zeros(
+                (min_x_goal - max_x_goal)
+                * torch.rand(
                     (1, 1) if env_index is not None else (self.world.batch_dim, 1),
                     device=self.world.device,
                     dtype=torch.float32,
-                ).uniform_(
-                    -1 + (self.agent_radius + self.joint_length / 2),
-                    1 - (self.agent_radius + self.joint_length / 2),
-                ),
-                torch.zeros(
+                )
+                + max_x_goal,
+                (min_y_goal - max_y_goal)
+                * torch.rand(
                     (1, 1) if env_index is not None else (self.world.batch_dim, 1),
                     device=self.world.device,
                     dtype=torch.float32,
-                ).uniform_(
-                    2 * self.agent_radius + self.passage_width / 2,
-                    1 - self.agent_radius,
-                ),
+                )
+                + max_y_goal,
             ],
             dim=1,
-        )
-
-        x_shift = torch.tensor(
-            [
-                [self.joint_length / 2, 0.0],
-            ],
-            device=self.world.device,
         )
 
         self.goal.set_pos(
             goal_pos,
             batch_index=env_index,
         )
-        self.goal.set_rot(
-            torch.zeros(
-                (1, 1) if env_index is not None else (self.world.batch_dim, 1),
-                device=self.world.device,
-                dtype=torch.float32,
-            ).uniform_(
-                0,
-                0,
-            ),
-            batch_index=env_index,
-        )
+        self.goal.set_rot(goal_angle, batch_index=env_index)
 
         for i, agent in enumerate(self.world.agents):
             if i == 0:
                 agent.set_pos(
-                    joint_pos - x_shift,
+                    joint_pos - torch.cat([start_delta_x, start_delta_y], dim=1),
                     batch_index=env_index,
                 )
             else:
                 agent.set_pos(
-                    joint_pos + x_shift,
+                    joint_pos + torch.cat([start_delta_x, start_delta_y], dim=1),
                     batch_index=env_index,
                 )
         self.spawn_passage_map(env_index)
@@ -332,6 +351,7 @@ class Scenario(BaseScenario):
                 agent.state.pos,
                 agent.state.vel,
                 self.joint.landmark.state.pos - self.goal.state.pos,
+                get_line_angle_0_90(self.goal.state.rot),
                 # get_line_angle_0_90(self.joint.landmark.state.rot),
                 *passage_obs,
             ],
@@ -446,8 +466,10 @@ class Scenario(BaseScenario):
         xform = rendering.Transform()
         goal_agent_1.add_attr(xform)
         xform.set_translation(
-            self.goal.state.pos[env_index][X] - self.joint_length / 2,
-            self.goal.state.pos[env_index][Y],
+            self.goal.state.pos[env_index][X]
+            - self.joint_length / 2 * math.cos(self.goal.state.rot[env_index]),
+            self.goal.state.pos[env_index][Y]
+            - self.joint_length / 2 * math.sin(self.goal.state.rot[env_index]),
         )
 
         goal_agent_1.set_color(*color)
@@ -456,8 +478,10 @@ class Scenario(BaseScenario):
         xform = rendering.Transform()
         goal_agent_2.add_attr(xform)
         xform.set_translation(
-            self.goal.state.pos[env_index][X] + self.joint_length / 2,
-            self.goal.state.pos[env_index][Y],
+            self.goal.state.pos[env_index][X]
+            + self.joint_length / 2 * math.cos(self.goal.state.rot[env_index]),
+            self.goal.state.pos[env_index][Y]
+            + self.joint_length / 2 * math.sin(self.goal.state.rot[env_index]),
         )
         goal_agent_2.set_color(*color)
         geoms.append(goal_agent_2)
