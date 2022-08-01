@@ -107,7 +107,7 @@ class Scenario(BaseScenario):
                     dtype=torch.float32,
                 ).uniform_(
                     -1 + self.agent_radius,
-                    -self.agent_radius - self.passage_width / 2,
+                    -2 * self.agent_radius - self.passage_width / 2,
                 ),
             ],
             dim=1,
@@ -127,7 +127,7 @@ class Scenario(BaseScenario):
                     device=self.world.device,
                     dtype=torch.float32,
                 ).uniform_(
-                    self.agent_radius + self.passage_width / 2,
+                    2 * self.agent_radius + self.passage_width / 2,
                     1 - self.agent_radius,
                 ),
             ],
