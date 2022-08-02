@@ -7,6 +7,7 @@ from typing import Dict, Optional
 
 import numpy as np
 import ray
+import wandb
 from ray import tune
 from ray.rllib import BaseEnv, Policy, RolloutWorker
 from ray.rllib.agents import DefaultCallbacks, MultiCallbacks
@@ -15,8 +16,6 @@ from ray.rllib.evaluation import Episode, MultiAgentEpisode
 from ray.rllib.utils.typing import PolicyID
 from ray.tune import register_env
 from ray.tune.integration.wandb import WandbLoggerCallback
-
-import wandb
 from vmas import make_env, Wrapper
 
 scenario_name = "balance"
@@ -42,7 +41,7 @@ def env_creator(config: Dict):
         wrapper=Wrapper.RLLIB,
         max_steps=config["max_steps"],
         # Scenario specific variables
-        n_agents=config["n_agents"],
+        **config["scenario_config"],
     )
     return env
 
@@ -168,7 +167,9 @@ def train():
                 "continuous_actions": continuous_actions,
                 "max_steps": max_steps,
                 # Scenario specific variables
-                "n_agents": n_agents,
+                "scenario_config": {
+                    "n_agents": n_agents,
+                },
             },
             "evaluation_interval": 5,
             "evaluation_duration": 1,
