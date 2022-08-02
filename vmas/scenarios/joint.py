@@ -5,7 +5,6 @@ import math
 
 import torch
 from torch import Tensor
-
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Box, Landmark, Sphere, World, Line
 from vmas.simulator.joints import Joint
@@ -15,8 +14,24 @@ from vmas.simulator.utils import Color, Y, X
 
 def get_line_angle_0_90(rot: Tensor):
     angle = torch.abs(rot) % torch.pi
-    otehr_angle = torch.pi - angle
-    return torch.minimum(angle, otehr_angle)
+    other_angle = torch.pi - angle
+    return torch.minimum(angle, other_angle)
+
+
+def get_line_angle_0_180(rot: Tensor):
+    angle = rot % torch.pi
+    return angle
+
+
+def get_line_angle_dist_0_180(angle: Tensor, goal: Tensor):
+    angle = get_line_angle_0_180(angle)
+    goal = get_line_angle_0_180(goal)
+    return torch.minimum(
+        (angle - goal).abs(),
+        torch.minimum(
+            (angle - (goal - torch.pi)).abs(), ((angle - torch.pi) - goal).abs()
+        ),
+    ).squeeze(-1)
 
 
 class Scenario(BaseScenario):
@@ -31,7 +46,7 @@ class Scenario(BaseScenario):
 
         self.pos_shaping_factor = 1
         self.rot_shaping_factor = 1
-        self.collision_reward = -0.1
+        self.collision_reward = -0.05
 
         self.middle_angle = torch.pi / 2
 
@@ -187,6 +202,9 @@ class Scenario(BaseScenario):
                     joint_pos + torch.cat([start_delta_x, start_delta_y], dim=1),
                     batch_index=env_index,
                 )
+        self.joint.landmark.set_pos(joint_pos, batch_index=env_index)
+        self.joint.landmark.set_rot(start_angle, batch_index=env_index)
+
         self.spawn_passage_map(env_index)
 
         if env_index is None:
@@ -218,10 +236,9 @@ class Scenario(BaseScenario):
                 * self.rot_shaping_factor
             )
             self.joint.rot_shaping_post = (
-                torch.abs(
-                    get_line_angle_0_90(self.joint.landmark.state.rot)
-                    - get_line_angle_0_90(self.goal.state.rot),
-                ).squeeze(-1)
+                get_line_angle_dist_0_180(
+                    self.joint.landmark.state.rot, self.goal.state.rot
+                )
                 * self.rot_shaping_factor
             )
 
@@ -255,10 +272,10 @@ class Scenario(BaseScenario):
                 * self.rot_shaping_factor
             )
             self.joint.rot_shaping_post[env_index] = (
-                torch.abs(
-                    get_line_angle_0_90(self.joint.landmark.state.rot[env_index])
-                    - get_line_angle_0_90(self.goal.state.rot[env_index]),
-                ).squeeze(-1)
+                get_line_angle_dist_0_180(
+                    self.joint.landmark.state.rot[env_index],
+                    self.goal.state.rot[env_index],
+                )
                 * self.rot_shaping_factor
             )
 
@@ -271,10 +288,6 @@ class Scenario(BaseScenario):
             )
 
             joint_passed = self.joint.landmark.state.pos[:, Y] > 0
-            # all_passed = torch.all(
-            #     torch.stack([a.state.pos[:, Y] for a in self.world.agents], dim=1) > 0,
-            #     dim=1,
-            # )
 
             # Pos shaping
             joint_dist_to_closest_pass = torch.stack(
@@ -313,10 +326,9 @@ class Scenario(BaseScenario):
             ]
             self.joint.rot_shaping_pre = joint_shaping
 
-            joint_dist_to_goal_rot = torch.abs(
-                get_line_angle_0_90(self.joint.landmark.state.rot)
-                - get_line_angle_0_90(self.goal.state.rot),
-            ).squeeze(-1)
+            joint_dist_to_goal_rot = get_line_angle_dist_0_180(
+                self.joint.landmark.state.rot, self.goal.state.rot
+            )
             joint_shaping = joint_dist_to_goal_rot * self.rot_shaping_factor
             self.rew[joint_passed] += (self.joint.rot_shaping_post - joint_shaping)[
                 joint_passed
@@ -345,15 +357,16 @@ class Scenario(BaseScenario):
         passage_obs = []
         for passage in self.passages:
             if not passage.collide:
-                passage_obs.append(passage.state.pos - agent.state.pos)
+                passage_obs.append(agent.state.pos - passage.state.pos)
         return torch.cat(
             [
                 agent.state.pos,
                 agent.state.vel,
-                self.joint.landmark.state.pos - self.goal.state.pos,
-                get_line_angle_0_90(self.goal.state.rot),
-                # get_line_angle_0_90(self.joint.landmark.state.rot),
+                agent.state.pos - self.goal.state.pos,
                 *passage_obs,
+                get_line_angle_dist_0_180(
+                    self.joint.landmark.state.rot, self.goal.state.rot
+                ).unsqueeze(-1),
             ],
             dim=-1,
         )
@@ -364,13 +377,12 @@ class Scenario(BaseScenario):
                 torch.linalg.vector_norm(
                     self.joint.landmark.state.pos - self.goal.state.pos, dim=1
                 )
-                <= self.agent_radius
+                <= 0.01
             )
             * (
-                torch.abs(
-                    get_line_angle_0_90(self.joint.landmark.state.rot)
-                    - get_line_angle_0_90(self.goal.state.rot),
-                )
+                get_line_angle_dist_0_180(
+                    self.joint.landmark.state.rot, self.goal.state.rot
+                ).unsqueeze(-1)
                 <= 0.01
             ),
             dim=1,
@@ -399,7 +411,6 @@ class Scenario(BaseScenario):
                 color=Color.RED,
                 collision_filter=lambda e: not isinstance(e.shape, Box),
             )
-            passage.neighbour = removed(i - 1) or removed(i + 1)
             self.passages.append(passage)
             world.add_landmark(passage)
 
@@ -410,6 +421,16 @@ class Scenario(BaseScenario):
         for i, passage in enumerate(self.passages):
             if not passage.collide:
                 passage.is_rendering[:] = False
+            passage.neighbour = False
+            try:
+                passage.neighbour += not self.passages[i - 1].collide
+            except IndexError:
+                pass
+            try:
+                passage.neighbour += not self.passages[i + 1].collide
+            except IndexError:
+                pass
+            passage.neighbour *= passage.collide
             passage.set_pos(
                 torch.tensor(
                     [
