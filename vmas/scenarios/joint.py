@@ -2,6 +2,7 @@
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import math
+from typing import Dict
 
 import torch
 from torch import Tensor
@@ -37,16 +38,20 @@ def get_line_angle_dist_0_180(angle: Tensor, goal: Tensor):
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.n_passages = kwargs.get("n_passages", 1)
-        self.fixed_passage = kwargs.get("fixed_passage", True)
+        self.fixed_passage = kwargs.get("fixed_passage", False)
         self.joint_length = kwargs.get("joint_length", 0.5)
-        self.random_start_angle = kwargs.get("random_start_angle", False)
-        self.random_goal_angle = kwargs.get("random_goal_angle", False)
+        self.random_start_angle = kwargs.get("random_start_angle", True)
+        self.random_goal_angle = kwargs.get("random_goal_angle", True)
+        self.observe_joint_angle = kwargs.get("observe_joint_angle", True)
+        self.joint_angle_obs_noise = kwargs.get("joint_angle_obs_noise", 0.0)
 
         assert 1 <= self.n_passages <= 20
+        if not self.observe_joint_angle:
+            assert self.joint_angle_obs_noise == 0
 
         self.pos_shaping_factor = 1
         self.rot_shaping_factor = 1
-        self.collision_reward = -0.05
+        self.collision_reward = -0.07
 
         self.middle_angle = torch.pi / 2
 
@@ -286,6 +291,9 @@ class Scenario(BaseScenario):
             self.rew = torch.zeros(
                 self.world.batch_dim, device=self.world.device, dtype=torch.float32
             )
+            self.pos_rew = self.rew.clone()
+            self.rot_rew = self.rew.clone()
+            self.collision_rew = self.rew.clone()
 
             joint_passed = self.joint.landmark.state.pos[:, Y] > 0
 
@@ -301,7 +309,7 @@ class Scenario(BaseScenario):
                 dim=1,
             ).min(dim=1)[0]
             joint_shaping = joint_dist_to_closest_pass * self.pos_shaping_factor
-            self.rew[~joint_passed] += (self.joint.pos_shaping_pre - joint_shaping)[
+            self.pos_rew[~joint_passed] += (self.joint.pos_shaping_pre - joint_shaping)[
                 ~joint_passed
             ]
             self.joint.pos_shaping_pre = joint_shaping
@@ -311,7 +319,7 @@ class Scenario(BaseScenario):
                 dim=1,
             )
             joint_shaping = joint_dist_to_goal * self.pos_shaping_factor
-            self.rew[joint_passed] += (self.joint.pos_shaping_post - joint_shaping)[
+            self.pos_rew[joint_passed] += (self.joint.pos_shaping_post - joint_shaping)[
                 joint_passed
             ]
             self.joint.pos_shaping_post = joint_shaping
@@ -321,7 +329,7 @@ class Scenario(BaseScenario):
                 get_line_angle_0_90(self.joint.landmark.state.rot) - self.middle_angle,
             ).squeeze(-1)
             joint_shaping = joint_dist_to_90_rot * self.rot_shaping_factor
-            self.rew[~joint_passed] += (self.joint.rot_shaping_pre - joint_shaping)[
+            self.rot_rew[~joint_passed] += (self.joint.rot_shaping_pre - joint_shaping)[
                 ~joint_passed
             ]
             self.joint.rot_shaping_pre = joint_shaping
@@ -330,7 +338,7 @@ class Scenario(BaseScenario):
                 self.joint.landmark.state.rot, self.goal.state.rot
             )
             joint_shaping = joint_dist_to_goal_rot * self.rot_shaping_factor
-            self.rew[joint_passed] += (self.joint.rot_shaping_post - joint_shaping)[
+            self.rot_rew[joint_passed] += (self.joint.rot_shaping_post - joint_shaping)[
                 joint_passed
             ]
             self.joint.rot_shaping_post = joint_shaping
@@ -339,20 +347,34 @@ class Scenario(BaseScenario):
             for a in self.world.agents:
                 for passage in self.passages:
                     if passage.collide:
-                        self.rew[
+                        self.collision_rew[
                             self.world.is_overlapping(a, passage)
                         ] += self.collision_reward
 
             # Joint collisions
             for i, p in enumerate(self.passages):
                 if p.collide and p.neighbour:
-                    self.rew[
+                    self.collision_rew[
                         self.world.is_overlapping(p, self.joint.landmark)
                     ] += self.collision_reward
+
+            self.rew = self.pos_rew + self.rot_rew + self.collision_rew
 
         return self.rew
 
     def observation(self, agent: Agent):
+        if self.observe_joint_angle:
+            joint_angle = get_line_angle_0_180(self.joint.landmark.state.rot)
+            angle_noise = (
+                torch.randn(
+                    *joint_angle.shape, device=self.world.device, dtype=torch.float32
+                )
+                * self.joint_angle_obs_noise
+                if self.joint_angle_obs_noise
+                else 0.0
+            )
+            joint_angle += angle_noise
+
         # get positions of all entities in this agent's reference frame
         passage_obs = []
         for passage in self.passages:
@@ -364,10 +386,9 @@ class Scenario(BaseScenario):
                 agent.state.vel,
                 agent.state.pos - self.goal.state.pos,
                 *passage_obs,
-                get_line_angle_dist_0_180(
-                    self.joint.landmark.state.rot, self.goal.state.rot
-                ).unsqueeze(-1),
-            ],
+                get_line_angle_0_180(self.goal.state.rot),
+            ]
+            + ([joint_angle] if self.observe_joint_angle else []),
             dim=-1,
         )
 
@@ -387,6 +408,13 @@ class Scenario(BaseScenario):
             ),
             dim=1,
         )
+
+    def info(self, agent: Agent) -> Dict[str, Tensor]:
+        return {
+            "pos_rew": self.pos_rew,
+            "rot_rew": self.rot_rew,
+            "collision_rew": self.collision_rew,
+        }
 
     def create_passage_map(self, world: World):
         # Add landmarks
