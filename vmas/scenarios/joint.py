@@ -19,12 +19,12 @@ def get_line_angle_0_90(rot: Tensor):
     return torch.minimum(angle, other_angle)
 
 
-def get_line_angle_0_180(rot: Tensor):
+def get_line_angle_0_180(rot):
     angle = rot % torch.pi
     return angle
 
 
-def get_line_angle_dist_0_180(angle: Tensor, goal: Tensor):
+def get_line_angle_dist_0_180(angle, goal):
     angle = get_line_angle_0_180(angle)
     goal = get_line_angle_0_180(goal)
     return torch.minimum(
@@ -51,7 +51,7 @@ class Scenario(BaseScenario):
 
         self.pos_shaping_factor = 1
         self.rot_shaping_factor = 1
-        self.collision_reward = -0.07
+        self.collision_reward = -0.06
 
         self.middle_angle = torch.pi / 2
 
@@ -234,10 +234,9 @@ class Scenario(BaseScenario):
             )
 
             self.joint.rot_shaping_pre = (
-                torch.abs(
-                    get_line_angle_0_90(self.joint.landmark.state.rot)
-                    - self.middle_angle,
-                ).squeeze(-1)
+                get_line_angle_dist_0_180(
+                    self.joint.landmark.state.rot, self.middle_angle
+                )
                 * self.rot_shaping_factor
             )
             self.joint.rot_shaping_post = (
@@ -270,10 +269,9 @@ class Scenario(BaseScenario):
                 * self.pos_shaping_factor
             )
             self.joint.rot_shaping_pre[env_index] = (
-                torch.abs(
-                    get_line_angle_0_90(self.joint.landmark.state.rot[env_index])
-                    - self.middle_angle,
-                ).squeeze(-1)
+                get_line_angle_dist_0_180(
+                    self.joint.landmark.state.rot[env_index], self.middle_angle
+                )
                 * self.rot_shaping_factor
             )
             self.joint.rot_shaping_post[env_index] = (
@@ -325,9 +323,9 @@ class Scenario(BaseScenario):
             self.joint.pos_shaping_post = joint_shaping
 
             # Rot shaping
-            joint_dist_to_90_rot = torch.abs(
-                get_line_angle_0_90(self.joint.landmark.state.rot) - self.middle_angle,
-            ).squeeze(-1)
+            joint_dist_to_90_rot = get_line_angle_dist_0_180(
+                self.joint.landmark.state.rot, self.middle_angle
+            )
             joint_shaping = joint_dist_to_90_rot * self.rot_shaping_factor
             self.rot_rew[~joint_passed] += (self.joint.rot_shaping_pre - joint_shaping)[
                 ~joint_passed
