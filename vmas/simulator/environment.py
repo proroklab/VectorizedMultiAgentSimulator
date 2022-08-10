@@ -50,44 +50,40 @@ class Environment(TorchVectorizedObject):
 
         # configure spaces
         self.action_space = gym.spaces.Tuple(
-            (
-                (
-                    spaces.Box(
-                        low=np.array(
-                            [-agent.u_range] * self.world.dim_p
-                            + [0.0] * (self.world.dim_c if not agent.silent else 0)
-                        ),
-                        high=np.array(
-                            [agent.u_range] * self.world.dim_p
-                            + [1.0] * (self.world.dim_c if not agent.silent else 0)
-                        ),
-                        shape=(self.get_agent_action_size(agent),),
-                        dtype=float,
-                    )
-                    if self.continuous_actions
-                    else (
-                        spaces.Discrete(self.world.dim_p * 2 + 1)
-                        if self.world.dim_c == 0 or agent.silent
-                        else spaces.MultiDiscrete(
-                            [self.world.dim_p * 2 + 1, self.world.dim_c]
-                        )
+            [
+                spaces.Box(
+                    low=np.array(
+                        [-agent.u_range] * self.world.dim_p
+                        + [0.0] * (self.world.dim_c if not agent.silent else 0)
+                    ),
+                    high=np.array(
+                        [agent.u_range] * self.world.dim_p
+                        + [1.0] * (self.world.dim_c if not agent.silent else 0)
+                    ),
+                    shape=(self.get_agent_action_size(agent),),
+                    dtype=float,
+                )
+                if self.continuous_actions
+                else (
+                    spaces.Discrete(self.world.dim_p * 2 + 1)
+                    if self.world.dim_c == 0 or agent.silent
+                    else spaces.MultiDiscrete(
+                        [self.world.dim_p * 2 + 1, self.world.dim_c]
                     )
                 )
                 for agent in self.agents
-            )
+            ]
         )
         self.observation_space = gym.spaces.Tuple(
-            (
-                (
-                    spaces.Box(
-                        low=-float("inf"),
-                        high=float("inf"),
-                        shape=(len(self.scenario.observation(agent)[0]),),
-                        dtype=float,
-                    )
+            [
+                spaces.Box(
+                    low=-float("inf"),
+                    high=float("inf"),
+                    shape=(len(self.scenario.observation(agent)[0]),),
+                    dtype=float,
                 )
                 for agent in self.agents
-            )
+            ]
         )
 
         # rendering
