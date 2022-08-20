@@ -6,6 +6,7 @@ from typing import Dict
 
 import torch
 from torch import Tensor
+
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Box, Landmark, Sphere, World, Line
 from vmas.simulator.joints import Joint
@@ -44,13 +45,16 @@ class Scenario(BaseScenario):
         self.random_goal_angle = kwargs.get("random_goal_angle", True)
         self.observe_joint_angle = kwargs.get("observe_joint_angle", True)
         self.joint_angle_obs_noise = kwargs.get("joint_angle_obs_noise", 0.0)
+        self.asym_package = kwargs.get("asym_package", False)
+        self.mass_ratio = kwargs.get("mass_ratio", 1)
+        self.max_speed_1 = kwargs.get("max_speed_1", None)  # 0.1
 
         assert 1 <= self.n_passages <= 20
         if not self.observe_joint_angle:
             assert self.joint_angle_obs_noise == 0
 
         self.pos_shaping_factor = 1
-        self.rot_shaping_factor = 1
+        self.rot_shaping_factor = 0.9
         self.collision_reward = -0.06
 
         self.middle_angle = torch.pi / 2
@@ -73,11 +77,18 @@ class Scenario(BaseScenario):
             collision_force=1500,
         )
         # Add agents
-        for i in range(self.n_agents):
-            agent = Agent(
-                name=f"agent {i}", shape=Sphere(self.agent_radius), u_multiplier=0.7
-            )
-            world.add_agent(agent)
+        agent = Agent(
+            name=f"agent 0", shape=Sphere(self.agent_radius), u_multiplier=0.7
+        )
+        world.add_agent(agent)
+        agent = Agent(
+            name=f"agent 1",
+            shape=Sphere(self.agent_radius),
+            u_multiplier=0.7,
+            mass=1 if self.asym_package else self.mass_ratio,
+            max_speed=self.max_speed_1,
+        )
+        world.add_agent(agent)
 
         self.joint = Joint(
             world.agents[0],
@@ -91,6 +102,29 @@ class Scenario(BaseScenario):
             width=0,
             mass=1,
         )
+        world.add_joint(self.joint)
+
+        if self.asym_package:
+            self.mass = Landmark(
+                name="mass",
+                shape=Sphere(radius=self.agent_radius),
+                collide=True,
+                movable=True,
+                color=Color.BLACK,
+                mass=self.mass_ratio,
+            )
+            world.add_landmark(self.mass)
+
+            joint = Joint(
+                self.mass,
+                self.joint.landmark,
+                anchor_a=(0, 0),
+                anchor_b=(0.5, 0),
+                dist=0,
+                rotate_a=False,
+                rotate_b=False,
+            )
+            world.add_joint(joint)
 
         self.goal = Landmark(
             name="joint_goal",
@@ -107,7 +141,7 @@ class Scenario(BaseScenario):
                 return False
 
         self.joint.landmark.collision_filter = joint_collision_filter
-        world.add_joint(self.joint)
+
         self.create_passage_map(world)
 
         return world
@@ -210,6 +244,12 @@ class Scenario(BaseScenario):
         self.joint.landmark.set_pos(joint_pos, batch_index=env_index)
         self.joint.landmark.set_rot(start_angle, batch_index=env_index)
 
+        if self.asym_package:
+            self.mass.set_pos(
+                joint_pos + 0.5 * torch.cat([start_delta_x, start_delta_y], dim=1),
+                batch_index=env_index,
+            )
+
         self.spawn_passage_map(env_index)
 
         if env_index is None:
@@ -294,6 +334,10 @@ class Scenario(BaseScenario):
             self.collision_rew = self.rew.clone()
 
             joint_passed = self.joint.landmark.state.pos[:, Y] > 0
+            all_passed = (
+                torch.stack([a.state.pos[:, Y] for a in self.world.agents], dim=1)
+                > self.passage_width / 2
+            ).all(dim=1)
 
             # Pos shaping
             joint_dist_to_closest_pass = torch.stack(
@@ -327,8 +371,8 @@ class Scenario(BaseScenario):
                 self.joint.landmark.state.rot, self.middle_angle
             )
             joint_shaping = joint_dist_to_90_rot * self.rot_shaping_factor
-            self.rot_rew[~joint_passed] += (self.joint.rot_shaping_pre - joint_shaping)[
-                ~joint_passed
+            self.rot_rew[~all_passed] += (self.joint.rot_shaping_pre - joint_shaping)[
+                ~all_passed
             ]
             self.joint.rot_shaping_pre = joint_shaping
 
@@ -336,8 +380,8 @@ class Scenario(BaseScenario):
                 self.joint.landmark.state.rot, self.goal.state.rot
             )
             joint_shaping = joint_dist_to_goal_rot * self.rot_shaping_factor
-            self.rot_rew[joint_passed] += (self.joint.rot_shaping_post - joint_shaping)[
-                joint_passed
+            self.rot_rew[all_passed] += (self.joint.rot_shaping_post - joint_shaping)[
+                all_passed
             ]
             self.joint.rot_shaping_post = joint_shaping
 
