@@ -23,6 +23,9 @@ from vmas.simulator.utils import (
     COLLISION_FORCE,
     JOINT_FORCE,
     Observable,
+    DRAG,
+    LINEAR_FRICTION,
+    ANGULAR_FRICTION,
 )
 
 if typing.TYPE_CHECKING:
@@ -341,6 +344,9 @@ class Entity(TorchVectorizedObject, Observable, ABC):
         max_speed: float = None,
         color=Color.GRAY,
         is_joint: bool = False,
+        drag: float = None,
+        linear_friction: float = None,
+        angular_friction: float = None,
         collision_filter: Callable[[Entity], bool] = lambda _: True,
     ):
         TorchVectorizedObject.__init__(self)
@@ -369,6 +375,11 @@ class Entity(TorchVectorizedObject, Observable, ABC):
         self._collision_filter = collision_filter
         # state
         self._state = EntityState()
+        # drag
+        self._drag = drag
+        # friction
+        self._linear_friction = linear_friction
+        self._angular_friction = angular_friction
         # entity goal
         self._goal = None
         # Render the entity
@@ -451,6 +462,18 @@ class Entity(TorchVectorizedObject, Observable, ABC):
     @property
     def goal(self):
         return self._goal
+
+    @property
+    def drag(self):
+        return self._drag
+
+    @property
+    def linear_friction(self):
+        return self._linear_friction
+
+    @property
+    def angular_friction(self):
+        return self._angular_friction
 
     @goal.setter
     def goal(self, goal: Entity):
@@ -554,6 +577,9 @@ class Landmark(Entity):
         max_speed: float = None,
         color=Color.GRAY,
         is_joint: bool = False,
+        drag: float = None,
+        linear_friction: float = None,
+        angular_friction: float = None,
         collision_filter: Callable[[Entity], bool] = lambda _: True,
     ):
         super().__init__(
@@ -567,6 +593,9 @@ class Landmark(Entity):
             max_speed,
             color,
             is_joint,
+            drag,
+            linear_friction,
+            angular_friction,
             collision_filter,
         )
 
@@ -594,6 +623,9 @@ class Agent(Entity):
         c_noise: float = None,
         silent: bool = True,
         adversary: bool = False,
+        drag: float = None,
+        linear_friction: float = None,
+        angular_friction: float = None,
         collision_filter: Callable[[Entity], bool] = lambda _: True,
     ):
         super().__init__(
@@ -607,6 +639,9 @@ class Agent(Entity):
             max_speed,
             color,
             is_joint=False,
+            drag=drag,
+            linear_friction=linear_friction,
+            angular_friction=angular_friction,
             collision_filter=collision_filter,
         )
         if obs_range == 0.0:
@@ -749,9 +784,9 @@ class World(TorchVectorizedObject):
         device: torch.device,
         dt: float = 0.1,
         substeps: int = 1,  # if you use joints, higher this value to gain simulation stability
-        drag: float = 0.25,
-        linear_friction: float = 0.0,
-        angular_friction: float = 0.0,
+        drag: float = DRAG,
+        linear_friction: float = LINEAR_FRICTION,
+        angular_friction: float = ANGULAR_FRICTION,
         x_semidim: float = None,
         y_semidim: float = None,
         dim_c: int = 0,
@@ -1275,11 +1310,20 @@ class World(TorchVectorizedObject):
             friction_force[~in_motion] = -(velocity[~in_motion]) / self._sub_dt
             return friction_force
 
-        if self._linear_friction > 0:
+        if entity.linear_friction is not None and entity.linear_friction > 0:
+            self.force[:, index] += (
+                get_friction_acc(entity.state.vel, entity.linear_friction) * entity.mass
+            )
+        elif self._linear_friction > 0:
             self.force[:, index] += (
                 get_friction_acc(entity.state.vel, self._linear_friction) * entity.mass
             )
-        if self._angular_friction > 0:
+        if entity.angular_friction is not None and entity.angular_friction > 0:
+            self.torque[:, index] += (
+                get_friction_acc(entity.state.ang_vel, entity.angular_friction)
+                * entity.moment_of_inertia
+            )
+        elif self._angular_friction > 0:
             self.torque[:, index] += (
                 get_friction_acc(entity.state.ang_vel, self._angular_friction)
                 * entity.moment_of_inertia
@@ -1840,7 +1884,10 @@ class World(TorchVectorizedObject):
         if entity.movable:
             # Compute translation
             if substep == 0:
-                entity.state.vel = entity.state.vel * (1 - self._drag)
+                if entity.drag is not None:
+                    entity.state.vel = entity.state.vel * (1 - entity.drag)
+                else:
+                    entity.state.vel = entity.state.vel * (1 - self._drag)
             entity.state.vel += (self.force[:, index] / entity.mass) * self._sub_dt
             if entity.max_speed is not None:
                 speed = torch.linalg.norm(entity.state.vel, dim=1)
@@ -1861,7 +1908,10 @@ class World(TorchVectorizedObject):
         if entity.rotatable:
             # Compute rotation
             if substep == 0:
-                entity.state.ang_vel = entity.state.ang_vel * (1 - self._drag)
+                if entity.drag is not None:
+                    entity.state.ang_vel = entity.state.ang_vel * (1 - entity.drag)
+                else:
+                    entity.state.ang_vel = entity.state.ang_vel * (1 - self._drag)
             entity.state.ang_vel += (
                 self.torque[:, index] / entity.moment_of_inertia
             ) * self._sub_dt
