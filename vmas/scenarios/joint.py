@@ -62,7 +62,6 @@ class Scenario(BaseScenario):
         self.n_agents = 2
 
         self.agent_radius = 0.03333
-        self.agent_spacing = 0.1
         self.passage_width = 0.2
         self.passage_length = 0.103
 
