@@ -6,7 +6,6 @@ from typing import Dict
 
 import torch
 from torch import Tensor
-
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Box, Landmark, Sphere, World, Line
 from vmas.simulator.scenario import BaseScenario
@@ -17,6 +16,7 @@ class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.n_passages = kwargs.get("n_passages", 1)
         self.fixed_passage = kwargs.get("fixed_passage", False)
+        self.random_start_angle = kwargs.get("random_start_angle", True)
 
         assert 1 <= self.n_passages <= 20
 
@@ -25,6 +25,7 @@ class Scenario(BaseScenario):
 
         self.n_agents = 2
 
+        self.agent_spacing = 0.5
         self.agent_radius = 0.03333
         self.ball_radius = self.agent_radius
         self.passage_width = 0.2
@@ -36,7 +37,6 @@ class Scenario(BaseScenario):
             device,
             x_semidim=1,
             y_semidim=1,
-            substeps=2,
             drag=0,
             linear_friction=0.0,
         )
@@ -66,7 +66,7 @@ class Scenario(BaseScenario):
             movable=True,
             mass=1,
             color=Color.BLACK,
-            linear_friction=0.05,
+            linear_friction=0.02,
         )
         world.add_landmark(self.ball)
 
@@ -76,45 +76,68 @@ class Scenario(BaseScenario):
 
     def reset_world_at(self, env_index: int = None):
 
-        min_x_start = -self.world.x_semidim + self.agent_radius
-        max_x_start = self.world.x_semidim - self.agent_radius
-        min_y_start = -self.world.y_semidim + self.agent_radius
-        max_y_start = -2 * self.agent_radius - self.passage_width / 2
+        start_angle = torch.zeros(
+            (1, 1) if env_index is not None else (self.world.batch_dim, 1),
+            device=self.world.device,
+            dtype=torch.float32,
+        ).uniform_(
+            -torch.pi / 2 if self.random_start_angle else -torch.pi / 2,
+            torch.pi / 2 if self.random_start_angle else -torch.pi / 2,
+        )
+
+        start_delta_x = (self.agent_spacing / 2) * torch.cos(start_angle)
+        start_delta_x_abs = start_delta_x.abs()
+        min_x_start = -self.world.x_semidim + (self.agent_radius + start_delta_x_abs)
+        max_x_start = self.world.x_semidim - (self.agent_radius + start_delta_x_abs)
+        start_delta_y = (self.agent_spacing / 2) * torch.sin(start_angle)
+        start_delta_y_abs = start_delta_y.abs()
+        min_y_start = -self.world.y_semidim + (self.agent_radius + start_delta_y_abs)
+        max_y_start = (
+            -2 * self.agent_radius - self.passage_width / 2 - start_delta_y_abs
+        )
 
         min_x_goal = -self.world.x_semidim + self.agent_radius
         max_x_goal = self.world.x_semidim - self.agent_radius
         min_y_goal = 2 * self.agent_radius + self.passage_width / 2
         max_y_goal = self.world.y_semidim - self.agent_radius
 
-        ball_and_agents = self.world.agents + [self.ball]
+        ball_pos = torch.cat(
+            [
+                (min_x_start - max_x_start)
+                * torch.rand(
+                    (1, 1) if env_index is not None else (self.world.batch_dim, 1),
+                    device=self.world.device,
+                    dtype=torch.float32,
+                )
+                + max_x_start,
+                (min_y_start - max_y_start)
+                * torch.rand(
+                    (1, 1) if env_index is not None else (self.world.batch_dim, 1),
+                    device=self.world.device,
+                    dtype=torch.float32,
+                )
+                + max_y_start,
+            ],
+            dim=1,
+        )
 
-        for entity in ball_and_agents:
-            entity.set_pos(
-                torch.cat(
-                    [
-                        (min_x_start - max_x_start)
-                        * torch.rand(
-                            (1, 1)
-                            if env_index is not None
-                            else (self.world.batch_dim, 1),
-                            device=self.world.device,
-                            dtype=torch.float32,
-                        )
-                        + max_x_start,
-                        (min_y_start - max_y_start)
-                        * torch.rand(
-                            (1, 1)
-                            if env_index is not None
-                            else (self.world.batch_dim, 1),
-                            device=self.world.device,
-                            dtype=torch.float32,
-                        )
-                        + max_y_start,
-                    ],
-                    dim=1,
-                ),
-                batch_index=env_index,
-            )
+        self.ball.set_pos(
+            ball_pos,
+            batch_index=env_index,
+        )
+
+        for i, agent in enumerate(self.world.agents):
+            if i == 0:
+                agent.set_pos(
+                    ball_pos - torch.cat([start_delta_x, start_delta_y], dim=1),
+                    batch_index=env_index,
+                )
+            else:
+                agent.set_pos(
+                    ball_pos + torch.cat([start_delta_x, start_delta_y], dim=1),
+                    batch_index=env_index,
+                )
+
         self.goal.set_pos(
             torch.cat(
                 [
