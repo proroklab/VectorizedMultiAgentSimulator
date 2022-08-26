@@ -6,7 +6,6 @@ from typing import Dict
 
 import torch
 from torch import Tensor
-
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Box, Landmark, Sphere, World, Line
 from vmas.simulator.joints import Joint
@@ -48,14 +47,14 @@ class Scenario(BaseScenario):
         self.asym_package = kwargs.get("asym_package", False)
         self.mass_ratio = kwargs.get("mass_ratio", 1)
         self.max_speed_1 = kwargs.get("max_speed_1", None)  # 0.1
+        self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 1)
+        self.rot_shaping_factor = kwargs.get("rot_shaping_factor", 1)
+        self.collision_reward = kwargs.get("collision_reward", -0.06)
+        self.all_passed_rot = kwargs.get("all_passed_rot", False)
 
         assert 1 <= self.n_passages <= 20
         if not self.observe_joint_angle:
             assert self.joint_angle_obs_noise == 0
-
-        self.pos_shaping_factor = 1
-        self.rot_shaping_factor = 0.9
-        self.collision_reward = -0.06
 
         self.middle_angle = torch.pi / 2
 
@@ -101,7 +100,6 @@ class Scenario(BaseScenario):
             width=0,
             mass=1,
         )
-        world.add_joint(self.joint)
 
         if self.asym_package:
             self.mass = Landmark(
@@ -140,6 +138,7 @@ class Scenario(BaseScenario):
                 return False
 
         self.joint.landmark.collision_filter = joint_collision_filter
+        world.add_joint(self.joint)
 
         self.create_passage_map(world)
 
@@ -366,12 +365,13 @@ class Scenario(BaseScenario):
             self.joint.pos_shaping_post = joint_shaping
 
             # Rot shaping
+            rot_passed = all_passed if self.all_passed_rot else joint_passed
             joint_dist_to_90_rot = get_line_angle_dist_0_180(
                 self.joint.landmark.state.rot, self.middle_angle
             )
             joint_shaping = joint_dist_to_90_rot * self.rot_shaping_factor
-            self.rot_rew[~all_passed] += (self.joint.rot_shaping_pre - joint_shaping)[
-                ~all_passed
+            self.rot_rew[~rot_passed] += (self.joint.rot_shaping_pre - joint_shaping)[
+                ~rot_passed
             ]
             self.joint.rot_shaping_pre = joint_shaping
 
@@ -379,8 +379,8 @@ class Scenario(BaseScenario):
                 self.joint.landmark.state.rot, self.goal.state.rot
             )
             joint_shaping = joint_dist_to_goal_rot * self.rot_shaping_factor
-            self.rot_rew[all_passed] += (self.joint.rot_shaping_post - joint_shaping)[
-                all_passed
+            self.rot_rew[rot_passed] += (self.joint.rot_shaping_post - joint_shaping)[
+                rot_passed
             ]
             self.joint.rot_shaping_post = joint_shaping
 
