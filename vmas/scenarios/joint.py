@@ -35,6 +35,10 @@ def get_line_angle_dist_0_180(angle, goal):
     ).squeeze(-1)
 
 
+def angle_to_vector(angle):
+    return torch.cat([torch.cos(angle), torch.sin(angle)], dim=1)
+
+
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.n_passages = kwargs.get("n_passages", 1)
@@ -46,11 +50,12 @@ class Scenario(BaseScenario):
         self.joint_angle_obs_noise = kwargs.get("joint_angle_obs_noise", 0.0)
         self.asym_package = kwargs.get("asym_package", False)
         self.mass_ratio = kwargs.get("mass_ratio", 1)
+        self.mass_position = kwargs.get("mass_position", 0.75)
         self.max_speed_1 = kwargs.get("max_speed_1", None)  # 0.1
         self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 1)
         self.rot_shaping_factor = kwargs.get("rot_shaping_factor", 1)
-        self.collision_reward = kwargs.get("collision_reward", -0.06)
-        self.all_passed_rot = kwargs.get("all_passed_rot", False)
+        self.collision_reward = kwargs.get("collision_reward", -0.1)
+        self.all_passed_rot = kwargs.get("all_passed_rot", True)
 
         assert 1 <= self.n_passages <= 20
         if not self.observe_joint_angle:
@@ -61,8 +66,10 @@ class Scenario(BaseScenario):
         self.n_agents = 2
 
         self.agent_radius = 0.03333
+        self.mass_radius = self.agent_radius * (2 / 3)
         self.passage_width = 0.2
         self.passage_length = 0.103
+        self.min_collision_distance = 0.005
 
         # Make world
         world = World(
@@ -70,19 +77,20 @@ class Scenario(BaseScenario):
             device,
             x_semidim=1,
             y_semidim=1,
-            substeps=7,
-            joint_force=400,
-            collision_force=1500,
+            substeps=7 if not self.asym_package else 15,
+            joint_force=1500,
+            collision_force=2500,
+            drag=0.25 if not self.asym_package else 0.15,
         )
         # Add agents
         agent = Agent(
-            name=f"agent 0", shape=Sphere(self.agent_radius), u_multiplier=0.7
+            name=f"agent 0", shape=Sphere(self.agent_radius), u_multiplier=0.8
         )
         world.add_agent(agent)
         agent = Agent(
             name=f"agent 1",
             shape=Sphere(self.agent_radius),
-            u_multiplier=0.7,
+            u_multiplier=0.8,
             mass=1 if self.asym_package else self.mass_ratio,
             max_speed=self.max_speed_1,
         )
@@ -102,24 +110,30 @@ class Scenario(BaseScenario):
         )
 
         if self.asym_package:
+
+            def mass_collision_filter(e):
+                return not isinstance(e.shape, Sphere)
+
             self.mass = Landmark(
                 name="mass",
-                shape=Sphere(radius=self.agent_radius),
+                shape=Sphere(radius=self.mass_radius),
                 collide=True,
                 movable=True,
                 color=Color.BLACK,
                 mass=self.mass_ratio,
+                collision_filter=mass_collision_filter,
             )
+
             world.add_landmark(self.mass)
 
             joint = Joint(
                 self.mass,
                 self.joint.landmark,
                 anchor_a=(0, 0),
-                anchor_b=(0.5, 0),
+                anchor_b=(self.mass_position, 0),
                 dist=0,
-                rotate_a=False,
-                rotate_b=False,
+                rotate_a=True,
+                rotate_b=True,
             )
             world.add_joint(joint)
 
@@ -244,7 +258,8 @@ class Scenario(BaseScenario):
 
         if self.asym_package:
             self.mass.set_pos(
-                joint_pos + 0.5 * torch.cat([start_delta_x, start_delta_y], dim=1),
+                joint_pos
+                + self.mass_position * torch.cat([start_delta_x, start_delta_y], dim=1),
                 batch_index=env_index,
             )
 
@@ -385,27 +400,42 @@ class Scenario(BaseScenario):
             self.joint.rot_shaping_post = joint_shaping
 
             # Agent collisions
-            for a in self.world.agents:
+            for a in self.world.agents + ([self.mass] if self.asym_package else []):
                 for passage in self.passages:
                     if passage.collide:
                         self.collision_rew[
-                            self.world.is_overlapping(a, passage)
+                            self.world.get_distance(a, passage)
+                            <= self.min_collision_distance
                         ] += self.collision_reward
+                    self.collision_rew[
+                        self.is_out_or_touching_perimeter(a)
+                    ] += self.collision_reward
 
             # Joint collisions
             for i, p in enumerate(self.passages):
                 if p.collide and p.neighbour:
                     self.collision_rew[
-                        self.world.is_overlapping(p, self.joint.landmark)
+                        self.world.get_distance(p, self.joint.landmark)
+                        <= self.min_collision_distance
                     ] += self.collision_reward
 
             self.rew = self.pos_rew + self.rot_rew + self.collision_rew
 
         return self.rew
 
+    def is_out_or_touching_perimeter(self, agent: Agent):
+        is_out_or_touching_perimeter = torch.full(
+            (self.world.batch_dim,), False, device=self.world.device
+        )
+        is_out_or_touching_perimeter += agent.state.pos[:, X] >= self.world.x_semidim
+        is_out_or_touching_perimeter += agent.state.pos[:, X] <= -self.world.x_semidim
+        is_out_or_touching_perimeter += agent.state.pos[:, Y] >= self.world.y_semidim
+        is_out_or_touching_perimeter += agent.state.pos[:, Y] <= -self.world.y_semidim
+        return is_out_or_touching_perimeter
+
     def observation(self, agent: Agent):
         if self.observe_joint_angle:
-            joint_angle = get_line_angle_0_180(self.joint.landmark.state.rot)
+            joint_angle = self.joint.landmark.state.rot
             angle_noise = (
                 torch.randn(
                     *joint_angle.shape, device=self.world.device, dtype=torch.float32
@@ -427,9 +457,9 @@ class Scenario(BaseScenario):
                 agent.state.vel,
                 agent.state.pos - self.goal.state.pos,
                 *passage_obs,
-                get_line_angle_0_180(self.goal.state.rot),
+                angle_to_vector(self.goal.state.rot),
             ]
-            + ([joint_angle] if self.observe_joint_angle else []),
+            + ([angle_to_vector(joint_angle)] if self.observe_joint_angle else []),
             dim=-1,
         )
 
