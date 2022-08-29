@@ -57,7 +57,18 @@ class Scenario(BaseScenario):
         self.collision_reward = kwargs.get("collision_reward", -0.1)
         self.all_passed_rot = kwargs.get("all_passed_rot", True)
 
-        assert 1 <= self.n_passages <= 20
+        # Make world
+        world = World(
+            batch_dim,
+            device,
+            x_semidim=1,
+            y_semidim=1,
+            substeps=7 if not self.asym_package else 10,
+            joint_force=1500 if self.asym_package else 400,
+            collision_force=2500 if self.asym_package else 1500,
+            drag=0.25 if not self.asym_package else 0.15,
+        )
+
         if not self.observe_joint_angle:
             assert self.joint_angle_obs_noise == 0
 
@@ -68,20 +79,12 @@ class Scenario(BaseScenario):
         self.agent_radius = 0.03333
         self.mass_radius = self.agent_radius * (2 / 3)
         self.passage_width = 0.2
-        self.passage_length = 0.103
+        self.passage_length = 0.1476
+        self.scenario_length = 2 * world.x_semidim + 2 * self.agent_radius
         self.min_collision_distance = 0.005
 
-        # Make world
-        world = World(
-            batch_dim,
-            device,
-            x_semidim=1,
-            y_semidim=1,
-            substeps=7 if not self.asym_package else 15,
-            joint_force=1500,
-            collision_force=2500,
-            drag=0.25 if not self.asym_package else 0.15,
-        )
+        assert 1 <= self.n_passages <= int(self.scenario_length // self.passage_length)
+
         # Add agents
         agent = Agent(
             name=f"agent 0", shape=Sphere(self.agent_radius), u_multiplier=0.8
@@ -242,7 +245,9 @@ class Scenario(BaseScenario):
         )
         self.goal.set_rot(goal_angle, batch_index=env_index)
 
-        for i, agent in enumerate(self.world.agents):
+        order = torch.randperm(self.n_agents).tolist()
+        agents = [self.world.agents[i] for i in order]
+        for i, agent in enumerate(agents):
             if i == 0:
                 agent.set_pos(
                     joint_pos - torch.cat([start_delta_x, start_delta_y], dim=1),
@@ -254,12 +259,17 @@ class Scenario(BaseScenario):
                     batch_index=env_index,
                 )
         self.joint.landmark.set_pos(joint_pos, batch_index=env_index)
-        self.joint.landmark.set_rot(start_angle, batch_index=env_index)
+        self.joint.landmark.set_rot(
+            start_angle + (0 if agents[0] == self.world.agents[0] else torch.pi),
+            batch_index=env_index,
+        )
 
         if self.asym_package:
             self.mass.set_pos(
                 joint_pos
-                + self.mass_position * torch.cat([start_delta_x, start_delta_y], dim=1),
+                + self.mass_position
+                * torch.cat([start_delta_x, start_delta_y], dim=1)
+                * (1 if agents[0] == self.world.agents[0] else -1),
                 batch_index=env_index,
             )
 
@@ -407,9 +417,9 @@ class Scenario(BaseScenario):
                             self.world.get_distance(a, passage)
                             <= self.min_collision_distance
                         ] += self.collision_reward
-                    self.collision_rew[
-                        self.is_out_or_touching_perimeter(a)
-                    ] += self.collision_reward
+                    # self.collision_rew[
+                    #     self.is_out_or_touching_perimeter(a)
+                    # ] += self.collision_reward
 
             # Joint collisions
             for i, p in enumerate(self.passages):
@@ -490,9 +500,7 @@ class Scenario(BaseScenario):
     def create_passage_map(self, world: World):
         # Add landmarks
         self.passages = []
-        n_boxes = int(
-            (2 * world.x_semidim + 2 * self.agent_radius) // self.passage_length
-        )
+        n_boxes = int(self.scenario_length // self.passage_length)
 
         def removed(i):
             return (
@@ -566,9 +574,9 @@ class Scenario(BaseScenario):
                 0.0
                 if not i % 2
                 else (
-                    self.world.x_semidim + self.agent_radius
+                    self.world.y_semidim + self.agent_radius
                     if i == 1
-                    else -self.world.x_semidim - self.agent_radius
+                    else -self.world.y_semidim - self.agent_radius
                 ),
             )
             xform.set_rotation(torch.pi / 2 if not i % 2 else 0.0)
