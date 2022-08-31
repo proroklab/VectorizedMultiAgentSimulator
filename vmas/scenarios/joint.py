@@ -61,10 +61,10 @@ class Scenario(BaseScenario):
         world = World(
             batch_dim,
             device,
-            x_semidim=1,
-            y_semidim=1,
+            x_semidim=2,
+            y_semidim=2,
             substeps=7 if not self.asym_package else 10,
-            joint_force=1500 if self.asym_package else 400,
+            joint_force=900 if self.asym_package else 400,
             collision_force=2500 if self.asym_package else 1500,
             drag=0.25 if not self.asym_package else 0.15,
         )
@@ -219,6 +219,8 @@ class Scenario(BaseScenario):
             ],
             dim=1,
         )
+        joint_pos = torch.tensor([0, 0], device=self.world.device)
+
         goal_pos = torch.cat(
             [
                 (min_x_goal - max_x_goal)
@@ -258,11 +260,6 @@ class Scenario(BaseScenario):
                     joint_pos + torch.cat([start_delta_x, start_delta_y], dim=1),
                     batch_index=env_index,
                 )
-        self.joint.landmark.set_pos(joint_pos, batch_index=env_index)
-        self.joint.landmark.set_rot(
-            start_angle + (0 if agents[0] == self.world.agents[0] else torch.pi),
-            batch_index=env_index,
-        )
 
         if self.asym_package:
             self.mass.set_pos(
@@ -429,7 +426,20 @@ class Scenario(BaseScenario):
                         <= self.min_collision_distance
                     ] += self.collision_reward
 
-            self.rew = self.pos_rew + self.rot_rew + self.collision_rew
+            # Energy reward
+            self.energy_expenditure = torch.stack(
+                [
+                    torch.linalg.vector_norm(a.action.u, dim=-1)
+                    / math.sqrt(self.world.dim_p * ((a.u_range * a.u_multiplier) ** 2))
+                    for a in self.world.agents
+                ],
+                dim=1,
+            ).sum(-1)
+            self.energy_rew = -self.energy_expenditure * self.energy_reward_coeff
+
+            self.rew = (
+                self.pos_rew + self.rot_rew + self.collision_rew + self.energy_rew
+            )
 
         return self.rew
 
@@ -464,10 +474,11 @@ class Scenario(BaseScenario):
         return torch.cat(
             [
                 agent.state.pos,
-                agent.state.vel,
-                agent.state.pos - self.goal.state.pos,
-                *passage_obs,
-                angle_to_vector(self.goal.state.rot),
+                torch.zeros((self.world.batch_dim, 1), device=self.world.device),
+                # agent.state.vel,
+                # agent.state.pos - self.goal.state.pos,
+                # *passage_obs,
+                # angle_to_vector(self.goal.state.rot),
             ]
             + ([angle_to_vector(joint_angle)] if self.observe_joint_angle else []),
             dim=-1,
@@ -475,15 +486,16 @@ class Scenario(BaseScenario):
 
     def done(self):
         return torch.all(
+            # (
+            #     torch.linalg.vector_norm(
+            #         self.joint.landmark.state.pos - self.goal.state.pos, dim=1
+            #     )
+            #     <= 0.01
+            # )
+            # *
             (
-                torch.linalg.vector_norm(
-                    self.joint.landmark.state.pos - self.goal.state.pos, dim=1
-                )
-                <= 0.01
-            )
-            * (
                 get_line_angle_dist_0_180(
-                    self.joint.landmark.state.rot, self.goal.state.rot
+                    self.joint.landmark.state.rot, torch.pi / 2
                 ).unsqueeze(-1)
                 <= 0.01
             ),
@@ -491,10 +503,12 @@ class Scenario(BaseScenario):
         )
 
     def info(self, agent: Agent) -> Dict[str, Tensor]:
+
         return {
             "pos_rew": self.pos_rew,
             "rot_rew": self.rot_rew,
             "collision_rew": self.collision_rew,
+            "energy_rew": self.energy_rew,
         }
 
     def create_passage_map(self, world: World):
@@ -512,7 +526,7 @@ class Scenario(BaseScenario):
         for i in range(n_boxes):
             passage = Landmark(
                 name=f"passage {i}",
-                collide=not removed(i),
+                collide=not removed(i) and False,
                 movable=False,
                 shape=Box(length=self.passage_length, width=self.passage_width),
                 color=Color.RED,
@@ -613,6 +627,27 @@ class Scenario(BaseScenario):
         )
         goal_agent_2.set_color(*color)
         geoms.append(goal_agent_2)
+
+        for agent in self.world.agents:
+            multiplic_factor = 1
+            speed = torch.linalg.vector_norm(agent.state.vel, dim=1)
+            try:
+                velocity = rendering.Line(
+                    (
+                        agent.state.pos[env_index][X],
+                        agent.state.pos[env_index][Y],
+                    ),
+                    (
+                        agent.state.pos[env_index][X]
+                        + agent.action.u[env_index][X] * multiplic_factor,
+                        agent.state.pos[env_index][Y]
+                        + agent.action.u[env_index][Y] * multiplic_factor,
+                    ),
+                    width=1,
+                )
+                geoms.append(velocity)
+            except TypeError:
+                pass
 
         return geoms
 
