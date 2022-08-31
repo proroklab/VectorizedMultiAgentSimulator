@@ -11,7 +11,6 @@ from typing import Callable, List, Tuple
 
 import torch
 from torch import Tensor
-
 from vmas.simulator.joints import JointConstraint, Joint
 from vmas.simulator.sensors import Sensor
 from vmas.simulator.utils import (
@@ -1850,6 +1849,7 @@ class World(TorchVectorizedObject):
         force_multiplier: float,
         attractive: bool = False,
     ) -> Tensor:
+        min_dist = 1e-6
         delta_pos = pos_a - pos_b
         dist = torch.linalg.vector_norm(delta_pos, dim=1)
         sign = -1 if attractive else 1
@@ -1870,7 +1870,7 @@ class World(TorchVectorizedObject):
             / dist.unsqueeze(-1)
             * penetration.unsqueeze(-1)
         )
-        force[dist == 0.0] = 0.0
+        force[dist < min_dist] = 0
         if not attractive:
             force[dist > dist_min] = 0
         else:
