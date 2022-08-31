@@ -292,8 +292,14 @@ class AgentState(EntityState):
 
 # action of an agent
 class Action(TorchVectorizedObject):
-    def __init__(self):
+    def __init__(self, u_range: float, u_multiplier: float, u_noise: float):
         super().__init__()
+        # physical motor noise amount
+        self._u_noise = u_noise
+        # control range
+        self._u_range = u_range
+        # agent action is a force multiplied by this amount
+        self._u_multiplier = u_multiplier
         # physical action
         self._u = None
         # communication_action
@@ -328,6 +334,18 @@ class Action(TorchVectorizedObject):
         ), f"Action must match batch dim, got {c.shape[0]}, expected {self._batch_dim}"
 
         self._c = c.to(self._device)
+
+    @property
+    def u_range(self):
+        return self._u_range
+
+    @property
+    def u_multiplier(self):
+        return self._u_multiplier
+
+    @property
+    def u_noise(self):
+        return self._u_noise
 
 
 # properties and state of physical world entity
@@ -665,12 +683,6 @@ class Agent(Entity):
         self._obs_range = obs_range
         # observation noise
         self._obs_noise = obs_noise
-        # physical motor noise amount
-        self._u_noise = u_noise
-        # control range
-        self._u_range = u_range
-        # agent action is a force multiplied by this amount
-        self._u_multiplier = u_multiplier
         # force constraints
         self._f_range = f_range
         self._max_f = max_f
@@ -688,7 +700,9 @@ class Agent(Entity):
         self._adversary = adversary
 
         # action
-        self._action = Action()
+        self._action = Action(
+            u_range=u_range, u_multiplier=u_multiplier, u_noise=u_noise
+        )
         # state
         self._state = AgentState()
 
@@ -728,15 +742,15 @@ class Agent(Entity):
 
     @property
     def u_range(self):
-        return self._u_range
+        return self.action.u_range
 
     @property
-    def action(self):
+    def action(self) -> Action:
         return self._action
 
     @property
     def u_multiplier(self):
-        return self._u_multiplier
+        return self.action.u_multiplier
 
     @property
     def max_f(self):
@@ -756,7 +770,7 @@ class Agent(Entity):
 
     @property
     def u_noise(self):
-        return self._u_noise
+        return self.action.u_noise
 
     @property
     def c_noise(self):
