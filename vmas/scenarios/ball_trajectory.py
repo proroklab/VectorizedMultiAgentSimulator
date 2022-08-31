@@ -6,7 +6,6 @@ from typing import Dict
 import torch
 from torch import Tensor
 from vmas import render_interactively
-from vmas.simulator import rendering
 from vmas.simulator.core import Agent, Landmark, Sphere, World
 from vmas.simulator.joints import Joint
 from vmas.simulator.scenario import BaseScenario
@@ -16,9 +15,9 @@ from vmas.simulator.utils import X, Color, JOINT_FORCE
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 0)
-        self.speed_shaping_factor = kwargs.get("speed_shaping_factor", 0)
-        self.dist_shaping_factor = kwargs.get("dist_shaping_factor", 0.1)
-        self.joints = kwargs.get("joints", False)
+        self.speed_shaping_factor = kwargs.get("speed_shaping_factor", 1)
+        self.dist_shaping_factor = kwargs.get("dist_shaping_factor", 0)
+        self.joints = kwargs.get("joints", True)
 
         self.n_agents = 2
 
@@ -92,31 +91,26 @@ class Scenario(BaseScenario):
             batch_index=env_index,
         )
 
-        for i, agent in enumerate(self.world.agents):
+        order = torch.randperm(self.n_agents).tolist()
+        agents = [self.world.agents[i] for i in order]
+        for i, agent in enumerate(agents):
             agent_pos = ball_pos.clone()
             agent_pos[:, X] += (self.agent_spacing / 2) * (-1 if i == 0 else 1)
             agent.set_pos(
                 agent_pos,
                 batch_index=env_index,
             )
-        if self.joints:
-            for i, joint in enumerate(self.joints):
-                joint_pos = ball_pos.clone()
-                joint_pos[:, X] += self.agent_spacing / 4 * (-1 if i == 0 else 1)
-                joint.landmark.set_pos(
-                    joint_pos,
-                    batch_index=env_index,
-                )
 
         if env_index is None:
             self.pos_shaping = (
-                self.desired_radius
-                - torch.linalg.vector_norm(
+                torch.linalg.vector_norm(
                     self.ball.state.pos
-                    - torch.zeros((self.world.batch_dim, 2), device=self.world.device),
+                    - self.get_closest_point_circle(self.ball.state.pos),
                     dim=1,
                 )
-            ).abs() * self.pos_shaping_factor
+                ** 0.5
+                * self.pos_shaping_factor
+            )
 
             self.speed_shaping = (
                 self.desired_speed
@@ -136,14 +130,14 @@ class Scenario(BaseScenario):
                 * self.dist_shaping_factor
             )
         else:
-            self.pos_shaping[env_index] = (
-                self.desired_radius
-                - torch.linalg.vector_norm(
+            self.pos_shaping = (
+                torch.linalg.vector_norm(
                     self.ball.state.pos[env_index]
-                    - torch.zeros((1, 2), device=self.world.device),
-                    dim=1,
+                    - self.get_closest_point_circle(self.ball.state.pos)[env_index]
                 )
-            ).abs() * self.pos_shaping_factor
+                ** 0.5
+                * self.pos_shaping_factor
+            )
 
             self.speed_shaping[env_index] = (
                 self.desired_speed
@@ -166,13 +160,14 @@ class Scenario(BaseScenario):
     def reward(self, agent: Agent):
 
         pos_shaping = (
-            self.desired_radius
-            - torch.linalg.vector_norm(
+            torch.linalg.vector_norm(
                 self.ball.state.pos
-                - torch.zeros((self.world.batch_dim, 2), device=self.world.device),
+                - self.get_closest_point_circle(self.ball.state.pos),
                 dim=1,
             )
-        ).abs() * self.pos_shaping_factor
+            ** 0.5
+            * self.pos_shaping_factor
+        )
         self.pos_rew = self.pos_shaping - pos_shaping
         self.pos_shaping = pos_shaping
 
@@ -215,7 +210,16 @@ class Scenario(BaseScenario):
             "dist_rew": self.dist_rew,
         }
 
+    def get_closest_point_circle(self, pos: Tensor):
+        pos_norm = torch.linalg.vector_norm(pos, dim=1)
+        agent_pos_normalized = pos / pos_norm.unsqueeze(-1)
+
+        agent_pos_normalized *= self.desired_radius
+
+        return torch.nan_to_num(agent_pos_normalized)
+
     def extra_render(self, env_index: int = 0):
+        from vmas.simulator import rendering
 
         geoms = []
 
