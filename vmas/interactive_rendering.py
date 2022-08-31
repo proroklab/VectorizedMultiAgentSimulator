@@ -13,7 +13,6 @@ and switch the agent with these controls using LSHIFT
 from operator import add
 
 import numpy as np
-
 from vmas.make_env import make_env
 from vmas.simulator.environment import GymWrapper
 
@@ -41,15 +40,20 @@ class InteractiveEnv:
         self.n_agents = self.env.unwrapped().n_agents
         self.continuous = self.env.unwrapped().continuous_actions
         self.reset = False
-        self.keys = np.array([0, 0, 0, 0])  # up, down, left, right
-        self.keys2 = np.array([0, 0, 0, 0])  # up, down, left, right
+        self.keys = np.array([0.0, 0.0, 0.0, 0.0])  # up, down, left, right
+        self.keys2 = np.array([0.0, 0.0, 0.0, 0.0])  # up, down, left, right
         self.u = 0 if not self.continuous else (0.0, 0.0)
         self.u2 = 0 if not self.continuous else (0.0, 0.0)
 
-        env.render()
+        if self.control_two_agents:
+            assert (
+                self.n_agents >= 2
+            ), "Control_two_agents is true but not enough agents in scenario"
+
+        self.env.render()
         self._init_text()
-        env.unwrapped().viewer.window.on_key_press = self._key_press
-        env.unwrapped().viewer.window.on_key_release = self._key_release
+        self.env.unwrapped().viewer.window.on_key_press = self._key_press
+        self.env.unwrapped().viewer.window.on_key_release = self._key_release
 
         self._cycle()
 
@@ -126,19 +130,21 @@ class InteractiveEnv:
     def _key_press(self, k, mod):
         from pyglet.window import key
 
+        agent_range = self.env.unwrapped().agents[self.current_agent_index].u_range
+
         u = self.u
         u2 = self.u2
         if k == key.LEFT:
-            self.keys[0] = 1
+            self.keys[0] = agent_range
             u = 1
         elif k == key.RIGHT:
-            self.keys[1] = 1
+            self.keys[1] = agent_range
             u = 2
         elif k == key.DOWN:
-            self.keys[2] = 1
+            self.keys[2] = agent_range
             u = 3
         elif k == key.UP:
-            self.keys[3] = 1
+            self.keys[3] = agent_range
             u = 4
         elif k == key.TAB:
             self.current_agent_index = self._increment_selected_agent_index(
@@ -150,28 +156,32 @@ class InteractiveEnv:
                         self.current_agent_index
                     )
 
-        elif k == key.A:
-            self.keys2[0] = 1
-            u2 = 1
-        elif k == key.D:
-            self.keys2[1] = 1
-            u2 = 2
-        elif k == key.S:
-            self.keys2[2] = 1
-            u2 = 3
-        elif k == key.W:
-            self.keys2[3] = 1
-            u2 = 4
-        elif k == key.LSHIFT:
-            self.current_agent_index2 = self._increment_selected_agent_index(
-                self.current_agent_index2
+        if self.control_two_agents:
+            agent2_range = (
+                self.env.unwrapped().agents[self.current_agent_index2].u_range
             )
-            while self.current_agent_index == self.current_agent_index2:
+            if k == key.A:
+                self.keys2[0] = agent2_range
+                u2 = 1
+            elif k == key.D:
+                self.keys2[1] = agent2_range
+                u2 = 2
+            elif k == key.S:
+                self.keys2[2] = agent2_range
+                u2 = 3
+            elif k == key.W:
+                self.keys2[3] = agent2_range
+                u2 = 4
+            elif k == key.LSHIFT:
                 self.current_agent_index2 = self._increment_selected_agent_index(
                     self.current_agent_index2
                 )
+                while self.current_agent_index == self.current_agent_index2:
+                    self.current_agent_index2 = self._increment_selected_agent_index(
+                        self.current_agent_index2
+                    )
 
-        elif k == key.R:
+        if k == key.R:
             self.reset = True
 
         if self.continuous:
