@@ -920,6 +920,10 @@ class World(TorchVectorizedObject):
         return self._x_semidim
 
     @property
+    def dt(self):
+        return self._dt
+
+    @property
     def y_semidim(self):
         return self._y_semidim
 
