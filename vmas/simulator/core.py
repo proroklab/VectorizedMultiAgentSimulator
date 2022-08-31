@@ -1261,10 +1261,6 @@ class World(TorchVectorizedObject):
 
     # update state of the world
     def step(self):
-        # set actions for scripted agents
-        for agent in self.scripted_agents:
-            agent.action_callback(self)
-
         # forces
         self.force = torch.zeros(
             self._batch_dim,

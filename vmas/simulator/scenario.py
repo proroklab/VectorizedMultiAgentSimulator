@@ -7,7 +7,6 @@ from typing import Dict, List
 
 import torch
 from torch import Tensor
-
 from vmas.simulator.core import World, Agent
 from vmas.simulator.utils import INITIAL_VIEWER_SIZE
 
@@ -19,6 +18,7 @@ class BaseScenario(ABC):
     def __init__(self):
         """Do not override"""
         self._world = None
+        # This is the viewer size and can be set in the `make_world' function
         self.viewer_size = INITIAL_VIEWER_SIZE
 
     @property
@@ -43,8 +43,15 @@ class BaseScenario(ABC):
         return self._world
 
     def env_reset_world_at(self, env_index: int):
+        """Do not override"""
         self.world.reset(env_index)
         self.reset_world_at(env_index)
+
+    def env_process_action(self, agent: Agent):
+        """Do not override"""
+        if agent.action_script is not None:
+            agent.action_callback(self.world)
+        self.process_action(agent)
 
     @abstractmethod
     def make_world(self, batch_dim: int, device: torch.device, **kwargs) -> World:
@@ -241,3 +248,15 @@ class BaseScenario(ABC):
         :return: A list of geometries to render for the current time step.
         """
         return []
+
+    def process_action(self, agent: Agent):
+        """
+        This function can be overridden to process the agent actions before the simulation step.
+        It has access to the world through the `self.world` attribute
+
+        It can also be used for any other type of computation that has to happen after
+         the input actions have been set but before the simulation step
+
+        :param agent: the agent whose actions have to be processed.
+        """
+        pass

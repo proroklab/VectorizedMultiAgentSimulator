@@ -11,7 +11,6 @@ from gym import spaces
 from ray import rllib
 from ray.rllib.utils.typing import EnvActionType, EnvInfoDict, EnvObsType
 from torch import Tensor
-
 from vmas.simulator.core import Agent, TorchVectorizedObject
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import VIEWER_MIN_SIZE
@@ -164,6 +163,10 @@ class Environment(TorchVectorizedObject):
         # set action for each agent
         for i, agent in enumerate(self.agents):
             self._set_action(actions[i], agent)
+        # Scenarios can define a custom action processor. This step takes care also of scripted agents automatically
+        for agent in self.world.agents:
+            self.scenario.env_process_action(agent)
+
         # advance world state
         self.world.step()
 
