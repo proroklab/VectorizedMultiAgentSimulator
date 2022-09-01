@@ -11,7 +11,6 @@ from typing import Callable, List, Tuple
 
 import torch
 from torch import Tensor
-
 from vmas.simulator.joints import JointConstraint, Joint
 from vmas.simulator.sensors import Sensor
 from vmas.simulator.utils import (
@@ -26,6 +25,7 @@ from vmas.simulator.utils import (
     DRAG,
     LINEAR_FRICTION,
     ANGULAR_FRICTION,
+    clamp_with_norm,
 )
 
 if typing.TYPE_CHECKING:
@@ -292,8 +292,14 @@ class AgentState(EntityState):
 
 # action of an agent
 class Action(TorchVectorizedObject):
-    def __init__(self):
+    def __init__(self, u_range: float, u_multiplier: float, u_noise: float):
         super().__init__()
+        # physical motor noise amount
+        self._u_noise = u_noise
+        # control range
+        self._u_range = u_range
+        # agent action is a force multiplied by this amount
+        self._u_multiplier = u_multiplier
         # physical action
         self._u = None
         # communication_action
@@ -329,6 +335,18 @@ class Action(TorchVectorizedObject):
 
         self._c = c.to(self._device)
 
+    @property
+    def u_range(self):
+        return self._u_range
+
+    @property
+    def u_multiplier(self):
+        return self._u_multiplier
+
+    @property
+    def u_noise(self):
+        return self._u_noise
+
 
 # properties and state of physical world entity
 class Entity(TorchVectorizedObject, Observable, ABC):
@@ -341,6 +359,7 @@ class Entity(TorchVectorizedObject, Observable, ABC):
         density: float = 25.0,  # Unused for now
         mass: float = 1.0,
         shape: Shape = Sphere(),
+        v_range: float = None,
         max_speed: float = None,
         color=Color.GRAY,
         is_joint: bool = False,
@@ -363,8 +382,9 @@ class Entity(TorchVectorizedObject, Observable, ABC):
         self._density = density
         # mass
         self._mass = mass
-        # max speed and accel
+        # max speed
         self._max_speed = max_speed
+        self._v_range = v_range
         # color
         self._color = color
         # shape
@@ -440,6 +460,10 @@ class Entity(TorchVectorizedObject, Observable, ABC):
     @property
     def max_speed(self):
         return self._max_speed
+
+    @property
+    def v_range(self):
+        return self._v_range
 
     @property
     def name(self):
@@ -574,6 +598,7 @@ class Landmark(Entity):
         collide: bool = True,
         density: float = 25.0,  # Unused for now
         mass: float = 1.0,
+        v_range: float = None,
         max_speed: float = None,
         color=Color.GRAY,
         is_joint: bool = False,
@@ -590,6 +615,7 @@ class Landmark(Entity):
             density,  # Unused for now
             mass,
             shape,
+            v_range,
             max_speed,
             color,
             is_joint,
@@ -611,6 +637,9 @@ class Agent(Entity):
         collide: bool = True,
         density: float = 25.0,  # Unused for now
         mass: float = 1.0,
+        f_range: float = None,
+        max_f: float = None,
+        v_range: float = None,
         max_speed: float = None,
         color=Color.BLUE,
         obs_range: float = None,
@@ -636,6 +665,7 @@ class Agent(Entity):
             density,  # Unused for now
             mass,
             shape,
+            v_range,
             max_speed,
             color,
             is_joint=False,
@@ -653,12 +683,9 @@ class Agent(Entity):
         self._obs_range = obs_range
         # observation noise
         self._obs_noise = obs_noise
-        # physical motor noise amount
-        self._u_noise = u_noise
-        # control range
-        self._u_range = u_range
-        # agent action is a force multiplied by this amount
-        self._u_multiplier = u_multiplier
+        # force constraints
+        self._f_range = f_range
+        self._max_f = max_f
         # script behavior to execute
         self._action_script = action_script
         # agents sensors
@@ -673,7 +700,9 @@ class Agent(Entity):
         self._adversary = adversary
 
         # action
-        self._action = Action()
+        self._action = Action(
+            u_range=u_range, u_multiplier=u_multiplier, u_noise=u_noise
+        )
         # state
         self._state = AgentState()
 
@@ -713,15 +742,23 @@ class Agent(Entity):
 
     @property
     def u_range(self):
-        return self._u_range
+        return self.action.u_range
 
     @property
-    def action(self):
+    def action(self) -> Action:
         return self._action
 
     @property
     def u_multiplier(self):
-        return self._u_multiplier
+        return self.action.u_multiplier
+
+    @property
+    def max_f(self):
+        return self._max_f
+
+    @property
+    def f_range(self):
+        return self._f_range
 
     @property
     def silent(self):
@@ -733,7 +770,7 @@ class Agent(Entity):
 
     @property
     def u_noise(self):
-        return self._u_noise
+        return self.action.u_noise
 
     @property
     def c_noise(self):
@@ -881,6 +918,10 @@ class World(TorchVectorizedObject):
     @property
     def x_semidim(self):
         return self._x_semidim
+
+    @property
+    def dt(self):
+        return self._dt
 
     @property
     def y_semidim(self):
@@ -1238,10 +1279,6 @@ class World(TorchVectorizedObject):
 
     # update state of the world
     def step(self):
-        # set actions for scripted agents
-        for agent in self.scripted_agents:
-            agent.action_callback(self)
-
         # forces
         self.force = torch.zeros(
             self._batch_dim,
@@ -1294,7 +1331,12 @@ class World(TorchVectorizedObject):
                     if entity.u_noise
                     else 0.0
                 )
-                self.force[:, index] += entity.action.u + noise
+                force = entity.action.u + noise
+                if entity.max_f is not None:
+                    force = clamp_with_norm(force, entity.max_f)
+                if entity.f_range is not None:
+                    force = torch.clamp(force, -entity.f_range, entity.f_range)
+                self.force[:, index] += force
             assert not self.force.isnan().any()
 
     def _apply_gravity(self, entity: Entity, index: int):
@@ -1850,6 +1892,7 @@ class World(TorchVectorizedObject):
         force_multiplier: float,
         attractive: bool = False,
     ) -> Tensor:
+        min_dist = 1e-6
         delta_pos = pos_a - pos_b
         dist = torch.linalg.vector_norm(delta_pos, dim=1)
         sign = -1 if attractive else 1
@@ -1870,7 +1913,7 @@ class World(TorchVectorizedObject):
             / dist.unsqueeze(-1)
             * penetration.unsqueeze(-1)
         )
-        force[dist == 0.0] = 0.0
+        force[dist < min_dist] = 0
         if not attractive:
             force[dist > dist_min] = 0
         else:
@@ -1890,11 +1933,11 @@ class World(TorchVectorizedObject):
                     entity.state.vel = entity.state.vel * (1 - self._drag)
             entity.state.vel += (self.force[:, index] / entity.mass) * self._sub_dt
             if entity.max_speed is not None:
-                speed = torch.linalg.norm(entity.state.vel, dim=1)
-                new_vel = entity.state.vel / speed.unsqueeze(-1) * entity.max_speed
-                entity.state.vel[speed > entity.max_speed] = new_vel[
-                    speed > entity.max_speed
-                ]
+                entity.state.vel = clamp_with_norm(entity.state.vel, entity.max_speed)
+            if entity.v_range is not None:
+                entity.state.vel = entity.state.vel.clamp(
+                    -entity.v_range, entity.v_range
+                )
             new_pos = entity.state.pos + entity.state.vel * self._sub_dt
             if self._x_semidim is not None:
                 new_pos[:, X] = torch.clamp(

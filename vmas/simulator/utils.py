@@ -5,6 +5,9 @@ import os
 from abc import ABC, abstractmethod
 from enum import Enum
 
+import torch
+from torch import Tensor
+
 X = 0
 Y = 1
 Z = 2
@@ -70,3 +73,10 @@ class Observer(ABC):
     @abstractmethod
     def notify(self, observable, *args, **kwargs):
         raise NotImplementedError
+
+
+def clamp_with_norm(tensor: Tensor, max_norm: float):
+    norm = torch.linalg.vector_norm(tensor, dim=-1)
+    new_tensor = (tensor / norm.unsqueeze(-1)) * max_norm
+    tensor[norm > max_norm] = new_tensor[norm > max_norm]
+    return tensor

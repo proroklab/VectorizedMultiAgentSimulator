@@ -1,6 +1,6 @@
 numpy
 torch
 pyglet>=1.5
-ray[rllib]>=1.13
+ray[rllib]==1.13
 gym # ==0.22
 wandb
