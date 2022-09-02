@@ -32,7 +32,7 @@ class VelocityController:
         else:
             self.use_integrator = True;
         
-        self.integrator_hist = 5;
+        self.integrator_hist = 200;
         self.integrator_windup_cutoff = 2;
         # containers for integral & derivative control
         self.vel_errs = []
@@ -43,19 +43,24 @@ class VelocityController:
     
     def initialise(self):
         # initialise containter for integrator only if I-gain is not strictly zero
-        if self.use_integrator:
-            self.vel_errs = np.zeros(self.integrator_hist);
+        #if self.use_integrator:
+        #    self.vel_errs = np.zeros(self.integrator_hist);
+        self.vel_errs = [];
 
     def reset(self):
         self.vel_errs = np.zeros(self.integrator_hist);
     
     def integralError(self, err, _idx=[0]):
-        if not use_integrator:
+        if not self.use_integrator:
             return 0;
         # update integrator container as a fast ring buffer
-        self.vel_errs[_idx[0]] = err;
-        _idx[0] = (_idx[0] + 1) % self.integrator_hist;
-        return (1.0/self.integralTs)*np.sum( self.vel_errs ) * self.dt;
+        ### self.vel_errs[_idx[0]] = err;
+        ### _idx[0] = (_idx[0] + 1) % self.integrator_hist;
+        ### return (1.0/self.integralTs)*np.sum( self.vel_errs ) * self.dt;
+        if len( self.vel_errs ) > self.integrator_hist-1:
+            self.vel_errs.pop(0);
+        self.vel_errs.append( err );
+        return (1.0/self.integralTs) * torch.stack( self.vel_errs, dim=1 ).sum(dim=1) * self.dt;
     
     def rateError(self, err):
         e = self.derivativeTs * (err - self.prev_err)/self.dt;
@@ -69,7 +74,7 @@ class VelocityController:
 
         # apply control
         err = des_vel - cur_vel;
-        u = ctrl_params[0] * ( err + self.integralError(err) + self.rateError(err) );
+        u = self.ctrl_gain * ( err + self.integralError(err) + self.rateError(err) );
         u = u * self.agent.mass;
 
         # Clamping force to limits
@@ -79,3 +84,5 @@ class VelocityController:
             force = torch.clamp(force, -self.agent.f_range, self.agent.f_range)
 
         self.agent.action.u = u;
+        before_after = des_vel[0].tolist() + u[0].tolist() + cur_vel[0].tolist();
+        print( *before_after );
