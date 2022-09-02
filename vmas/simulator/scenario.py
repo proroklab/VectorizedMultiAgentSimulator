@@ -20,6 +20,10 @@ class BaseScenario(ABC):
         self._world = None
         # This is the viewer size and can be set in the `make_world' function
         self.viewer_size = INITIAL_VIEWER_SIZE
+        # Whether to plot a grid in the scenario background
+        self.plot_grid = False
+        # The distance between lines in the background grid
+        self.grid_spacing = 0.1
 
     @property
     def world(self):
