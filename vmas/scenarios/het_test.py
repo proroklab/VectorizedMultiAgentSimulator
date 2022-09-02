@@ -5,6 +5,7 @@ from typing import Dict
 
 import torch
 from torch import Tensor
+
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World
 from vmas.simulator.scenario import BaseScenario
@@ -13,14 +14,16 @@ from vmas.simulator.utils import Color, X, Y
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.comm_radius = kwargs.get("comm_radius", 0.3)
+        self.comm_radius = kwargs.get("comm_radius", 0.0)
 
         # Make world
         world = World(batch_dim, device)
         # Add agents
-        agent = Agent(name=f"agent 0", collide=False, color=Color.GREEN)
+        agent = Agent(
+            name=f"agent 0", collide=False, color=Color.GREEN, render_action=True
+        )
         world.add_agent(agent)
-        agent = Agent(name=f"agent 1", collide=False)
+        agent = Agent(name=f"agent 1", collide=False, mass=1, render_action=True)
         world.add_agent(agent)
 
         return world
@@ -42,13 +45,13 @@ class Scenario(BaseScenario):
         is_first = agent == self.world.agents[0]
 
         if is_first:
-            self.energy_rew_1 = (self.world.agents[0].state.vel[:, X] - 0.4).abs()
+            self.energy_rew_1 = (self.world.agents[0].state.vel[:, X] - 0).abs()
             self.energy_rew_1 += (self.world.agents[0].state.vel[:, Y] - 0).abs()
 
-            self.energy_rew_2 = (self.world.agents[1].state.vel[:, X] + 0.4).abs()
+            self.energy_rew_2 = (self.world.agents[1].state.vel[:, X] - 0).abs()
             self.energy_rew_2 += (self.world.agents[1].state.vel[:, Y] - 0).abs()
 
-        return -self.energy_rew_1 - self.energy_rew_2
+        return -self.energy_rew_1 + self.energy_rew_2
 
     def observation(self, agent: Agent):
         return torch.cat(
@@ -66,18 +69,20 @@ class Scenario(BaseScenario):
         from vmas.simulator import rendering
 
         geoms = []
-        for agent in self.world.agents:
-            # Trajectory goal circle
-            color = Color.BLACK.value
-            circle = rendering.make_circle(self.comm_radius, filled=False)
-            xform = rendering.Transform()
-            circle.add_attr(xform)
-            xform.set_translation(*agent.state.pos[env_index])
-            circle.set_color(*color)
-            geoms.append(circle)
+        if self.comm_radius > 0:
+            for agent in self.world.agents:
+                # Trajectory goal circle
+
+                color = Color.BLACK.value
+                circle = rendering.make_circle(self.comm_radius, filled=False)
+                xform = rendering.Transform()
+                circle.add_attr(xform)
+                xform.set_translation(*agent.state.pos[env_index])
+                circle.set_color(*color)
+                geoms.append(circle)
 
         return geoms
 
 
 if __name__ == "__main__":
-    render_interactively("het_test", control_two_agents=True)
+    render_interactively("het_test", control_two_agents=False)

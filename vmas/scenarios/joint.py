@@ -6,6 +6,7 @@ from typing import Dict
 
 import torch
 from torch import Tensor
+
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Box, Landmark, Sphere, World, Line
 from vmas.simulator.joints import Joint
@@ -48,21 +49,23 @@ class Scenario(BaseScenario):
         self.random_goal_angle = kwargs.get("random_goal_angle", True)
         self.observe_joint_angle = kwargs.get("observe_joint_angle", True)
         self.joint_angle_obs_noise = kwargs.get("joint_angle_obs_noise", 0.0)
-        self.asym_package = kwargs.get("asym_package", False)
-        self.mass_ratio = kwargs.get("mass_ratio", 1)
+        self.asym_package = kwargs.get("asym_package", True)
+        self.mass_ratio = kwargs.get("mass_ratio", 5)
         self.mass_position = kwargs.get("mass_position", 0.75)
         self.max_speed_1 = kwargs.get("max_speed_1", None)  # 0.1
         self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 1)
         self.rot_shaping_factor = kwargs.get("rot_shaping_factor", 1)
         self.collision_reward = kwargs.get("collision_reward", -0.1)
+        self.energy_reward_coeff = kwargs.get("energy_reward_coeff", 0)
         self.all_passed_rot = kwargs.get("all_passed_rot", True)
+        self.obs_noise = kwargs.get("obs_noise", 0.1)
 
         # Make world
         world = World(
             batch_dim,
             device,
-            x_semidim=2,
-            y_semidim=2,
+            x_semidim=1,
+            y_semidim=1,
             substeps=7 if not self.asym_package else 10,
             joint_force=900 if self.asym_package else 400,
             collision_force=2500 if self.asym_package else 1500,
@@ -87,7 +90,11 @@ class Scenario(BaseScenario):
 
         # Add agents
         agent = Agent(
-            name=f"agent 0", shape=Sphere(self.agent_radius), u_multiplier=0.8
+            name=f"agent 0",
+            shape=Sphere(self.agent_radius),
+            u_multiplier=0.8,
+            obs_noise=self.obs_noise,
+            render_action=True,
         )
         world.add_agent(agent)
         agent = Agent(
@@ -96,6 +103,8 @@ class Scenario(BaseScenario):
             u_multiplier=0.8,
             mass=1 if self.asym_package else self.mass_ratio,
             max_speed=self.max_speed_1,
+            obs_noise=self.obs_noise,
+            render_action=True,
         )
         world.add_agent(agent)
 
@@ -219,8 +228,6 @@ class Scenario(BaseScenario):
             ],
             dim=1,
         )
-        joint_pos = torch.tensor([0, 0], device=self.world.device)
-
         goal_pos = torch.cat(
             [
                 (min_x_goal - max_x_goal)
@@ -471,31 +478,43 @@ class Scenario(BaseScenario):
         for passage in self.passages:
             if not passage.collide:
                 passage_obs.append(agent.state.pos - passage.state.pos)
+
+        observations = [
+            agent.state.pos,
+            agent.state.vel,
+            agent.state.pos - self.goal.state.pos,
+            *passage_obs,
+            angle_to_vector(self.goal.state.rot),
+        ] + ([angle_to_vector(joint_angle)] if self.observe_joint_angle else [])
+
+        for i, obs in enumerate(observations):
+            noise = torch.zeros(*obs.shape, device=self.world.device,).uniform_(
+                -self.obs_noise,
+                self.obs_noise,
+            )
+            # noise = (
+            #     torch.randn(*obs.shape, device=self.world.device, dtype=torch.float32)
+            #     * agent.obs_noise
+            #     if agent.obs_noise
+            #     else 0.0
+            # )
+            observations[i] = obs + noise
         return torch.cat(
-            [
-                agent.state.pos,
-                torch.zeros((self.world.batch_dim, 1), device=self.world.device),
-                # agent.state.vel,
-                # agent.state.pos - self.goal.state.pos,
-                # *passage_obs,
-                # angle_to_vector(self.goal.state.rot),
-            ]
-            + ([angle_to_vector(joint_angle)] if self.observe_joint_angle else []),
+            observations,
             dim=-1,
         )
 
     def done(self):
         return torch.all(
-            # (
-            #     torch.linalg.vector_norm(
-            #         self.joint.landmark.state.pos - self.goal.state.pos, dim=1
-            #     )
-            #     <= 0.01
-            # )
-            # *
             (
+                torch.linalg.vector_norm(
+                    self.joint.landmark.state.pos - self.goal.state.pos, dim=1
+                )
+                <= 0.01
+            )
+            * (
                 get_line_angle_dist_0_180(
-                    self.joint.landmark.state.rot, torch.pi / 2
+                    self.joint.landmark.state.rot, self.goal.state.rot
                 ).unsqueeze(-1)
                 <= 0.01
             ),
@@ -503,7 +522,6 @@ class Scenario(BaseScenario):
         )
 
     def info(self, agent: Agent) -> Dict[str, Tensor]:
-
         return {
             "pos_rew": self.pos_rew,
             "rot_rew": self.rot_rew,
@@ -526,7 +544,7 @@ class Scenario(BaseScenario):
         for i in range(n_boxes):
             passage = Landmark(
                 name=f"passage {i}",
-                collide=not removed(i) and False,
+                collide=not removed(i),
                 movable=False,
                 shape=Box(length=self.passage_length, width=self.passage_width),
                 color=Color.RED,
@@ -627,27 +645,6 @@ class Scenario(BaseScenario):
         )
         goal_agent_2.set_color(*color)
         geoms.append(goal_agent_2)
-
-        for agent in self.world.agents:
-            multiplic_factor = 1
-            speed = torch.linalg.vector_norm(agent.state.vel, dim=1)
-            try:
-                velocity = rendering.Line(
-                    (
-                        agent.state.pos[env_index][X],
-                        agent.state.pos[env_index][Y],
-                    ),
-                    (
-                        agent.state.pos[env_index][X]
-                        + agent.action.u[env_index][X] * multiplic_factor,
-                        agent.state.pos[env_index][Y]
-                        + agent.action.u[env_index][Y] * multiplic_factor,
-                    ),
-                    width=1,
-                )
-                geoms.append(velocity)
-            except TypeError:
-                pass
 
         return geoms
 
