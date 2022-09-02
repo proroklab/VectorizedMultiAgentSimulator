@@ -5,7 +5,7 @@
 import torch
 
 from vmas import render_interactively
-from vmas.simulator.core import Agent, World
+from vmas.simulator.core import Agent, World, Landmark, Sphere, Color
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.velocity_controller import VelocityController
 
@@ -15,7 +15,7 @@ class Scenario(BaseScenario):
         n_agents = kwargs.get("n_agents", 1)
 
         # Make world
-        world = World(batch_dim, device, drag=0)
+        world = World(batch_dim, device, drag=0.5)
         # Add agents
         for i in range(n_agents):
             # Constraint: all agents have same action range and multiplier
@@ -23,8 +23,17 @@ class Scenario(BaseScenario):
                 name=f"agent {i}", collide=True, u_range=1, u_multiplier=1, f_range=None
             )
             world.add_agent(agent)
-            agent.controller = VelocityController(agent, world.dt)
-
+            agent.controller = VelocityController(agent, world.dt, [1.5, 0.15, 0.01], "standard")
+        goal = Landmark(
+            name="goal",
+            collide=True,
+            movable=True,
+            shape=Sphere(radius=0.3),
+            color=Color.GREEN,
+            mass=0.5,
+            linear_friction = 0.01,
+        )
+        world.add_landmark(goal);
         return world
 
     def reset_world_at(self, env_index: int = None):
@@ -39,8 +48,14 @@ class Scenario(BaseScenario):
                 ),
                 batch_index=env_index,
             )
+        for landmark in self.world.landmarks:
+            landmark.set_pos(
+                torch.tensor([0,1], device=self.world.device),
+                batch_index=env_index,
+            )    
 
     def process_action(self, agent: Agent):
+        # print( agent.state.vel );
         agent.controller.process_force()
 
     def reward(self, agent: Agent):
