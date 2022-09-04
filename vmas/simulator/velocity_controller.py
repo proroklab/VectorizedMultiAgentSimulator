@@ -45,7 +45,6 @@ class VelocityController:
             # set windup limit to 50% of agent's max force
             fmax = self.agent.max_f if self.agent.max_f is not None else 2.0;
             self.integrator_windup_cutoff = 0.5 * fmax * self.integralTs/(self.dt * self.ctrl_gain);
-            print( "Intg cutoff: ", self.integrator_windup_cutoff );
         
         # containers for integral & derivative control
         self.accum_errs = 0.0;
@@ -68,9 +67,7 @@ class VelocityController:
         ### return (1.0/self.integralTs) * torch.stack( self.accum_errs, dim=1 ).sum(dim=1) * self.dt;
         
         self.accum_errs += ( self.dt * err );
-        #self.accum_errs = vmas.simulator.utils.clamp_tensor(self.accum_errs,\
-        #                                                 -self.integrator_windup_cutoff,\
-        #                                                 self.integrator_windup_cutoff);
+        self.accum_errs = vmas.simulator.utils.clamp_tensor(self.accum_errs, self.integrator_windup_cutoff);
         return (1.0/self.integralTs) * self.accum_errs;
     
     def rateError(self, err):
@@ -95,5 +92,3 @@ class VelocityController:
             u = torch.clamp(u, -self.agent.f_range, self.agent.f_range)
 
         self.agent.action.u = u;
-        # before_after = des_vel[0].tolist() + u[0].tolist() + cur_vel[0].tolist();
-        # print( *before_after );

@@ -83,3 +83,9 @@ def clamp_with_norm(tensor: Tensor, max_norm: float):
 
 # clamp_scalar(x, low, high)
 clamp_scalar = lambda x, l, u: l if x < l else u if x > u else x;
+
+# clamp_tensor(x, limit)
+def clamp_tensor( t: Tensor, lim: float ):
+    t[t > lim] = lim;
+    t[t < -lim] = -lim;
+    return t;
