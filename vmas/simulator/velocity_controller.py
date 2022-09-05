@@ -1,6 +1,8 @@
 #  Copyright (c) 2022.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
+import math
+import warnings
 import torch
 import vmas.simulator.core
 import vmas.simulator.utils
@@ -31,8 +33,7 @@ class VelocityController:
         self.dt = dt
         # controller parameters: standard=[kP, intgTs ,dervTs], parallel=[kP, kI, kD]
         #    in parallel form, kI = kP/intgTs and kD = kP*dervTs
-        self.ctrl_gain = ctrl_params[0]
-        # kP
+        self.ctrl_gain = ctrl_params[0]         # kP
         if pid_form == "standard":
             self.integralTs = ctrl_params[1]
             self.derivativeTs = ctrl_params[2]
@@ -51,10 +52,17 @@ class VelocityController:
         else:
             self.use_integrator = True
             # set windup limit to 50% of agent's max force
-            fmax = self.agent.max_f if self.agent.max_f is not None else 2.0
-            self.integrator_windup_cutoff = (
-                0.5 * fmax * self.integralTs / (self.dt * self.ctrl_gain)
+            fmax = min( self.agent.max_f,
+                        self.agent.f_range, 
+                        key=lambda x: x if x is not None else math.inf
             )
+            if fmax is not None:
+                self.integrator_windup_cutoff = (
+                    0.5 * fmax * self.integralTs / (self.dt * self.ctrl_gain)
+                )
+            else:
+                self.integrator_windup_cutoff = None;
+                warnings.warn( "Force limits not specified. Integrator can wind up!" );
 
         # containers for integral & derivative control
         self.accum_errs = 0.0
@@ -77,9 +85,10 @@ class VelocityController:
         # return (1.0/self.integralTs) * torch.stack( self.accum_errs, dim=1 ).sum(dim=1) * self.dt;
 
         self.accum_errs += self.dt * err
-        self.accum_errs = self.accum_errs.clamp(
-            -self.integrator_windup_cutoff, self.integrator_windup_cutoff
-        )
+        if self.integrator_windup_cutoff is not None:
+            self.accum_errs = self.accum_errs.clamp(
+                -self.integrator_windup_cutoff, self.integrator_windup_cutoff
+            )
 
         return (1.0 / self.integralTs) * self.accum_errs
 
