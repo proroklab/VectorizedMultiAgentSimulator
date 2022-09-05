@@ -15,25 +15,32 @@ class Scenario(BaseScenario):
         n_agents = kwargs.get("n_agents", 1)
 
         # Make world
-        world = World(batch_dim, device, drag=0.5)
+        world = World(batch_dim, device, drag=0, linear_friction=0)
         # Add agents
         for i in range(n_agents):
             # Constraint: all agents have same action range and multiplier
             agent = Agent(
-                name=f"agent {i}", collide=True, u_range=1, u_multiplier=1, f_range=None
+                name=f"agent {i}",
+                collide=True,
+                u_range=1,
+                u_multiplier=1,
+                mass=1,
+                f_range=None,
             )
             world.add_agent(agent)
-            agent.controller = VelocityController(agent, world.dt, [1.5, 0.15, 0.01], "standard")
+            agent.controller = VelocityController(
+                agent, world.dt, [1.5, 0.15, 0.01], "standard"
+            )
         goal = Landmark(
             name="goal",
             collide=True,
             movable=True,
             shape=Sphere(radius=0.3),
             color=Color.GREEN,
-            mass=0.5,
-            linear_friction = 0.01,
+            mass=1,
+            linear_friction=0.1,
         )
-        world.add_landmark(goal);
+        world.add_landmark(goal)
         return world
 
     def reset_world_at(self, env_index: int = None):
@@ -50,9 +57,9 @@ class Scenario(BaseScenario):
             )
         for landmark in self.world.landmarks:
             landmark.set_pos(
-                torch.tensor([0,1], device=self.world.device),
+                torch.tensor([0, 1], device=self.world.device),
                 batch_index=env_index,
-            )    
+            )
 
     def process_action(self, agent: Agent):
         # print( agent.state.vel );
