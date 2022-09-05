@@ -5,7 +5,6 @@ from typing import Dict
 
 import torch
 from torch import Tensor
-
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World
 from vmas.simulator.scenario import BaseScenario
@@ -14,13 +13,17 @@ from vmas.simulator.utils import Color, X, Y
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.comm_radius = kwargs.get("comm_radius", 0.0)
+        self.green_mass = kwargs.get("green_mass", 5)
 
         # Make world
         world = World(batch_dim, device)
         # Add agents
         agent = Agent(
-            name=f"agent 0", collide=False, color=Color.GREEN, render_action=True
+            name=f"agent 0",
+            collide=False,
+            color=Color.GREEN,
+            render_action=True,
+            mass=self.green_mass,
         )
         world.add_agent(agent)
         agent = Agent(name=f"agent 1", collide=False, mass=1, render_action=True)
@@ -65,24 +68,6 @@ class Scenario(BaseScenario):
             "energy_rew_2": self.energy_rew_2,
         }
 
-    def extra_render(self, env_index: int = 0) -> "List[Geom]":
-        from vmas.simulator import rendering
-
-        geoms = []
-        if self.comm_radius > 0:
-            for agent in self.world.agents:
-                # Trajectory goal circle
-
-                color = Color.BLACK.value
-                circle = rendering.make_circle(self.comm_radius, filled=False)
-                xform = rendering.Transform()
-                circle.add_attr(xform)
-                xform.set_translation(*agent.state.pos[env_index])
-                circle.set_color(*color)
-                geoms.append(circle)
-
-        return geoms
-
 
 if __name__ == "__main__":
-    render_interactively("het_test", control_two_agents=False)
+    render_interactively("het_test", control_two_agents=True)
