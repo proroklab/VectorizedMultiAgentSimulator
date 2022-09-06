@@ -11,7 +11,6 @@ from typing import Callable, List, Tuple
 
 import torch
 from torch import Tensor
-
 from vmas.simulator.joints import JointConstraint, Joint
 from vmas.simulator.sensors import Sensor
 from vmas.simulator.utils import (
@@ -1358,6 +1357,26 @@ class World(TorchVectorizedObject):
                     force = torch.clamp(force, -entity.f_range, entity.f_range)
                 self.force[:, index] += force
             assert not self.force.isnan().any()
+
+    # def _apply_action_torque(self, entity: Entity, index: int):
+    #     if isinstance(entity, Agent):
+    #         # set applied forces
+    #         if entity.rotatable:
+    #             noise = (
+    #                 torch.randn(
+    #                     *entity.action.u.shape, device=self.device, dtype=torch.float32
+    #                 )
+    #                 * entity.u_noise
+    #                 if entity.u_noise
+    #                 else 0.0
+    #             )
+    #             torque = entity.action.u[:, X] + noise
+    #             if entity.max_f is not None:
+    #                 torque = clamp_with_norm(torque, entity.max_f)
+    #             if entity.f_range is not None:
+    #                 torque = torch.clamp(torque, -entity.f_range, entity.f_range)
+    #             self.torque[:, index] += torque
+    #         assert not self.torque.isnan().any()
 
     def _apply_gravity(self, entity: Entity, index: int):
         if not (self._gravity == 0.0).all():
