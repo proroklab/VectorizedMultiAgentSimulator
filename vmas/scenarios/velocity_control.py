@@ -13,9 +13,10 @@ from vmas.simulator.velocity_controller import VelocityController
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         n_agents = kwargs.get("n_agents", 1)
+        self.plot_grid = True
 
         # Make world
-        world = World(batch_dim, device, drag=0, linear_friction=0)
+        world = World(batch_dim, device, drag=0.25)
         # Add agents
         for i in range(n_agents):
             # Constraint: all agents have same action range and multiplier
@@ -29,7 +30,7 @@ class Scenario(BaseScenario):
             )
             world.add_agent(agent)
             agent.controller = VelocityController(
-                agent, world.dt, [1.5, 0.15, 0.01], "standard"
+                agent, world.dt, [1, 0.1, 0.01], "standard"
             )
         goal = Landmark(
             name="goal",
@@ -38,7 +39,6 @@ class Scenario(BaseScenario):
             shape=Sphere(radius=0.3),
             color=Color.GREEN,
             mass=1,
-            linear_friction=0.1,
         )
         world.add_landmark(goal)
         return world
