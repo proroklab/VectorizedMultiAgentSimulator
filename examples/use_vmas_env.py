@@ -1,17 +1,14 @@
 #  Copyright (c) 2022.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-import os
 import time
 
 import numpy as np
 import torch
-from PIL import Image
-
 from vmas import make_env, Wrapper
 
 
-def use_vmas_env(render: bool = False):
+def use_vmas_env(render: bool = False, save_render: bool = False):
 
     scenario_name = "waterfall"
 
@@ -22,7 +19,7 @@ def use_vmas_env(render: bool = False):
     continuous_actions = False
     device = "cpu"  # or cuda or any other torch device
     wrapper = Wrapper.RLLIB
-    n_steps = 200
+    n_steps = 100
 
     simple_2d_action = (
         [0, 0.5] if continuous_actions else [3]
@@ -54,13 +51,11 @@ def use_vmas_env(render: bool = False):
             obs, rews, dones, info = env.vector_step(actions)
             if render:
                 frame_list.append(
-                    Image.fromarray(
-                        env.try_render_at(
-                            mode="rgb_array",
-                            agent_index_focus=None,
-                            visualize_when_rgb=True,
-                        )  # Can give the camera an agent index to focus onß
-                    )
+                    env.try_render_at(
+                        mode="rgb_array",
+                        agent_index_focus=None,
+                        visualize_when_rgb=True,
+                    )  # Can give the camera an agent index to focus on
                 )
         elif wrapper is None:  # Same as before, with faster VMAS interface
             for i in range(n_agents):
@@ -73,28 +68,29 @@ def use_vmas_env(render: bool = False):
             obs, rews, dones, info = env.step(actions)
             if render:
                 frame_list.append(
-                    Image.fromarray(
-                        env.render(
-                            mode="rgb_array",
-                            agent_index_focus=None,
-                            visualize_when_rgb=True,
-                        )
+                    env.render(
+                        mode="rgb_array",
+                        agent_index_focus=None,
+                        visualize_when_rgb=True,
                     )
                 )  # Can give the camera an agent index to focus on
 
-    if render:
-        gif_name = scenario_name + ".gif"
+    if render and save_render:
+        import cv2
 
-        # Produce a gif
-        frame_list[0].save(
-            gif_name,
-            save_all=True,
-            append_images=frame_list[1:],
-            duration=3,
-            loop=0,
+        video_name = scenario_name + ".mp4"
+
+        # Produce a video
+        video = cv2.VideoWriter(
+            video_name,
+            cv2.VideoWriter_fourcc(*"mp4v"),
+            30,  # FPS
+            (frame_list[0].shape[1], frame_list[0].shape[0]),
         )
-        # Requires image magik to be installed to convert the gif in faster format
-        os.system(f"convert -delay 1x30 -loop 0 {gif_name} {scenario_name}_fast.gif")
+        for img in frame_list:
+            img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+            video.write(img)
+        video.release()
 
     total_time = time.time() - init_time
     print(
@@ -104,4 +100,4 @@ def use_vmas_env(render: bool = False):
 
 
 if __name__ == "__main__":
-    use_vmas_env(render=True)
+    use_vmas_env(render=True, save_render=False)
