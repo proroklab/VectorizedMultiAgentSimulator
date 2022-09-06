@@ -14,6 +14,7 @@ from vmas.simulator.utils import Color, X, Y
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.green_mass = kwargs.get("green_mass", 5)
+        self.plot_grid = True
 
         # Make world
         world = World(batch_dim, device)
@@ -44,21 +45,24 @@ class Scenario(BaseScenario):
                 batch_index=env_index,
             )
 
+    def process_action(self, agent: Agent):
+        agent.action.u[:, Y] = 0
+
     def reward(self, agent: Agent):
         is_first = agent == self.world.agents[0]
 
         if is_first:
-            self.energy_rew_1 = (self.world.agents[0].state.vel[:, X] - 0).abs()
-            self.energy_rew_1 += (self.world.agents[0].state.vel[:, Y] - 0).abs()
+            self.energy_rew_1 = (self.world.agents[0].action.u[:, X] - 0).abs()
+            self.energy_rew_1 += (self.world.agents[0].action.u[:, Y] - 0).abs()
 
-            self.energy_rew_2 = (self.world.agents[1].state.vel[:, X] - 0).abs()
-            self.energy_rew_2 += (self.world.agents[1].state.vel[:, Y] - 0).abs()
+            self.energy_rew_2 = (self.world.agents[1].action.u[:, X] - 0).abs()
+            self.energy_rew_2 += (self.world.agents[1].action.u[:, Y] - 0).abs()
 
         return -self.energy_rew_1 + self.energy_rew_2
 
     def observation(self, agent: Agent):
         return torch.cat(
-            [agent.state.pos, agent.state.vel],
+            [agent.state.pos, agent.state.vel[:, X].unsqueeze(-1)],
             dim=-1,
         )
 
