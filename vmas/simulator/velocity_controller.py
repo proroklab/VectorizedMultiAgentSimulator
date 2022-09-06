@@ -3,7 +3,7 @@
 #  All rights reserved.
 import math
 import warnings
-import torch
+
 import vmas.simulator.core
 import vmas.simulator.utils
 
@@ -33,7 +33,7 @@ class VelocityController:
         self.dt = dt
         # controller parameters: standard=[kP, intgTs ,dervTs], parallel=[kP, kI, kD]
         #    in parallel form, kI = kP/intgTs and kD = kP*dervTs
-        self.ctrl_gain = ctrl_params[0]         # kP
+        self.ctrl_gain = ctrl_params[0]  # kP
         if pid_form == "standard":
             self.integralTs = ctrl_params[1]
             self.derivativeTs = ctrl_params[2]
@@ -52,17 +52,18 @@ class VelocityController:
         else:
             self.use_integrator = True
             # set windup limit to 50% of agent's max force
-            fmax = min( self.agent.max_f,
-                        self.agent.f_range, 
-                        key=lambda x: x if x is not None else math.inf
+            fmax = min(
+                self.agent.max_f,
+                self.agent.f_range,
+                key=lambda x: x if x is not None else math.inf,
             )
             if fmax is not None:
                 self.integrator_windup_cutoff = (
                     0.5 * fmax * self.integralTs / (self.dt * self.ctrl_gain)
                 )
             else:
-                self.integrator_windup_cutoff = None;
-                warnings.warn( "Force limits not specified. Integrator can wind up!" );
+                self.integrator_windup_cutoff = None
+                warnings.warn("Force limits not specified. Integrator can wind up!")
 
         # containers for integral & derivative control
         self.accum_errs = 0.0
