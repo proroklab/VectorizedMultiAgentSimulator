@@ -343,8 +343,9 @@ class Point(Geom):
 
 
 class FilledPolygon(Geom):
-    def __init__(self, v):
+    def __init__(self, v, draw_border: float = True):
         Geom.__init__(self)
+        self.draw_border = draw_border
         self.v = v
 
     def render1(self):
@@ -358,17 +359,18 @@ class FilledPolygon(Geom):
             glVertex3f(p[0], p[1], 0)  # draw each vertex
         glEnd()
 
-        color = (
-            self._color.vec4[0] * 0.5,
-            self._color.vec4[1] * 0.5,
-            self._color.vec4[2] * 0.5,
-            self._color.vec4[3] * 0.5,
-        )
-        glColor4f(*color)
-        glBegin(GL_LINE_LOOP)
-        for p in self.v:
-            glVertex3f(p[0], p[1], 0)  # draw each vertex
-        glEnd()
+        if self.draw_border:
+            color = (
+                self._color.vec4[0] * 0.5,
+                self._color.vec4[1] * 0.5,
+                self._color.vec4[2] * 0.5,
+                self._color.vec4[3] * 0.5,
+            )
+            glColor4f(*color)
+            glBegin(GL_LINE_LOOP)
+            for p in self.v:
+                glVertex3f(p[0], p[1], 0)  # draw each vertex
+            glEnd()
 
 
 def make_circle(radius=10, res=30, filled=True):
@@ -382,9 +384,9 @@ def make_circle(radius=10, res=30, filled=True):
         return PolyLine(points, True)
 
 
-def make_polygon(v, filled=True):
+def make_polygon(v, filled=True, draw_border: float = True):
     if filled:
-        return FilledPolygon(v)
+        return FilledPolygon(v, draw_border=draw_border)
     else:
         return PolyLine(v, True)
 
@@ -451,17 +453,41 @@ class Line(Geom):
         glEnd()
 
 
-class Image(Geom):
-    def __init__(self, fname, width, height):
+class Grid(Geom):
+    def __init__(self, spacing: float = 0.1, length: float = 50, width: float = 0.5):
         Geom.__init__(self)
-        self.width = width
-        self.height = height
+        self.spacing = spacing
+        self.linewidth = LineWidth(width)
+        self.length = length
+        self.add_attr(self.linewidth)
+
+    def set_linewidth(self, x):
+        self.linewidth.stroke = x
+
+    def render1(self):
+        for point in np.arange(-self.length / 2, self.length / 2, self.spacing):
+            glBegin(GL_LINES)
+            glVertex2f(point, -self.length / 2)
+            glVertex2f(point, self.length / 2)
+            glEnd()
+            glBegin(GL_LINES)
+            glVertex2f(-self.length / 2, point)
+            glVertex2f(self.length / 2, point)
+            glEnd()
+
+
+class Image(Geom):
+    def __init__(self, fname):
+        Geom.__init__(self)
         img = pyglet.image.load(fname)
-        self.img = img
+        img.anchor_x = img.width // 2
+        img.anchor_y = img.height // 2
+        sprite = pyglet.sprite.Sprite(img)
+        self.sprite = sprite
         self.flip = False
 
     def render1(self):
-        self.img.blit(-self.width / 2, -self.height / 2)
+        self.sprite.draw()
 
 
 # ================================================================

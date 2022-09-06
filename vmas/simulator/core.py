@@ -656,6 +656,7 @@ class Agent(Entity):
         linear_friction: float = None,
         angular_friction: float = None,
         collision_filter: Callable[[Entity], bool] = lambda _: True,
+        render_action: bool = False,
     ):
         super().__init__(
             name,
@@ -696,6 +697,8 @@ class Agent(Entity):
         self._c_noise = c_noise
         # cannot send communication signals
         self._silent = silent
+        # render the agent action force
+        self._render_action = render_action
         # is adversary
         self._adversary = adversary
 
@@ -743,6 +746,10 @@ class Agent(Entity):
     @property
     def u_range(self):
         return self.action.u_range
+
+    @property
+    def obs_noise(self):
+        return self._obs_noise if self._obs_noise is not None else 0
 
     @property
     def action(self) -> Action:
@@ -802,6 +809,8 @@ class Agent(Entity):
                 self.state.c[env_index] = 0.0
 
     def render(self, env_index: int = 0) -> "List[Geom]":
+        from vmas.simulator import rendering
+
         geoms = super().render(env_index)
         if len(geoms) == 0:
             return geoms
@@ -810,6 +819,16 @@ class Agent(Entity):
         if self._sensors is not None:
             for sensor in self._sensors:
                 geoms += sensor.render(env_index=env_index)
+        if self._render_action and self.action.u is not None:
+            velocity = rendering.Line(
+                self.state.pos[env_index],
+                self.state.pos[env_index]
+                + self.action.u[env_index] * 10 * self.shape.circumscribed_radius(),
+                width=2,
+            )
+            velocity.set_color(*self.color)
+            geoms.append(velocity)
+
         return geoms
 
 
@@ -1338,6 +1357,26 @@ class World(TorchVectorizedObject):
                     force = torch.clamp(force, -entity.f_range, entity.f_range)
                 self.force[:, index] += force
             assert not self.force.isnan().any()
+
+    # def _apply_action_torque(self, entity: Entity, index: int):
+    #     if isinstance(entity, Agent):
+    #         # set applied forces
+    #         if entity.rotatable:
+    #             noise = (
+    #                 torch.randn(
+    #                     *entity.action.u.shape, device=self.device, dtype=torch.float32
+    #                 )
+    #                 * entity.u_noise
+    #                 if entity.u_noise
+    #                 else 0.0
+    #             )
+    #             torque = entity.action.u[:, X] + noise
+    #             if entity.max_f is not None:
+    #                 torque = clamp_with_norm(torque, entity.max_f)
+    #             if entity.f_range is not None:
+    #                 torque = torch.clamp(torque, -entity.f_range, entity.f_range)
+    #             self.torque[:, index] += torque
+    #         assert not self.torque.isnan().any()
 
     def _apply_gravity(self, entity: Entity, index: int):
         if not (self._gravity == 0.0).all():

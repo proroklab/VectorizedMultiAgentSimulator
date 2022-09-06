@@ -2,11 +2,12 @@
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 from enum import Enum
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Callable
 
 import gym
 import numpy as np
 import torch
+import vmas.simulator.utils
 from gym import spaces
 from ray import rllib
 from ray.rllib.utils.typing import EnvActionType, EnvInfoDict, EnvObsType
@@ -290,6 +291,9 @@ class Environment(TorchVectorizedObject):
         env_index=0,
         agent_index_focus: int = None,
         visualize_when_rgb: bool = False,
+        plot_position_function: Callable[[Tuple[float, float]], float] = None,
+        plot_position_function_precision: float = 0.05,
+        plot_position_function_range: float = 1,
     ):
         """
         Render function for environment using pyglet
@@ -305,6 +309,10 @@ class Environment(TorchVectorizedObject):
         :param agent_index_focus: If specified the camera will stay on the agent with this index.
                                   If None, the camera will stay in the center and zoom out to contain all agents
         :param visualize_when_rgb: Also run human visualization when mode=="rgb_array"
+        :param plot_position_function: A function to plot under the rendering. This function takes
+         the position (x,y) as input and outputs a transparency alpha value
+        :param plot_position_function_precision: The precision to use for plotting the function
+        :param plot_position_function_range: The position range to plot the function in
         :return: Rgb array or None, depending on the mode
         """
         self._check_batch_index(env_index)
@@ -411,15 +419,22 @@ class Environment(TorchVectorizedObject):
                 pos[Y] - cam_range[Y],
                 pos[Y] + cam_range[Y],
             )
+        from vmas.simulator.rendering import Grid
+
+        if plot_position_function is not None:
+            self.plot_function(
+                plot_position_function,
+                precision=plot_position_function_precision,
+                plot_range=plot_position_function_range,
+            )
+
+        if self.scenario.plot_grid:
+            grid = Grid(spacing=self.scenario.grid_spacing)
+            grid.set_color(*vmas.simulator.utils.Color.BLACK.value, alpha=0.3)
+            self.viewer.add_onetime(grid)
 
         for geom in self.scenario.extra_render(env_index):
             self.viewer.add_onetime(geom)
-
-        for joint in self.world.joints:
-            [
-                self.viewer.add_onetime(geom)
-                for geom in joint.render(env_index=env_index)
-            ]
 
         for entity in self.world.entities:
             [
@@ -429,6 +444,33 @@ class Environment(TorchVectorizedObject):
 
         # render to display or array
         return self.viewer.render(return_rgb_array=mode == "rgb_array")
+
+    def plot_function(
+        self,
+        f: Callable[[Tuple[float, float]], float],
+        precision: float,
+        plot_range: float,
+    ):
+        from vmas.simulator.rendering import Transform, make_polygon
+
+        l, r, t, b = (
+            0,
+            precision,
+            precision,
+            0,
+        )
+        poly_points = [(l, b), (l, t), (r, t), (r, b)]
+
+        points = np.arange(-plot_range, plot_range, precision)
+        for x in points:
+            for y in points:
+                alpha = f(x, y)
+                box = make_polygon(poly_points, draw_border=False)
+                transform = Transform()
+                transform.set_translation(x, y)
+                box.add_attr(transform)
+                box.set_color(*vmas.simulator.utils.Color.BLACK.value, alpha=alpha)
+                self.viewer.add_onetime(box)
 
     def _init_rendering(self):
         from vmas.simulator import rendering
@@ -529,6 +571,9 @@ class VectorEnvWrapper(rllib.VectorEnv):
         mode="human",
         agent_index_focus: Optional[int] = None,
         visualize_when_rgb: bool = False,
+        plot_position_function: Callable[[Tuple[float, float]], float] = None,
+        plot_position_function_precision: float = 0.05,
+        plot_position_function_range: float = 1,
     ) -> Optional[np.ndarray]:
         """
         Render function for environment using pyglet
@@ -544,6 +589,10 @@ class VectorEnvWrapper(rllib.VectorEnv):
         :param agent_index_focus: If specified the camera will stay on the agent with this index.
                                   If None, the camera will stay in the center and zoom out to contain all agents
         :param visualize_when_rgb: Also run human visualization when mode=="rgb_array"
+        :param plot_position_function: A function to plot under the rendering. This function takes
+         the position (x,y) as input and outputs a transparency alpha value
+        :param plot_position_function_precision: The precision to use for plotting the function
+        :param plot_position_function_range: The position range to plot the function in
         :return: Rgb array or None, depending on the mode
         """
         if index is None:
@@ -553,6 +602,9 @@ class VectorEnvWrapper(rllib.VectorEnv):
             env_index=index,
             agent_index_focus=agent_index_focus,
             visualize_when_rgb=visualize_when_rgb,
+            plot_position_function=plot_position_function,
+            plot_position_function_precision=plot_position_function_precision,
+            plot_position_function_range=plot_position_function_range,
         )
 
     def get_sub_environments(self) -> List[Environment]:
@@ -655,6 +707,9 @@ class GymWrapper(gym.Env):
         mode="human",
         agent_index_focus: Optional[int] = None,
         visualize_when_rgb: bool = False,
+        plot_position_function: Callable[[Tuple[float, float]], float] = None,
+        plot_position_function_precision: float = 0.05,
+        plot_position_function_range: float = 1,
     ) -> Optional[np.ndarray]:
 
         return self._env.render(
@@ -662,6 +717,9 @@ class GymWrapper(gym.Env):
             env_index=0,
             agent_index_focus=agent_index_focus,
             visualize_when_rgb=visualize_when_rgb,
+            plot_position_function=plot_position_function,
+            plot_position_function_precision=plot_position_function_precision,
+            plot_position_function_range=plot_position_function_range,
         )
 
     def _action_list_to_tensor(self, list_in: List) -> List:
