@@ -6,12 +6,12 @@ from typing import Dict
 
 import torch
 from torch import Tensor
-
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Box, Landmark, Sphere, World, Line
 from vmas.simulator.joints import Joint
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color, Y, X
+from vmas.simulator.velocity_controller import VelocityController
 
 
 def get_line_angle_0_90(rot: Tensor):
@@ -92,19 +92,28 @@ class Scenario(BaseScenario):
         agent = Agent(
             name=f"agent 0",
             shape=Sphere(self.agent_radius),
-            u_multiplier=0.8,
+            u_multiplier=1,
             obs_noise=self.obs_noise,
             render_action=True,
+            f_range=10,
+        )
+        agent.controller = VelocityController(
+            agent, world.dt, [0.5, 1.5, 0.005], "standard"
         )
         world.add_agent(agent)
+
         agent = Agent(
             name=f"agent 1",
             shape=Sphere(self.agent_radius),
-            u_multiplier=0.8,
+            u_multiplier=1,
             mass=1 if self.asym_package else self.mass_ratio,
             max_speed=self.max_speed_1,
             obs_noise=self.obs_noise,
             render_action=True,
+            f_range=10,
+        )
+        agent.controller = VelocityController(
+            agent, world.dt, [0.5, 1.5, 0.005], "standard"
         )
         world.add_agent(agent)
 
@@ -520,6 +529,10 @@ class Scenario(BaseScenario):
             ),
             dim=1,
         )
+
+    def process_action(self, agent: Agent):
+        # print( agent.state.vel );
+        agent.controller.process_force()
 
     def info(self, agent: Agent) -> Dict[str, Tensor]:
         return {
