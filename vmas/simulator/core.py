@@ -1350,12 +1350,14 @@ class World(TorchVectorizedObject):
                     if entity.u_noise
                     else 0.0
                 )
-                force = entity.action.u + noise
+                entity.action.u += noise
                 if entity.max_f is not None:
-                    force = clamp_with_norm(force, entity.max_f)
+                    entity.action.u = clamp_with_norm(entity.action.u, entity.max_f)
                 if entity.f_range is not None:
-                    force = torch.clamp(force, -entity.f_range, entity.f_range)
-                self.force[:, index] += force
+                    entity.action.u = torch.clamp(
+                        entity.action.u, -entity.f_range, entity.f_range
+                    )
+                self.force[:, index] += entity.action.u
             assert not self.force.isnan().any()
 
     # def _apply_action_torque(self, entity: Entity, index: int):

@@ -3,9 +3,12 @@
 #  All rights reserved.
 import math
 import warnings
+from typing import Union
 
+import torch
 import vmas.simulator.core
 import vmas.simulator.utils
+from torch import Tensor
 
 
 class VelocityController:
@@ -25,12 +28,13 @@ class VelocityController:
     def __init__(
         self,
         agent: vmas.simulator.core.Agent,
-        dt: float,
+        world: vmas.simulator.core.World,
         ctrl_params=[1, 0, 0],
         pid_form="standard",
     ):
         self.agent = agent
-        self.dt = dt
+        self.world = world
+        self.dt = world.dt
         # controller parameters: standard=[kP, intgTs ,dervTs], parallel=[kP, kI, kD]
         #    in parallel form, kI = kP/intgTs and kD = kP*dervTs
         self.ctrl_gain = ctrl_params[0]  # kP
@@ -66,15 +70,22 @@ class VelocityController:
                 warnings.warn("Force limits not specified. Integrator can wind up!")
 
         # containers for integral & derivative control
-        self.accum_errs = 0.0
-        self.prev_err = 0.0
+        self.accum_errs = torch.zeros(
+            (world.batch_dim, world.dim_p), device=world.device
+        )
+        self.prev_err = torch.zeros((world.batch_dim, world.dim_p), device=world.device)
 
-        # do other initialization bits
-        self.reset()
-
-    def reset(self):
-        self.accum_errs = 0.0
-        self.prev_err = 0.0
+    def reset(self, index: Union[Tensor, int] = None):
+        if index is None:
+            self.accum_errs = torch.zeros(
+                (self.world.batch_dim, self.world.dim_p), device=self.world.device
+            )
+            self.prev_err = torch.zeros(
+                (self.world.batch_dim, self.world.dim_p), device=self.world.device
+            )
+        else:
+            self.accum_errs[index] = 0.0
+            self.prev_err[index] = 0.0
 
     def integralError(self, err):
         if not self.use_integrator:
