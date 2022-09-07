@@ -9,13 +9,14 @@ from vmas import render_interactively
 from vmas.simulator.core import Agent, Sphere, World
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color, X, Y
+from vmas.simulator.velocity_controller import VelocityController
 
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 1)
         self.speed_shaping_factor = kwargs.get("speed_shaping_factor", 1)
-        self.use_velocity_traj = kwargs.get("use_velocity_traj", True)
+        self.use_velocity_traj = kwargs.get("use_velocity_traj", False)
 
         self.dt = 0.05
 
@@ -24,14 +25,21 @@ class Scenario(BaseScenario):
         self.desired_radius = 0.5
 
         # Make world
-        world = World(batch_dim, device, drag=0, linear_friction=0.1)
+        world = World(batch_dim, device, drag=0.25, linear_friction=0.1)
         # Add agents
         self.agent = Agent(
-            name=f"agent", shape=Sphere(self.agent_radius), mass=5, max_speed=0.5
+            name=f"agent", shape=Sphere(self.agent_radius), mass=2, f_range=15
+        )
+        self.agent.controller = VelocityController(
+            self.agent, world.dt, [1, 0.1, 0.01], "standard"
         )
         world.add_agent(self.agent)
 
         return world
+
+    def process_action(self, agent: Agent):
+        # print( agent.state.vel );
+        agent.controller.process_force()
 
     def reset_world_at(self, env_index: int = None):
         self.agent.set_pos(
