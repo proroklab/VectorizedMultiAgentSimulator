@@ -47,28 +47,29 @@ class Scenario(BaseScenario):
         self.joint_length = kwargs.get("joint_length", 0.5)
         self.random_start_angle = kwargs.get("random_start_angle", True)
         self.random_goal_angle = kwargs.get("random_goal_angle", True)
-        self.observe_joint_angle = kwargs.get("observe_joint_angle", True)
+        self.observe_joint_angle = kwargs.get("observe_joint_angle", False)
         self.joint_angle_obs_noise = kwargs.get("joint_angle_obs_noise", 0.0)
-        self.asym_package = kwargs.get("asym_package", True)
+        self.asym_package = kwargs.get("asym_package", False)
         self.mass_ratio = kwargs.get("mass_ratio", 5)
         self.mass_position = kwargs.get("mass_position", 0.75)
         self.max_speed_1 = kwargs.get("max_speed_1", None)  # 0.1
         self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 1)
         self.rot_shaping_factor = kwargs.get("rot_shaping_factor", 1)
-        self.collision_reward = kwargs.get("collision_reward", -0.1)
-        self.energy_reward_coeff = kwargs.get("energy_reward_coeff", 0)
+        self.collision_reward = kwargs.get("collision_reward", 0)
+        self.energy_reward_coeff = kwargs.get("energy_reward_coeff", 0.009)
         self.all_passed_rot = kwargs.get("all_passed_rot", True)
-        self.obs_noise = kwargs.get("obs_noise", 0.1)
+        self.obs_noise = kwargs.get("obs_noise", 0.0)
 
+        self.plot_grid = True
         # Make world
         world = World(
             batch_dim,
             device,
             x_semidim=1,
             y_semidim=1,
-            substeps=7 if not self.asym_package else 10,
-            joint_force=900 if self.asym_package else 400,
-            collision_force=2500 if self.asym_package else 1500,
+            substeps=10 if not self.asym_package else 10,
+            joint_force=1000 if self.asym_package else 1000,
+            collision_force=2500 if self.asym_package else 7000,
             drag=0.25 if not self.asym_package else 0.15,
         )
 
@@ -84,9 +85,12 @@ class Scenario(BaseScenario):
         self.passage_width = 0.2
         self.passage_length = 0.1476
         self.scenario_length = 2 * world.x_semidim + 2 * self.agent_radius
+        self.n_boxes = int(self.scenario_length // self.passage_length)
         self.min_collision_distance = 0.005
 
         assert 1 <= self.n_passages <= int(self.scenario_length // self.passage_length)
+
+        cotnroller_params = [2.0, 10, 0.00001]
 
         # Add agents
         agent = Agent(
@@ -95,10 +99,10 @@ class Scenario(BaseScenario):
             u_multiplier=1,
             obs_noise=self.obs_noise,
             render_action=True,
-            f_range=10,
+            f_range=5,
         )
         agent.controller = VelocityController(
-            agent, world.dt, [0.5, 1.5, 0.005], "standard"
+            agent, world, cotnroller_params, "standard"
         )
         world.add_agent(agent)
 
@@ -107,13 +111,14 @@ class Scenario(BaseScenario):
             shape=Sphere(self.agent_radius),
             u_multiplier=1,
             mass=1 if self.asym_package else self.mass_ratio,
+            color=Color.GREEN,
             max_speed=self.max_speed_1,
             obs_noise=self.obs_noise,
             render_action=True,
-            f_range=10,
+            f_range=5,
         )
         agent.controller = VelocityController(
-            agent, world.dt, [0.5, 1.5, 0.005], "standard"
+            agent, world, cotnroller_params, "standard"
         )
         world.add_agent(agent)
 
@@ -129,6 +134,8 @@ class Scenario(BaseScenario):
             width=0,
             mass=1,
         )
+        self.joint.landmark.collision_filter = lambda e: not isinstance(e.shape, Line)
+        world.add_joint(self.joint)
 
         if self.asym_package:
 
@@ -166,14 +173,16 @@ class Scenario(BaseScenario):
         )
         world.add_landmark(self.goal)
 
-        def joint_collision_filter(e):
-            try:
-                return e.neighbour
-            except AttributeError:
-                return False
-
-        self.joint.landmark.collision_filter = joint_collision_filter
-        world.add_joint(self.joint)
+        self.walls = []
+        for i in range(4):
+            wall = Landmark(
+                name=f"wall {i}",
+                collide=True,
+                shape=Line(length=2 + self.agent_radius * 2),
+                color=Color.BLACK,
+            )
+            world.add_landmark(wall)
+            self.walls.append(wall)
 
         self.create_passage_map(world)
 
@@ -266,6 +275,7 @@ class Scenario(BaseScenario):
         order = torch.randperm(self.n_agents).tolist()
         agents = [self.world.agents[i] for i in order]
         for i, agent in enumerate(agents):
+            agent.controller.reset(env_index)
             if i == 0:
                 agent.set_pos(
                     joint_pos - torch.cat([start_delta_x, start_delta_y], dim=1),
@@ -287,6 +297,7 @@ class Scenario(BaseScenario):
             )
 
         self.spawn_passage_map(env_index)
+        self.spawn_walls(env_index)
 
         if env_index is None:
             self.joint.pos_shaping_pre = (
@@ -430,13 +441,15 @@ class Scenario(BaseScenario):
                             self.world.get_distance(a, passage)
                             <= self.min_collision_distance
                         ] += self.collision_reward
-                    # self.collision_rew[
-                    #     self.is_out_or_touching_perimeter(a)
-                    # ] += self.collision_reward
+                    for wall in self.walls:
+                        self.collision_rew[
+                            self.world.get_distance(a, wall)
+                            <= self.min_collision_distance
+                        ] += self.collision_reward
 
             # Joint collisions
             for i, p in enumerate(self.passages):
-                if p.collide and p.neighbour:
+                if p.collide:
                     self.collision_rew[
                         self.world.get_distance(p, self.joint.landmark)
                         <= self.min_collision_distance
@@ -446,7 +459,7 @@ class Scenario(BaseScenario):
             self.energy_expenditure = torch.stack(
                 [
                     torch.linalg.vector_norm(a.action.u, dim=-1)
-                    / math.sqrt(self.world.dim_p * ((a.u_range * a.u_multiplier) ** 2))
+                    / math.sqrt(self.world.dim_p * (a.f_range**2))
                     for a in self.world.agents
                 ],
                 dim=1,
@@ -531,7 +544,8 @@ class Scenario(BaseScenario):
         )
 
     def process_action(self, agent: Agent):
-        # print( agent.state.vel );
+        vel_is_zero = torch.linalg.vector_norm(agent.action.u, dim=1) < 1e-3
+        agent.controller.reset(vel_is_zero)
         agent.controller.process_force()
 
     def info(self, agent: Agent) -> Dict[str, Tensor]:
@@ -545,16 +559,18 @@ class Scenario(BaseScenario):
     def create_passage_map(self, world: World):
         # Add landmarks
         self.passages = []
-        n_boxes = int(self.scenario_length // self.passage_length)
+
+        self.collide_passages = []
+        self.non_collide_passages = []
 
         def removed(i):
             return (
-                (n_boxes // 2) - self.n_passages / 2
+                (self.n_boxes // 2) - self.n_passages / 2
                 <= i
-                < (n_boxes // 2) + self.n_passages / 2
+                < (self.n_boxes // 2) + self.n_passages / 2
             )
 
-        for i in range(n_boxes):
+        for i in range(self.n_boxes):
             passage = Landmark(
                 name=f"passage {i}",
                 collide=not removed(i),
@@ -563,37 +579,92 @@ class Scenario(BaseScenario):
                 color=Color.RED,
                 collision_filter=lambda e: not isinstance(e.shape, Box),
             )
+            if not passage.collide:
+                self.non_collide_passages.append(passage)
+            else:
+                self.collide_passages.append(passage)
             self.passages.append(passage)
             world.add_landmark(passage)
 
     def spawn_passage_map(self, env_index):
-        if not self.fixed_passage:
-            order = torch.randperm(len(self.passages)).tolist()
-            self.passages = [self.passages[i] for i in order]
-        for i, passage in enumerate(self.passages):
-            if not passage.collide:
-                passage.is_rendering[:] = False
-            passage.neighbour = False
-            try:
-                passage.neighbour += not self.passages[i - 1].collide
-            except IndexError:
-                pass
-            try:
-                passage.neighbour += not self.passages[i + 1].collide
-            except IndexError:
-                pass
-            passage.neighbour *= passage.collide
-            passage.set_pos(
+
+        passage_indexes = []
+        for i in range(self.n_passages):
+            passage_indexes.append(
+                torch.randint(
+                    0,
+                    self.n_boxes - 1,
+                    (self.world.batch_dim,) if env_index is None else (1,),
+                    device=self.world.device,
+                )
+            )
+
+        def is_passage(i):
+            is_pass = torch.full(i.shape, False, device=self.world.device)
+            for index in passage_indexes:
+                is_pass += i == index
+            return is_pass
+
+        def get_pos(i):
+            pos = torch.tensor(
+                [
+                    -1 - self.agent_radius + self.passage_length / 2,
+                    0.0,
+                ],
+                dtype=torch.float32,
+                device=self.world.device,
+            ).repeat(i.shape[0], 1)
+            pos[:, X] += self.passage_length * i
+            return pos
+
+        for index, i in enumerate(passage_indexes):
+            self.non_collide_passages[index].is_rendering[:] = False
+            self.non_collide_passages[index].set_pos(get_pos(i), batch_index=env_index)
+
+        i = torch.zeros(
+            (self.world.batch_dim,) if env_index is None else (1,),
+            dtype=torch.int,
+            device=self.world.device,
+        )
+        for passage in self.collide_passages:
+            is_pass = is_passage(i)
+            while is_pass.any():
+                i[is_pass] += 1
+                is_pass = is_passage(i)
+            passage.set_pos(get_pos(i), batch_index=env_index)
+            if env_index is None:
+                passage.neighbour = is_passage(i - 1) + is_passage(i + 1)
+            else:
+                passage.neighbour[env_index] = is_passage(i - 1) + is_passage(i + 1)
+            i += 1
+
+    def spawn_walls(self, env_index):
+        for i, wall in enumerate(self.walls):
+            wall.set_pos(
                 torch.tensor(
                     [
-                        -1
-                        - self.agent_radius
-                        + self.passage_length / 2
-                        + self.passage_length * i,
-                        0.0,
+                        0.0
+                        if i % 2
+                        else (
+                            self.world.x_semidim + self.agent_radius
+                            if i == 0
+                            else -self.world.x_semidim - self.agent_radius
+                        ),
+                        0.0
+                        if not i % 2
+                        else (
+                            self.world.y_semidim + self.agent_radius
+                            if i == 1
+                            else -self.world.y_semidim - self.agent_radius
+                        ),
                     ],
-                    dtype=torch.float32,
                     device=self.world.device,
+                ),
+                batch_index=env_index,
+            )
+            wall.set_rot(
+                torch.tensor(
+                    [torch.pi / 2 if not i % 2 else 0.0], device=self.world.device
                 ),
                 batch_index=env_index,
             )
@@ -602,34 +673,21 @@ class Scenario(BaseScenario):
         from vmas.simulator import rendering
 
         geoms = []
-        # Perimeter
-        for i in range(4):
-            geom = Line(length=2 + self.agent_radius * 2).get_geometry()
-            xform = rendering.Transform()
-            geom.add_attr(xform)
 
-            xform.set_translation(
-                0.0
-                if i % 2
-                else (
-                    self.world.x_semidim + self.agent_radius
-                    if i == 0
-                    else -self.world.x_semidim - self.agent_radius
-                ),
-                0.0
-                if not i % 2
-                else (
-                    self.world.y_semidim + self.agent_radius
-                    if i == 1
-                    else -self.world.y_semidim - self.agent_radius
-                ),
-            )
-            xform.set_rotation(torch.pi / 2 if not i % 2 else 0.0)
-            color = Color.BLACK.value
-            if isinstance(color, torch.Tensor) and len(color.shape) > 1:
-                color = color[env_index]
-            geom.set_color(*color)
-            geoms.append(geom)
+        # for passage in self.passages:
+        #     color = Color.BLACK.value
+        #     try:
+        #         if passage.neighbour[env_index]:
+        #             color = Color.BLUE.value
+        #     except AttributeError:
+        #         pass
+        #
+        #     p = rendering.make_circle(self.agent_radius)
+        #     xform = rendering.Transform()
+        #     p.add_attr(xform)
+        #     xform.set_translation(*passage.state.pos[env_index])
+        #     p.set_color(*color)
+        #     geoms.append(p)
 
         # Agent goal circles
         color = self.goal.color
