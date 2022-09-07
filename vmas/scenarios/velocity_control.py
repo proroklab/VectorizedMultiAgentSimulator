@@ -30,7 +30,7 @@ class Scenario(BaseScenario):
             )
             world.add_agent(agent)
             agent.controller = VelocityController(
-                agent, world.dt, [1, 0.1, 0.01], "standard"
+                agent, world, [1, 0.1, 0.01], "standard"
             )
         goal = Landmark(
             name="goal",
@@ -45,6 +45,7 @@ class Scenario(BaseScenario):
 
     def reset_world_at(self, env_index: int = None):
         for agent in self.world.agents:
+            agent.controller.reset(env_index)
             agent.set_pos(
                 torch.zeros(
                     (1, self.world.dim_p)
