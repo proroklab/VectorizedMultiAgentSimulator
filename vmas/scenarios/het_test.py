@@ -9,6 +9,7 @@ from vmas import render_interactively
 from vmas.simulator.core import Agent, World
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color, X, Y
+from vmas.simulator.velocity_controller import VelocityController
 
 
 class Scenario(BaseScenario):
@@ -25,9 +26,18 @@ class Scenario(BaseScenario):
             color=Color.GREEN,
             render_action=True,
             mass=self.green_mass,
+            f_range=15,
+        )
+        agent.controller = VelocityController(
+            agent, world.dt, [1, 0.1, 0.003], "standard"
         )
         world.add_agent(agent)
-        agent = Agent(name=f"agent 1", collide=False, mass=1, render_action=True)
+        agent = Agent(
+            name=f"agent 1", collide=False, mass=1, render_action=True, f_range=15
+        )
+        agent.controller = VelocityController(
+            agent, world.dt, [1.0, 0.1, 0.003], "standard"
+        )
         world.add_agent(agent)
 
         return world
@@ -47,6 +57,7 @@ class Scenario(BaseScenario):
 
     def process_action(self, agent: Agent):
         agent.action.u[:, Y] = 0
+        # agent.controller.process_force()
 
     def reward(self, agent: Agent):
         is_first = agent == self.world.agents[0]
@@ -62,7 +73,7 @@ class Scenario(BaseScenario):
 
     def observation(self, agent: Agent):
         return torch.cat(
-            [agent.state.pos, agent.state.vel[:, X].unsqueeze(-1)],
+            [agent.state.pos, agent.state.vel],
             dim=-1,
         )
 
