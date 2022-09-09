@@ -26,7 +26,7 @@ class Scenario(BaseScenario):
                 u_range=1,
                 u_multiplier=1,
                 mass=1,
-                f_range=None,
+                f_range=10,
             )
             world.add_agent(agent)
             agent.controller = VelocityController(

@@ -5,6 +5,7 @@ from typing import Dict
 
 import torch
 from torch import Tensor
+
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World
 from vmas.simulator.scenario import BaseScenario
@@ -17,8 +18,9 @@ class Scenario(BaseScenario):
         self.green_mass = kwargs.get("green_mass", 5)
         self.plot_grid = True
 
+        controller_params = [0.5, 1, 0.003]
         # Make world
-        world = World(batch_dim, device)
+        world = World(batch_dim, device, drag=0)
         # Add agents
         agent = Agent(
             name=f"agent 0",
@@ -26,17 +28,17 @@ class Scenario(BaseScenario):
             color=Color.GREEN,
             render_action=True,
             mass=self.green_mass,
-            f_range=15,
+            f_range=2,
         )
         agent.controller = VelocityController(
-            agent, world.dt, [1, 0.1, 0.003], "standard"
+            agent, world, controller_params, "standard"
         )
         world.add_agent(agent)
         agent = Agent(
-            name=f"agent 1", collide=False, mass=1, render_action=True, f_range=15
+            name=f"agent 1", collide=False, mass=1, render_action=True, f_range=2
         )
         agent.controller = VelocityController(
-            agent, world.dt, [1.0, 0.1, 0.003], "standard"
+            agent, world, controller_params, "standard"
         )
         world.add_agent(agent)
 
@@ -44,6 +46,7 @@ class Scenario(BaseScenario):
 
     def reset_world_at(self, env_index: int = None):
         for agent in self.world.agents:
+            agent.controller.reset(env_index)
             agent.set_pos(
                 torch.zeros(
                     (1, self.world.dim_p)
@@ -51,13 +54,14 @@ class Scenario(BaseScenario):
                     else (self.world.batch_dim, self.world.dim_p),
                     device=self.world.device,
                     dtype=torch.float32,
-                ).uniform_(-1, 1),
+                ),
+                # ).uniform_(-1, 1),
                 batch_index=env_index,
             )
 
     def process_action(self, agent: Agent):
         agent.action.u[:, Y] = 0
-        # agent.controller.process_force()
+        agent.controller.process_force()
 
     def reward(self, agent: Agent):
         is_first = agent == self.world.agents[0]
