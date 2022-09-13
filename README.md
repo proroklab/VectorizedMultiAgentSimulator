@@ -23,7 +23,7 @@ The arXiv paper can be found [here](https://arxiv.org/abs/2207.03530).
 
 If you use VMAS in your research, **cite** it using:
 ```
-@article{bettini2022vmas
+@article{bettini2022vmas,
   title = {VMAS: A Vectorized Multi-Agent Simulator for Collective Robot Learning},
   author = {Bettini, Matteo and Kortvelesy, Ryan and Blumenkamp, Jan and Prorok, Amanda},
   year = {2022},
