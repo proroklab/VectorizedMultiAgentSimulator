@@ -1,15 +1,15 @@
 #  Copyright (c) 2022.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
+import math
 from typing import Dict
 
 import torch
 from torch import Tensor
-
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, X, Y
+from vmas.simulator.utils import Color, Y
 from vmas.simulator.velocity_controller import VelocityController
 
 
@@ -18,9 +18,9 @@ class Scenario(BaseScenario):
         self.green_mass = kwargs.get("green_mass", 5)
         self.plot_grid = True
 
-        controller_params = [0.5, 1, 0.003]
+        controller_params = [5, 1, 0.001]
         # Make world
-        world = World(batch_dim, device, drag=0)
+        world = World(batch_dim, device)
         # Add agents
         agent = Agent(
             name=f"agent 0",
@@ -28,14 +28,17 @@ class Scenario(BaseScenario):
             color=Color.GREEN,
             render_action=True,
             mass=self.green_mass,
-            f_range=2,
+            f_range=15,
         )
         agent.controller = VelocityController(
             agent, world, controller_params, "standard"
         )
         world.add_agent(agent)
         agent = Agent(
-            name=f"agent 1", collide=False, mass=1, render_action=True, f_range=2
+            name=f"agent 1",
+            collide=False,
+            render_action=True,
+            f_range=15,
         )
         agent.controller = VelocityController(
             agent, world, controller_params, "standard"
@@ -54,26 +57,48 @@ class Scenario(BaseScenario):
                     else (self.world.batch_dim, self.world.dim_p),
                     device=self.world.device,
                     dtype=torch.float32,
-                ),
-                # ).uniform_(-1, 1),
+                ).uniform_(-1, 1),
                 batch_index=env_index,
             )
 
     def process_action(self, agent: Agent):
         agent.action.u[:, Y] = 0
-        agent.controller.process_force()
+
+    #  agent.controller.process_force()
 
     def reward(self, agent: Agent):
         is_first = agent == self.world.agents[0]
 
         if is_first:
-            self.energy_rew_1 = (self.world.agents[0].action.u[:, X] - 0).abs()
-            self.energy_rew_1 += (self.world.agents[0].action.u[:, Y] - 0).abs()
+            self.max_speed = torch.stack(
+                [
+                    torch.linalg.vector_norm(a.state.vel, dim=1)
+                    for a in self.world.agents
+                ],
+                dim=1,
+            ).max(dim=1)[0]
 
-            self.energy_rew_2 = (self.world.agents[1].action.u[:, X] - 0).abs()
-            self.energy_rew_2 += (self.world.agents[1].action.u[:, Y] - 0).abs()
+            self.energy_expenditure = (
+                -torch.stack(
+                    [
+                        torch.linalg.vector_norm(a.action.u, dim=-1)
+                        / math.sqrt(self.world.dim_p * (a.f_range**2))
+                        for a in self.world.agents
+                    ],
+                    dim=1,
+                ).sum(-1)
+                * 3
+            )
 
-        return -self.energy_rew_1 + self.energy_rew_2
+            # print(self.max_speed)
+            # print(self.energy_expenditure)
+            # self.energy_rew_1 = (self.world.agents[0].action.u[:, X] - 0).abs()
+            # self.energy_rew_1 += (self.world.agents[0].action.u[:, Y] - 0).abs()
+            #
+            # self.energy_rew_2 = (self.world.agents[1].action.u[:, X] - 0).abs()
+            # self.energy_rew_2 += (self.world.agents[1].action.u[:, Y] - 0).abs()
+
+        return self.max_speed + self.energy_expenditure
 
     def observation(self, agent: Agent):
         return torch.cat(
@@ -83,8 +108,8 @@ class Scenario(BaseScenario):
 
     def info(self, agent: Agent) -> Dict[str, Tensor]:
         return {
-            "energy_rew_1": self.energy_rew_1,
-            "energy_rew_2": self.energy_rew_2,
+            "max_speed": self.max_speed,
+            "energy_expenditure": self.energy_expenditure,
         }
 
 

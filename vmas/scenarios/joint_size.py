@@ -6,13 +6,16 @@ from typing import Dict
 
 import torch
 from torch import Tensor
-
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Box, Landmark, Sphere, World, Line
 from vmas.simulator.joints import Joint
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color, Y, X
 from vmas.simulator.velocity_controller import VelocityController
+
+
+def angle_to_vector(angle):
+    return torch.cat([torch.cos(angle), torch.sin(angle)], dim=1)
 
 
 def get_line_angle_0_90(rot: Tensor):
@@ -26,6 +29,12 @@ def get_line_angle_0_180(rot):
     return angle
 
 
+def get_line_angle_dist_0_360(angle, goal):
+    angle = angle_to_vector(angle)
+    goal = angle_to_vector(goal)
+    return -torch.einsum("bs,bs->b", angle, goal)
+
+
 def get_line_angle_dist_0_180(angle, goal):
     angle = get_line_angle_0_180(angle)
     goal = get_line_angle_0_180(goal)
@@ -35,10 +44,6 @@ def get_line_angle_dist_0_180(angle, goal):
             (angle - (goal - torch.pi)).abs(), ((angle - torch.pi) - goal).abs()
         ),
     ).squeeze(-1)
-
-
-def angle_to_vector(angle):
-    return torch.cat([torch.cos(angle), torch.sin(angle)], dim=1)
 
 
 class Scenario(BaseScenario):
@@ -55,11 +60,11 @@ class Scenario(BaseScenario):
         self.max_speed_1 = kwargs.get("max_speed_1", None)  # 0.1
         self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 1)
         self.rot_shaping_factor = kwargs.get("rot_shaping_factor", 1)
-        self.collision_reward = kwargs.get("collision_reward", -0.1)
+        self.collision_reward = kwargs.get("collision_reward", 0)
         self.energy_reward_coeff = kwargs.get("energy_reward_coeff", 0)
         self.obs_noise = kwargs.get("obs_noise", 0.0)
 
-        self.plot_grid = True
+        self.plot_grid = False
 
         # Make world
         world = World(
@@ -76,9 +81,9 @@ class Scenario(BaseScenario):
         if not self.observe_joint_angle:
             assert self.joint_angle_obs_noise == 0
 
-        self.middle_angle = 0
-
         self.n_agents = 2
+
+        self.middle_angle = torch.zeros((world.batch_dim, 1), device=world.device)
 
         self.agent_radius = 0.03333
         self.agent_radius_2 = 3 * self.agent_radius
@@ -185,14 +190,12 @@ class Scenario(BaseScenario):
         return world
 
     def reset_world_at(self, env_index: int = None):
-        start_angle = torch.zeros(
+        start_angle = torch.rand(
             (1, 1) if env_index is not None else (self.world.batch_dim, 1),
             device=self.world.device,
-            dtype=torch.float32,
-        ).uniform_(
-            -torch.pi / 2 if self.random_start_angle else torch.pi / 2,
-            torch.pi / 2 if self.random_start_angle else torch.pi / 2,
         )
+        start_angle[start_angle >= 0.5] = torch.pi / 2
+        start_angle[start_angle < 0.5] = -torch.pi / 2
 
         goal_angle = torch.zeros(
             (1, 1) if env_index is not None else (self.world.batch_dim, 1),
@@ -268,8 +271,7 @@ class Scenario(BaseScenario):
         )
         self.goal.set_rot(goal_angle, batch_index=env_index)
 
-        order = torch.randperm(self.n_agents).tolist()
-        agents = [self.world.agents[i] for i in order]
+        agents = self.world.agents
         for i, agent in enumerate(agents):
             agent.controller.reset(env_index)
             if i == 0:
@@ -297,6 +299,8 @@ class Scenario(BaseScenario):
         self.spawn_walls(env_index)
 
         if env_index is None:
+            self.passed = torch.zeros((self.world.batch_dim,), device=self.world.device)
+
             self.joint.pos_shaping_pre = (
                 torch.linalg.vector_norm(
                     self.joint.landmark.state.pos - self.pass_center, dim=1
@@ -311,19 +315,21 @@ class Scenario(BaseScenario):
             )
 
             self.joint.rot_shaping_pre = (
-                get_line_angle_dist_0_180(
+                get_line_angle_dist_0_360(
                     self.joint.landmark.state.rot, self.middle_angle
                 )
                 * self.rot_shaping_factor
             )
-            self.joint.rot_shaping_post = (
-                get_line_angle_dist_0_180(
-                    self.joint.landmark.state.rot, self.goal.state.rot
-                )
-                * self.rot_shaping_factor
-            )
+            # self.joint.rot_shaping_post = (
+            #     get_line_angle_dist_0_180(
+            #         self.joint.landmark.state.rot, self.goal.state.rot
+            #     )
+            #     * self.rot_shaping_factor
+            # )
 
         else:
+            self.passed[env_index] = 0
+
             self.joint.pos_shaping_pre[env_index] = (
                 torch.linalg.vector_norm(
                     self.joint.landmark.state.pos[env_index]
@@ -339,18 +345,19 @@ class Scenario(BaseScenario):
                 * self.pos_shaping_factor
             )
             self.joint.rot_shaping_pre[env_index] = (
-                get_line_angle_dist_0_180(
-                    self.joint.landmark.state.rot[env_index], self.middle_angle
+                get_line_angle_dist_0_360(
+                    self.joint.landmark.state.rot[env_index].unsqueeze(-1),
+                    self.middle_angle[env_index].unsqueeze(-1),
                 )
                 * self.rot_shaping_factor
             )
-            self.joint.rot_shaping_post[env_index] = (
-                get_line_angle_dist_0_180(
-                    self.joint.landmark.state.rot[env_index],
-                    self.goal.state.rot[env_index],
-                )
-                * self.rot_shaping_factor
-            )
+            # self.joint.rot_shaping_post[env_index] = (
+            #     get_line_angle_dist_0_180(
+            #         self.joint.landmark.state.rot[env_index],
+            #         self.goal.state.rot[env_index],
+            #     )
+            #     * self.rot_shaping_factor
+            # )
 
     def reward(self, agent: Agent):
         is_first = agent == self.world.agents[0]
@@ -365,7 +372,7 @@ class Scenario(BaseScenario):
             self.energy_rew = self.rew.clone()
 
             joint_passed = self.joint.landmark.state.pos[:, Y] > 0
-            all_passed = (
+            self.all_passed = (
                 torch.stack([a.state.pos[:, Y] for a in self.world.agents], dim=1)
                 > self.passage_width / 2
             ).all(dim=1)
@@ -394,30 +401,21 @@ class Scenario(BaseScenario):
             self.joint.pos_shaping_post = joint_shaping
 
             # Rot shaping
-            rot_passed = all_passed
-            joint_dist_to_90_rot = get_line_angle_dist_0_180(
+            joint_dist_to_90_rot = get_line_angle_dist_0_360(
                 self.joint.landmark.state.rot, self.middle_angle
             )
             joint_shaping = joint_dist_to_90_rot * self.rot_shaping_factor
-            self.rot_rew[~rot_passed] += (self.joint.rot_shaping_pre - joint_shaping)[
-                ~rot_passed
-            ]
+            self.rot_rew += self.joint.rot_shaping_pre - joint_shaping
             self.joint.rot_shaping_pre = joint_shaping
 
-            joint_dist_to_goal_rot = get_line_angle_dist_0_180(
-                self.joint.landmark.state.rot, self.goal.state.rot
-            )
-            joint_shaping = joint_dist_to_goal_rot * self.rot_shaping_factor
-            self.rot_rew[rot_passed] += (self.joint.rot_shaping_post - joint_shaping)[
-                rot_passed
-            ]
-            self.joint.rot_shaping_post = joint_shaping
-
-            left_or_right = torch.sign(self.small_left_or_right)
-            self.rew_left_or_right = (
-                -(left_or_right * angle_to_vector(self.joint.landmark.state.rot)[:, X])
-                * 0.01
-            )
+            # joint_dist_to_goal_rot = get_line_angle_dist_0_180(
+            #     self.joint.landmark.state.rot, self.goal.state.rot
+            # )
+            # joint_shaping = joint_dist_to_goal_rot * self.rot_shaping_factor
+            # self.rot_rew[rot_passed] += (self.joint.rot_shaping_post - joint_shaping)[
+            #     rot_passed
+            # ]
+            # self.joint.rot_shaping_post = joint_shaping
 
             # Agent collisions
             if self.collision_reward != 0:
@@ -449,11 +447,7 @@ class Scenario(BaseScenario):
                 self.energy_rew = -self.energy_expenditure * self.energy_reward_coeff
 
             self.rew = (
-                self.pos_rew
-                + self.rot_rew
-                + self.collision_rew
-                + self.energy_rew
-                + self.rew_left_or_right
+                self.pos_rew + self.rot_rew + self.collision_rew + self.energy_rew
             )
 
         return self.rew
@@ -525,13 +519,19 @@ class Scenario(BaseScenario):
         )
 
     def info(self, agent: Agent) -> Dict[str, Tensor]:
-        return {
-            "pos_rew": self.pos_rew,
-            "rot_rew": self.rot_rew,
-            "collision_rew": self.collision_rew,
-            "energy_rew": self.energy_rew,
-            "left_or_right_rew": self.rew_left_or_right,
-        }
+        is_first = self.world.agents[0] == agent
+        if is_first:
+            just_passed = self.all_passed * (self.passed == 0)
+            self.passed[just_passed] = 100
+            return {
+                "pos_rew": self.pos_rew,
+                "rot_rew": self.rot_rew,
+                "collision_rew": self.collision_rew,
+                "energy_rew": self.energy_rew,
+                "passed": just_passed.to(torch.int),
+            }
+        else:
+            return {}
 
     def create_passage_map(self, world: World):
         # Add landmarks
@@ -623,16 +623,22 @@ class Scenario(BaseScenario):
         ) / 2
         small_passage_pos = get_pos(big_passage_start_index + small_left_or_right)
         pass_center = (big_passage_pos + small_passage_pos) / 2
+
         if env_index is None:
             self.small_left_or_right = small_left_or_right
             self.pass_center = pass_center
             self.big_passage_pos = big_passage_pos
             self.small_passage_pos = small_passage_pos
+            self.middle_angle[small_left_or_right > 0] = torch.pi
+            self.middle_angle[small_left_or_right < 0] = 0
         else:
             self.pass_center[env_index] = pass_center
             self.small_left_or_right[env_index] = small_left_or_right
             self.big_passage_pos[env_index] = big_passage_pos
             self.small_passage_pos[env_index] = small_passage_pos
+            self.middle_angle[env_index] = (
+                0 if small_left_or_right.item() < 0 else torch.pi
+            )
 
         i = torch.zeros(
             (self.world.batch_dim,) if env_index is None else (1,),
