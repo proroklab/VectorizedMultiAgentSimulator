@@ -26,7 +26,9 @@ def make_env(
     **kwargs,
 ):
     # load scenario from script
-    scenario = scenarios.load(scenario_name + ".py").Scenario()
+    if not scenario_name.endswith(".py"):
+        scenario_name += ".py"
+    scenario = scenarios.load(scenario_name).Scenario()
     env = Environment(
         scenario,
         num_envs=num_envs,
