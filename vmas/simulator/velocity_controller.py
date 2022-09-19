@@ -6,9 +6,10 @@ import warnings
 from typing import Union
 
 import torch
+from torch import Tensor
+
 import vmas.simulator.core
 import vmas.simulator.utils
-from torch import Tensor
 
 
 class VelocityController:
@@ -116,6 +117,6 @@ class VelocityController:
         # apply control
         err = des_vel - cur_vel
         u = self.ctrl_gain * (err + self.integralError(err) + self.rateError(err))
-        u = u * self.agent.mass
+        u *= self.agent.mass
 
         self.agent.action.u = u
