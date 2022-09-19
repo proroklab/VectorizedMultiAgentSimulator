@@ -60,6 +60,8 @@ class VelocityController:
             fmax = min(
                 self.agent.max_f,
                 self.agent.f_range,
+                self.agent.max_a * agent.mass,
+                self.agent.a_range * agent.mass,
                 key=lambda x: x if x is not None else math.inf,
             )
             if fmax is not None:
