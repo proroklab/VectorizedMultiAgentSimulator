@@ -1425,10 +1425,10 @@ class World(TorchVectorizedObject):
                 self._apply_action_torque(entity, i)
                 # apply gravity
                 self._apply_gravity(entity, i)
-                # apply friction
-                self._apply_friction_force(entity, i)
                 # apply environment forces (constraints)
                 self._apply_environment_force(entity, i)
+                # apply friction
+                self._apply_friction_force(entity, i)
             for i, entity in enumerate(self.entities):
                 # integrate physical state
                 self._integrate_state(entity, i, substep)
@@ -1475,7 +1475,9 @@ class World(TorchVectorizedObject):
                     if entity.action.u_rot_noise
                     else 0.0
                 )
-                torque = entity.action.u_rot + noise
+                entity.action.u_rot = entity.action.u_rot + noise
+                if len(entity.action.u_rot.shape) == 1:
+                    entity.action.u_rot.unsqueeze_(-1)
                 if entity.max_t is not None:
                     entity.action.u_rot = clamp_with_norm(
                         entity.action.u_rot, entity.max_t
@@ -1484,7 +1486,7 @@ class World(TorchVectorizedObject):
                     entity.action.u_rot = torch.clamp(
                         entity.action.u_rot, -entity.t_range, entity.t_range
                     )
-                self.torque[:, index] += torque
+                self.torque[:, index] += entity.action.u_rot
             assert not self.torque.isnan().any()
 
     def _apply_gravity(self, entity: Entity, index: int):
@@ -1493,30 +1495,60 @@ class World(TorchVectorizedObject):
                 self.force[:, index] += entity.mass * self._gravity
 
     def _apply_friction_force(self, entity: Entity, index: int):
-        def get_friction_acc(velocity: Tensor, coeff: float):
-            speed = torch.linalg.norm(velocity, dim=1)
-            in_motion = speed > coeff * self._sub_dt
-            friction_force = -(velocity / speed.unsqueeze(-1)) * coeff
-            friction_force[~in_motion] = -(velocity[~in_motion]) / self._sub_dt
+        def get_friction_force(vel, coeff, force, mass):
+            speed = torch.linalg.vector_norm(vel, dim=1)
+            static = speed == 0
+
+            force_direction = force / torch.linalg.vector_norm(force, dim=1)
+            force_direction = torch.nan_to_num(force_direction)
+
+            friction_force_constant = torch.full_like(
+                force, coeff * mass, device=self.device
+            )
+
+            friction_force = (
+                torch.minimum(
+                    friction_force_constant,
+                    force.abs(),
+                )
+                * -force_direction
+            )
+            friction_force[~static] = (
+                -(vel / speed.unsqueeze(-1))
+                * torch.minimum(
+                    friction_force_constant, (vel.abs() / self._sub_dt) * mass
+                )
+            )[~static]
+
             return friction_force
 
         if entity.linear_friction is not None:
-            self.force[:, index] += (
-                get_friction_acc(entity.state.vel, entity.linear_friction) * entity.mass
+            self.force[:, index] += get_friction_force(
+                entity.state.vel,
+                entity.linear_friction,
+                self.force[:, index],
+                entity.mass,
             )
         elif self._linear_friction > 0:
-            self.force[:, index] += (
-                get_friction_acc(entity.state.vel, self._linear_friction) * entity.mass
+            self.force[:, index] += get_friction_force(
+                entity.state.vel,
+                self._linear_friction,
+                self.force[:, index],
+                entity.mass,
             )
         if entity.angular_friction is not None:
-            self.torque[:, index] += (
-                get_friction_acc(entity.state.ang_vel, entity.angular_friction)
-                * entity.moment_of_inertia
+            self.torque[:, index] += get_friction_force(
+                entity.state.ang_vel,
+                entity.angular_friction,
+                self.torque[:, index],
+                entity.moment_of_inertia,
             )
         elif self._angular_friction > 0:
-            self.torque[:, index] += (
-                get_friction_acc(entity.state.ang_vel, self._angular_friction)
-                * entity.moment_of_inertia
+            self.torque[:, index] += get_friction_force(
+                entity.state.ang_vel,
+                self._angular_friction,
+                self.torque[:, index],
+                entity.moment_of_inertia,
             )
 
     # gather physical forces acting on entities
@@ -2085,7 +2117,6 @@ class World(TorchVectorizedObject):
                     accel = clamp_with_norm(accel, entity.max_a)
                 if entity.a_range is not None:
                     accel = accel.clamp(-entity.a_range, entity.a_range)
-
             entity.state.vel += accel * self._sub_dt
             if entity.max_speed is not None:
                 entity.state.vel = clamp_with_norm(entity.state.vel, entity.max_speed)

@@ -256,7 +256,7 @@ class Environment(TorchVectorizedObject):
 
             agent.action.u = physical_action.to(torch.float32)
         else:
-            physical_action = action[:, action_index]
+            physical_action = action[:, action_index].unsqueeze(-1)
             action_index += 1
             self._check_discrete_action(
                 physical_action,
@@ -291,7 +291,7 @@ class Environment(TorchVectorizedObject):
 
                 agent.action.u_rot = physical_action.to(torch.float32)
             else:
-                physical_action = action[:, action_index]
+                physical_action = action[:, action_index].unsqueeze(-1)
                 action_index += 1
                 self._check_discrete_action(
                     physical_action,
