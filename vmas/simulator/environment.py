@@ -303,10 +303,10 @@ class Environment(TorchVectorizedObject):
                 arr1 = physical_action == 1
                 arr2 = physical_action == 2
 
-                disc_action_value = agent.u__rot_range
+                disc_action_value = agent.u_rot_range
 
-                agent.action.u[:] -= disc_action_value * arr1.squeeze(-1)
-                agent.action.u[:] += disc_action_value * arr2.squeeze(-1)
+                agent.action.u_rot[:] -= disc_action_value * arr1.squeeze(-1)
+                agent.action.u_rot[:] += disc_action_value * arr2.squeeze(-1)
 
             agent.action.u_rot *= agent.u_rot_multiplier
         if self.world.dim_c > 0 and not agent.silent:

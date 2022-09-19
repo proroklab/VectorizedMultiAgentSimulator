@@ -60,11 +60,14 @@ class VelocityController:
             fmax = min(
                 self.agent.max_f,
                 self.agent.f_range,
-                self.agent.max_a * agent.mass,
-                self.agent.a_range * agent.mass,
+                self.agent.a_range,
+                self.agent.max_a,
                 key=lambda x: x if x is not None else math.inf,
             )
+
             if fmax is not None:
+                if fmax in [self.agent.max_a, self.agent.a_range]:
+                    fmax *= self.agent.mass
                 self.integrator_windup_cutoff = (
                     0.5 * fmax * self.integralTs / (self.dt * self.ctrl_gain)
                 )
