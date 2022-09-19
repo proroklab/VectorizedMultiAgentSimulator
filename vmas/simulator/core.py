@@ -293,7 +293,15 @@ class AgentState(EntityState):
 
 # action of an agent
 class Action(TorchVectorizedObject):
-    def __init__(self, u_range: float, u_multiplier: float, u_noise: float):
+    def __init__(
+        self,
+        u_range: float,
+        u_multiplier: float,
+        u_noise: float,
+        u_rot_range: float,
+        u_rot_multiplier: float,
+        u_rot_noise: float,
+    ):
         super().__init__()
         # physical motor noise amount
         self._u_noise = u_noise
@@ -301,8 +309,18 @@ class Action(TorchVectorizedObject):
         self._u_range = u_range
         # agent action is a force multiplied by this amount
         self._u_multiplier = u_multiplier
+
+        # physical motor noise amount
+        self._u_rot_noise = u_rot_noise
+        # control range
+        self._u_rot_range = u_rot_range
+        # agent action is a force multiplied by this amount
+        self._u_rot_multiplier = u_rot_multiplier
+
         # physical action
         self._u = None
+        # rotation action
+        self._u_rot = None
         # communication_action
         self._c = None
 
@@ -320,6 +338,21 @@ class Action(TorchVectorizedObject):
         ), f"Action must match batch dim, got {u.shape[0]}, expected {self._batch_dim}"
 
         self._u = u.to(self._device)
+
+    @property
+    def u_rot(self):
+        return self._u_rot
+
+    @u_rot.setter
+    def u_rot(self, u_rot: Tensor):
+        assert (
+            self._batch_dim is not None and self._device is not None
+        ), "First add an agent to the world before setting its action"
+        assert (
+            u_rot.shape[0] == self._batch_dim
+        ), f"Action must match batch dim, got {u_rot.shape[0]}, expected {self._batch_dim}"
+
+        self._u_rot = u_rot.to(self._device)
 
     @property
     def c(self):
@@ -347,6 +380,18 @@ class Action(TorchVectorizedObject):
     @property
     def u_noise(self):
         return self._u_noise
+
+    @property
+    def u_rot_range(self):
+        return self._u_rot_range
+
+    @property
+    def u_rot_multiplier(self):
+        return self._u_rot_multiplier
+
+    @property
+    def u_rot_noise(self):
+        return self._u_rot_noise
 
 
 # properties and state of physical world entity
@@ -640,6 +685,8 @@ class Agent(Entity):
         mass: float = 1.0,
         f_range: float = None,
         max_f: float = None,
+        t_range: float = None,
+        max_t: float = None,
         a_range: float = None,
         max_a: float = None,
         v_range: float = None,
@@ -650,6 +697,9 @@ class Agent(Entity):
         u_noise: float = None,
         u_range: float = 1.0,
         u_multiplier: float = 1.0,
+        u_rot_noise: float = None,
+        u_rot_range: float = 0.0,
+        u_rot_multiplier: float = 1.0,
         action_script: Callable[[Agent, World], None] = None,
         sensors: List[Sensor] = None,
         c_noise: float = None,
@@ -690,6 +740,9 @@ class Agent(Entity):
         # force constraints
         self._f_range = f_range
         self._max_f = max_f
+        # torque constraints
+        self._t_range = t_range
+        self._max_t = max_t
         # accel constraints
         self._a_range = a_range
         self._max_a = max_a
@@ -710,7 +763,12 @@ class Agent(Entity):
 
         # action
         self._action = Action(
-            u_range=u_range, u_multiplier=u_multiplier, u_noise=u_noise
+            u_range=u_range,
+            u_multiplier=u_multiplier,
+            u_noise=u_noise,
+            u_rot_range=u_rot_range,
+            u_rot_multiplier=u_rot_multiplier,
+            u_rot_noise=u_rot_noise,
         )
         # state
         self._state = AgentState()
@@ -748,10 +806,25 @@ class Agent(Entity):
         assert (
             (self._action.u / self.u_multiplier).abs() <= self.u_range
         ).all(), f"Scripted physical action of {self.name} is out of range"
+        if self.u_rot_range != 0:
+            assert (
+                self._action.u_rot is not None
+            ), f"Action script of {self.name} should set u_rot action"
+            assert (
+                self._action.u_rot.shape[1] == 1
+            ), f"Scripted physical rotation action of agent {self.name} has wrong shape"
+            assert (
+                (self._action.u_rot / self._action.u_rot_multiplier).abs()
+                <= self.u_rot_range
+            ).all(), f"Scripted physical rotation action of {self.name} is out of range"
 
     @property
     def u_range(self):
         return self.action.u_range
+
+    @property
+    def u_rot_range(self):
+        return self.action.u_rot_range
 
     @property
     def obs_noise(self):
@@ -766,12 +839,24 @@ class Agent(Entity):
         return self.action.u_multiplier
 
     @property
+    def u_rot_multiplier(self):
+        return self.action.u_rot_multiplier
+
+    @property
     def max_f(self):
         return self._max_f
 
     @property
     def f_range(self):
         return self._f_range
+
+    @property
+    def max_t(self):
+        return self._max_t
+
+    @property
+    def t_range(self):
+        return self._t_range
 
     @property
     def max_a(self):
@@ -1334,8 +1419,10 @@ class World(TorchVectorizedObject):
             self.torque[:] = 0
 
             for i, entity in enumerate(self.entities):
-                # apply agent physical controls
+                # apply agent force controls
                 self._apply_action_force(entity, i)
+                # apply agent torque controls
+                self._apply_action_torque(entity, i)
                 # apply gravity
                 self._apply_gravity(entity, i)
                 # apply friction
@@ -1374,25 +1461,31 @@ class World(TorchVectorizedObject):
                 self.force[:, index] += entity.action.u
             assert not self.force.isnan().any()
 
-    # def _apply_action_torque(self, entity: Entity, index: int):
-    #     if isinstance(entity, Agent):
-    #         # set applied forces
-    #         if entity.rotatable:
-    #             noise = (
-    #                 torch.randn(
-    #                     *entity.action.u.shape, device=self.device, dtype=torch.float32
-    #                 )
-    #                 * entity.u_noise
-    #                 if entity.u_noise
-    #                 else 0.0
-    #             )
-    #             torque = entity.action.u[:, X] + noise
-    #             if entity.max_f is not None:
-    #                 torque = clamp_with_norm(torque, entity.max_f)
-    #             if entity.f_range is not None:
-    #                 torque = torch.clamp(torque, -entity.f_range, entity.f_range)
-    #             self.torque[:, index] += torque
-    #         assert not self.torque.isnan().any()
+    def _apply_action_torque(self, entity: Entity, index: int):
+        if isinstance(entity, Agent) and entity.u_rot_range != 0:
+            # set applied forces
+            if entity.rotatable:
+                noise = (
+                    torch.randn(
+                        *entity.action.u_rot.shape,
+                        device=self.device,
+                        dtype=torch.float32,
+                    )
+                    * entity.action.u_rot_noise
+                    if entity.action.u_rot_noise
+                    else 0.0
+                )
+                torque = entity.action.u_rot + noise
+                if entity.max_t is not None:
+                    entity.action.u_rot = clamp_with_norm(
+                        entity.action.u_rot, entity.max_t
+                    )
+                if entity.t_range is not None:
+                    entity.action.u_rot = torch.clamp(
+                        entity.action.u_rot, -entity.t_range, entity.t_range
+                    )
+                self.torque[:, index] += torque
+            assert not self.torque.isnan().any()
 
     def _apply_gravity(self, entity: Entity, index: int):
         if not (self._gravity == 0.0).all():

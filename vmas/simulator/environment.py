@@ -7,11 +7,12 @@ from typing import List, Optional, Tuple, Callable
 import gym
 import numpy as np
 import torch
-import vmas.simulator.utils
 from gym import spaces
 from ray import rllib
 from ray.rllib.utils.typing import EnvActionType, EnvInfoDict, EnvObsType
 from torch import Tensor
+
+import vmas.simulator.utils
 from vmas.simulator.core import Agent, TorchVectorizedObject
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import VIEWER_MIN_SIZE
@@ -50,29 +51,7 @@ class Environment(TorchVectorizedObject):
 
         # configure spaces
         self.action_space = gym.spaces.Tuple(
-            [
-                spaces.Box(
-                    low=np.array(
-                        [-agent.u_range] * self.world.dim_p
-                        + [0.0] * (self.world.dim_c if not agent.silent else 0)
-                    ),
-                    high=np.array(
-                        [agent.u_range] * self.world.dim_p
-                        + [1.0] * (self.world.dim_c if not agent.silent else 0)
-                    ),
-                    shape=(self.get_agent_action_size(agent),),
-                    dtype=float,
-                )
-                if self.continuous_actions
-                else (
-                    spaces.Discrete(self.world.dim_p * 2 + 1)
-                    if self.world.dim_c == 0 or agent.silent
-                    else spaces.MultiDiscrete(
-                        [self.world.dim_p * 2 + 1, self.world.dim_c]
-                    )
-                )
-                for agent in self.agents
-            ]
+            [self.get_action_space(agent) for agent in self.agents]
         )
         self.observation_space = gym.spaces.Tuple(
             [
@@ -206,10 +185,45 @@ class Environment(TorchVectorizedObject):
 
     def get_agent_action_size(self, agent: Agent):
         return (
-            self.world.dim_p + (self.world.dim_c if not agent.silent else 0)
+            self.world.dim_p
+            + (1 if agent.action.u_rot_range != 0 else 0)
+            + (self.world.dim_c if not agent.silent else 0)
             if self.continuous_actions
-            else 1 + (1 if not agent.silent else 0)
+            else 1
+            + (1 if agent.action.u_rot_range != 0 else 0)
+            + (1 if not agent.silent else 0)
         )
+
+    def get_action_space(self, agent: Agent):
+        if self.continuous_actions:
+            return spaces.Box(
+                low=np.array(
+                    [-agent.u_range] * self.world.dim_p
+                    + [-agent.u_rot_range] * (1 if agent.u_rot_range != 0 else 0)
+                    + [0.0] * (self.world.dim_c if not agent.silent else 0)
+                ),
+                high=np.array(
+                    [agent.u_range] * self.world.dim_p
+                    + [agent.u_rot_range] * (1 if agent.u_rot_range != 0 else 0)
+                    + [1.0] * (self.world.dim_c if not agent.silent else 0)
+                ),
+                shape=(self.get_agent_action_size(agent),),
+                dtype=float,
+            )
+        else:
+            if self.world.dim_c == 0 or agent.silent or agent.u_rot_range != 0:
+                return spaces.Discrete(self.world.dim_p * 2 + 1)
+            else:
+                actions = (
+                    [self.world.dim_p * 2 + 1]
+                    + ([3] if agent.u_rot_range != 0 else [])
+                    + (
+                        [self.world.dim_c]
+                        if not agent.silent and self.world.dim_c != 0
+                        else []
+                    )
+                )
+                return spaces.MultiDiscrete(actions)
 
     def _check_discrete_action(self, action: Tensor, low: int, high: int, type: str):
         assert torch.all(
@@ -231,41 +245,73 @@ class Environment(TorchVectorizedObject):
             f"Agent {agent.name} has wrong action size, got {action.shape[1]}, "
             f"expected {self.get_agent_action_size(agent)}"
         )
+        action_index = 0
 
-        if agent.movable:
+        if self.continuous_actions:
+            physical_action = action[:, action_index : self.world.dim_p]
+            action_index += self.world.dim_p
+            assert not torch.any(
+                torch.abs(physical_action) > agent.u_range
+            ), f"Physical actions of agent {agent.name} are out of its range {agent.u_range}"
+
+            agent.action.u = physical_action.to(torch.float32)
+        else:
+            physical_action = action[:, action_index]
+            action_index += 1
+            self._check_discrete_action(
+                physical_action,
+                low=0,
+                high=self.world.dim_p * 2 + 1,
+                type="physical",
+            )
+
+            arr1 = physical_action == 1
+            arr2 = physical_action == 2
+            arr3 = physical_action == 3
+            arr4 = physical_action == 4
+
+            disc_action_value = agent.u_range
+
+            agent.action.u[:, X] -= disc_action_value * arr1.squeeze(-1)
+            agent.action.u[:, X] += disc_action_value * arr2.squeeze(-1)
+            agent.action.u[:, Y] -= disc_action_value * arr3.squeeze(-1)
+            agent.action.u[:, Y] += disc_action_value * arr4.squeeze(-1)
+
+        agent.action.u *= agent.u_multiplier
+        if agent.u_rot_range != 0:
+            agent.action.u_rot = torch.zeros(
+                self.batch_dim, 1, device=self.device, dtype=torch.float32
+            )
             if self.continuous_actions:
-                physical_action = action[:, : self.world.dim_p]
+                physical_action = action[:, action_index]
+                action_index += 1
                 assert not torch.any(
-                    torch.abs(physical_action) > agent.u_range
-                ), f"Physical actions of agent {agent.name} are out of its range {agent.u_range}"
+                    torch.abs(physical_action) > agent.u_rot_range
+                ), f"Physical rotation actions of agent {agent.name} are out of its range {agent.u_rot_range}"
 
-                agent.action.u = physical_action.to(torch.float32)
+                agent.action.u_rot = physical_action.to(torch.float32)
             else:
-                physical_action = action[:, :1]
-
+                physical_action = action[:, action_index]
+                action_index += 1
                 self._check_discrete_action(
                     physical_action,
                     low=0,
-                    high=self.world.dim_p * 2 + 1,
-                    type="physical",
+                    high=3,
+                    type="rotation",
                 )
 
                 arr1 = physical_action == 1
                 arr2 = physical_action == 2
-                arr3 = physical_action == 3
-                arr4 = physical_action == 4
 
-                disc_action_value = agent.u_range
+                disc_action_value = agent.u__rot_range
 
-                agent.action.u[:, X] -= disc_action_value * arr1.squeeze(-1)
-                agent.action.u[:, X] += disc_action_value * arr2.squeeze(-1)
-                agent.action.u[:, Y] -= disc_action_value * arr3.squeeze(-1)
-                agent.action.u[:, Y] += disc_action_value * arr4.squeeze(-1)
+                agent.action.u[:] -= disc_action_value * arr1.squeeze(-1)
+                agent.action.u[:] += disc_action_value * arr2.squeeze(-1)
 
-            agent.action.u *= agent.u_multiplier
+            agent.action.u_rot *= agent.u_rot_multiplier
         if self.world.dim_c > 0 and not agent.silent:
             if not self.continuous_actions:
-                comm_action = action[:, 1:]
+                comm_action = action[:, action_index:]
                 self._check_discrete_action(
                     comm_action, 0, self.world.dim_c, "communication"
                 )
@@ -279,7 +325,7 @@ class Environment(TorchVectorizedObject):
                 # Discrete to one-hot
                 agent.action.c.scatter_(1, comm_action, 1)
             else:
-                comm_action = action[:, self.world.dim_p :]
+                comm_action = action[:, action_index:]
                 assert not torch.any(comm_action > 1) and not torch.any(
                     comm_action < 0
                 ), "Comm actions are out of range [0,1]"
