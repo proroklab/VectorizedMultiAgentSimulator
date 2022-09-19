@@ -6,9 +6,10 @@ import warnings
 from typing import Union
 
 import torch
+from torch import Tensor
+
 import vmas.simulator.core
 import vmas.simulator.utils
-from torch import Tensor
 
 
 class VelocityController:
@@ -59,9 +60,14 @@ class VelocityController:
             fmax = min(
                 self.agent.max_f,
                 self.agent.f_range,
+                self.agent.a_range,
+                self.agent.max_a,
                 key=lambda x: x if x is not None else math.inf,
             )
+
             if fmax is not None:
+                if fmax in [self.agent.max_a, self.agent.a_range]:
+                    fmax *= self.agent.mass
                 self.integrator_windup_cutoff = (
                     0.5 * fmax * self.integralTs / (self.dt * self.ctrl_gain)
                 )
@@ -116,6 +122,6 @@ class VelocityController:
         # apply control
         err = des_vel - cur_vel
         u = self.ctrl_gain * (err + self.integralError(err) + self.rateError(err))
-        u = u * self.agent.mass
+        u *= self.agent.mass
 
         self.agent.action.u = u
