@@ -5,24 +5,26 @@ import time
 
 import numpy as np
 import torch
+from matplotlib import pyplot as plt
+
 from vmas import make_env, Wrapper
 
 
 def use_vmas_env(render: bool = False, save_render: bool = False):
 
-    scenario_name = "waterfall"
+    scenario_name = "het_goal"
 
     # Scenario specific variables
-    n_agents = 4
+    n_agents = 2
 
-    num_envs = 32
-    continuous_actions = False
+    num_envs = 1
+    continuous_actions = True
     device = "cpu"  # or cuda or any other torch device
     wrapper = Wrapper.RLLIB
-    n_steps = 100
+    n_steps = 300
 
     simple_2d_action = (
-        [0, 0.5] if continuous_actions else [3]
+        [1, 0] if continuous_actions else [3]
     )  # Sample action tell each agent to go down
 
     env = make_env(
@@ -38,6 +40,8 @@ def use_vmas_env(render: bool = False, save_render: bool = False):
     frame_list = []  # For creating a gif
     init_time = time.time()
     step = 0
+    v0 = []
+    v1 = []
     for s in range(n_steps):
         actions = []
         step += 1
@@ -49,6 +53,8 @@ def use_vmas_env(render: bool = False, save_render: bool = False):
                     actions_per_env.append(np.array(simple_2d_action))
                 actions.append(actions_per_env)
             obs, rews, dones, info = env.vector_step(actions)
+            v0.append(obs[0][0][2])
+            v1.append(obs[0][1][2])
             if render:
                 frame_list.append(
                     env.try_render_at(
@@ -74,6 +80,17 @@ def use_vmas_env(render: bool = False, save_render: bool = False):
                         visualize_when_rgb=True,
                     )
                 )  # Can give the camera an agent index to focus on
+
+    fig, ax = plt.subplots()
+
+    ax.plot(v0)
+    ax.plot(v1)
+
+    v0_shifted = v0[1:] + [0]
+    v0_shifted = np.array(v0_shifted)
+    v0 = np.array(v0)
+    ax.plot((v0_shifted - v0) / env.env.scenario.world.dt)
+    plt.show()
 
     if render and save_render:
         import cv2
