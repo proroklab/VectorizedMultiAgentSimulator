@@ -11,6 +11,7 @@ from typing import Callable, List, Tuple
 
 import torch
 from torch import Tensor
+
 from vmas.simulator.joints import JointConstraint, Joint
 from vmas.simulator.sensors import Sensor
 from vmas.simulator.utils import (
@@ -639,6 +640,8 @@ class Agent(Entity):
         mass: float = 1.0,
         f_range: float = None,
         max_f: float = None,
+        a_range: float = None,
+        max_a: float = None,
         v_range: float = None,
         max_speed: float = None,
         color=Color.BLUE,
@@ -687,6 +690,9 @@ class Agent(Entity):
         # force constraints
         self._f_range = f_range
         self._max_f = max_f
+        # accel constraints
+        self._a_range = a_range
+        self._max_a = max_a
         # script behavior to execute
         self._action_script = action_script
         # agents sensors
@@ -766,6 +772,14 @@ class Agent(Entity):
     @property
     def f_range(self):
         return self._f_range
+
+    @property
+    def max_a(self):
+        return self._max_a
+
+    @property
+    def a_range(self):
+        return self._a_range
 
     @property
     def silent(self):
@@ -1393,7 +1407,7 @@ class World(TorchVectorizedObject):
             friction_force[~in_motion] = -(velocity[~in_motion]) / self._sub_dt
             return friction_force
 
-        if entity.linear_friction is not None and entity.linear_friction > 0:
+        if entity.linear_friction is not None:
             self.force[:, index] += (
                 get_friction_acc(entity.state.vel, entity.linear_friction) * entity.mass
             )
@@ -1401,7 +1415,7 @@ class World(TorchVectorizedObject):
             self.force[:, index] += (
                 get_friction_acc(entity.state.vel, self._linear_friction) * entity.mass
             )
-        if entity.angular_friction is not None and entity.angular_friction > 0:
+        if entity.angular_friction is not None:
             self.torque[:, index] += (
                 get_friction_acc(entity.state.ang_vel, entity.angular_friction)
                 * entity.moment_of_inertia
@@ -1972,7 +1986,14 @@ class World(TorchVectorizedObject):
                     entity.state.vel = entity.state.vel * (1 - entity.drag)
                 else:
                     entity.state.vel = entity.state.vel * (1 - self._drag)
-            entity.state.vel += (self.force[:, index] / entity.mass) * self._sub_dt
+            accel = self.force[:, index] / entity.mass
+            if isinstance(entity, Agent):
+                if entity.max_a is not None:
+                    accel = clamp_with_norm(accel, entity.max_a)
+                if entity.a_range is not None:
+                    accel = accel.clamp(-entity.a_range, entity.a_range)
+
+            entity.state.vel += accel * self._sub_dt
             if entity.max_speed is not None:
                 entity.state.vel = clamp_with_norm(entity.state.vel, entity.max_speed)
             if entity.v_range is not None:
