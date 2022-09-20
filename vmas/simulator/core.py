@@ -687,8 +687,6 @@ class Agent(Entity):
         max_f: float = None,
         t_range: float = None,
         max_t: float = None,
-        a_range: float = None,
-        max_a: float = None,
         v_range: float = None,
         max_speed: float = None,
         color=Color.BLUE,
@@ -743,9 +741,6 @@ class Agent(Entity):
         # torque constraints
         self._t_range = t_range
         self._max_t = max_t
-        # accel constraints
-        self._a_range = a_range
-        self._max_a = max_a
         # script behavior to execute
         self._action_script = action_script
         # agents sensors
@@ -857,14 +852,6 @@ class Agent(Entity):
     @property
     def t_range(self):
         return self._t_range
-
-    @property
-    def max_a(self):
-        return self._max_a
-
-    @property
-    def a_range(self):
-        return self._a_range
 
     @property
     def silent(self):
@@ -1423,12 +1410,12 @@ class World(TorchVectorizedObject):
                 self._apply_action_force(entity, i)
                 # apply agent torque controls
                 self._apply_action_torque(entity, i)
+                # apply friction
+                self._apply_friction_force(entity, i)
                 # apply gravity
                 self._apply_gravity(entity, i)
                 # apply environment forces (constraints)
                 self._apply_environment_force(entity, i)
-                # apply friction
-                self._apply_friction_force(entity, i)
             for i, entity in enumerate(self.entities):
                 # integrate physical state
                 self._integrate_state(entity, i, substep)
@@ -1499,26 +1486,13 @@ class World(TorchVectorizedObject):
             speed = torch.linalg.vector_norm(vel, dim=1)
             static = speed == 0
 
-            force_direction = force / torch.linalg.vector_norm(force, dim=1)
-            force_direction = torch.nan_to_num(force_direction)
-
             friction_force_constant = torch.full_like(
                 force, coeff * mass, device=self.device
             )
-
-            friction_force = (
-                torch.minimum(
-                    friction_force_constant,
-                    force.abs(),
-                )
-                * -force_direction
+            friction_force = -(vel / speed.unsqueeze(-1)) * torch.minimum(
+                friction_force_constant, (vel.abs() / self._sub_dt) * mass
             )
-            friction_force[~static] = (
-                -(vel / speed.unsqueeze(-1))
-                * torch.minimum(
-                    friction_force_constant, (vel.abs() / self._sub_dt) * mass
-                )
-            )[~static]
+            friction_force[static] = 0
 
             return friction_force
 
@@ -2112,11 +2086,6 @@ class World(TorchVectorizedObject):
                 else:
                     entity.state.vel = entity.state.vel * (1 - self._drag)
             accel = self.force[:, index] / entity.mass
-            if isinstance(entity, Agent):
-                if entity.max_a is not None:
-                    accel = clamp_with_norm(accel, entity.max_a)
-                if entity.a_range is not None:
-                    accel = accel.clamp(-entity.a_range, entity.a_range)
             entity.state.vel += accel * self._sub_dt
             if entity.max_speed is not None:
                 entity.state.vel = clamp_with_norm(entity.state.vel, entity.max_speed)
