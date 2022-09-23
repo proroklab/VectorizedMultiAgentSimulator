@@ -7,8 +7,9 @@ from typing import Dict, List
 
 import torch
 from torch import Tensor
+
 from vmas.simulator.core import World, Agent
-from vmas.simulator.utils import INITIAL_VIEWER_SIZE
+from vmas.simulator.utils import INITIAL_VIEWER_SIZE, VIEWER_MIN_ZOOM
 
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
@@ -20,6 +21,8 @@ class BaseScenario(ABC):
         self._world = None
         # This is the viewer size and can be set in the `make_world' function
         self.viewer_size = INITIAL_VIEWER_SIZE
+        # This is the zoom level of the rendering
+        self.viewer_zoom = VIEWER_MIN_ZOOM
         # Whether to plot a grid in the scenario background
         self.plot_grid = False
         # The distance between lines in the background grid

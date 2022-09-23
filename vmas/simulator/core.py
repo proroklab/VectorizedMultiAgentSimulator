@@ -728,8 +728,6 @@ class Agent(Entity):
         )
         if obs_range == 0.0:
             assert sensors is None, f"Blind agent cannot have sensors, got {sensors}"
-        if shape is not None:
-            assert isinstance(shape, Sphere), "Agents must be spheres"
 
         # cannot observe the world
         self._obs_range = obs_range
