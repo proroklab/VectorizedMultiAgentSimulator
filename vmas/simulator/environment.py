@@ -15,7 +15,7 @@ from torch import Tensor
 import vmas.simulator.utils
 from vmas.simulator.core import Agent, TorchVectorizedObject
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import VIEWER_MIN_SIZE
+from vmas.simulator.utils import VIEWER_MIN_ZOOM
 from vmas.simulator.utils import X, Y, ALPHABET
 
 
@@ -421,14 +421,12 @@ class Environment(TorchVectorizedObject):
                 self.viewer.text_lines[idx].set_text(message)
                 idx += 1
 
+        zoom = max(VIEWER_MIN_ZOOM, self.scenario.viewer_zoom)
+
         if aspect_ratio < 1:
-            cam_range = torch.tensor(
-                [VIEWER_MIN_SIZE, VIEWER_MIN_SIZE / aspect_ratio], device=self.device
-            )
+            cam_range = torch.tensor([zoom, zoom / aspect_ratio], device=self.device)
         else:
-            cam_range = torch.tensor(
-                [VIEWER_MIN_SIZE * aspect_ratio, VIEWER_MIN_SIZE], device=self.device
-            )
+            cam_range = torch.tensor([zoom * aspect_ratio, zoom], device=self.device)
 
         if shared_viewer:
             # zoom out to fit everyone
@@ -442,7 +440,7 @@ class Environment(TorchVectorizedObject):
                         torch.max(torch.abs(all_poses[:, Y])),
                     ]
                 )
-                + VIEWER_MIN_SIZE
+                + zoom
                 - 1
             )
 
