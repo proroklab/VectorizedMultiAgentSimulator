@@ -198,13 +198,13 @@ class Environment(TorchVectorizedObject):
         if self.continuous_actions:
             return spaces.Box(
                 low=np.array(
-                    [-agent.u_range] * self.world.dim_p
-                    + [-agent.u_rot_range] * (1 if agent.u_rot_range != 0 else 0)
+                    [-float(agent.u_range)] * self.world.dim_p
+                    + [-float(agent.u_rot_range)] * (1 if agent.u_rot_range != 0 else 0)
                     + [0.0] * (self.world.dim_c if not agent.silent else 0)
                 ),
                 high=np.array(
-                    [agent.u_range] * self.world.dim_p
-                    + [agent.u_rot_range] * (1 if agent.u_rot_range != 0 else 0)
+                    [float(agent.u_range)] * self.world.dim_p
+                    + [float(agent.u_rot_range)] * (1 if agent.u_rot_range != 0 else 0)
                     + [1.0] * (self.world.dim_c if not agent.silent else 0)
                 ),
                 shape=(self.get_agent_action_size(agent),),
