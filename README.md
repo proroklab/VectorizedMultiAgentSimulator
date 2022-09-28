@@ -27,8 +27,8 @@ If you use VMAS in your research, **cite** it using:
   title = {VMAS: A Vectorized Multi-Agent Simulator for Collective Robot Learning},
   author = {Bettini, Matteo and Kortvelesy, Ryan and Blumenkamp, Jan and Prorok, Amanda},
   year = {2022},
-  journal={arXiv preprint arXiv:2207.03530},
-  url = {https://arxiv.org/abs/2207.03530}
+  journal={The 16th International Symposium on Distributed Autonomous Robotic Systems},
+  publisher={Springer}
 }
 ```
 
