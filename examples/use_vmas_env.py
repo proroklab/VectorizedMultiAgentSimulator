@@ -12,16 +12,16 @@ from vmas import make_env, Wrapper
 
 def use_vmas_env(render: bool = False, save_render: bool = False):
 
-    scenario_name = "het_goal"
+    scenario_name = "debug"
 
     # Scenario specific variables
-    n_agents = 2
+    n_agents = 3
 
     num_envs = 1
     continuous_actions = True
     device = "cpu"  # or cuda or any other torch device
     wrapper = Wrapper.RLLIB
-    n_steps = 300
+    n_steps = 200
 
     simple_2d_action = (
         [1, 0] if continuous_actions else [3]
@@ -42,7 +42,10 @@ def use_vmas_env(render: bool = False, save_render: bool = False):
     step = 0
     v0 = []
     v1 = []
+    v2 = []
     for s in range(n_steps):
+        if s > n_steps / 2:
+            simple_2d_action = [0, 0] if continuous_actions else [3]
         actions = []
         step += 1
         print(f"Step {step}")
@@ -55,6 +58,7 @@ def use_vmas_env(render: bool = False, save_render: bool = False):
             obs, rews, dones, info = env.vector_step(actions)
             v0.append(obs[0][0][2])
             v1.append(obs[0][1][2])
+            v2.append(obs[0][2][2])
             if render:
                 frame_list.append(
                     env.try_render_at(
@@ -83,13 +87,26 @@ def use_vmas_env(render: bool = False, save_render: bool = False):
 
     fig, ax = plt.subplots()
 
-    ax.plot(v0)
-    ax.plot(v1)
+    ax.plot(v0, label="v0")
+    ax.plot(v1, label="v1")
+    ax.plot(v2, label="v2")
 
-    v0_shifted = v0[1:] + [0]
+    v0_shifted = v0[1:] + [v0[-1]]
     v0_shifted = np.array(v0_shifted)
     v0 = np.array(v0)
-    ax.plot((v0_shifted - v0) / env.env.scenario.world.dt)
+    ax.plot((v0_shifted - v0) / env.env.scenario.world.dt, label="a0")
+
+    v1_shifted = v1[1:] + [v1[-1]]
+    v1_shifted = np.array(v1_shifted)
+    v1 = np.array(v1)
+    ax.plot((v1_shifted - v1) / env.env.scenario.world.dt, label="a1")
+
+    v2_shifted = v2[1:] + [v2[-1]]
+    v2_shifted = np.array(v2_shifted)
+    v2 = np.array(v2)
+    ax.plot((v2_shifted - v2) / env.env.scenario.world.dt, label="a2")
+
+    plt.legend()
     plt.show()
 
     if render and save_render:
