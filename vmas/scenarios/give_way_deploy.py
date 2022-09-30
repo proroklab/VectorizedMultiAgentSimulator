@@ -5,7 +5,7 @@
 import torch
 
 from vmas import render_interactively
-from vmas.simulator.core import Agent, World, Landmark, Sphere, Line
+from vmas.simulator.core import Agent, World, Landmark, Sphere, Line, Box
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color, X
 from vmas.simulator.velocity_controller import VelocityController
@@ -14,27 +14,39 @@ from vmas.simulator.velocity_controller import VelocityController
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.u_range = kwargs.get("u_range", 0.3)
+        self.f_range = kwargs.get("f_range", 1.5)
         self.obs_noise = kwargs.get("obs_noise", 0.0)
-        self.steady_rew_coeff = kwargs.get("steady_rew_coeff", 50.0)
+        self.box_agents = kwargs.get("box_agents", True)
 
-        self.shared_reward = kwargs.get("shared_reward", True)
-        self.dense_reward = kwargs.get("dense_reward", True)
+        self.steady_rew_coeff = kwargs.get("steady_rew_coeff", 0.1)
+        self.shaping_factor = kwargs.get("shaping_factor", 1.0)  # max is 8
+        self.final_reward = kwargs.get("final_reward", 2.0)
+        self.collision_penalty = kwargs.get("collision_penalty", -0.5)
+
         self.mirror_passage = kwargs.get("mirror_passage", True)
         self.viewer_size = (1600, 700)
 
-        self.shaping_factor = 100
-
-        cotnroller_params = [4, 1.25, 0.001]
+        controller_params = [4, 1.25, 0.001]
 
         # Make world#
-        world = World(batch_dim, device, drag=0.1, substeps=5, collision_force=500)
+        world = World(
+            batch_dim,
+            device,
+            drag=0,
+            linear_friction=0.5,
+            substeps=16 if self.box_agents else 5,
+            collision_force=10000 if self.box_agents else 100,
+        )
 
         self.reference_pos = torch.tensor([1, 1], device=world.device).repeat(
             world.batch_dim, 1
         )
-        self.agent_radius = 0.175
-        self.min_collision_distance = 0.005
-        self.collision_penalty = 0
+        self.agent_radius = 0.16
+
+        self.agent_box_length = 0.32
+        self.agent_box_width = 0.24
+
+        self.min_collision_distance = 0.007
 
         self.tangent = torch.zeros((world.batch_dim, world.dim_p), device=world.device)
         self.tangent[:, X] = 1
@@ -42,14 +54,16 @@ class Scenario(BaseScenario):
         # Add agents
         blue_agent = Agent(
             name="blue agent",
-            shape=Sphere(radius=self.agent_radius),
+            rotatable=False,
+            shape=Sphere(radius=self.agent_radius)
+            if not self.box_agents
+            else Box(length=self.agent_box_length, width=self.agent_box_width),
             u_range=self.u_range,
-            f_range=2,
-            mass=2,
+            f_range=self.f_range,
             render_action=True,
         )
         blue_agent.controller = VelocityController(
-            blue_agent, world, cotnroller_params, "standard"
+            blue_agent, world, controller_params, "standard"
         )
         blue_goal = Landmark(
             name="blue goal",
@@ -63,14 +77,16 @@ class Scenario(BaseScenario):
         green_agent = Agent(
             name="green agent",
             color=Color.GREEN,
-            shape=Sphere(radius=self.agent_radius),
+            shape=Sphere(radius=self.agent_radius)
+            if not self.box_agents
+            else Box(length=self.agent_box_length, width=self.agent_box_width),
+            rotatable=False,
             u_range=self.u_range,
-            f_range=2,
-            mass=2,
+            f_range=self.f_range,
             render_action=True,
         )
         green_agent.controller = VelocityController(
-            green_agent, world, cotnroller_params, "standard"
+            green_agent, world, controller_params, "standard"
         )
         green_goal = Landmark(
             name="green goal",
@@ -176,20 +192,18 @@ class Scenario(BaseScenario):
 
     def reward(self, agent: Agent):
         is_first = agent == self.world.agents[0]
-        is_last = agent == self.world.agents[-1]
 
         blue_agent = self.world.agents[0]
         green_agent = self.world.agents[-1]
 
-        rew = torch.zeros(
-            self.world.batch_dim, device=self.world.device, dtype=torch.float32
-        )
-        self.final_rew = torch.zeros((self.world.batch_dim,), device=self.world.device)
-        self.collision_rew = torch.zeros(
-            (self.world.batch_dim,), device=self.world.device
-        )
-
         if is_first:
+            self.rew = torch.zeros(
+                self.world.batch_dim, device=self.world.device, dtype=torch.float32
+            )
+            self.final_rew = torch.zeros(
+                (self.world.batch_dim,), device=self.world.device
+            )
+
             self.blue_distance = torch.linalg.vector_norm(
                 blue_agent.state.pos - blue_agent.goal.state.pos,
                 dim=1,
@@ -201,46 +215,23 @@ class Scenario(BaseScenario):
             self.blue_on_goal = self.blue_distance < blue_agent.goal.shape.radius
             self.green_on_goal = self.green_distance < green_agent.goal.shape.radius
 
-            if self.dense_reward:
-                green_shaping = self.green_distance * self.shaping_factor
-                self.green_rew = green_agent.shaping - green_shaping
-                green_agent.shaping = green_shaping
+            green_shaping = self.green_distance * self.shaping_factor
+            self.green_rew = green_agent.shaping - green_shaping
+            green_agent.shaping = green_shaping
 
-                blue_shaping = self.blue_distance * self.shaping_factor
-                self.blue_rew = blue_agent.shaping - blue_shaping
-                blue_agent.shaping = blue_shaping
+            blue_shaping = self.blue_distance * self.shaping_factor
+            self.blue_rew = blue_agent.shaping - blue_shaping
+            blue_agent.shaping = blue_shaping
 
-            self.final_rew[
-                (self.blue_on_goal + blue_agent.goal.eaten)
-                * (self.green_on_goal + green_agent.goal.eaten)
-            ] = 200
-        if self.shared_reward:
-            if self.dense_reward:
-                rew[~blue_agent.goal.eaten] += self.blue_rew[~blue_agent.goal.eaten]
-                rew[~green_agent.goal.eaten] += self.green_rew[~green_agent.goal.eaten]
-            else:
-                rew[self.blue_on_goal * ~blue_agent.goal.eaten] += 1
-                rew[self.green_on_goal * ~green_agent.goal.eaten] += 1
-        else:
-            if self.dense_reward:
-                if agent == blue_agent:
-                    rew[~blue_agent.goal.eaten] += self.blue_rew[~blue_agent.goal.eaten]
-                else:
-                    rew[~green_agent.goal.eaten] += self.green_rew[
-                        ~green_agent.goal.eaten
-                    ]
-            else:
-                if agent == blue_agent:
-                    rew[self.blue_on_goal * ~blue_agent.goal.eaten] += 1
-                else:
-                    rew[self.green_on_goal * ~green_agent.goal.eaten] += 1
+            self.rew[~blue_agent.goal.eaten] += self.blue_rew[~blue_agent.goal.eaten]
+            self.rew[~green_agent.goal.eaten] += self.green_rew[~green_agent.goal.eaten]
 
-        if is_last:
             blue_agent.goal.eaten[self.blue_on_goal] = True
             green_agent.goal.eaten[self.green_on_goal] = True
             blue_agent.goal.is_rendering[self.blue_on_goal] = False
             green_agent.goal.is_rendering[self.green_on_goal] = False
             self._done = blue_agent.goal.eaten * green_agent.goal.eaten
+            self.final_rew[self._done] = self.final_reward
 
         desired_vel = self.tangent if agent == blue_agent else -self.tangent
 
@@ -253,16 +244,19 @@ class Scenario(BaseScenario):
             torch.einsum("bs,bs->b", desired_vel, normalized_vel_action)
             * self.steady_rew_coeff
         )
-        self.steady_rew = action_shaping - agent.action_shaping
+        agent.steady_rew = action_shaping - agent.action_shaping
         agent.action_shaping = action_shaping
 
+        agent.collision_rew = torch.zeros(
+            (self.world.batch_dim,), device=self.world.device
+        )
         for a in self.world.agents:
             if a != agent:
-                self.collision_rew[
+                agent.collision_rew[
                     self.world.get_distance(agent, a) <= self.min_collision_distance
                 ] += self.collision_penalty
 
-        return rew + self.final_rew + self.steady_rew + self.collision_rew
+        return self.rew + self.final_rew + agent.steady_rew + agent.collision_rew
 
     def observation(self, agent: Agent):
         observations = [
@@ -288,9 +282,10 @@ class Scenario(BaseScenario):
 
     def info(self, agent: Agent):
         return {
+            "rew": self.rew,
             "final_rew": self.final_rew,
-            "steady_rew": self.steady_rew,
-            "collision_rew": self.collision_rew,
+            "steady_rew": agent.steady_rew,
+            "collision_rew": agent.collision_rew,
         }
 
     def spawn_map(self, world: World):
