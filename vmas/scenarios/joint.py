@@ -6,6 +6,7 @@ from typing import Dict
 
 import torch
 from torch import Tensor
+
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Box, Landmark, Sphere, World, Line
 from vmas.simulator.joints import Joint
@@ -49,16 +50,17 @@ class Scenario(BaseScenario):
         self.random_goal_angle = kwargs.get("random_goal_angle", True)
         self.observe_joint_angle = kwargs.get("observe_joint_angle", False)
         self.joint_angle_obs_noise = kwargs.get("joint_angle_obs_noise", 0.0)
-        self.asym_package = kwargs.get("asym_package", False)
+        self.asym_package = kwargs.get("asym_package", True)
         self.mass_ratio = kwargs.get("mass_ratio", 5)
         self.mass_position = kwargs.get("mass_position", 0.75)
         self.max_speed_1 = kwargs.get("max_speed_1", None)  # 0.1
         self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 1)
         self.rot_shaping_factor = kwargs.get("rot_shaping_factor", 1)
         self.collision_reward = kwargs.get("collision_reward", 0)
-        self.energy_reward_coeff = kwargs.get("energy_reward_coeff", 0.009)
+        self.energy_reward_coeff = kwargs.get("energy_reward_coeff", 0)
         self.all_passed_rot = kwargs.get("all_passed_rot", True)
         self.obs_noise = kwargs.get("obs_noise", 0.0)
+        self.use_controller = kwargs.get("use_controller", False)
 
         self.plot_grid = True
         # Make world
@@ -67,9 +69,9 @@ class Scenario(BaseScenario):
             device,
             x_semidim=1,
             y_semidim=1,
-            substeps=10 if not self.asym_package else 10,
-            joint_force=1000 if self.asym_package else 1000,
-            collision_force=2500 if self.asym_package else 7000,
+            substeps=7 if not self.asym_package else 10,
+            joint_force=900 if self.asym_package else 400,
+            collision_force=2500 if self.asym_package else 1500,
             drag=0.25 if not self.asym_package else 0.15,
         )
 
@@ -96,10 +98,10 @@ class Scenario(BaseScenario):
         agent = Agent(
             name=f"agent 0",
             shape=Sphere(self.agent_radius),
-            u_multiplier=1,
             obs_noise=self.obs_noise,
             render_action=True,
-            f_range=5,
+            u_multiplier=0.8,
+            f_range=0.8,
         )
         agent.controller = VelocityController(
             agent, world, cotnroller_params, "standard"
@@ -109,13 +111,13 @@ class Scenario(BaseScenario):
         agent = Agent(
             name=f"agent 1",
             shape=Sphere(self.agent_radius),
-            u_multiplier=1,
             mass=1 if self.asym_package else self.mass_ratio,
             color=Color.GREEN,
             max_speed=self.max_speed_1,
             obs_noise=self.obs_noise,
             render_action=True,
-            f_range=5,
+            u_multiplier=0.8,
+            f_range=0.8,
         )
         agent.controller = VelocityController(
             agent, world, cotnroller_params, "standard"
@@ -134,7 +136,6 @@ class Scenario(BaseScenario):
             width=0,
             mass=1,
         )
-        self.joint.landmark.collision_filter = lambda e: not isinstance(e.shape, Line)
         world.add_joint(self.joint)
 
         if self.asym_package:
@@ -300,6 +301,8 @@ class Scenario(BaseScenario):
         self.spawn_walls(env_index)
 
         if env_index is None:
+            self.passed = torch.zeros((self.world.batch_dim,), device=self.world.device)
+
             self.joint.pos_shaping_pre = (
                 torch.stack(
                     [
@@ -334,6 +337,8 @@ class Scenario(BaseScenario):
             )
 
         else:
+            self.passed[env_index] = 0
+
             self.joint.pos_shaping_pre[env_index] = (
                 torch.stack(
                     [
@@ -381,7 +386,7 @@ class Scenario(BaseScenario):
             self.collision_rew = self.rew.clone()
 
             joint_passed = self.joint.landmark.state.pos[:, Y] > 0
-            all_passed = (
+            self.all_passed = (
                 torch.stack([a.state.pos[:, Y] for a in self.world.agents], dim=1)
                 > self.passage_width / 2
             ).all(dim=1)
@@ -414,7 +419,7 @@ class Scenario(BaseScenario):
             self.joint.pos_shaping_post = joint_shaping
 
             # Rot shaping
-            rot_passed = all_passed if self.all_passed_rot else joint_passed
+            rot_passed = self.all_passed if self.all_passed_rot else joint_passed
             joint_dist_to_90_rot = get_line_angle_dist_0_180(
                 self.joint.landmark.state.rot, self.middle_angle
             )
@@ -544,17 +549,25 @@ class Scenario(BaseScenario):
         )
 
     def process_action(self, agent: Agent):
-        vel_is_zero = torch.linalg.vector_norm(agent.action.u, dim=1) < 1e-3
-        agent.controller.reset(vel_is_zero)
-        agent.controller.process_force()
+        if self.use_controller:
+            vel_is_zero = torch.linalg.vector_norm(agent.action.u, dim=1) < 1e-3
+            agent.controller.reset(vel_is_zero)
+            agent.controller.process_force()
 
     def info(self, agent: Agent) -> Dict[str, Tensor]:
-        return {
-            "pos_rew": self.pos_rew,
-            "rot_rew": self.rot_rew,
-            "collision_rew": self.collision_rew,
-            "energy_rew": self.energy_rew,
-        }
+        is_first = self.world.agents[0] == agent
+        if is_first:
+            just_passed = self.all_passed * (self.passed == 0)
+            self.passed[just_passed] = 100
+            return {
+                "pos_rew": self.pos_rew,
+                "rot_rew": self.rot_rew,
+                "collision_rew": self.collision_rew,
+                "energy_rew": self.energy_rew,
+                "passed": just_passed.to(torch.int),
+            }
+        else:
+            return {}
 
     def create_passage_map(self, world: World):
         # Add landmarks
@@ -586,18 +599,33 @@ class Scenario(BaseScenario):
             self.passages.append(passage)
             world.add_landmark(passage)
 
+        def joint_collides(e):
+            if e in self.collide_passages:
+                return True
+            return False
+
+        self.joint.landmark.collision_filter = joint_collides
+
     def spawn_passage_map(self, env_index):
 
         passage_indexes = []
+        j = self.n_boxes // 2
         for i in range(self.n_passages):
-            passage_indexes.append(
-                torch.randint(
+            if self.fixed_passage:
+                j += i * (-1 if i % 2 == 0 else 1)
+                passage_index = torch.full(
+                    (self.world.batch_dim,) if env_index is None else (1,),
+                    j,
+                    device=self.world.device,
+                )
+            else:
+                passage_index = torch.randint(
                     0,
                     self.n_boxes - 1,
                     (self.world.batch_dim,) if env_index is None else (1,),
                     device=self.world.device,
                 )
-            )
+            passage_indexes.append(passage_index)
 
         def is_passage(i):
             is_pass = torch.full(i.shape, False, device=self.world.device)
