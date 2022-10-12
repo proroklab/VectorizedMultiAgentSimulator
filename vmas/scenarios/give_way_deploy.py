@@ -7,54 +7,54 @@ import torch
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World, Landmark, Sphere, Line, Box
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, X
+from vmas.simulator.utils import Color, clamp_with_norm
 from vmas.simulator.velocity_controller import VelocityController
 
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.u_range = kwargs.get("u_range", 0.3)
-        self.f_range = kwargs.get("f_range", 1.5)
-        self.obs_noise = kwargs.get("obs_noise", 0.0)
-        self.box_agents = kwargs.get("box_agents", True)
+        self.u_range = kwargs.get("u_range", 0.5)
+        self.a_range = kwargs.get("a_range", 1)
+        self.obs_noise = kwargs.get("obs_noise", 0.02)
+        self.box_agents = kwargs.get("box_agents", False)
+        self.linear_friction = kwargs.get("linear_friction", 0.1)
+        self.min_input_norm = kwargs.get("min_input_norm", 0.08)
+        self.dt_delay = kwargs.get("dt_delay", 0)
 
-        self.steady_rew_coeff = kwargs.get("steady_rew_coeff", 0.1)
-        self.shaping_factor = kwargs.get("shaping_factor", 1.0)  # max is 8
-        self.final_reward = kwargs.get("final_reward", 2.0)
-        self.collision_penalty = kwargs.get("collision_penalty", -0.5)
+        self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 1.0)  # max is 8
+        self.time_rew_coeff = kwargs.get("time_rew_coeff", -0.01)
+        self.collision_penalty = kwargs.get("collision_penalty", -0.1)
 
         self.mirror_passage = kwargs.get("mirror_passage", True)
         self.viewer_size = (1600, 700)
 
-        controller_params = [4, 1.25, 0.001]
+        controller_params = [2, 6, 0.002]
+
+        self.f_range = self.a_range + self.linear_friction
 
         # Make world#
         world = World(
             batch_dim,
             device,
             drag=0,
-            linear_friction=0.5,
+            dt=0.05,
+            linear_friction=self.linear_friction,
             substeps=16 if self.box_agents else 5,
-            collision_force=10000 if self.box_agents else 100,
+            collision_force=10000 if self.box_agents else 500,
         )
 
-        self.reference_pos = torch.tensor([1, 1], device=world.device).repeat(
-            world.batch_dim, 1
-        )
         self.agent_radius = 0.16
-
         self.agent_box_length = 0.32
         self.agent_box_width = 0.24
 
+        self.spawn_pos_noise = 0.02
         self.min_collision_distance = 0.007
-
-        self.tangent = torch.zeros((world.batch_dim, world.dim_p), device=world.device)
-        self.tangent[:, X] = 1
 
         # Add agents
         blue_agent = Agent(
             name="blue agent",
             rotatable=False,
+            linear_friction=self.linear_friction,
             shape=Sphere(radius=self.agent_radius)
             if not self.box_agents
             else Box(length=self.agent_box_length, width=self.agent_box_width),
@@ -77,6 +77,7 @@ class Scenario(BaseScenario):
         green_agent = Agent(
             name="green agent",
             color=Color.GREEN,
+            linear_friction=self.linear_friction,
             shape=Sphere(radius=self.agent_radius)
             if not self.box_agents
             else Box(length=self.agent_box_length, width=self.agent_box_width),
@@ -97,6 +98,11 @@ class Scenario(BaseScenario):
         world.add_agent(green_agent)
         world.add_landmark(green_goal)
 
+        null_action = torch.zeros(world.batch_dim, world.dim_p, device=world.device)
+        blue_agent.input_queue = [null_action.clone() for _ in range(self.dt_delay)]
+        green_agent.input_queue = [null_action.clone() for _ in range(self.dt_delay)]
+        # control delayed by n dts
+
         self.spawn_map(world)
 
         return world
@@ -109,8 +115,8 @@ class Scenario(BaseScenario):
                 device=self.world.device,
             )
             + torch.zeros(self.world.dim_p, device=self.world.device,).uniform_(
-                -0.03,
-                0.03,
+                -self.spawn_pos_noise,
+                self.spawn_pos_noise,
             ),
             batch_index=env_index,
         )
@@ -124,14 +130,6 @@ class Scenario(BaseScenario):
             ),
             batch_index=env_index,
         )
-        if env_index is None:
-            self.world.landmarks[0].eaten = torch.full(
-                (self.world.batch_dim,), False, device=self.world.device
-            )
-            self.world.landmarks[0].reset_render()
-        else:
-            self.world.landmarks[0].eaten[env_index] = False
-            self.world.landmarks[0].is_rendering[env_index] = True
         self.world.agents[1].set_pos(
             torch.tensor(
                 [self.scenario_length / 2 - self.agent_dist_from_wall, 0.0],
@@ -139,8 +137,8 @@ class Scenario(BaseScenario):
                 device=self.world.device,
             )
             + torch.zeros(self.world.dim_p, device=self.world.device,).uniform_(
-                -0.03,
-                0.03,
+                -self.spawn_pos_noise,
+                self.spawn_pos_noise,
             ),
             batch_index=env_index,
         )
@@ -154,40 +152,43 @@ class Scenario(BaseScenario):
             ),
             batch_index=env_index,
         )
-        if env_index is None:
-            self.world.landmarks[1].eaten = torch.full(
-                (self.world.batch_dim,), False, device=self.world.device
-            )
-            self.world.landmarks[1].reset_render()
-        else:
-            self.world.landmarks[1].eaten[env_index] = False
-            self.world.landmarks[1].is_rendering[env_index] = True
+
         self.reset_map(env_index)
         for agent in self.world.agents:
-
             if env_index is None:
                 agent.shaping = (
                     torch.linalg.vector_norm(
                         agent.state.pos - agent.goal.state.pos, dim=1
                     )
-                    * self.shaping_factor
-                )
-                agent.action_shaping = torch.zeros(
-                    (self.world.batch_dim,), device=self.world.device
+                    * self.pos_shaping_factor
                 )
             else:
                 agent.shaping[env_index] = (
                     torch.linalg.vector_norm(
                         agent.state.pos[env_index] - agent.goal.state.pos[env_index]
                     )
-                    * self.shaping_factor
+                    * self.pos_shaping_factor
                 )
-                agent.action_shaping[env_index] = 0
 
     def process_action(self, agent: Agent):
+        # Use queue for delay
+        agent.input_queue.append(agent.action.u.clone())
+        agent.action.u = agent.input_queue.pop(0)
+
+        # Clamp square to circle
+        agent.action.u = clamp_with_norm(agent.action.u, self.u_range)
+
+        # Zero small input
+        action_norm = torch.linalg.vector_norm(agent.action.u, dim=1)
+        agent.action.u[action_norm < self.min_input_norm] = 0
+
+        # Copy action
+        agent.vel_action = agent.action.u.clone()
+
+        # Reset controller
         vel_is_zero = torch.linalg.vector_norm(agent.action.u, dim=1) < 1e-3
         agent.controller.reset(vel_is_zero)
-        agent.vel_action = agent.action.u.clone()
+
         agent.controller.process_force()
 
     def reward(self, agent: Agent):
@@ -197,12 +198,10 @@ class Scenario(BaseScenario):
         green_agent = self.world.agents[-1]
 
         if is_first:
-            self.rew = torch.zeros(
+            self.pos_rew = torch.zeros(
                 self.world.batch_dim, device=self.world.device, dtype=torch.float32
             )
-            self.final_rew = torch.zeros(
-                (self.world.batch_dim,), device=self.world.device
-            )
+            self.time_rew = torch.zeros(self.world.batch_dim, device=self.world.device)
 
             self.blue_distance = torch.linalg.vector_norm(
                 blue_agent.state.pos - blue_agent.goal.state.pos,
@@ -214,38 +213,20 @@ class Scenario(BaseScenario):
             )
             self.blue_on_goal = self.blue_distance < blue_agent.goal.shape.radius
             self.green_on_goal = self.green_distance < green_agent.goal.shape.radius
+            self.goal_reached = self.green_on_goal * self.blue_on_goal
 
-            green_shaping = self.green_distance * self.shaping_factor
+            green_shaping = self.green_distance * self.pos_shaping_factor
             self.green_rew = green_agent.shaping - green_shaping
             green_agent.shaping = green_shaping
 
-            blue_shaping = self.blue_distance * self.shaping_factor
+            blue_shaping = self.blue_distance * self.pos_shaping_factor
             self.blue_rew = blue_agent.shaping - blue_shaping
             blue_agent.shaping = blue_shaping
 
-            self.rew[~blue_agent.goal.eaten] += self.blue_rew[~blue_agent.goal.eaten]
-            self.rew[~green_agent.goal.eaten] += self.green_rew[~green_agent.goal.eaten]
+            self.pos_rew[~self.blue_on_goal] += self.blue_rew[~self.blue_on_goal]
+            self.pos_rew[~self.green_on_goal] += self.green_rew[~self.green_on_goal]
 
-            blue_agent.goal.eaten[self.blue_on_goal] = True
-            green_agent.goal.eaten[self.green_on_goal] = True
-            blue_agent.goal.is_rendering[self.blue_on_goal] = False
-            green_agent.goal.is_rendering[self.green_on_goal] = False
-            self._done = blue_agent.goal.eaten * green_agent.goal.eaten
-            self.final_rew[self._done] = self.final_reward
-
-        desired_vel = self.tangent if agent == blue_agent else -self.tangent
-
-        normalized_vel_action = agent.vel_action / torch.linalg.vector_norm(
-            agent.vel_action, dim=1
-        ).unsqueeze(-1)
-        normalized_vel_action = torch.nan_to_num(normalized_vel_action)
-
-        action_shaping = (
-            torch.einsum("bs,bs->b", desired_vel, normalized_vel_action)
-            * self.steady_rew_coeff
-        )
-        agent.steady_rew = action_shaping - agent.action_shaping
-        agent.action_shaping = action_shaping
+            self.time_rew[~self.goal_reached] += self.time_rew_coeff
 
         agent.collision_rew = torch.zeros(
             (self.world.batch_dim,), device=self.world.device
@@ -255,8 +236,12 @@ class Scenario(BaseScenario):
                 agent.collision_rew[
                     self.world.get_distance(agent, a) <= self.min_collision_distance
                 ] += self.collision_penalty
+        for l in self.world.landmarks:
+            agent.collision_rew[
+                self.world.get_distance(agent, l) <= self.min_collision_distance
+            ] += self.collision_penalty
 
-        return self.rew + self.final_rew + agent.steady_rew + agent.collision_rew
+        return self.pos_rew + self.time_rew + agent.collision_rew
 
     def observation(self, agent: Agent):
         observations = [
@@ -277,27 +262,23 @@ class Scenario(BaseScenario):
             dim=-1,
         )
 
-    def done(self):
-        return self._done
-
     def info(self, agent: Agent):
         return {
-            "rew": self.rew,
-            "final_rew": self.final_rew,
-            "steady_rew": agent.steady_rew,
+            "pos_rew": self.pos_rew,
+            "time_rew": self.time_rew,
             "collision_rew": agent.collision_rew,
         }
 
     def spawn_map(self, world: World):
 
         self.scenario_length = 5
-        self.passage_length = self.agent_radius * 2 + 0.05
-        self.passage_width = 0.48
+        self.passage_length = 0.4
+        self.passage_width = 0.48  # box obstacle length
         self.corridor_width = self.passage_length
         self.small_ceiling_length = (self.scenario_length / 2) - (
             self.passage_length / 2
         )
-        self.goal_dist_from_wall = 0.15
+        self.goal_dist_from_wall = self.agent_radius
         self.agent_dist_from_wall = 0.5
 
         self.walls = []
@@ -496,4 +477,4 @@ class Scenario(BaseScenario):
 
 
 if __name__ == "__main__":
-    render_interactively("give_way_deploy", shared_reward=True, dense_reward=True)
+    render_interactively("give_way_deploy")

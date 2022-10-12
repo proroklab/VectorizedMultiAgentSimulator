@@ -8,38 +8,66 @@ from torch import Tensor
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Sphere, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, X, Y
+from vmas.simulator.utils import Color, X, Y, clamp_with_norm
 from vmas.simulator.velocity_controller import VelocityController
 
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.obs_noise = kwargs.get("obs_noise", 0)
+        self.u_range = kwargs.get("u_range", 1)
+        self.a_range = kwargs.get("a_range", 1)
+        self.obs_noise = kwargs.get("obs_noise", 0.0)
+        self.dt_delay = kwargs.get("dt_delay", 0)
+        self.min_input_norm = kwargs.get("min_input_norm", 0.08)
+        self.linear_friction = kwargs.get("linear_friction", 0.1)
 
-        self.agent_radius = 0.03
-        self.desired_speed = 1
-        self.desired_radius = 1
+        self.agent_radius = 0.16
+        self.desired_speed = 10
+        self.desired_radius = 1.5
+
+        self.viewer_zoom = 2
 
         # Make world
-        world = World(batch_dim, device, drag=0.1)
+        world = World(
+            batch_dim, device, linear_friction=self.linear_friction, dt=0.05, drag=0
+        )
+
+        controller_params = [2, 6, 0.002]
+
+        self.f_range = self.a_range + self.linear_friction
+
+        null_action = torch.zeros(world.batch_dim, world.dim_p, device=world.device)
+        self.input_queue = [null_action.clone() for _ in range(self.dt_delay)]
+        # control delayed by n dts
+
         # Add agents
         self.agent = Agent(
             name=f"agent",
             shape=Sphere(self.agent_radius),
-            mass=2,
-            f_range=8,
-            u_range=0.5,
+            f_range=self.f_range,
+            u_range=self.u_range,
             render_action=True,
         )
         self.agent.controller = VelocityController(
-            self.agent, world, [4, 1.25, 0.001], "standard"
+            self.agent, world, controller_params, "standard"
         )
         world.add_agent(self.agent)
 
         return world
 
     def process_action(self, agent: Agent):
-        # print( agent.state.vel );
+        # Use queue for delay
+        self.input_queue.append(agent.action.u.clone())
+        agent.action.u = self.input_queue.pop(0)
+
+        # Clamp square to circle
+        agent.action.u = clamp_with_norm(agent.action.u, self.u_range)
+
+        # Zero small input
+        action_norm = torch.linalg.vector_norm(agent.action.u, dim=1)
+        agent.action.u[action_norm < self.min_input_norm] = 0
+
+        agent.vel_action = agent.action.u.clone()
         agent.controller.process_force()
 
     def reset_world_at(self, env_index: int = None):

@@ -6,7 +6,6 @@ from typing import Dict
 
 import torch
 from torch import Tensor
-
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Box, Landmark, Sphere, World, Line
 from vmas.simulator.joints import Joint
@@ -44,7 +43,7 @@ def angle_to_vector(angle):
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.n_passages = kwargs.get("n_passages", 1)
-        self.fixed_passage = kwargs.get("fixed_passage", False)
+        self.fixed_passage = kwargs.get("fixed_passage", True)
         self.joint_length = kwargs.get("joint_length", 0.5)
         self.random_start_angle = kwargs.get("random_start_angle", True)
         self.random_goal_angle = kwargs.get("random_goal_angle", True)
@@ -600,7 +599,9 @@ class Scenario(BaseScenario):
             world.add_landmark(passage)
 
         def joint_collides(e):
-            if e in self.collide_passages:
+            if e in self.collide_passages and self.fixed_passage:
+                return e.neighbour
+            elif e in self.collide_passages:
                 return True
             return False
 
@@ -660,7 +661,9 @@ class Scenario(BaseScenario):
                 i[is_pass] += 1
                 is_pass = is_passage(i)
             passage.set_pos(get_pos(i), batch_index=env_index)
-            if env_index is None:
+            if self.fixed_passage:
+                passage.neighbour = (is_passage(i - 1) + is_passage(i + 1)).all()
+            elif env_index is None:
                 passage.neighbour = is_passage(i - 1) + is_passage(i + 1)
             else:
                 passage.neighbour[env_index] = is_passage(i - 1) + is_passage(i + 1)
