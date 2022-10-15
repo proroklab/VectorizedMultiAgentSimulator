@@ -15,15 +15,18 @@ class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.u_range = kwargs.get("u_range", 0.5)
         self.a_range = kwargs.get("a_range", 1)
-        self.obs_noise = kwargs.get("obs_noise", 0.02)
+        self.obs_noise = kwargs.get("obs_noise", 0.01)
         self.box_agents = kwargs.get("box_agents", False)
         self.linear_friction = kwargs.get("linear_friction", 0.1)
         self.min_input_norm = kwargs.get("min_input_norm", 0.08)
         self.dt_delay = kwargs.get("dt_delay", 0)
 
         self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 1.0)  # max is 8
-        self.time_rew_coeff = kwargs.get("time_rew_coeff", -0.01)
-        self.collision_penalty = kwargs.get("collision_penalty", -0.1)
+        self.final_reward = kwargs.get("final_reward", 5.0)
+
+        self.agent_collision_penalty = kwargs.get("agent_collision_penalty", 0)
+        self.passage_collision_penalty = kwargs.get("passage_collision_penalty", 0)
+        self.obstacle_collision_penalty = kwargs.get("obstacle_collision_penalty", 0)
 
         self.mirror_passage = kwargs.get("mirror_passage", True)
         self.viewer_size = (1600, 700)
@@ -48,7 +51,7 @@ class Scenario(BaseScenario):
         self.agent_box_width = 0.24
 
         self.spawn_pos_noise = 0.02
-        self.min_collision_distance = 0.007
+        self.min_collision_distance = 0.005
 
         # Add agents
         blue_agent = Agent(
@@ -170,6 +173,13 @@ class Scenario(BaseScenario):
                     * self.pos_shaping_factor
                 )
 
+        if env_index is None:
+            self.reached_goal = torch.full(
+                (self.world.batch_dim,), False, device=self.world.device
+            )
+        else:
+            self.reached_goal[env_index] = False
+
     def process_action(self, agent: Agent):
         # Use queue for delay
         agent.input_queue.append(agent.action.u.clone())
@@ -201,7 +211,7 @@ class Scenario(BaseScenario):
             self.pos_rew = torch.zeros(
                 self.world.batch_dim, device=self.world.device, dtype=torch.float32
             )
-            self.time_rew = torch.zeros(self.world.batch_dim, device=self.world.device)
+            self.final_rew = torch.zeros(self.world.batch_dim, device=self.world.device)
 
             self.blue_distance = torch.linalg.vector_norm(
                 blue_agent.state.pos - blue_agent.goal.state.pos,
@@ -223,25 +233,39 @@ class Scenario(BaseScenario):
             self.blue_rew = blue_agent.shaping - blue_shaping
             blue_agent.shaping = blue_shaping
 
-            self.pos_rew[~self.blue_on_goal] += self.blue_rew[~self.blue_on_goal]
-            self.pos_rew[~self.green_on_goal] += self.green_rew[~self.green_on_goal]
+            self.pos_rew += self.blue_rew
+            self.pos_rew += self.green_rew
 
-            self.time_rew[~self.goal_reached] += self.time_rew_coeff
+            self.final_rew[self.goal_reached * ~self.reached_goal] = self.final_reward
+            self.reached_goal += self.goal_reached
 
-        agent.collision_rew = torch.zeros(
+        agent.agent_collision_rew = torch.zeros(
+            (self.world.batch_dim,), device=self.world.device
+        )
+        agent.obstacle_collision_rew = torch.zeros(
             (self.world.batch_dim,), device=self.world.device
         )
         for a in self.world.agents:
             if a != agent:
-                agent.collision_rew[
+                agent.agent_collision_rew[
                     self.world.get_distance(agent, a) <= self.min_collision_distance
-                ] += self.collision_penalty
+                ] += self.agent_collision_penalty
         for l in self.world.landmarks:
-            agent.collision_rew[
-                self.world.get_distance(agent, l) <= self.min_collision_distance
-            ] += self.collision_penalty
+            if self.world._collides(agent, l):
+                if l in [*self.passage_1, *self.passage_2]:
+                    penalty = self.passage_collision_penalty
+                else:
+                    penalty = self.obstacle_collision_penalty
+                agent.obstacle_collision_rew[
+                    self.world.get_distance(agent, l) <= self.min_collision_distance
+                ] += penalty
 
-        return self.pos_rew + self.time_rew + agent.collision_rew
+        return (
+            self.pos_rew
+            + agent.obstacle_collision_rew
+            + agent.agent_collision_rew
+            + self.final_rew
+        )
 
     def observation(self, agent: Agent):
         observations = [
@@ -265,8 +289,9 @@ class Scenario(BaseScenario):
     def info(self, agent: Agent):
         return {
             "pos_rew": self.pos_rew,
-            "time_rew": self.time_rew,
-            "collision_rew": agent.collision_rew,
+            "final_rew": self.final_rew,
+            "agent_collision_rew": agent.agent_collision_rew,
+            "obstacle_collision_rew": agent.obstacle_collision_rew,
         }
 
     def spawn_map(self, world: World):
@@ -278,7 +303,7 @@ class Scenario(BaseScenario):
         self.small_ceiling_length = (self.scenario_length / 2) - (
             self.passage_length / 2
         )
-        self.goal_dist_from_wall = self.agent_radius
+        self.goal_dist_from_wall = self.agent_radius + 0.05
         self.agent_dist_from_wall = 0.5
 
         self.walls = []
