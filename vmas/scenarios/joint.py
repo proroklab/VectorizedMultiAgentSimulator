@@ -111,7 +111,7 @@ class Scenario(BaseScenario):
             name=f"agent 1",
             shape=Sphere(self.agent_radius),
             mass=1 if self.asym_package else self.mass_ratio,
-            color=Color.GREEN,
+            color=Color.BLUE,
             max_speed=self.max_speed_1,
             obs_noise=self.obs_noise,
             render_action=True,

@@ -1,9 +1,9 @@
 #  Copyright (c) 2022.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
+import math
 
 import torch
-
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World, Landmark, Sphere, Line, Box
 from vmas.simulator.scenario import BaseScenario
@@ -22,9 +22,10 @@ class Scenario(BaseScenario):
         self.dt_delay = kwargs.get("dt_delay", 0)
 
         self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 1.0)  # max is 8
-        self.final_reward = kwargs.get("final_reward", 5.0)
+        self.final_reward = kwargs.get("final_reward", 0.01)
+        self.energy_reward_coeff = kwargs.get("energy_rew_coeff", 0)
 
-        self.agent_collision_penalty = kwargs.get("agent_collision_penalty", 0)
+        self.agent_collision_penalty = kwargs.get("agent_collision_penalty", -0.1)
         self.passage_collision_penalty = kwargs.get("passage_collision_penalty", 0)
         self.obstacle_collision_penalty = kwargs.get("obstacle_collision_penalty", 0)
 
@@ -74,6 +75,7 @@ class Scenario(BaseScenario):
             shape=Sphere(radius=self.agent_radius / 2),
             color=Color.BLUE,
         )
+        blue_agent.goal = blue_goal
         world.add_agent(blue_agent)
         world.add_landmark(blue_goal)
 
@@ -98,6 +100,7 @@ class Scenario(BaseScenario):
             shape=Sphere(radius=self.agent_radius / 2),
             color=Color.GREEN,
         )
+        green_agent.goal = green_goal
         world.add_agent(green_agent)
         world.add_landmark(green_goal)
 
@@ -124,7 +127,6 @@ class Scenario(BaseScenario):
             batch_index=env_index,
         )
         self.world.agents[0].controller.reset(env_index)
-        self.world.agents[0].goal = self.world.landmarks[0]
         self.world.landmarks[0].set_pos(
             torch.tensor(
                 [(self.scenario_length / 2 - self.goal_dist_from_wall), 0.0],
@@ -146,7 +148,6 @@ class Scenario(BaseScenario):
             batch_index=env_index,
         )
         self.world.agents[1].controller.reset(env_index)
-        self.world.agents[1].goal = self.world.landmarks[1]
         self.world.landmarks[1].set_pos(
             torch.tensor(
                 [-(self.scenario_length / 2 - self.goal_dist_from_wall), 0.0],
@@ -236,7 +237,8 @@ class Scenario(BaseScenario):
             self.pos_rew += self.blue_rew
             self.pos_rew += self.green_rew
 
-            self.final_rew[self.goal_reached * ~self.reached_goal] = self.final_reward
+            # self.final_rew[self.goal_reached * ~self.reached_goal] = self.final_reward
+            self.final_rew[self.goal_reached] = self.final_reward
             self.reached_goal += self.goal_reached
 
         agent.agent_collision_rew = torch.zeros(
@@ -260,10 +262,18 @@ class Scenario(BaseScenario):
                     self.world.get_distance(agent, l) <= self.min_collision_distance
                 ] += penalty
 
+        # Energy reward
+        agent.energy_expenditure = torch.linalg.vector_norm(
+            agent.action.u, dim=-1
+        ) / math.sqrt(self.world.dim_p * (agent.f_range**2))
+
+        agent.energy_rew = -agent.energy_expenditure * self.energy_reward_coeff
+
         return (
             self.pos_rew
             + agent.obstacle_collision_rew
             + agent.agent_collision_rew
+            + agent.energy_rew
             + self.final_rew
         )
 
@@ -290,6 +300,7 @@ class Scenario(BaseScenario):
         return {
             "pos_rew": self.pos_rew,
             "final_rew": self.final_rew,
+            "energy_rew": agent.energy_rew,
             "agent_collision_rew": agent.agent_collision_rew,
             "obstacle_collision_rew": agent.obstacle_collision_rew,
         }
