@@ -11,7 +11,7 @@ This repository contains the code for the Vectorized Multi-Agent Simulator (VMAS
 VMAS is a vectorized framework designed for efficient MARL benchmarking.
 It is comprised of a vectorized 2D physics engine written in PyTorch and a set of challenging multi-robot scenarios.
 Scenario creation is made simple and modular to incentivize contributions.
-VMAS simulates agents and landmarks of different shapes and supports rotations, elastic collisions and custom gravity.
+VMAS simulates agents and landmarks of different shapes and supports rotations, elastic collisions, joints, and custom gravity.
 Holonomic motion models are used for the agents to simplify simulation. Custom sensors such as LIDARs are available and the simulator supports inter-agent communication.
 Vectorization in [PyTorch](https://pytorch.org/) allows VMAPS to perform simulations in a batch, seamlessly scaling to tens of thousands of parallel environments on accelerated hardware.
 VMAS has an interface compatible with [OpenAI Gym](https://github.com/openai/gym) and with the [RLlib](https://docs.ray.io/en/latest/rllib/index.html) library, enabling out-of-the-box integration with a wide range of RL algorithms. 
