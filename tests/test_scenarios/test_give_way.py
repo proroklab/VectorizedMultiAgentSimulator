@@ -12,7 +12,6 @@ from vmas import make_env
 class TestGiveWay(unittest.TestCase):
     def setup_env(self, **kwargs) -> None:
         super().setUp()
-        self.shared_reward = kwargs.get("shared_reward", False)
 
         self.continuous_actions = True
         self.n_envs = 25
@@ -27,7 +26,7 @@ class TestGiveWay(unittest.TestCase):
         self.env.seed(0)
 
     def test_heuristic(self):
-        self.setup_env(n_agents=1)
+        self.setup_env(mirror_passage=False)
         all_done = torch.full((self.n_envs,), False)
         obs = self.env.reset()
         while not all_done.all():
