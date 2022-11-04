@@ -5,6 +5,7 @@ import time
 
 import numpy as np
 import torch
+
 from vmas import make_env, Wrapper
 
 
@@ -84,7 +85,7 @@ def use_vmas_env(render: bool = False, save_render: bool = False):
         video = cv2.VideoWriter(
             video_name,
             cv2.VideoWriter_fourcc(*"mp4v"),
-            30,  # FPS
+            1 / env.env.world.dt,  # FPS
             (frame_list[0].shape[1], frame_list[0].shape[0]),
         )
         for img in frame_list:
