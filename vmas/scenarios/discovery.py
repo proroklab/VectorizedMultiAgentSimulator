@@ -7,6 +7,7 @@ from typing import Dict, Callable, List
 
 import torch
 from torch import Tensor
+
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, Sphere, World, Entity
 from vmas.simulator.heuristic_policy import BaseHeuristicPolicy
@@ -23,8 +24,8 @@ class Scenario(BaseScenario):
         n_agents = kwargs.get("n_agents", 5)
         n_targets = kwargs.get("n_targets", 4)
         self._min_dist_between_entities = kwargs.get("min_dist_between_entities", 0.2)
-        self._lidar_range = kwargs.get("lidar_range", 0.3)
-        self._covering_range = kwargs.get("covering_range", 0.3)
+        self._lidar_range = kwargs.get("lidar_range", 0.5)
+        self._covering_range = kwargs.get("covering_range", 0.25)
         self._agents_per_target = kwargs.get("agents_per_target", 2)
 
         self.agent_collision_penalty = kwargs.get("agent_collision_penalty", -0.1)
@@ -32,10 +33,20 @@ class Scenario(BaseScenario):
 
         self._comms_range = self._lidar_range
         self.min_collision_distance = 0.005
+        self.agent_radius = 0.05
+        self.target_radius = self.agent_radius
+
+        self.viewer_zoom = 1
 
         # Make world
         world = World(
-            batch_dim, device, x_semidim=1, y_semidim=1, collision_force=500, substeps=4
+            batch_dim,
+            device,
+            x_semidim=1,
+            y_semidim=1,
+            collision_force=500,
+            substeps=2,
+            drag=0.15,
         )
 
         # Add agents
@@ -50,6 +61,8 @@ class Scenario(BaseScenario):
             agent = Agent(
                 name=f"agent_{i}",
                 collide=True,
+                shape=Sphere(radius=self.agent_radius),
+                u_multiplier=1.5,
                 sensors=[
                     Lidar(
                         world,
@@ -77,7 +90,7 @@ class Scenario(BaseScenario):
                 name=f"target_{i}",
                 collide=True,
                 movable=False,
-                shape=Sphere(radius=0.05),
+                shape=Sphere(radius=self.target_radius),
                 color=Color.GREEN,
             )
             world.add_landmark(target)
@@ -180,12 +193,14 @@ class Scenario(BaseScenario):
         return agent.collision_rew + agent.covering_reward
 
     def observation(self, agent: Agent):
+        lidar_1_measures = agent.sensors[0].measure()
+        lidar_2_measures = agent.sensors[1].measure()
         return torch.cat(
             [
                 agent.state.pos,
                 agent.state.vel,
-                agent.sensors[0].measure(),
-                agent.sensors[1].measure(),
+                lidar_1_measures,
+                lidar_2_measures,
             ],
             dim=-1,
         )
