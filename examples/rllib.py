@@ -10,8 +10,8 @@ import ray
 import wandb
 from ray import tune
 from ray.rllib import BaseEnv, Policy, RolloutWorker
-from ray.rllib.agents import DefaultCallbacks, MultiCallbacks
 from ray.rllib.agents.ppo import PPOTrainer
+from ray.rllib.algorithms.callbacks import DefaultCallbacks, MultiCallbacks
 from ray.rllib.evaluation import Episode, MultiAgentEpisode
 from ray.rllib.utils.typing import PolicyID
 from ray.tune import register_env
