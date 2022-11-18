@@ -269,4 +269,4 @@ if __name__ == "__main__":
 
     # Scenario specific variables
 
-    render_interactively(scenario_name)
+    render_interactively(scenario_name, control_two_agents=True)

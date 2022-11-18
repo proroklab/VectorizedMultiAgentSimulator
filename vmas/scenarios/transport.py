@@ -343,7 +343,8 @@ class HeuristicPolicy(BaseHeuristicPolicy):
 
 if __name__ == "__main__":
     render_interactively(
-        "transport",
+        __file__,
+        control_two_agents=True,
         n_agents=4,
         n_packages=1,
         package_width=0.15,

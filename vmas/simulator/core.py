@@ -11,7 +11,6 @@ from typing import Callable, List, Tuple
 
 import torch
 from torch import Tensor
-
 from vmas.simulator.joints import JointConstraint, Joint
 from vmas.simulator.sensors import Sensor
 from vmas.simulator.utils import (
@@ -888,7 +887,7 @@ class Agent(Entity):
         super()._reset(env_index)
         if self.state.c is not None:
             if env_index is None:
-                self.state.c = 0.0
+                self.state.c[:] = 0.0
             else:
                 self.state.c[env_index] = 0.0
 

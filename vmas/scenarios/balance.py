@@ -282,5 +282,9 @@ class HeuristicPolicy(BaseHeuristicPolicy):
 
 if __name__ == "__main__":
     render_interactively(
-        "balance", n_agents=3, package_mass=5, random_package_pos_on_line=True
+        __file__,
+        n_agents=3,
+        package_mass=5,
+        random_package_pos_on_line=True,
+        control_two_agents=True,
     )

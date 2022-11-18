@@ -188,4 +188,4 @@ class HeuristicPolicy(BaseHeuristicPolicy):
 
 
 if __name__ == "__main__":
-    render_interactively("flocking", n_agents=10)
+    render_interactively(__file__, control_two_agents=True, n_agents=10)

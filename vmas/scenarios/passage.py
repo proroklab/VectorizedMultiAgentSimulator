@@ -307,4 +307,6 @@ class Scenario(BaseScenario):
 
 
 if __name__ == "__main__":
-    render_interactively("passage", n_passages=1, shared_reward=False)
+    render_interactively(
+        __file__, control_two_agents=True, n_passages=1, shared_reward=False
+    )

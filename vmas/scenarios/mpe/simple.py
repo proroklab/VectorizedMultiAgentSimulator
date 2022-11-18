@@ -3,6 +3,7 @@
 #  All rights reserved.
 
 import torch
+from vmas import render_interactively
 
 from vmas.simulator.core import Agent, World, Landmark
 from vmas.simulator.scenario import BaseScenario
@@ -61,3 +62,7 @@ class Scenario(BaseScenario):
         for entity in self.world.landmarks:
             entity_pos.append(entity.state.pos - agent.state.pos)
         return torch.cat([agent.state.vel, *entity_pos], dim=-1)
+
+
+if __name__ == "__main__":
+    render_interactively(__file__)

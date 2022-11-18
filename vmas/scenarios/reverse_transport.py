@@ -181,7 +181,8 @@ class Scenario(BaseScenario):
 
 if __name__ == "__main__":
     render_interactively(
-        "reverse_transport",
+        __file__,
+        control_two_agents=True,
         n_agents=4,
         package_width=0.6,
         package_length=0.6,
