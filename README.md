@@ -42,7 +42,7 @@ Watch the presentation video of VMAS, showing its structure, scenarios, and expe
 
 ## Table of contents
 - [VectorizedMultiAgentSimulator (VMAS)](#vectorizedmultiagentsimulator-vmas)
-  * [Welcome to **VMAS**!](#welcome-to-vmas)
+  * [Welcome to VMAS!](#welcome-to-vmas)
     + [Paper](#paper)
     + [Video](#video)
   * [Table of contents](#table-of-contents)
