@@ -4,7 +4,7 @@
 <img src="https://github.com/matteobettini/vmas-media/blob/main/media/VMAS_scenarios.gif?raw=true" alt="drawing"/>  
 </p>
 
-### Welcome to **VMAS**!
+## Welcome to **VMAS**!
 
 This repository contains the code for the Vectorized Multi-Agent Simulator (VMAS).
 
@@ -18,7 +18,7 @@ VMAS has an interface compatible with [OpenAI Gym](https://github.com/openai/gym
 The implementation is inspired by [OpenAI's MPE](https://github.com/openai/multiagent-particle-envs). 
 Alongside VMAS's scenarios, we port and vectorize all the scenarios in MPE.
 
-### [Paper](https://arxiv.org/abs/2207.03530)
+## [Paper](https://arxiv.org/abs/2207.03530)
 The arXiv paper can be found [here](https://arxiv.org/abs/2207.03530).
 
 If you use VMAS in your research, **cite** it using:
@@ -32,13 +32,35 @@ If you use VMAS in your research, **cite** it using:
 }
 ```
 
-### [Video](https://youtu.be/aaDRYfiesAY)
+## [Video](https://youtu.be/aaDRYfiesAY)
 Watch the presentation video of VMAS, showing its structure, scenarios, and experiments.
 
 <p align="center">
 
 [![VMAS Video](https://img.youtube.com/vi/aaDRYfiesAY/0.jpg)](https://www.youtube.com/watch?v=aaDRYfiesAY)
 </p>
+
+## Table of contents
+- [VectorizedMultiAgentSimulator (VMAS)](#vectorizedmultiagentsimulator--vmas-)
+  * [Welcome to **VMAS**!](#welcome-to---vmas---)
+  * [Paper](#-paper--https---arxivorg-abs-220703530-)
+  * [Video](#-video--https---youtube-aadryfiesay-)
+  * [Table of contents](#table-of-contents)
+  * [How to use](#how-to-use)
+    + [Notebooks](#notebooks)
+    + [Install](#install)
+    + [Run](#run)
+      - [RLlib](#rllib)
+  * [Simulator features](#simulator-features)
+  * [Creating a new scenario](#creating-a-new-scenario)
+  * [Play a scenario](#play-a-scenario)
+  * [Rendering](#rendering)
+    + [Rendering on server machines](#rendering-on-server-machines)
+  * [List of environments](#list-of-environments)
+    + [VMAS](#vmas)
+    + [MPE](#-mpe--https---githubcom-openai-multiagent-particle-envs-)
+  * [TODOS](#todos)
+
 
 ## How to use
 ### Notebooks
@@ -74,6 +96,7 @@ Here is an example:
         device="cpu", # Or "cuda" for GPU
         continuous_actions=True,
         wrapper=None,  # One of: None, vmas.Wrapper.RLLIB, and vmas.Wrapper.GYM
+        max_steps=None, # Defines the horizon. None is infinite horizon.
         **kwargs # Additional arguments you want to pass to the scenario initialization
     )
 ```
@@ -91,6 +114,7 @@ To see how to use VMAS in RLlib, check out the script in `examples/rllib.py`.
 - **Extensible**: VMAS is not just a simulator with a set of environments. It is a framework that can be used to create new multi-agent scenarios in a format that is usable by the whole MARL community. For this purpose, we have modularized the process of creating a task and introduced interactive rendering to debug it. You can define your own scenario in minutes. Have a look at the dedicated section in this document.
 - **Compatible**: VMAS has wrappers for [RLlib](https://docs.ray.io/en/latest/rllib/index.html) and [OpenAI Gym](https://github.com/openai/gym). RLlib has a large number of already implemented RL algorithms.
 Keep in mind that this interface is less efficient than the unwrapped version. For an example of wrapping, see the main of `make_env`.
+- **Tested**: Our scenarios come with tests which run a custom designed heuristic on each scenario.
 - **Entity shapes**: Our entities (agent and landmarks) can have different customizable shapes (spheres, boxes, lines).
 All these shapes are supported for elastic collisions.
 - **Faster than physics engines**: Our simulator is extremely lightweight, using only tensor operations. It is perfect for 
@@ -101,22 +125,25 @@ customizable. Examples are: drag, friction, gravity, simulation timestep, non-di
 - **Gravity**: VMAS supports customizable gravity.
 - **Sensors**: Our simulator implements ray casting, which can be used to simulate a wide range of distance-based sensors that can be added to agents. We currently support LIDARs. To see available sensors, have a look at the `sensors` script.
 - **Joints**: Our simulator supports joints. Joints are constraints that keep entities at a specified distance. The user can specify the anchor points on the two objects, the distance (including 0), the thickness of the joint, if the joint is allowed to rotate at either anchor point, and if he wants the joint to be collidable. Have a look at the waterfall scenario to see how you can use joints.
+- **Agent actions**: Agents' physical actions are 2D forces for holonomic motion. Agent rotation can also be controlled through a torque action (activated by setting `agent.action.u_rot_range` at agent creation time). Agents can also be equipped with continuous or discrete communication actions.
 
 ## Creating a new scenario
 
-To create a new scenario, just extend the `BaseScenario` class in `scenario`.
+To create a new scenario, just extend the `BaseScenario` class in `scenario.py`.
 
-You will need to implement at least `make_world`, `reset_world_at`, `observation`, and `reward`. Optionally, you can also implement `done`, `info`, and `extra_render`.
+You will need to implement at least `make_world`, `reset_world_at`, `observation`, and `reward`. Optionally, you can also implement `done`, `info`, `process_action`, and `extra_render`.
 
-To know how, just read the documentation of `BaseScenario` and look at the implemented scenarios. 
+You can also change the viewer size, zoom, and enable a background rendered grid by changing these inherited attributes in the `make_world` function.
+
+To know how, just read the documentation of `BaseScenario` in `scenario.py` and look at the implemented scenarios. 
 
 ## Play a scenario
 
-You can play with a scenario interactively!
+You can play with a scenario interactively! **Just execute its script!**
 
-Just use the `render_interactively` script. Relevant values will be plotted to screen.
+Just use the `render_interactively` function in the `interactive_rendering.py` script. Relevant values will be plotted to screen.
 Move the agent with the arrow keys and switch agents with TAB. You can reset the environment by pressing R.
-If you have more than 1 agent, you can control another one with W,A,S,D and switch the second agent using LSHIFT.
+If you have more than 1 agent, you can control another one with W,A,S,D and switch the second agent using LSHIFT. To do this, just set `control_two_agents=True`.
 
 On the screen you will see some data from the agent controlled with arrow keys. This data includes: name, current obs, 
 current reward, total reward so far and environment done flag.
@@ -138,8 +165,11 @@ env.render(
     agent_index_focus=4, # If None keep all agents in camera, else focus camera on specific agent
     index=0, # Index of batched environment to render
     visualize_when_rgb: bool = False, # Also run human visualization when mode=="rgb_array"
+    plot_position_function=None, # A function to plot under the rendering. This function takes the position (x,y) as input and outputs a transparency alpha value. This can be used to visualize a value function.
 )
 ```
+
+You can also change the viewer size, zoom, and enable a background rendered grid by changing these inherited attributes in the scenario `make_world` function.
 
 |                                                                    Gif                                                                    |                             Agent focus                             |
 |:-----------------------------------------------------------------------------------------------------------------------------------------:|:-------------------------------------------------------------------:|
@@ -204,12 +234,15 @@ To create a fake screen you need to have `Xvfb` installed.
 
 ## TODOS
 
+- [ ] Talk about action preprocessing and velocity controller
+- [ ] New envs from joint project with their descriptions, gifs, and joint and vel control references
+- [ ] New ens from adversarial project
 - [ ] Custom actions for scenario
+- [ ] Implement 1D camera sensor
+- [ ] Make football heuristic efficient
 - [X] Link video of experiments
 - [X] Add LIDAR section
 - [X] Implement LIDAR
-- [ ] Implement 1D camera sensor
-- [ ] Make football heuristic efficient
 - [X] Rewrite all MPE scenarios
   - [X] simple
   - [x] simple_adversary
