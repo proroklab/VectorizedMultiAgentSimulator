@@ -7,12 +7,11 @@ from typing import List, Optional, Tuple, Callable
 import gym
 import numpy as np
 import torch
+import vmas.simulator.utils
 from gym import spaces
 from ray import rllib
 from ray.rllib.utils.typing import EnvActionType, EnvInfoDict, EnvObsType
 from torch import Tensor
-
-import vmas.simulator.utils
 from vmas.simulator.core import Agent, TorchVectorizedObject
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import VIEWER_MIN_ZOOM
@@ -723,6 +722,10 @@ class GymWrapper(gym.Env):
         self.action_space = self._env.action_space
 
     def unwrapped(self) -> Environment:
+        return self._env
+
+    @property
+    def env(self):
         return self._env
 
     def step(self, action):

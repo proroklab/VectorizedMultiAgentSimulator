@@ -1,31 +1,27 @@
 #  Copyright (c) 2022.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-import os
 import time
+from typing import Type
 
 import torch
-from PIL import Image
 from vmas import make_env
-from vmas.simulator.heuristic_policy import BaseHeuristicPolicy
-
-
-class RandomPolicy(BaseHeuristicPolicy):
-    def compute_action(self, observation: torch.Tensor, u_range: float) -> torch.Tensor:
-        n_envs = observation.shape[0]
-        return torch.clamp(torch.randn(n_envs, 2), -u_range, u_range)
+from vmas.simulator.heuristic_policy import BaseHeuristicPolicy, RandomPolicy
+from vmas.simulator.utils import save_video
 
 
 def run_heuristic(
     scenario_name: str = "transport",
-    heuristic: BaseHeuristicPolicy = RandomPolicy,
+    heuristic: Type[BaseHeuristicPolicy] = RandomPolicy,
     n_steps: int = 200,
     n_envs: int = 32,
     env_kwargs: dict = {},
     render: bool = False,
-    save: bool = False,
+    save_render: bool = False,
     device: str = "cpu",
 ):
+
+    assert not (save_render and not render), "To save the video you have to render it"
 
     # Scenario specific variables
     policy = heuristic(continuous_action=True)
@@ -56,32 +52,18 @@ def run_heuristic(
         mean_global_reward = global_reward.mean(dim=0)
         total_reward += mean_global_reward
         if render:
-            if save:
-                frame_list.append(
-                    Image.fromarray(
-                        env.render(
-                            mode="rgb_array",
-                            agent_index_focus=None,
-                            visualize_when_rgb=True,
-                        )
-                    )
+            frame_list.append(
+                env.render(
+                    mode="rgb_array",
+                    agent_index_focus=None,
+                    visualize_when_rgb=True,
                 )
-            else:
-                env.render(mode="human")
+            )
 
     total_time = time.time() - init_time
-    if render and save:
-        gif_name = scenario_name + ".gif"
-        # Produce a gif
-        frame_list[0].save(
-            gif_name,
-            save_all=True,
-            append_images=frame_list[1:],
-            duration=3,
-            loop=0,
-        )
-        # Requires image magik to be installed to convert the gif in faster format
-        os.system(f"convert -delay 1x30 -loop 0 {gif_name} {scenario_name}_fast.gif")
+    if render and save_render:
+        save_video(scenario_name, frame_list, 1 / env.scenario.world.dt)
+
     print(
         f"It took: {total_time}s for {n_steps} steps of {n_envs} parallel environments on device {device}\n"
         f"The average total reward was {total_reward}"
@@ -97,5 +79,5 @@ if __name__ == "__main__":
         n_envs=300,
         n_steps=200,
         render=True,
-        save=False,
+        save_render=False,
     )

@@ -5,11 +5,12 @@ import time
 
 import numpy as np
 import torch
-
 from vmas import make_env, Wrapper
+from vmas.simulator.utils import save_video
 
 
 def use_vmas_env(render: bool = False, save_render: bool = False):
+    assert not (save_render and not render), "To save the video you have to render it"
 
     scenario_name = "waterfall"
 
@@ -77,21 +78,9 @@ def use_vmas_env(render: bool = False, save_render: bool = False):
                 )  # Can give the camera an agent index to focus on
 
     if render and save_render:
-        import cv2
-
-        video_name = scenario_name + ".mp4"
-
-        # Produce a video
-        video = cv2.VideoWriter(
-            video_name,
-            cv2.VideoWriter_fourcc(*"mp4v"),
-            1 / env.env.world.dt,  # FPS
-            (frame_list[0].shape[1], frame_list[0].shape[0]),
-        )
-        for img in frame_list:
-            img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-            video.write(img)
-        video.release()
+        if wrapper is not None:
+            env = env.env
+        save_video(scenario_name, frame_list, fps=1 / env.scenario.world.dt)
 
     total_time = time.time() - init_time
     print(
