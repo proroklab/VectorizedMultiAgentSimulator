@@ -4,7 +4,7 @@
 <img src="https://github.com/matteobettini/vmas-media/blob/main/media/VMAS_scenarios.gif?raw=true" alt="drawing"/>  
 </p>
 
-## Welcome to **VMAS**!
+## Welcome to VMAS!
 
 This repository contains the code for the Vectorized Multi-Agent Simulator (VMAS).
 
@@ -18,7 +18,7 @@ VMAS has an interface compatible with [OpenAI Gym](https://github.com/openai/gym
 The implementation is inspired by [OpenAI's MPE](https://github.com/openai/multiagent-particle-envs). 
 Alongside VMAS's scenarios, we port and vectorize all the scenarios in MPE.
 
-## [Paper](https://arxiv.org/abs/2207.03530)
+### [Paper](https://arxiv.org/abs/2207.03530)
 The arXiv paper can be found [here](https://arxiv.org/abs/2207.03530).
 
 If you use VMAS in your research, **cite** it using:
@@ -32,7 +32,7 @@ If you use VMAS in your research, **cite** it using:
 }
 ```
 
-## [Video](https://youtu.be/aaDRYfiesAY)
+### [Video](https://youtu.be/aaDRYfiesAY)
 Watch the presentation video of VMAS, showing its structure, scenarios, and experiments.
 
 <p align="center">
@@ -41,10 +41,10 @@ Watch the presentation video of VMAS, showing its structure, scenarios, and expe
 </p>
 
 ## Table of contents
-- [VectorizedMultiAgentSimulator (VMAS)](#vectorizedmultiagentsimulator--vmas-)
-  * [Welcome to **VMAS**!](#welcome-to---vmas---)
-  * [Paper](#-paper--https---arxivorg-abs-220703530-)
-  * [Video](#-video--https---youtube-aadryfiesay-)
+- [VectorizedMultiAgentSimulator (VMAS)](#vectorizedmultiagentsimulator-vmas)
+  * [Welcome to **VMAS**!](#welcome-to-vmas)
+    + [Paper](#paper)
+    + [Video](#video)
   * [Table of contents](#table-of-contents)
   * [How to use](#how-to-use)
     + [Notebooks](#notebooks)
@@ -58,7 +58,7 @@ Watch the presentation video of VMAS, showing its structure, scenarios, and expe
     + [Rendering on server machines](#rendering-on-server-machines)
   * [List of environments](#list-of-environments)
     + [VMAS](#vmas)
-    + [MPE](#-mpe--https---githubcom-openai-multiagent-particle-envs-)
+    + [MPE](#mpe)
   * [TODOS](#todos)
 
 
