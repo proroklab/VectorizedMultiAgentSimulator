@@ -210,7 +210,7 @@ class Environment(TorchVectorizedObject):
                 dtype=float,
             )
         else:
-            if self.world.dim_c == 0 or agent.silent or agent.u_rot_range != 0:
+            if (self.world.dim_c == 0 or agent.silent) and agent.u_rot_range == 0.0:
                 return spaces.Discrete(self.world.dim_p * 2 + 1)
             else:
                 actions = (
@@ -247,7 +247,7 @@ class Environment(TorchVectorizedObject):
         action_index = 0
 
         if self.continuous_actions:
-            physical_action = action[:, action_index : self.world.dim_p]
+            physical_action = action[:, action_index : action_index + self.world.dim_p]
             action_index += self.world.dim_p
             assert not torch.any(
                 torch.abs(physical_action) > agent.u_range
