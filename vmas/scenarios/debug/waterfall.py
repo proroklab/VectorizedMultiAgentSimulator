@@ -80,9 +80,9 @@ class Scenario(BaseScenario):
                 rotatable=True,
                 shape=Box(length=0.3, width=0.1),
                 color=Color.RED,
-                collision_filter=lambda e: False
-                if isinstance(e.shape, Box) and e.name != "joined landmark"
-                else True,
+                # collision_filter=lambda e: False
+                # if isinstance(e.shape, Box) and e.name != "joined landmark"
+                # else True,
             )
             world.add_landmark(landmark)
         floor = Landmark(
@@ -157,7 +157,7 @@ class Scenario(BaseScenario):
 
 if __name__ == "__main__":
     render_interactively(
-        __file__,
+        "waterfall",
         control_two_agents=True,
         n_agents=5,
         joints=True,

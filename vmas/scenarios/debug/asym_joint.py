@@ -42,7 +42,6 @@ def angle_to_vector(angle):
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-
         self.joint_length = kwargs.get("joint_length", 0.5)
         self.random_start_angle = kwargs.get("random_start_angle", False)
         self.observe_joint_angle = kwargs.get("observe_joint_angle", False)
@@ -51,9 +50,11 @@ class Scenario(BaseScenario):
         self.mass_ratio = kwargs.get("mass_ratio", 5)
         self.mass_position = kwargs.get("mass_position", 0.75)
         self.max_speed_1 = kwargs.get("max_speed_1", None)  # 0.1
+        self.obs_noise = kwargs.get("obs_noise", 0.2)
+
+        # Reward
         self.rot_shaping_factor = kwargs.get("rot_shaping_factor", 1)
         self.energy_reward_coeff = kwargs.get("energy_reward_coeff", 0.08)
-        self.obs_noise = kwargs.get("obs_noise", 0.2)
 
         # Make world
         world = World(
@@ -313,4 +314,4 @@ class Scenario(BaseScenario):
 
 
 if __name__ == "__main__":
-    render_interactively("asym_joint", control_two_agents=True)
+    render_interactively(__file__, control_two_agents=True)

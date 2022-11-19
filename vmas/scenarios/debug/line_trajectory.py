@@ -5,6 +5,7 @@ from typing import Dict
 
 import torch
 from torch import Tensor
+
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Sphere, World
 from vmas.simulator.scenario import BaseScenario
@@ -26,7 +27,7 @@ class Scenario(BaseScenario):
             name=f"agent",
             shape=Sphere(self.agent_radius),
             mass=2,
-            f_range=30,
+            f_range=0.5,
             u_range=1,
             render_action=True,
         )
@@ -138,4 +139,4 @@ class Scenario(BaseScenario):
 
 
 if __name__ == "__main__":
-    render_interactively("line")
+    render_interactively(__file__)

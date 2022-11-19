@@ -1,11 +1,11 @@
 #  Copyright (c) 2022.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-import math
 from typing import Dict
 
 import torch
 from torch import Tensor
+
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World, Landmark
 from vmas.simulator.scenario import BaseScenario
@@ -22,15 +22,19 @@ class Scenario(BaseScenario):
 
         controller_params = [2, 6, 0.002]
 
-        linear_frinction = 0.05
+        linear_friction = 0.1
+        v_range = 1
         a_range = 1
-        f_range = linear_frinction + a_range
+        f_range = linear_friction + a_range
+
+        # u_range now represents velocities since we are preprocessing actions using a velocity controller
+        u_range = v_range
 
         # Make world
         world = World(
             batch_dim,
             device,
-            linear_friction=linear_frinction,
+            linear_friction=linear_friction,
             drag=0,
             dt=0.05,
             substeps=4,
@@ -43,12 +47,12 @@ class Scenario(BaseScenario):
         # Add agents
         agent = Agent(
             name=f"agent 0",
-            collide=True,
+            collide=False,
             color=Color.GREEN,
             render_action=True,
             mass=self.green_mass,
             f_range=f_range,
-            u_range=1,
+            u_range=u_range,
         )
         agent.controller = VelocityController(
             agent, world, controller_params, "standard"
@@ -59,7 +63,7 @@ class Scenario(BaseScenario):
             collide=False,
             render_action=True,
             # f_range=30,
-            u_range=1,
+            u_range=u_range,
         )
         agent.controller = VelocityController(
             agent, world, controller_params, "standard"
@@ -70,7 +74,7 @@ class Scenario(BaseScenario):
             collide=False,
             render_action=True,
             f_range=30,
-            u_range=1,
+            u_range=u_range,
         )
         agent.controller = VelocityController(
             agent, world, controller_params, "standard"
@@ -148,7 +152,6 @@ class Scenario(BaseScenario):
                 -torch.stack(
                     [
                         torch.linalg.vector_norm(a.action.u, dim=-1)
-                        / math.sqrt(self.world.dim_p * 0)
                         for a in self.world.agents
                     ],
                     dim=1,
@@ -171,4 +174,4 @@ class Scenario(BaseScenario):
 
 
 if __name__ == "__main__":
-    render_interactively(__file__, control_two_agents=False)
+    render_interactively(__file__, control_two_agents=True)

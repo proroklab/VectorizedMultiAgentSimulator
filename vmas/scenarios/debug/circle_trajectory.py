@@ -5,6 +5,7 @@ from typing import Dict
 
 import torch
 from torch import Tensor
+
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Sphere, World
 from vmas.simulator.scenario import BaseScenario
@@ -22,7 +23,6 @@ class Scenario(BaseScenario):
         self.linear_friction = kwargs.get("linear_friction", 0.1)
 
         self.agent_radius = 0.16
-        self.desired_speed = 10
         self.desired_radius = 1.5
 
         self.viewer_zoom = 2
@@ -197,4 +197,4 @@ class Scenario(BaseScenario):
 
 
 if __name__ == "__main__":
-    render_interactively("circle")
+    render_interactively(__file__)

@@ -6,6 +6,7 @@ from typing import Dict
 
 import torch
 from torch import Tensor
+
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World, Landmark, Sphere
 from vmas.simulator.scenario import BaseScenario
@@ -199,14 +200,6 @@ class Scenario(BaseScenario):
                 ],
                 dim=1,
             ).min(dim=1)[0]
-            try:
-                self.just_goal_reached = ~self.goal_reached * (
-                    goal_dist < self.goal.shape.radius
-                )
-            except AttributeError:
-                self.just_goal_reached = torch.full(
-                    (self.world.batch_dim,), False, device=self.world.device
-                )
 
             self.goal_reached = goal_dist < self.goal.shape.radius
             pos_shaping = goal_dist * self.pos_shaping_factor
@@ -227,7 +220,6 @@ class Scenario(BaseScenario):
             dim=1,
         ).sum(-1)
         agent.energy_rew = -agent.energy_expenditure * self.energy_reward_coeff
-        agent.energy_rew[self.goal_reached * ~self.just_goal_reached] *= 2
 
         return self.pos_rew + agent.energy_rew + self.time_rew
 

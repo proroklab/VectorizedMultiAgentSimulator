@@ -6,6 +6,7 @@ from typing import Dict
 
 import torch
 from torch import Tensor
+
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Box, Landmark, Sphere, World, Line
 from vmas.simulator.scenario import BaseScenario
@@ -393,4 +394,4 @@ class Scenario(BaseScenario):
 
 
 if __name__ == "__main__":
-    render_interactively("ball_passage", control_two_agents=True)
+    render_interactively(__file__, control_two_agents=True)

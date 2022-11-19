@@ -6,11 +6,11 @@ from typing import Dict
 
 import torch
 from torch import Tensor
+
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, Y
-from vmas.simulator.velocity_controller import VelocityController
+from vmas.simulator.utils import Color
 
 
 class Scenario(BaseScenario):
@@ -18,7 +18,6 @@ class Scenario(BaseScenario):
         self.green_mass = kwargs.get("green_mass", 5)
         self.plot_grid = True
 
-        controller_params = [5, 1, 0.001]
         # Make world
         world = World(batch_dim, device)
         # Add agents
@@ -28,20 +27,12 @@ class Scenario(BaseScenario):
             color=Color.GREEN,
             render_action=True,
             mass=self.green_mass,
-            f_range=15,
-        )
-        agent.controller = VelocityController(
-            agent, world, controller_params, "standard"
         )
         world.add_agent(agent)
         agent = Agent(
             name=f"agent 1",
             collide=False,
             render_action=True,
-            f_range=15,
-        )
-        agent.controller = VelocityController(
-            agent, world, controller_params, "standard"
         )
         world.add_agent(agent)
 
@@ -49,7 +40,6 @@ class Scenario(BaseScenario):
 
     def reset_world_at(self, env_index: int = None):
         for agent in self.world.agents:
-            agent.controller.reset(env_index)
             agent.set_pos(
                 torch.zeros(
                     (1, self.world.dim_p)
@@ -62,9 +52,8 @@ class Scenario(BaseScenario):
             )
 
     def process_action(self, agent: Agent):
-        agent.action.u[:, Y] = 0
-
-    #  agent.controller.process_force()
+        # agent.action.u[:, Y] = 0
+        pass
 
     def reward(self, agent: Agent):
         is_first = agent == self.world.agents[0]
@@ -114,4 +103,4 @@ class Scenario(BaseScenario):
 
 
 if __name__ == "__main__":
-    render_interactively("het_test", control_two_agents=True)
+    render_interactively(__file__, control_two_agents=True)
