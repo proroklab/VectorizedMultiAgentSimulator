@@ -5,6 +5,7 @@ import time
 
 import numpy as np
 import torch
+
 from vmas import make_env, Wrapper
 from vmas.simulator.utils import save_video
 
@@ -12,16 +13,16 @@ from vmas.simulator.utils import save_video
 def use_vmas_env(render: bool = False, save_render: bool = False):
     assert not (save_render and not render), "To save the video you have to render it"
 
-    scenario_name = "debug"
+    scenario_name = "waterfall"
 
     # Scenario specific variables
-    n_agents = 3
+    n_agents = 4
 
-    num_envs = 1
-    continuous_actions = True
+    num_envs = 32
+    continuous_actions = False
     device = "cpu"  # or cuda or any other torch device
     wrapper = Wrapper.RLLIB
-    n_steps = 200
+    n_steps = 100
 
     simple_2d_action = (
         [0, 0.5] if continuous_actions else [3]
@@ -41,8 +42,6 @@ def use_vmas_env(render: bool = False, save_render: bool = False):
     init_time = time.time()
     step = 0
     for s in range(n_steps):
-        if s > n_steps / 2:
-            simple_2d_action = [0, 0] if continuous_actions else [3]
         actions = []
         step += 1
         print(f"Step {step}")
