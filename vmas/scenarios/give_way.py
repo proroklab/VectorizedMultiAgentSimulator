@@ -437,4 +437,6 @@ class Scenario(BaseScenario):
 
 
 if __name__ == "__main__":
-    render_interactively("give_way", shared_reward=True, dense_reward=True)
+    render_interactively(
+        __file__, control_two_agents=True, shared_reward=True, dense_reward=True
+    )

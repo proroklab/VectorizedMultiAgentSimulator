@@ -136,5 +136,10 @@ class HeuristicPolicy(BaseHeuristicPolicy):
 
 if __name__ == "__main__":
     render_interactively(
-        "wheel", desired_velocity=0.05, n_agents=4, line_length=2, line_mass=30
+        __file__,
+        control_two_agents=True,
+        desired_velocity=0.05,
+        n_agents=4,
+        line_length=2,
+        line_mass=30,
     )

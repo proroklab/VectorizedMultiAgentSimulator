@@ -11,7 +11,6 @@ from typing import Callable, List, Tuple
 
 import torch
 from torch import Tensor
-
 from vmas.simulator.joints import JointConstraint, Joint
 from vmas.simulator.sensors import Sensor
 from vmas.simulator.utils import (
@@ -888,7 +887,7 @@ class Agent(Entity):
         super()._reset(env_index)
         if self.state.c is not None:
             if env_index is None:
-                self.state.c = 0.0
+                self.state.c[:] = 0.0
             else:
                 self.state.c[env_index] = 0.0
 
@@ -1068,7 +1067,7 @@ class World(TorchVectorizedObject):
         box: Entity,
         ray_origin: Tensor,
         ray_direction: Tensor,
-        max_range: float = float("inf"),
+        max_range: float,
     ):
         """
         Inspired from https://tavianator.com/2011/ray_box.html
@@ -1115,32 +1114,34 @@ class World(TorchVectorizedObject):
         sphere: Entity,
         ray_origin: Tensor,
         ray_direction: Tensor,
-        max_range: float = float("inf"),
+        max_range: float,
     ):
-        """
-        Inspired by https://www.bluebill.net/circle_ray_intersection.html
-        Computes distance of ray originating from pos at angle to a sphere and sets distance to
-        max_range if there is no intersection.
-        """
-        assert ray_origin.ndim == 2 and ray_direction.ndim == 1
-        assert ray_origin.shape[0] == ray_direction.shape[0]
-        assert isinstance(sphere.shape, Sphere)
-
-        u = sphere.state.pos - ray_origin
         ray_dir_world = torch.stack(
             [torch.cos(ray_direction), torch.sin(ray_direction)], dim=-1
         )
-        u_dot_ray = torch.bmm(u.unsqueeze(1), ray_dir_world.unsqueeze(2)).squeeze(1)
-        u1 = u_dot_ray * ray_dir_world
-        u2 = u - u1
-        d = torch.linalg.norm(u2, dim=1)
-        m = torch.sqrt(sphere.shape.radius**2 - d**2)
-        first_intersection = ray_origin + u1 - m.unsqueeze(1) * ray_dir_world
-        ray_intersects = d <= sphere.shape.radius
-        sphere_is_in_front = u_dot_ray.squeeze(1) > 0.0
+        test_point_pos = sphere.state.pos
+        line_rot = ray_direction
+        line_length = max_range
+        line_pos = ray_origin + ray_dir_world * (line_length / 2)
 
-        dist = torch.linalg.norm(ray_origin - first_intersection, dim=1)
+        closest_point = self._get_closest_point_line(
+            line_pos, line_rot, line_length, test_point_pos, limit_to_line_length=False
+        )
+
+        d = test_point_pos - closest_point
+        d_norm = torch.linalg.vector_norm(d, dim=1)
+        ray_intersects = d_norm < sphere.shape.radius
+        m = torch.sqrt(sphere.shape.radius**2 - d_norm**2)
+
+        u = test_point_pos - ray_origin
+        u1 = closest_point - ray_origin
+
+        # Dot product of u and u1
+        u_dot_ray = torch.einsum("bs,bs->b", u, ray_dir_world)
+        sphere_is_in_front = u_dot_ray > 0.0
+        dist = torch.linalg.vector_norm(u1, dim=1) - m
         dist[~(ray_intersects & sphere_is_in_front)] = max_range
+
         return dist
 
     def _cast_ray_to_line(
@@ -1148,7 +1149,7 @@ class World(TorchVectorizedObject):
         line: Entity,
         ray_origin: Tensor,
         ray_direction: Tensor,
-        max_range: float = float("inf"),
+        max_range: float,
     ):
         """
         Inspired by https://stackoverflow.com/questions/563198/how-do-you-detect-where-two-line-segments-intersect/565282#565282
@@ -1180,12 +1181,9 @@ class World(TorchVectorizedObject):
             dim=-1,
         )
 
-        def cross(v, w):
-            return v[:, X] * w[:, Y] - v[:, Y] * w[:, X]
-
-        rxs = cross(r, s)
-        t = cross(q - p, s / rxs.unsqueeze(1))
-        u = cross(q - p, r / rxs.unsqueeze(1))
+        rxs = World._cross(r, s)
+        t = World._cross(q - p, s / rxs.unsqueeze(1))
+        u = World._cross(q - p, r / rxs.unsqueeze(1))
         d = torch.linalg.norm(u.unsqueeze(1) * s, dim=1)
 
         perpendicular = rxs == 0.0
@@ -1200,11 +1198,13 @@ class World(TorchVectorizedObject):
 
     def cast_ray(
         self,
-        pos: Tensor,
+        entity: Entity,
         angles: Tensor,
-        max_range: float = float("inf"),
+        max_range: float,
         entity_filter: Callable[[Entity], bool] = lambda _: False,
     ):
+        pos = entity.state.pos
+
         assert pos.ndim == 2 and angles.ndim == 1
         assert pos.shape[0] == angles.shape[0]
 
@@ -1212,17 +1212,20 @@ class World(TorchVectorizedObject):
         dists = [
             torch.full((self.batch_dim,), fill_value=max_range, device=self.device)
         ]
-        for entity in self.entities:
-            if not entity_filter(entity):
+        for e in self.entities:
+            if entity is e or not entity_filter(e):
                 continue
-            if isinstance(entity.shape, Box):
-                d = self._cast_ray_to_box(entity, pos, angles, max_range)
-            elif isinstance(entity.shape, Sphere):
-                d = self._cast_ray_to_sphere(entity, pos, angles, max_range)
-            elif isinstance(entity.shape, Line):
-                d = self._cast_ray_to_line(entity, pos, angles, max_range)
+            assert e.collides(entity) and entity.collides(
+                e
+            ), "Rays are only casted among collidables"
+            if isinstance(e.shape, Box):
+                d = self._cast_ray_to_box(e, pos, angles, max_range)
+            elif isinstance(e.shape, Sphere):
+                d = self._cast_ray_to_sphere(e, pos, angles, max_range)
+            elif isinstance(e.shape, Line):
+                d = self._cast_ray_to_line(e, pos, angles, max_range)
             else:
-                assert False, f"Shape {entity.shape} currently not handled by cast_ray"
+                assert False, f"Shape {e.shape} currently not handled by cast_ray"
             dists.append(d)
         dist, _ = torch.min(torch.stack(dists, dim=-1), dim=-1)
         return dist
@@ -2016,7 +2019,14 @@ class World(TorchVectorizedObject):
 
         return closest_points
 
-    def _get_closest_point_line(self, line_pos, line_rot, line_length, test_point_pos):
+    def _get_closest_point_line(
+        self,
+        line_pos,
+        line_rot,
+        line_length,
+        test_point_pos,
+        limit_to_line_length: bool = True,
+    ):
         # Rotate it by the angle of the line
         rotated_vector = World._rotate_vector(self._normal_vector, line_rot)
         # Get distance between line and sphere
@@ -2025,15 +2035,15 @@ class World(TorchVectorizedObject):
         dot_p = torch.einsum("bs,bs->b", delta_pos, rotated_vector).unsqueeze(-1)
         # Coordinates of the closes point
         sign = torch.sign(dot_p)
-        closest_point = (
-            line_pos
-            - sign
-            * torch.min(
+        distance_from_line_center = (
+            torch.min(
                 torch.abs(dot_p),
                 torch.tensor(line_length / 2, dtype=torch.float32, device=self.device),
             )
-            * rotated_vector
+            if limit_to_line_length
+            else torch.abs(dot_p)
         )
+        closest_point = line_pos - sign * distance_from_line_center * rotated_vector
         return closest_point
 
     def _get_constraint_forces(

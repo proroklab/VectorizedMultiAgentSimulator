@@ -6,7 +6,6 @@ from typing import Dict
 
 import torch
 from torch import Tensor
-
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, Sphere, World
 from vmas.simulator.scenario import BaseScenario
@@ -145,4 +144,6 @@ class Scenario(BaseScenario):
 
 
 if __name__ == "__main__":
-    render_interactively("dropout", n_agents=4, energy_coeff=DEFAULT_ENERGY_COEFF)
+    render_interactively(
+        __file__, control_two_agents=True, n_agents=4, energy_coeff=DEFAULT_ENERGY_COEFF
+    )

@@ -13,3 +13,9 @@ class BaseHeuristicPolicy(ABC):
     @abstractmethod
     def compute_action(self, observation: torch.Tensor, u_range: float) -> torch.Tensor:
         raise NotImplementedError
+
+
+class RandomPolicy(BaseHeuristicPolicy):
+    def compute_action(self, observation: torch.Tensor, u_range: float) -> torch.Tensor:
+        n_envs = observation.shape[0]
+        return torch.clamp(torch.randn(n_envs, 2), -u_range, u_range)

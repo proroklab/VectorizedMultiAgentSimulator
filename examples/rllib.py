@@ -10,12 +10,13 @@ import ray
 import wandb
 from ray import tune
 from ray.rllib import BaseEnv, Policy, RolloutWorker
-from ray.rllib.agents import DefaultCallbacks, MultiCallbacks
 from ray.rllib.agents.ppo import PPOTrainer
+from ray.rllib.algorithms.callbacks import DefaultCallbacks, MultiCallbacks
 from ray.rllib.evaluation import Episode, MultiAgentEpisode
 from ray.rllib.utils.typing import PolicyID
 from ray.tune import register_env
 from ray.tune.integration.wandb import WandbLoggerCallback
+
 from vmas import make_env, Wrapper
 
 scenario_name = "balance"
@@ -111,7 +112,9 @@ class RenderingCallbacks(DefaultCallbacks):
         **kwargs,
     ) -> None:
         vid = np.transpose(self.frames, (0, 3, 1, 2))
-        episode.media["rendering"] = wandb.Video(vid, fps=30, format="mp4")
+        episode.media["rendering"] = wandb.Video(
+            vid, fps=1 / base_env.vector_env.env.world.dt, format="mp4"
+        )
         self.frames = []
 
 

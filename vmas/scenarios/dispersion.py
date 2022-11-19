@@ -151,5 +151,9 @@ class Scenario(BaseScenario):
 
 if __name__ == "__main__":
     render_interactively(
-        "dispersion", n_agents=4, share_reward=False, penalise_by_tim=False
+        __file__,
+        control_two_agents=True,
+        n_agents=4,
+        share_reward=False,
+        penalise_by_tim=False,
     )

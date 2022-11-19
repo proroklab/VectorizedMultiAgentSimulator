@@ -7,7 +7,6 @@ import operator
 from functools import reduce
 
 import torch
-
 from vmas.simulator.core import Agent, World, Landmark, Sphere, Box, Line
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color, X, Y
@@ -1660,7 +1659,8 @@ def interactive():
     from vmas.interactive_rendering import render_interactively
 
     render_interactively(
-        "football",
+        __file__,
+        control_two_agents=True,
         continuous=True,
         n_blue_agents=3,
         n_red_agents=3,

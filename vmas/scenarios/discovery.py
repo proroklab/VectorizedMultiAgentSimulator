@@ -7,6 +7,7 @@ from typing import Dict, Callable, List
 
 import torch
 from torch import Tensor
+
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, Sphere, World, Entity
 from vmas.simulator.heuristic_policy import BaseHeuristicPolicy
@@ -23,12 +24,31 @@ class Scenario(BaseScenario):
         n_agents = kwargs.get("n_agents", 5)
         n_targets = kwargs.get("n_targets", 4)
         self._min_dist_between_entities = kwargs.get("min_dist_between_entities", 0.2)
-        self._lidar_range = kwargs.get("lidar_range", 0.3)
-        self._covering_range = kwargs.get("covering_range", 0.3)
+        self._lidar_range = kwargs.get("lidar_range", 0.5)
+        self._covering_range = kwargs.get("covering_range", 0.25)
         self._agents_per_target = kwargs.get("agents_per_target", 2)
 
+        self.agent_collision_penalty = kwargs.get("agent_collision_penalty", -0.1)
+        self.covering_rew_coeff = kwargs.get("covering_rew_coeff", 1.0)
+
+        self._comms_range = self._lidar_range
+        self.min_collision_distance = 0.005
+        self.agent_radius = 0.05
+        self.target_radius = self.agent_radius
+
+        self.viewer_zoom = 1
+
         # Make world
-        world = World(batch_dim, device, x_semidim=1, y_semidim=1)
+        world = World(
+            batch_dim,
+            device,
+            x_semidim=1,
+            y_semidim=1,
+            collision_force=500,
+            substeps=2,
+            drag=0.15,
+        )
+
         # Add agents
         entity_filter_agents: Callable[[Entity], bool] = lambda e: e.name.startswith(
             "agent"
@@ -41,6 +61,8 @@ class Scenario(BaseScenario):
             agent = Agent(
                 name=f"agent_{i}",
                 collide=True,
+                shape=Sphere(radius=self.agent_radius),
+                u_multiplier=1.5,
                 sensors=[
                     Lidar(
                         world,
@@ -68,7 +90,7 @@ class Scenario(BaseScenario):
                 name=f"target_{i}",
                 collide=True,
                 movable=False,
-                shape=Sphere(radius=0.05),
+                shape=Sphere(radius=self.target_radius),
                 color=Color.GREEN,
             )
             world.add_landmark(target)
@@ -86,7 +108,7 @@ class Scenario(BaseScenario):
                 (batch_size, 1, self.world.dim_p),
                 device=self.world.device,
                 dtype=torch.float32,
-            ).uniform_(-1.0, 1.0)
+            ).uniform_(-self.world.x_semidim, self.world.x_semidim)
             if pos is None:
                 pos = proposed_pos
             if occupied_positions.shape[1] == 0:
@@ -114,58 +136,87 @@ class Scenario(BaseScenario):
             entity.set_pos(pos.squeeze(1), batch_index=env_index)
 
     def reward(self, agent: Agent):
+
+        is_first = agent == self.world.agents[0]
+        is_last = agent == self.world.agents[-1]
+        agent_index = self.world.agents.index(agent)
+
+        if is_first:
+            self.agents_pos = torch.stack(
+                [a.state.pos for a in self.world.agents], dim=1
+            )
+            self.targets_pos = torch.stack([t.state.pos for t in self._targets], dim=1)
+            self.agents_targets_dists = torch.cdist(self.agents_pos, self.targets_pos)
+            self.agents_per_target = torch.sum(
+                (self.agents_targets_dists < self._covering_range).type(torch.int),
+                dim=1,
+            )
+            self.covered_targets = self.agents_per_target >= self._agents_per_target
+
+        agent.covering_reward = torch.zeros(
+            self.world.batch_dim, device=self.world.device
+        )
+        targets_covered_by_agent = (
+            self.agents_targets_dists[:, agent_index] < self._covering_range
+        )
+        num_covered_targets_covered_by_agent = (
+            targets_covered_by_agent * self.covered_targets
+        ).sum(dim=-1)
+        agent.covering_reward += (
+            num_covered_targets_covered_by_agent * self.covering_rew_coeff
+        )
+
         # Avoid collisions with each other
-        self.collision_rew = torch.zeros(self.world.batch_dim, device=self.world.device)
+        agent.collision_rew = torch.zeros(
+            self.world.batch_dim, device=self.world.device
+        )
         for a in self.world.agents:
             if a != agent:
-                self.collision_rew[self.world.is_overlapping(a, agent)] -= 1.0
+                agent.collision_rew[
+                    self.world.get_distance(a, agent) < self.min_collision_distance
+                ] -= self.agent_collision_penalty
 
-        if agent == self.world.agents[0]:
-            agent_pos = torch.stack([a.state.pos for a in self.world.agents], dim=1)
-            target_pos = torch.stack([t.state.pos for t in self._targets], dim=1)
-            agent_target_dists = torch.cdist(agent_pos, target_pos)
-            agents_per_target = torch.sum(
-                (agent_target_dists < self._covering_range).type(torch.int), dim=1
-            )
-            covered_targets = agents_per_target == self._agents_per_target
-
+        if is_last:
+            occupied_positions_agents = [self.agents_pos]
             for i, target in enumerate(self._targets):
-                occupied_positions = [agent_pos] + [
+                occupied_positions_targets = [
                     o.state.pos.unsqueeze(1) for o in self._targets if o is not target
                 ]
-                occupied_positions = torch.cat(occupied_positions, dim=1)
+                occupied_positions = torch.cat(
+                    occupied_positions_agents + occupied_positions_targets, dim=1
+                )
                 pos = self._find_random_pos_for_entity(occupied_positions)
-                target.state.pos[covered_targets[:, i]] = pos[
-                    covered_targets[:, i]
+                target.state.pos[self.covered_targets[:, i]] = pos[
+                    self.covered_targets[:, i]
                 ].squeeze(1)
 
-        return self.collision_rew
+        return agent.collision_rew + agent.covering_reward
 
     def observation(self, agent: Agent):
+        lidar_1_measures = agent.sensors[0].measure()
+        lidar_2_measures = agent.sensors[1].measure()
         return torch.cat(
             [
                 agent.state.pos,
                 agent.state.vel,
-                agent.sensors[0].measure(),
-                agent.sensors[1].measure(),
+                lidar_1_measures,
+                lidar_2_measures,
             ],
             dim=-1,
         )
 
     def info(self, agent: Agent) -> Dict[str, Tensor]:
-        try:
-            info = {
-                "collision_rew": self.collision_rew,
-            }
-        # When reset is called before reward()
-        except AttributeError:
-            info = {}
+        info = {
+            "covering_reward": agent.covering_reward,
+            "collision_rew": agent.collision_rew,
+        }
         return info
 
     def extra_render(self, env_index: int = 0) -> "List[Geom]":
         from vmas.simulator import rendering
 
         geoms: List[Geom] = []
+        # Target ranges
         for target in self._targets:
             range_circle = rendering.make_circle(self._covering_range, filled=False)
             xform = rendering.Transform()
@@ -173,6 +224,26 @@ class Scenario(BaseScenario):
             range_circle.add_attr(xform)
             range_circle.set_color(*Color.GREEN.value)
             geoms.append(range_circle)
+        # Communication lines
+        for i, agent1 in enumerate(self.world.agents):
+            for j, agent2 in enumerate(self.world.agents):
+                if j <= i:
+                    continue
+                agent_dist = torch.linalg.vector_norm(
+                    agent1.state.pos - agent2.state.pos, dim=-1
+                )
+                if agent_dist[env_index] <= self._comms_range:
+                    color = Color.BLACK.value
+                    line = rendering.Line(
+                        (agent1.state.pos[env_index]),
+                        (agent2.state.pos[env_index]),
+                        width=3,
+                    )
+                    xform = rendering.Transform()
+                    line.add_attr(xform)
+                    line.set_color(*color)
+                    geoms.append(line)
+
         return geoms
 
 
@@ -229,4 +300,4 @@ class HeuristicPolicy(BaseHeuristicPolicy):
 
 
 if __name__ == "__main__":
-    render_interactively("discovery", n_agents=4)
+    render_interactively(__file__, control_two_agents=True)

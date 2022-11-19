@@ -3,6 +3,7 @@
 #  All rights reserved.
 
 import torch
+from vmas import render_interactively
 
 from vmas.simulator.core import World, Agent, Landmark, Sphere
 from vmas.simulator.scenario import BaseScenario
@@ -161,3 +162,7 @@ class Scenario(BaseScenario):
             [agent.state.vel, agent.state.pos, *entity_pos, *other_pos, *other_vel],
             dim=-1,
         )
+
+
+if __name__ == "__main__":
+    render_interactively(__file__, control_two_agents=True)
