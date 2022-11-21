@@ -6,7 +6,6 @@ from typing import Dict
 
 import torch
 from torch import Tensor
-
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World
 from vmas.simulator.scenario import BaseScenario
@@ -27,13 +26,10 @@ class Scenario(BaseScenario):
             color=Color.GREEN,
             render_action=True,
             mass=self.green_mass,
+            f_range=1,
         )
         world.add_agent(agent)
-        agent = Agent(
-            name=f"agent 1",
-            collide=False,
-            render_action=True,
-        )
+        agent = Agent(name=f"agent 1", collide=False, render_action=True, f_range=1)
         world.add_agent(agent)
 
         return world
