@@ -74,13 +74,9 @@ Watch the presentation video of VMAS, showing its structure, scenarios, and expe
 
 ### Install
 
-To install the simulator, simply install the requirements using:
+To install the simulator, you can use pip:
 ```
-pip install -r requirements.txt
-```
-and then install the package with:
-```
-pip install -e .
+pip install vmas
 ```
 
 ### Run 

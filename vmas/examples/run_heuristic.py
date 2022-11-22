@@ -5,6 +5,7 @@ import time
 from typing import Type
 
 import torch
+
 from vmas import make_env
 from vmas.simulator.heuristic_policy import BaseHeuristicPolicy, RandomPolicy
 from vmas.simulator.utils import save_video

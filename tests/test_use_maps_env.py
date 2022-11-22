@@ -4,7 +4,7 @@
 
 import unittest
 
-from examples.use_vmas_env import use_vmas_env
+from vmas.examples.use_vmas_env import use_vmas_env
 
 
 class TestUseVmasEnv(unittest.TestCase):
