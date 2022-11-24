@@ -4,23 +4,26 @@
 import math
 from typing import Dict
 
+import numpy as np
 import torch
 from torch import Tensor
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color
+from vmas.simulator.utils import Color, Y
 
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.green_mass = kwargs.get("green_mass", 5)
+        self.green_mass = kwargs.get("green_mass", 4)
+        self.blue_mass = kwargs.get("blue_mass", 2)
+        self.mass_noise = kwargs.get("mass_noise", 1)
         self.plot_grid = True
 
         # Make world
         world = World(batch_dim, device)
         # Add agents
-        agent = Agent(
+        self.green_agent = Agent(
             name=f"agent 0",
             collide=False,
             color=Color.GREEN,
@@ -28,13 +31,23 @@ class Scenario(BaseScenario):
             mass=self.green_mass,
             f_range=1,
         )
-        world.add_agent(agent)
-        agent = Agent(name=f"agent 1", collide=False, render_action=True, f_range=1)
-        world.add_agent(agent)
+        world.add_agent(self.green_agent)
+        self.blue_agent = Agent(
+            name=f"agent 1", collide=False, render_action=True, f_range=1
+        )
+        world.add_agent(self.blue_agent)
 
         return world
 
     def reset_world_at(self, env_index: int = None):
+        # Temp
+        self.blue_agent.mass = self.blue_mass + np.random.uniform(
+            -self.mass_noise, self.mass_noise
+        )
+        self.green_agent.mass = self.green_mass + np.random.uniform(
+            -self.mass_noise, self.mass_noise
+        )
+
         for agent in self.world.agents:
             agent.set_pos(
                 torch.zeros(
@@ -48,8 +61,7 @@ class Scenario(BaseScenario):
             )
 
     def process_action(self, agent: Agent):
-        # agent.action.u[:, Y] = 0
-        pass
+        agent.action.u[:, Y] = 0
 
     def reward(self, agent: Agent):
         is_first = agent == self.world.agents[0]
@@ -72,7 +84,7 @@ class Scenario(BaseScenario):
                     ],
                     dim=1,
                 ).sum(-1)
-                * 3
+                * 0.17
             )
 
             # print(self.max_speed)

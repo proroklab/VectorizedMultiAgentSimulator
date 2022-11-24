@@ -4,7 +4,6 @@
 import math
 
 import torch
-
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World, Landmark, Sphere, Line, Box
 from vmas.simulator.scenario import BaseScenario
@@ -26,7 +25,7 @@ class Scenario(BaseScenario):
         self.final_reward = kwargs.get("final_reward", 0.01)
         self.energy_reward_coeff = kwargs.get("energy_rew_coeff", 0)
 
-        self.agent_collision_penalty = kwargs.get("agent_collision_penalty", -0.1)
+        self.agent_collision_penalty = kwargs.get("agent_collision_penalty", 0)
         self.passage_collision_penalty = kwargs.get("passage_collision_penalty", 0)
         self.obstacle_collision_penalty = kwargs.get("obstacle_collision_penalty", 0)
 

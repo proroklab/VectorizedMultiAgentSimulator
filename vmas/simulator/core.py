@@ -482,6 +482,10 @@ class Entity(TorchVectorizedObject, Observable, ABC):
     def mass(self):
         return self._mass
 
+    @mass.setter
+    def mass(self, mass: float):
+        self._mass = mass
+
     @property
     def moment_of_inertia(self):
         return self.shape.moment_of_inertia(self.mass)
