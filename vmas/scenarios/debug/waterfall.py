@@ -157,7 +157,7 @@ class Scenario(BaseScenario):
 
 if __name__ == "__main__":
     render_interactively(
-        "waterfall",
+        __file__,
         control_two_agents=True,
         n_agents=5,
         joints=True,
