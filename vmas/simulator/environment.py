@@ -404,7 +404,7 @@ class Environment(TorchVectorizedObject):
                 eglext.eglQueryDevicesEXT(0, None, byref(num_devices))
                 assert num_devices.value > 0
 
-            except ImportError or AssertionError:
+            except (ImportError, AssertionError):
                 self.headless = False
             pyglet.options["headless"] = self.headless
 
