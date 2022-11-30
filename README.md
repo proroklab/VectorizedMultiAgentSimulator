@@ -178,7 +178,7 @@ You can also change the viewer size, zoom, and enable a background rendered grid
 
 ### Rendering on server machines
 To render in machines without a display use `mode="rgb_array"`. Make sure you have OpenGL and Pyglet installed.
-To enable rendering on headless machines you should install EGL.
+To use GPUs for headless rendering, you can install the EGL library.
 If you do not have EGL, you need to create a fake screen. You can do this by running these commands before the script: 
 ```
 export DISPLAY=':99.0'

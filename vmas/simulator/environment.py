@@ -1,17 +1,19 @@
 #  Copyright (c) 2022.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
+from ctypes import byref
 from enum import Enum
 from typing import List, Optional, Tuple, Callable
 
 import gym
 import numpy as np
 import torch
-import vmas.simulator.utils
 from gym import spaces
 from ray import rllib
 from ray.rllib.utils.typing import EnvActionType, EnvInfoDict, EnvObsType
 from torch import Tensor
+
+import vmas.simulator.utils
 from vmas.simulator.core import Agent, TorchVectorizedObject
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import VIEWER_MIN_ZOOM
@@ -391,8 +393,18 @@ class Environment(TorchVectorizedObject):
                 )
 
             try:
+                # Try to use EGL
                 pyglet.lib.load_library("EGL")
-            except ImportError:
+
+                # Only if we have GPUs
+                from pyglet.libs.egl import egl
+                from pyglet.libs.egl import eglext
+
+                num_devices = egl.EGLint()
+                eglext.eglQueryDevicesEXT(0, None, byref(num_devices))
+                assert num_devices.value > 0
+
+            except (ImportError, AssertionError):
                 self.headless = False
             pyglet.options["headless"] = self.headless
 
@@ -432,6 +444,9 @@ class Environment(TorchVectorizedObject):
             all_poses = torch.stack(
                 [agent.state.pos[env_index] for agent in self.world.agents], dim=0
             )
+            max_agent_radius = np.max(
+                [agent.shape.circumscribed_radius() for agent in self.world.agents]
+            )
             viewer_size_fit = (
                 torch.stack(
                     [
@@ -439,12 +454,11 @@ class Environment(TorchVectorizedObject):
                         torch.max(torch.abs(all_poses[:, Y])),
                     ]
                 )
-                + zoom
-                - 1
+                + 2 * max_agent_radius
             )
 
             viewer_size = torch.maximum(
-                viewer_size_fit / cam_range, torch.tensor(1, device=self.device)
+                viewer_size_fit / cam_range, torch.tensor(zoom, device=self.device)
             )
             cam_range *= torch.max(viewer_size)
             self.viewer.set_bounds(

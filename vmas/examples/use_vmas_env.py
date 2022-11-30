@@ -21,7 +21,7 @@ def use_vmas_env(render: bool = False, save_render: bool = False):
     num_envs = 32
     continuous_actions = False
     device = "cpu"  # or cuda or any other torch device
-    wrapper = Wrapper.RLLIB
+    wrapper = None
     n_steps = 100
 
     simple_2d_action = (
@@ -86,7 +86,7 @@ def use_vmas_env(render: bool = False, save_render: bool = False):
     total_time = time.time() - init_time
     print(
         f"It took: {total_time}s for {n_steps} steps of {num_envs} parallel environments on device {device}"
-        f" for {wrapper.name}{' wrapped' if wrapper is not None else ''} simulator"
+        f" for {wrapper.name + ' wrapped ' if wrapper is not None else ''}simulator"
     )
 
 
