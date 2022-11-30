@@ -1,6 +1,7 @@
 #  Copyright (c) 2022.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
+from ctypes import byref
 from enum import Enum
 from typing import List, Optional, Tuple, Callable
 
@@ -392,8 +393,18 @@ class Environment(TorchVectorizedObject):
                 )
 
             try:
+                # Try to use EGL
                 pyglet.lib.load_library("EGL")
-            except ImportError:
+
+                # Only if we have GPUs
+                from pyglet.libs.egl import egl
+                from pyglet.libs.egl import eglext
+
+                num_devices = egl.EGLint()
+                eglext.eglQueryDevicesEXT(0, None, byref(num_devices))
+                assert num_devices.value > 0
+
+            except ImportError or AssertionError:
                 self.headless = False
             pyglet.options["headless"] = self.headless
 
