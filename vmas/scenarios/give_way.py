@@ -4,10 +4,11 @@
 import math
 
 import torch
+
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World, Landmark, Sphere, Line, Box
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, clamp_with_norm
+from vmas.simulator.utils import Color, TorchUtils
 from vmas.simulator.velocity_controller import VelocityController
 
 
@@ -199,7 +200,7 @@ class Scenario(BaseScenario):
             agent.action.u = agent.input_queue.pop(0)
 
             # Clamp square to circle
-            agent.action.u = clamp_with_norm(agent.action.u, self.u_range)
+            agent.action.u = TorchUtils.clamp_with_norm(agent.action.u, self.u_range)
 
             # Zero small input
             action_norm = torch.linalg.vector_norm(agent.action.u, dim=1)
@@ -264,7 +265,7 @@ class Scenario(BaseScenario):
                     self.world.get_distance(agent, a) <= self.min_collision_distance
                 ] += self.agent_collision_penalty
         for l in self.world.landmarks:
-            if self.world._collides(agent, l):
+            if self.world.collides(agent, l):
                 if l in (
                     [*self.passage_1, *self.passage_2]
                     if self.mirror_passage is True

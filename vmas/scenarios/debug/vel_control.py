@@ -9,7 +9,7 @@ from torch import Tensor
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World, Landmark
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, X, clamp_with_norm
+from vmas.simulator.utils import Color, X, TorchUtils
 from vmas.simulator.velocity_controller import VelocityController
 
 
@@ -124,7 +124,7 @@ class Scenario(BaseScenario):
         agent.action.u = self.input_queue.pop(0)
 
         # Clamp square to circle
-        agent.action.u = clamp_with_norm(agent.action.u, agent.u_range)
+        agent.action.u = TorchUtils.clamp_with_norm(agent.action.u, agent.u_range)
 
         # Zero small input
         action_norm = torch.linalg.vector_norm(agent.action.u, dim=1)

@@ -8,7 +8,7 @@ from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, World, Line, Sphere
 from vmas.simulator.heuristic_policy import BaseHeuristicPolicy
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color
+from vmas.simulator.utils import Color, TorchUtils
 
 
 class Scenario(BaseScenario):
@@ -119,7 +119,7 @@ class HeuristicPolicy(BaseHeuristicPolicy):
 
         pos_end2 = pos_end2_agent + pos_agent
 
-        pos_end2_shifted = World._rotate_vector(
+        pos_end2_shifted = TorchUtils.rotate_vector(
             pos_end2, torch.tensor(torch.pi / 4, device=observation.device)
         )
 

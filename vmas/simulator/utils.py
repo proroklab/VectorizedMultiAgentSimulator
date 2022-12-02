@@ -96,8 +96,95 @@ def save_video(name: str, frame_list: List[np.array], fps: int):
     video.release()
 
 
-def clamp_with_norm(tensor: Tensor, max_norm: float):
-    norm = torch.linalg.vector_norm(tensor, dim=-1)
-    new_tensor = (tensor / norm.unsqueeze(-1)) * max_norm
-    tensor[norm > max_norm] = new_tensor[norm > max_norm]
-    return tensor
+class TorchUtils:
+    @staticmethod
+    def clamp_with_norm(tensor: Tensor, max_norm: float):
+        norm = torch.linalg.vector_norm(tensor, dim=-1)
+        new_tensor = (tensor / norm.unsqueeze(-1)) * max_norm
+        tensor[norm > max_norm] = new_tensor[norm > max_norm]
+        return tensor
+
+    @staticmethod
+    def rotate_vector(vector: Tensor, angle: Tensor):
+        if len(angle.shape) > 1:
+            angle = angle.squeeze(-1)
+        if len(vector.shape) == 1:
+            vector = vector.unsqueeze(0)
+        cos = torch.cos(angle)
+        sin = torch.sin(angle)
+        return torch.stack(
+            [
+                vector[:, X] * cos - vector[:, Y] * sin,
+                vector[:, X] * sin + vector[:, Y] * cos,
+            ],
+            dim=-1,
+        )
+
+    @staticmethod
+    def cross(vector_a: Tensor, vector_b: Tensor):
+        return (
+            vector_a[:, X] * vector_b[:, Y] - vector_a[:, Y] * vector_b[:, X]
+        ).unsqueeze(1)
+
+    @staticmethod
+    def compute_torque(f: Tensor, r: Tensor) -> Tensor:
+        return TorchUtils.cross(r, f)
+
+
+def spawn_entities_randomly(
+    entities,
+    world,
+    env_index: int,
+    min_dist_between_entities: float,
+    occupied_positions: Tensor = None,
+):
+    batch_size = world.batch_dim if env_index is None else 1
+
+    if occupied_positions is None:
+        occupied_positions = torch.zeros(
+            (batch_size, 0, world.dim_p), device=world.device
+        )
+
+    for entity in entities:
+        pos = _find_random_pos_for_entity(
+            occupied_positions, batch_size, world, min_dist_between_entities
+        )
+        occupied_positions = torch.cat([occupied_positions, pos], dim=1)
+        entity.set_pos(pos.squeeze(1), batch_index=env_index)
+
+
+def _find_random_pos_for_entity(
+    occupied_positions: torch.Tensor,
+    batch_size: int,
+    world,
+    min_dist_between_entities: float,
+):
+    pos = None
+    while True:
+        proposed_pos = torch.cat(
+            [
+                torch.empty(
+                    (batch_size, 1, 1),
+                    device=world.device,
+                    dtype=torch.float32,
+                ).uniform_(-world.x_semidim, world.x_semidim),
+                torch.empty(
+                    (batch_size, 1, 1),
+                    device=world.device,
+                    dtype=torch.float32,
+                ).uniform_(-world.y_semidim, world.y_semidim),
+            ],
+            dim=-1,
+        )
+        if pos is None:
+            pos = proposed_pos
+        if occupied_positions.shape[1] == 0:
+            break
+
+        dist = torch.cdist(occupied_positions, pos)
+        overlaps = torch.any((dist < min_dist_between_entities).squeeze(2), dim=1)
+        if torch.any(overlaps, dim=0):
+            pos[overlaps] = proposed_pos[overlaps]
+        else:
+            break
+    return pos

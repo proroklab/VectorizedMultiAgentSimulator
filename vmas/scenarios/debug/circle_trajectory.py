@@ -9,7 +9,7 @@ from torch import Tensor
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Sphere, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, X, Y, clamp_with_norm
+from vmas.simulator.utils import Color, X, Y, TorchUtils
 from vmas.simulator.velocity_controller import VelocityController
 
 
@@ -61,7 +61,7 @@ class Scenario(BaseScenario):
         agent.action.u = self.input_queue.pop(0)
 
         # Clamp square to circle
-        agent.action.u = clamp_with_norm(agent.action.u, self.u_range)
+        agent.action.u = TorchUtils.clamp_with_norm(agent.action.u, self.u_range)
 
         # Zero small input
         action_norm = torch.linalg.vector_norm(agent.action.u, dim=1)
@@ -124,10 +124,10 @@ class Scenario(BaseScenario):
             torch.linalg.vector_norm(agent.state.pos, dim=1) < self.desired_radius,
         )
 
-        rotated_vector = World._rotate_vector(
+        rotated_vector = TorchUtils.rotate_vector(
             distance_to_circle, torch.tensor(torch.pi / 2, device=self.world.device)
         )
-        rotated_vector[inside_circle] = World._rotate_vector(
+        rotated_vector[inside_circle] = TorchUtils.rotate_vector(
             distance_to_circle[inside_circle],
             torch.tensor(-torch.pi / 2, device=self.world.device),
         )
