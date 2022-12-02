@@ -17,7 +17,7 @@ class TestWheel(unittest.TestCase):
         self.desired_velocity = kwargs.get("desired_velocity", 0.1)
 
         self.continuous_actions = True
-        self.n_envs = 25
+        self.n_envs = 15
         self.env = make_env(
             scenario_name="wheel",
             num_envs=self.n_envs,

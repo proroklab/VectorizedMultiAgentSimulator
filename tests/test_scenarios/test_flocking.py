@@ -14,7 +14,7 @@ class TestFlocking(unittest.TestCase):
     ) -> None:
         super().setUp()
 
-        self.n_envs = 25
+        self.n_envs = 15
         self.env = make_env(
             scenario_name="flocking",
             num_envs=self.n_envs,

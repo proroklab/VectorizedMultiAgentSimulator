@@ -4,6 +4,7 @@
 import unittest
 
 import torch
+
 from vmas import make_env
 from vmas.scenarios import transport
 
@@ -18,7 +19,7 @@ class TestTransport(unittest.TestCase):
         self.package_mass = kwargs.get("package_mass", 50)
 
         self.continuous_actions = True
-        self.n_envs = 25
+        self.n_envs = 15
         self.env = make_env(
             scenario_name="transport",
             num_envs=self.n_envs,

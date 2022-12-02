@@ -16,7 +16,7 @@ class TestBalance(unittest.TestCase):
         self.n_agents = kwargs.get("n_agents", 4)
 
         self.continuous_actions = True
-        self.n_envs = 25
+        self.n_envs = 15
         self.env = make_env(
             scenario_name="balance",
             num_envs=self.n_envs,

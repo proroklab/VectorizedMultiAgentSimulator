@@ -17,7 +17,7 @@ class TestReverseTransport(unittest.TestCase):
         self.package_mass = kwargs.get("package_mass", 50)
 
         self.continuous_actions = True
-        self.n_envs = 32
+        self.n_envs = 15
         self.env = make_env(
             scenario_name="reverse_transport",
             num_envs=self.n_envs,
