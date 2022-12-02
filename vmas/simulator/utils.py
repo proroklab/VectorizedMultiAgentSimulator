@@ -4,7 +4,7 @@
 import os
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import List
+from typing import List, Tuple
 
 import numpy as np
 import torch
@@ -131,60 +131,73 @@ class TorchUtils:
         return TorchUtils.cross(r, f)
 
 
-def spawn_entities_randomly(
-    entities,
-    world,
-    env_index: int,
-    min_dist_between_entities: float,
-    occupied_positions: Tensor = None,
-):
-    batch_size = world.batch_dim if env_index is None else 1
+class ScenarioUtils:
+    @staticmethod
+    def spawn_entities_randomly(
+        entities,
+        world,
+        env_index: int,
+        min_dist_between_entities: float,
+        x_bounds: Tuple[int, int],
+        y_bounds: Tuple[int, int],
+        occupied_positions: Tensor = None,
+    ):
+        batch_size = world.batch_dim if env_index is None else 1
 
-    if occupied_positions is None:
-        occupied_positions = torch.zeros(
-            (batch_size, 0, world.dim_p), device=world.device
-        )
+        if occupied_positions is None:
+            occupied_positions = torch.zeros(
+                (batch_size, 0, world.dim_p), device=world.device
+            )
 
-    for entity in entities:
-        pos = _find_random_pos_for_entity(
-            occupied_positions, batch_size, world, min_dist_between_entities
-        )
-        occupied_positions = torch.cat([occupied_positions, pos], dim=1)
-        entity.set_pos(pos.squeeze(1), batch_index=env_index)
+        for entity in entities:
+            pos = ScenarioUtils.find_random_pos_for_entity(
+                occupied_positions,
+                env_index,
+                world,
+                min_dist_between_entities,
+                x_bounds,
+                y_bounds,
+            )
+            occupied_positions = torch.cat([occupied_positions, pos], dim=1)
+            entity.set_pos(pos.squeeze(1), batch_index=env_index)
 
+    @staticmethod
+    def find_random_pos_for_entity(
+        occupied_positions: torch.Tensor,
+        env_index: int,
+        world,
+        min_dist_between_entities: float,
+        x_bounds: Tuple[int, int],
+        y_bounds: Tuple[int, int],
+    ):
+        batch_size = world.batch_dim if env_index is None else 1
 
-def _find_random_pos_for_entity(
-    occupied_positions: torch.Tensor,
-    batch_size: int,
-    world,
-    min_dist_between_entities: float,
-):
-    pos = None
-    while True:
-        proposed_pos = torch.cat(
-            [
-                torch.empty(
-                    (batch_size, 1, 1),
-                    device=world.device,
-                    dtype=torch.float32,
-                ).uniform_(-world.x_semidim, world.x_semidim),
-                torch.empty(
-                    (batch_size, 1, 1),
-                    device=world.device,
-                    dtype=torch.float32,
-                ).uniform_(-world.y_semidim, world.y_semidim),
-            ],
-            dim=-1,
-        )
-        if pos is None:
-            pos = proposed_pos
-        if occupied_positions.shape[1] == 0:
-            break
+        pos = None
+        while True:
+            proposed_pos = torch.cat(
+                [
+                    torch.empty(
+                        (batch_size, 1, 1),
+                        device=world.device,
+                        dtype=torch.float32,
+                    ).uniform_(*x_bounds),
+                    torch.empty(
+                        (batch_size, 1, 1),
+                        device=world.device,
+                        dtype=torch.float32,
+                    ).uniform_(*y_bounds),
+                ],
+                dim=2,
+            )
+            if pos is None:
+                pos = proposed_pos
+            if occupied_positions.shape[1] == 0:
+                break
 
-        dist = torch.cdist(occupied_positions, pos)
-        overlaps = torch.any((dist < min_dist_between_entities).squeeze(2), dim=1)
-        if torch.any(overlaps, dim=0):
-            pos[overlaps] = proposed_pos[overlaps]
-        else:
-            break
-    return pos
+            dist = torch.cdist(occupied_positions, pos)
+            overlaps = torch.any((dist < min_dist_between_entities).squeeze(2), dim=1)
+            if torch.any(overlaps, dim=0):
+                pos[overlaps] = proposed_pos[overlaps]
+            else:
+                break
+        return pos

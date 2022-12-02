@@ -13,7 +13,7 @@ from vmas.simulator.core import Agent, Landmark, Sphere, World, Entity
 from vmas.simulator.heuristic_policy import BaseHeuristicPolicy
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.sensors import Lidar
-from vmas.simulator.utils import Color, X, Y
+from vmas.simulator.utils import Color, X, Y, ScenarioUtils
 
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
@@ -101,37 +101,7 @@ class Scenario(BaseScenario):
 
         return world
 
-    def _find_random_pos_for_entity(
-        self, occupied_positions: torch.Tensor, env_index: int = None
-    ):
-        batch_size = 1 if env_index is not None else self.world.batch_dim
-        pos = None
-        while True:
-            proposed_pos = torch.empty(
-                (batch_size, 1, self.world.dim_p),
-                device=self.world.device,
-                dtype=torch.float32,
-            ).uniform_(-self.world.x_semidim, self.world.x_semidim)
-            if pos is None:
-                pos = proposed_pos
-            if occupied_positions.shape[1] == 0:
-                break
-
-            dist = torch.cdist(occupied_positions, pos)
-            overlaps = torch.any(
-                (dist < self._min_dist_between_entities).squeeze(2), dim=1
-            )
-            if torch.any(overlaps, dim=0):
-                pos[overlaps] = proposed_pos[overlaps]
-            else:
-                break
-        return pos
-
     def reset_world_at(self, env_index: int = None):
-        batch_size = 1 if env_index is not None else self.world.batch_dim
-        occupied_positions = torch.zeros(
-            (batch_size, 0, self.world.dim_p), device=self.world.device
-        )
         placable_entities = self._targets[: self.n_targets] + self.world.agents
         if env_index is None:
             self.all_time_covered_targets = torch.full(
@@ -139,10 +109,14 @@ class Scenario(BaseScenario):
             )
         else:
             self.all_time_covered_targets[env_index] = False
-        for entity in placable_entities:
-            pos = self._find_random_pos_for_entity(occupied_positions, env_index)
-            occupied_positions = torch.cat([occupied_positions, pos], dim=1)
-            entity.set_pos(pos.squeeze(1), batch_index=env_index)
+        ScenarioUtils.spawn_entities_randomly(
+            entities=placable_entities,
+            world=self.world,
+            env_index=env_index,
+            min_dist_between_entities=self._min_dist_between_entities,
+            x_bounds=(-self.world.x_semidim, self.world.x_semidim),
+            y_bounds=(-self.world.y_semidim, self.world.y_semidim),
+        )
         for target in self._targets[self.n_targets :]:
             target.set_pos(self.get_outside_pos(env_index), batch_index=env_index)
 
@@ -195,7 +169,14 @@ class Scenario(BaseScenario):
                     occupied_positions = torch.cat(
                         occupied_positions_agents + occupied_positions_targets, dim=1
                     )
-                    pos = self._find_random_pos_for_entity(occupied_positions)
+                    pos = ScenarioUtils.find_random_pos_for_entity(
+                        occupied_positions,
+                        env_index=None,
+                        world=self.world,
+                        min_dist_between_entities=self._min_dist_between_entities,
+                        x_bounds=(-self.world.x_semidim, self.world.x_semidim),
+                        y_bounds=(-self.world.y_semidim, self.world.y_semidim),
+                    )
 
                     target.state.pos[self.covered_targets[:, i]] = pos[
                         self.covered_targets[:, i]

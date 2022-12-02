@@ -14,7 +14,7 @@ def load(name: str):
         for dirpath, dirnames, filenames in os.walk(osp.dirname(__file__)):
             if pathname is None:
                 for filename in filenames:
-                    if filename.endswith(name):
+                    if filename == name:
                         pathname = dirpath + "/" + filename
                         break
         assert pathname is not None, f"{name} scenario not found."
