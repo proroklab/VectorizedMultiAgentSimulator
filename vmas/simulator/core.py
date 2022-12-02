@@ -863,7 +863,7 @@ class Agent(Entity):
         return self._silent
 
     @property
-    def sensors(self):
+    def sensors(self) -> List[Sensor]:
         return self._sensors
 
     @property
