@@ -694,6 +694,7 @@ class Agent(Entity):
         v_range: float = None,
         max_speed: float = None,
         color=Color.BLUE,
+        alpha: float = 0.5,
         obs_range: float = None,
         obs_noise: float = None,
         u_noise: float = None,
@@ -757,6 +758,8 @@ class Agent(Entity):
         self._render_action = render_action
         # is adversary
         self._adversary = adversary
+        # Render alpha
+        self._alpha = alpha
 
         # action
         self._action = Action(
@@ -903,7 +906,7 @@ class Agent(Entity):
         if len(geoms) == 0:
             return geoms
         for geom in geoms:
-            geom.set_color(*self.color, alpha=0.5)
+            geom.set_color(*self.color, alpha=self._alpha)
         if self._sensors is not None:
             for sensor in self._sensors:
                 geoms += sensor.render(env_index=env_index)
