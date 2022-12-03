@@ -13,8 +13,10 @@ and switch the agent with these controls using LSHIFT
 from operator import add
 
 import numpy as np
+from torch import Tensor
 from vmas.make_env import make_env
 from vmas.simulator.environment import GymWrapper
+from typing import Dict
 
 N_TEXT_LINES_INTERACTIVE = 6
 
@@ -80,13 +82,19 @@ class InteractiveEnv:
                 action_list[self.current_agent_index2] = self.u2
             obs, rew, done, info = self.env.step(action_list)
 
-            obs[self.current_agent_index] = np.around(
-                obs[self.current_agent_index].cpu().tolist(), decimals=2
-            )
-            len_obs = len(obs[self.current_agent_index])
-            message = f"\t\t{obs[self.current_agent_index][len_obs//2:]}"
+            def format_obs(obs):
+                if isinstance(obs, Tensor):
+                    return list(np.around(obs.cpu().tolist(), decimals=2))
+                elif isinstance(obs, Dict):
+                    return {key: format_obs(value) for key, value in obs.items()}
+                else:
+                    raise NotImplementedError(f"Invalid type of observation {obs}")
+
+            # TODO: Determine number of lines of obs_str and render accordingly
+            obs_str = str(format_obs(obs[self.current_agent_index]))
+            message = f"\t\t{obs_str[len(obs_str)//2:]}"
             self._write_values(self.text_idx, message)
-            message = f"Obs: {obs[self.current_agent_index][:len_obs//2]}"
+            message = f"Obs: {obs_str[:len(obs_str)//2]}"
             self._write_values(self.text_idx + 1, message)
 
             message = f"Rew: {round(rew[self.current_agent_index],3)}"

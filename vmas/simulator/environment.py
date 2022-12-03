@@ -2,11 +2,12 @@
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 from enum import Enum
-from typing import List, Optional, Tuple, Callable
+from typing import Dict, List, Optional, Tuple, Union, Callable
 
 import gym
 import numpy as np
 import torch
+import copy
 from gym import spaces
 from ray import rllib
 from ray.rllib.utils.typing import EnvActionType, EnvInfoDict, EnvObsType
@@ -55,12 +56,7 @@ class Environment(TorchVectorizedObject):
         )
         self.observation_space = gym.spaces.Tuple(
             [
-                spaces.Box(
-                    low=-float("inf"),
-                    high=float("inf"),
-                    shape=(len(self.scenario.observation(agent)[0]),),
-                    dtype=float,
-                )
+                self.get_observation_space(self.scenario.observation(agent))
                 for agent in self.agents
             ]
         )
@@ -155,7 +151,7 @@ class Environment(TorchVectorizedObject):
         infos = []
         for agent in self.agents:
             rewards.append(self.scenario.reward(agent).clone())
-            obs.append(self.scenario.observation(agent).clone())
+            obs.append(copy.deepcopy(self.scenario.observation(agent)))
             # A dictionary per agent
             infos.append(self.scenario.info(agent))
 
@@ -224,6 +220,23 @@ class Environment(TorchVectorizedObject):
                     )
                 )
                 return spaces.MultiDiscrete(actions)
+
+    def get_observation_space(
+        self, obs: Union[Dict, Tensor]
+    ) -> Union[spaces.Dict, spaces.Box]:
+        if isinstance(obs, Tensor):
+            return spaces.Box(
+                low=-float("inf"),
+                high=float("inf"),
+                shape=(len(obs[0]),),
+                dtype=float,
+            )
+        elif isinstance(obs, Dict):
+            return spaces.Dict(
+                {key: self.get_observation_space(value) for key, value in obs.items()}
+            )
+        else:
+            raise NotImplementedError(f"Invalid type of observation {obs}")
 
     def _check_discrete_action(self, action: Tensor, low: int, high: int, type: str):
         assert torch.all(
@@ -729,8 +742,17 @@ class GymWrapper(gym.Env):
         action = self._action_list_to_tensor(action)
         obs, rews, done, info = self._env.step(action)
         done = done[0].item()
+
+        def extract_first_nested(obs):
+            if isinstance(obs, Tensor):
+                return obs[0]
+            elif isinstance(obs, Dict):
+                return {key: extract_first_nested(value) for key, value in obs.items()}
+            else:
+                raise NotImplementedError(f"Invalid type of observation {obs}")
+
         for i in range(self._env.n_agents):
-            obs[i] = obs[i][0]
+            obs[i] = extract_first_nested(obs[i])
             rews[i] = rews[i][0].item()
         return obs, rews, done, info
 
