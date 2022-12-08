@@ -268,7 +268,7 @@ To create a fake screen you need to have `Xvfb` installed.
 
 - [X] Talk about action preprocessing and velocity controller
 - [X] New envs from joint project with their descriptions
-- [ ] New ens from adversarial project
+- [ ] New envs from adversarial project
 - [ ] Custom actions for scenario
 - [ ] Implement 1D camera sensor
 - [ ] Make football heuristic efficient
