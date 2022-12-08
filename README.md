@@ -74,9 +74,19 @@ Watch the presentation video of VMAS, showing its structure, scenarios, and expe
 
 ### Install
 
-To install the simulator, you can use pip:
+To install the simulator, you can use pip to get the latest release:
 ```
 pip install vmas
+```
+If you want to install the current master version (more up to date than latest release), you can do:
+```
+git clone https://github.com/proroklab/VectorizedMultiAgentSimulator.git
+cd VectorizedMultiAgentSimulator
+pip install -e .
+```
+By default, rllib is an optional requirement, if you want to install it, you can use:
+```
+pip install "ray[rllib]"==2.1 # We support versions "ray[rllib]<=2.1,>=1.13"
 ```
 
 ### Run 

@@ -15,7 +15,8 @@ from operator import add
 import numpy as np
 
 from vmas.make_env import make_env
-from vmas.simulator.environment import GymWrapper
+from vmas.simulator.environment import Wrapper
+from vmas.simulator.environment.gym import GymWrapper
 from vmas.simulator.utils import save_video
 
 N_TEXT_LINES_INTERACTIVE = 6
@@ -274,15 +275,14 @@ def render_interactively(
         scenario_name = scenario_name[:-3]
 
     InteractiveEnv(
-        GymWrapper(
-            make_env(
-                scenario_name=scenario_name,
-                num_envs=1,
-                device="cpu",
-                continuous_actions=True,
-                # Environment specific variables
-                **kwargs,
-            )
+        make_env(
+            scenario_name=scenario_name,
+            num_envs=1,
+            device="cpu",
+            continuous_actions=True,
+            wrapper=Wrapper.GYM,
+            # Environment specific variables
+            **kwargs,
         ),
         control_two_agents=control_two_agents,
         display_info=display_info,

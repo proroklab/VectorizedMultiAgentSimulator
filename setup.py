@@ -18,6 +18,5 @@ setup(
         "torch",
         "pyglet<=1.5.27",
         "gym<=0.23.1",
-        "ray[rllib]<=2.1,>=1.13",
     ],
 )
