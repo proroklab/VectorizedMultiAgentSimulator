@@ -6,7 +6,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="vmas",
-    version="1.1.0",
+    version="1.2.0",
     description="Vectorized Multi-Agent Simulator",
     url="https://github.com/proroklab/VectorizedMultiAgentSimulator",
     license="GPLv3",
@@ -18,6 +18,5 @@ setup(
         "torch",
         "pyglet<=1.5.27",
         "gym<=0.23.1",
-        "ray[rllib]<=2.1,>=1.13",
     ],
 )

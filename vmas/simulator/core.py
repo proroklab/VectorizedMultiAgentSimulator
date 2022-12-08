@@ -11,6 +11,7 @@ from typing import Callable, List, Tuple
 
 import torch
 from torch import Tensor
+
 from vmas.simulator.joints import JointConstraint, Joint
 from vmas.simulator.sensors import Sensor
 from vmas.simulator.utils import (
@@ -25,7 +26,7 @@ from vmas.simulator.utils import (
     DRAG,
     LINEAR_FRICTION,
     ANGULAR_FRICTION,
-    clamp_with_norm,
+    TorchUtils,
 )
 
 if typing.TYPE_CHECKING:
@@ -482,6 +483,10 @@ class Entity(TorchVectorizedObject, Observable, ABC):
     def mass(self):
         return self._mass
 
+    @mass.setter
+    def mass(self, mass: float):
+        self._mass = mass
+
     @property
     def moment_of_inertia(self):
         return self.shape.moment_of_inertia(self.mass)
@@ -689,6 +694,7 @@ class Agent(Entity):
         v_range: float = None,
         max_speed: float = None,
         color=Color.BLUE,
+        alpha: float = 0.5,
         obs_range: float = None,
         obs_noise: float = None,
         u_noise: float = None,
@@ -752,6 +758,8 @@ class Agent(Entity):
         self._render_action = render_action
         # is adversary
         self._adversary = adversary
+        # Render alpha
+        self._alpha = alpha
 
         # action
         self._action = Action(
@@ -855,7 +863,7 @@ class Agent(Entity):
         return self._silent
 
     @property
-    def sensors(self):
+    def sensors(self) -> List[Sensor]:
         return self._sensors
 
     @property
@@ -898,7 +906,7 @@ class Agent(Entity):
         if len(geoms) == 0:
             return geoms
         for geom in geoms:
-            geom.set_color(*self.color, alpha=0.5)
+            geom.set_color(*self.color, alpha=self._alpha)
         if self._sensors is not None:
             for sensor in self._sensors:
                 geoms += sensor.render(env_index=env_index)
@@ -1079,11 +1087,11 @@ class World(TorchVectorizedObject):
         assert isinstance(box.shape, Box)
 
         pos_origin = ray_origin - box.state.pos
-        pos_aabb = World._rotate_vector(pos_origin, -box.state.rot)
+        pos_aabb = TorchUtils.rotate_vector(pos_origin, -box.state.rot)
         ray_dir_world = torch.stack(
             [torch.cos(ray_direction), torch.sin(ray_direction)], dim=-1
         )
-        ray_dir_aabb = World._rotate_vector(ray_dir_world, -box.state.rot)
+        ray_dir_aabb = TorchUtils.rotate_vector(ray_dir_world, -box.state.rot)
 
         tx1 = (-box.shape.length / 2 - pos_aabb[:, X]) / ray_dir_aabb[:, X]
         tx2 = (box.shape.length / 2 - pos_aabb[:, X]) / ray_dir_aabb[:, X]
@@ -1101,7 +1109,7 @@ class World(TorchVectorizedObject):
 
         intersect_aabb = tmin.unsqueeze(1) * ray_dir_aabb + pos_aabb
         intersect_world = (
-            World._rotate_vector(intersect_aabb, box.state.rot) + box.state.pos
+            TorchUtils.rotate_vector(intersect_aabb, box.state.rot) + box.state.pos
         )
 
         collision = (tmax >= tmin) & (tmin > 0.0)
@@ -1181,9 +1189,9 @@ class World(TorchVectorizedObject):
             dim=-1,
         )
 
-        rxs = World._cross(r, s)
-        t = World._cross(q - p, s / rxs.unsqueeze(1))
-        u = World._cross(q - p, r / rxs.unsqueeze(1))
+        rxs = TorchUtils.cross(r, s)
+        t = TorchUtils.cross(q - p, s / rxs.unsqueeze(1))
+        u = TorchUtils.cross(q - p, r / rxs.unsqueeze(1))
         d = torch.linalg.norm(u.unsqueeze(1) * s, dim=1)
 
         perpendicular = rxs == 0.0
@@ -1441,7 +1449,9 @@ class World(TorchVectorizedObject):
                 )
                 entity.action.u += noise
                 if entity.max_f is not None:
-                    entity.action.u = clamp_with_norm(entity.action.u, entity.max_f)
+                    entity.action.u = TorchUtils.clamp_with_norm(
+                        entity.action.u, entity.max_f
+                    )
                 if entity.f_range is not None:
                     entity.action.u = torch.clamp(
                         entity.action.u, -entity.f_range, entity.f_range
@@ -1467,7 +1477,7 @@ class World(TorchVectorizedObject):
                 if len(entity.action.u_rot.shape) == 1:
                     entity.action.u_rot.unsqueeze_(-1)
                 if entity.max_t is not None:
-                    entity.action.u_rot = clamp_with_norm(
+                    entity.action.u_rot = TorchUtils.clamp_with_norm(
                         entity.action.u_rot, entity.max_t
                     )
                 if entity.t_range is not None:
@@ -1548,10 +1558,10 @@ class World(TorchVectorizedObject):
                 if joint.dist == 0:
                     continue
             # Collisions
-            if self._collides(entity_a, entity_b):
+            if self.collides(entity_a, entity_b):
                 apply_env_forces(*self._get_collision_force(entity_a, entity_b))
 
-    def _collides(self, a: Entity, b: Entity) -> bool:
+    def collides(self, a: Entity, b: Entity) -> bool:
         if (not a.collides(b)) or (not b.collides(a)) or a is b:
             return False
         a_shape = a.shape
@@ -1591,8 +1601,8 @@ class World(TorchVectorizedObject):
         r_a = pos_point_a - entity_a.state.pos
         r_b = pos_point_b - entity_b.state.pos
         if joint.rotate:
-            torque_a = World._compute_torque(force_a, r_a)
-            torque_b = World._compute_torque(force_b, r_b)
+            torque_a = TorchUtils.compute_torque(force_a, r_a)
+            torque_b = TorchUtils.compute_torque(force_b, r_b)
         else:
             torque_a = torque_b = 0
         return force_a, torque_a, force_b, torque_b
@@ -1632,7 +1642,7 @@ class World(TorchVectorizedObject):
                 force_multiplier=self._collision_force,
             )
             r = closest_point - line.state.pos
-            torque_line = World._compute_torque(force_line, r)
+            torque_line = TorchUtils.compute_torque(force_line, r)
 
             force_a, torque_a, force_b, torque_b = (
                 (force_sphere, 0, force_line, torque_line)
@@ -1666,7 +1676,7 @@ class World(TorchVectorizedObject):
                 force_multiplier=self._collision_force,
             )
             r = closest_point_box - box.state.pos
-            torque_box = World._compute_torque(force_box, r)
+            torque_box = TorchUtils.compute_torque(force_box, r)
 
             force_a, torque_a, force_b, torque_b = (
                 (force_sphere, 0, force_box, torque_box)
@@ -1692,8 +1702,8 @@ class World(TorchVectorizedObject):
             r_a = point_a - entity_a.state.pos
             r_b = point_b - entity_b.state.pos
 
-            torque_a = World._compute_torque(force_a, r_a)
-            torque_b = World._compute_torque(force_b, r_b)
+            torque_a = TorchUtils.compute_torque(force_a, r_a)
+            torque_b = TorchUtils.compute_torque(force_b, r_b)
         # Line and box
         elif (
             isinstance(entity_a.shape, Box)
@@ -1726,8 +1736,8 @@ class World(TorchVectorizedObject):
             r_box = point_box - box.state.pos
             r_line = point_line - line.state.pos
 
-            torque_box = World._compute_torque(force_box, r_box)
-            torque_line = World._compute_torque(force_line, r_line)
+            torque_box = TorchUtils.compute_torque(force_box, r_box)
+            torque_line = TorchUtils.compute_torque(force_line, r_line)
 
             force_a, torque_a, force_b, torque_b = (
                 (force_line, torque_line, force_box, torque_box)
@@ -1759,8 +1769,8 @@ class World(TorchVectorizedObject):
             )
             r_a = point_a - entity_a.state.pos
             r_b = point_b - entity_b.state.pos
-            torque_a = World._compute_torque(force_a, r_a)
-            torque_b = World._compute_torque(force_b, r_b)
+            torque_a = TorchUtils.compute_torque(force_a, r_a)
+            torque_b = TorchUtils.compute_torque(force_b, r_b)
         else:
             assert False
 
@@ -1889,9 +1899,9 @@ class World(TorchVectorizedObject):
         s = point_b2 - point_b1
         p = point_a1
         q = point_b1
-        cross_q_minus_p_r = World._cross(q - p, r)
-        cross_q_minus_p_s = World._cross(q - p, s)
-        cross_r_s = World._cross(r, s)
+        cross_q_minus_p_r = TorchUtils.cross(q - p, r)
+        cross_q_minus_p_s = TorchUtils.cross(q - p, s)
+        cross_r_s = TorchUtils.cross(r, s)
         u = cross_q_minus_p_r / cross_r_s
         t = cross_q_minus_p_s / cross_r_s
         t_in_range = (0 <= t) * (t <= 1)
@@ -1952,8 +1962,8 @@ class World(TorchVectorizedObject):
 
     def _get_all_lines_box(self, box: Entity):
         # Rotate normal vector by the angle of the box
-        rotated_vector = World._rotate_vector(self._normal_vector, box.state.rot)
-        rotated_vector2 = World._rotate_vector(
+        rotated_vector = TorchUtils.rotate_vector(self._normal_vector, box.state.rot)
+        rotated_vector2 = TorchUtils.rotate_vector(
             self._normal_vector, box.state.rot + torch.pi / 2
         )
 
@@ -2028,7 +2038,7 @@ class World(TorchVectorizedObject):
         limit_to_line_length: bool = True,
     ):
         # Rotate it by the angle of the line
-        rotated_vector = World._rotate_vector(self._normal_vector, line_rot)
+        rotated_vector = TorchUtils.rotate_vector(self._normal_vector, line_rot)
         # Get distance between line and sphere
         delta_pos = line_pos - test_point_pos
         # Dot product of distance and line vector
@@ -2096,7 +2106,9 @@ class World(TorchVectorizedObject):
             accel = self.force[:, index] / entity.mass
             entity.state.vel += accel * self._sub_dt
             if entity.max_speed is not None:
-                entity.state.vel = clamp_with_norm(entity.state.vel, entity.max_speed)
+                entity.state.vel = TorchUtils.clamp_with_norm(
+                    entity.state.vel, entity.max_speed
+                )
             if entity.v_range is not None:
                 entity.state.vel = entity.state.vel.clamp(
                     -entity.v_range, entity.v_range
@@ -2135,29 +2147,3 @@ class World(TorchVectorizedObject):
                 else 0.0
             )
             agent.state.c = agent.action.c + noise
-
-    @staticmethod
-    def _rotate_vector(vector: Tensor, angle: Tensor):
-        if len(angle.shape) > 1:
-            angle = angle.squeeze(-1)
-        if len(vector.shape) == 1:
-            vector = vector.unsqueeze(0)
-        cos = torch.cos(angle)
-        sin = torch.sin(angle)
-        return torch.stack(
-            [
-                vector[:, X] * cos - vector[:, Y] * sin,
-                vector[:, X] * sin + vector[:, Y] * cos,
-            ],
-            dim=-1,
-        )
-
-    @staticmethod
-    def _cross(vector_a: Tensor, vector_b: Tensor):
-        return (
-            vector_a[:, X] * vector_b[:, Y] - vector_a[:, Y] * vector_b[:, X]
-        ).unsqueeze(1)
-
-    @staticmethod
-    def _compute_torque(f: Tensor, r: Tensor) -> Tensor:
-        return World._cross(r, f)

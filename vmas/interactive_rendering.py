@@ -13,8 +13,11 @@ and switch the agent with these controls using LSHIFT
 from operator import add
 
 import numpy as np
+
 from vmas.make_env import make_env
-from vmas.simulator.environment import GymWrapper
+from vmas.simulator.environment import Wrapper
+from vmas.simulator.environment.gym import GymWrapper
+from vmas.simulator.utils import save_video
 
 N_TEXT_LINES_INTERACTIVE = 6
 
@@ -30,7 +33,14 @@ class InteractiveEnv:
     and switch the agent with these controls using LSHIFT
     """
 
-    def __init__(self, env: GymWrapper, control_two_agents: bool = False):
+    def __init__(
+        self,
+        env: GymWrapper,
+        control_two_agents: bool = False,
+        display_info: bool = True,
+        save_render: bool = False,
+        render_name: str = "interactive",
+    ):
 
         self.env = env
         self.control_two_agents = control_two_agents
@@ -44,6 +54,10 @@ class InteractiveEnv:
         self.keys2 = np.array([0.0, 0.0, 0.0, 0.0])  # up, down, left, right
         self.u = 0 if not self.continuous else (0.0, 0.0)
         self.u2 = 0 if not self.continuous else (0.0, 0.0)
+        self.frame_list = []
+        self.display_info = display_info
+        self.save_render = save_render
+        self.render_name = render_name
 
         if self.control_two_agents:
             assert (
@@ -67,6 +81,12 @@ class InteractiveEnv:
         total_rew = [0] * self.n_agents
         while True:
             if self.reset:
+                if self.save_render:
+                    save_video(
+                        self.render_name,
+                        self.frame_list,
+                        fps=1 / self.env.env.world.dt,
+                    )
                 self.env.reset()
                 self.reset = False
                 total_rew = [0] * self.n_agents
@@ -80,29 +100,35 @@ class InteractiveEnv:
                 action_list[self.current_agent_index2] = self.u2
             obs, rew, done, info = self.env.step(action_list)
 
-            obs[self.current_agent_index] = np.around(
-                obs[self.current_agent_index].cpu().tolist(), decimals=2
+            if self.display_info:
+                obs[self.current_agent_index] = np.around(
+                    obs[self.current_agent_index].cpu().tolist(), decimals=2
+                )
+                len_obs = len(obs[self.current_agent_index])
+                message = f"\t\t{obs[self.current_agent_index][len_obs//2:]}"
+                self._write_values(self.text_idx, message)
+                message = f"Obs: {obs[self.current_agent_index][:len_obs//2]}"
+                self._write_values(self.text_idx + 1, message)
+
+                message = f"Rew: {round(rew[self.current_agent_index],3)}"
+                self._write_values(self.text_idx + 2, message)
+
+                total_rew = list(map(add, total_rew, rew))
+                message = f"Total rew: {round(total_rew[self.current_agent_index], 3)}"
+                self._write_values(self.text_idx + 3, message)
+
+                message = f"Done: {done}"
+                self._write_values(self.text_idx + 4, message)
+
+                message = f"Selected: {self.env.unwrapped().agents[self.current_agent_index].name}"
+                self._write_values(self.text_idx + 5, message)
+
+            self.frame_list.append(
+                self.env.render(
+                    mode="rgb_array",
+                    visualize_when_rgb=True,
+                )
             )
-            len_obs = len(obs[self.current_agent_index])
-            message = f"\t\t{obs[self.current_agent_index][len_obs//2:]}"
-            self._write_values(self.text_idx, message)
-            message = f"Obs: {obs[self.current_agent_index][:len_obs//2]}"
-            self._write_values(self.text_idx + 1, message)
-
-            message = f"Rew: {round(rew[self.current_agent_index],3)}"
-            self._write_values(self.text_idx + 2, message)
-
-            total_rew = list(map(add, total_rew, rew))
-            message = f"Total rew: {round(total_rew[self.current_agent_index], 3)}"
-            self._write_values(self.text_idx + 3, message)
-
-            message = f"Done: {done}"
-            self._write_values(self.text_idx + 4, message)
-
-            message = f"Selected: {self.env.unwrapped().agents[self.current_agent_index].name}"
-            self._write_values(self.text_idx + 5, message)
-
-            self.env.render()
 
             if done:
                 self.reset = True
@@ -230,7 +256,11 @@ class InteractiveEnv:
 
 
 def render_interactively(
-    scenario_name: str, control_two_agents: bool = False, **kwargs
+    scenario_name: str,
+    control_two_agents: bool = False,
+    display_info: bool = True,
+    save_render: bool = False,
+    **kwargs,
 ):
     """
     Use this script to interactively play with scenarios
@@ -241,18 +271,23 @@ def render_interactively(
     If you have more than 1 agent, you can control another one with W,A,S,D
     and switch the agent with these controls using LSHIFT
     """
+    if scenario_name.endswith(".py"):
+        scenario_name = scenario_name[:-3]
+
     InteractiveEnv(
-        GymWrapper(
-            make_env(
-                scenario_name=scenario_name,
-                num_envs=1,
-                device="cpu",
-                continuous_actions=True,
-                # Environment specific variables
-                **kwargs,
-            )
+        make_env(
+            scenario_name=scenario_name,
+            num_envs=1,
+            device="cpu",
+            continuous_actions=True,
+            wrapper=Wrapper.GYM,
+            # Environment specific variables
+            **kwargs,
         ),
         control_two_agents=control_two_agents,
+        display_info=display_info,
+        save_render=save_render,
+        render_name=scenario_name,
     )
 
 
@@ -269,4 +304,6 @@ if __name__ == "__main__":
 
     # Scenario specific variables
 
-    render_interactively(scenario_name, control_two_agents=True)
+    render_interactively(
+        scenario_name, control_two_agents=True, save_render=False, display_info=True
+    )

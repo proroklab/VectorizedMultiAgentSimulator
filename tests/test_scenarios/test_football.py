@@ -14,7 +14,7 @@ class TestFootball(unittest.TestCase):
         super().setUp()
 
         self.continuous_actions = True
-        self.n_envs = 32
+        self.n_envs = 15
         self.env = make_env(
             scenario_name="football",
             num_envs=self.n_envs,

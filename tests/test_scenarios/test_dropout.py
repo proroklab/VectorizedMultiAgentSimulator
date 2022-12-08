@@ -14,7 +14,7 @@ class TestDropout(unittest.TestCase):
         self,
         n_agents: int,
         energy_coeff: float = DEFAULT_ENERGY_COEFF,
-        num_envs: int = 23,
+        num_envs: int = 15,
     ) -> None:
         super().setUp()
         self.n_agents = n_agents

@@ -147,7 +147,7 @@ class JointConstraint:
             anchor = self.anchor_b
         else:
             assert False
-        return vmas.simulator.core.World._rotate_vector(
+        return vmas.simulator.utils.TorchUtils.rotate_vector(
             torch.tensor(
                 entity.shape.get_delta_from_anchor(anchor),
                 device=entity.state.pos.device,

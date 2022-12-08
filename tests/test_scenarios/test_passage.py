@@ -17,7 +17,7 @@ class TestPassage(unittest.TestCase):
         self.n_passages = kwargs.get("n_passages", 4)
 
         self.continuous_actions = True
-        self.n_envs = 25
+        self.n_envs = 15
         self.env = make_env(
             scenario_name="passage",
             num_envs=self.n_envs,

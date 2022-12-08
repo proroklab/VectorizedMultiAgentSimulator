@@ -18,7 +18,7 @@ class TestDispersion(unittest.TestCase):
         self.penalise_by_time = penalise_by_time
 
         self.continuous_actions = True
-        self.n_envs = 25
+        self.n_envs = 15
         self.env = make_env(
             scenario_name="dispersion",
             num_envs=self.n_envs,

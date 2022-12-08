@@ -14,7 +14,7 @@ class TestWaterfall(unittest.TestCase):
         self.n_agents = 5
 
         self.continuous_actions = True
-        self.n_envs = 19
+        self.n_envs = 15
         self.env = make_env(
             scenario_name="waterfall",
             num_envs=self.n_envs,
