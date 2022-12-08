@@ -39,14 +39,14 @@ class Scenario(BaseScenario):
         )
         # Add agents
         agent = Agent(
-            name=f"agent 0",
+            name="agent 0",
             shape=Sphere(self.agent_radius),
             u_multiplier=1,
             mass=1,
         )
         world.add_agent(agent)
         agent = Agent(
-            name=f"agent 1",
+            name="agent 1",
             shape=Sphere(self.agent_radius),
             u_multiplier=1,
             mass=1,

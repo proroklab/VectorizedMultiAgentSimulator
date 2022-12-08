@@ -99,7 +99,7 @@ class Scenario(BaseScenario):
 
         # Add agents
         agent = Agent(
-            name=f"agent 0",
+            name="agent 0",
             shape=Sphere(self.agent_radius),
             u_range=0.5,
             obs_noise=self.obs_noise,
@@ -111,7 +111,7 @@ class Scenario(BaseScenario):
         )
         world.add_agent(agent)
         agent = Agent(
-            name=f"agent 1",
+            name="agent 1",
             shape=Sphere(self.agent_radius_2),
             u_range=0.5,
             mass=1 if self.asym_package else self.mass_ratio,

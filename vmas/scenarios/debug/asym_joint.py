@@ -2,7 +2,8 @@
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import math
-from typing import Dict
+import typing
+from typing import Dict, List
 
 import torch
 from torch import Tensor
@@ -12,6 +13,9 @@ from vmas.simulator.core import Agent, Landmark, Sphere, World
 from vmas.simulator.joints import Joint
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color
+
+if typing.TYPE_CHECKING:
+    from vmas.simulator.rendering import Geom
 
 
 def get_line_angle_0_90(rot: Tensor):

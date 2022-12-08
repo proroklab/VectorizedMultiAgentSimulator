@@ -1,7 +1,8 @@
 #  Copyright (c) 2022.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-from typing import Dict, Callable
+import typing
+from typing import Dict, Callable, List
 
 import torch
 from torch import Tensor
@@ -10,6 +11,9 @@ from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, World, Sphere, Entity
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color, ScenarioUtils
+
+if typing.TYPE_CHECKING:
+    from vmas.simulator.rendering import Geom
 
 
 class Scenario(BaseScenario):

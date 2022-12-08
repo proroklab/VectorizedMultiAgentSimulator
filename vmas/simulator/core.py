@@ -1908,7 +1908,6 @@ class World(TorchVectorizedObject):
         u_in_range = (0 <= u) * (u <= 1)
 
         cross_r_s_is_zero = cross_r_s == 0
-        cross_q_minus_p_r_is_zero = cross_q_minus_p_r == 0
 
         distance = torch.full(
             (self.batch_dim,), float("inf"), device=self.device, dtype=torch.float32

@@ -39,9 +39,9 @@ class Scenario(BaseScenario):
             drag=0,
         )
         # Add agents
-        agent = Agent(name=f"agent 0", shape=Sphere(self.agent_radius), drag=0.25)
+        agent = Agent(name="agent 0", shape=Sphere(self.agent_radius), drag=0.25)
         world.add_agent(agent)
-        agent = Agent(name=f"agent 1", shape=Sphere(self.agent_radius), drag=0.25)
+        agent = Agent(name="agent 1", shape=Sphere(self.agent_radius), drag=0.25)
         world.add_agent(agent)
 
         self.ball = Landmark(
