@@ -32,12 +32,17 @@ If you use VMAS in your research, **cite** it using:
 }
 ```
 
-### [Video](https://youtu.be/aaDRYfiesAY)
+### Video
 Watch the presentation video of VMAS, showing its structure, scenarios, and experiments.
 
 <p align="center">
 
 [![VMAS Video](https://img.youtube.com/vi/aaDRYfiesAY/0.jpg)](https://www.youtube.com/watch?v=aaDRYfiesAY)
+</p>
+Watch the talk at DARS 2022 about VMAS.
+<p align="center">
+
+[![VMAS Video](https://img.youtube.com/vi/boViBY7Woqg/0.jpg)](https://www.youtube.com/watch?v=boViBY7Woqg)
 </p>
 
 ## Table of contents
