@@ -7,7 +7,7 @@ import os.path as osp
 
 
 def load(name: str):
-    if "/" in name:
+    if os.path.isfile(name):
         pathname = name
     else:
         pathname = None
@@ -15,7 +15,7 @@ def load(name: str):
             if pathname is None:
                 for filename in filenames:
                     if filename == name:
-                        pathname = dirpath + "/" + filename
+                        pathname = os.path.join(dirpath, filename)
                         break
         assert pathname is not None, f"{name} scenario not found."
 
