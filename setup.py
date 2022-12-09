@@ -13,10 +13,5 @@ setup(
     author="Matteo Bettini",
     author_email="mb2389@cl.cam.ac.uk",
     packages=find_packages(),
-    install_requires=[
-        "numpy",
-        "torch",
-        "pyglet<=1.5.27",
-        "gym<=0.23.1",
-    ],
+    install_requires=["numpy", "torch", "pyglet<=1.5.27", "gym<=0.23.1", "six"],
 )
