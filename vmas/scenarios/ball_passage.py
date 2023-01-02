@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -72,6 +72,9 @@ class Scenario(BaseScenario):
         world.add_landmark(self.ball)
 
         self.create_passage_map(world)
+
+        self.pos_rew = torch.zeros(batch_dim, device=device, dtype=torch.float32)
+        self.collision_rew = self.pos_rew.clone()
 
         return world
 
@@ -213,8 +216,8 @@ class Scenario(BaseScenario):
             self.rew = torch.zeros(
                 self.world.batch_dim, device=self.world.device, dtype=torch.float32
             )
-            self.pos_rew = self.rew.clone()
-            self.collision_rew = self.rew.clone()
+            self.pos_rew[:] = 0
+            self.collision_rew[:] = 0
 
             ball_passed = self.ball.state.pos[:, Y] > 0
 
@@ -328,32 +331,35 @@ class Scenario(BaseScenario):
     def spawn_passage_map(self, env_index):
         if not self.fixed_passage:
             order = torch.randperm(len(self.passages)).tolist()
-            self.passages = [self.passages[i] for i in order]
-        for i, passage in enumerate(self.passages):
+            self.passages_to_place = [self.passages[i] for i in order]
+        else:
+            self.passages_to_place = self.passages
+        for i, passage in enumerate(self.passages_to_place):
             if not passage.collide:
                 passage.is_rendering[:] = False
             passage.neighbour = False
             try:
-                passage.neighbour += not self.passages[i - 1].collide
+                passage.neighbour += not self.passages_to_place[i - 1].collide
             except IndexError:
                 pass
             try:
-                passage.neighbour += not self.passages[i + 1].collide
+                passage.neighbour += not self.passages_to_place[i + 1].collide
             except IndexError:
                 pass
+            pos = torch.tensor(
+                [
+                    -1
+                    - self.agent_radius
+                    + self.passage_length / 2
+                    + self.passage_length * i,
+                    0.0,
+                ],
+                dtype=torch.float32,
+                device=self.world.device,
+            )
             passage.neighbour *= passage.collide
             passage.set_pos(
-                torch.tensor(
-                    [
-                        -1
-                        - self.agent_radius
-                        + self.passage_length / 2
-                        + self.passage_length * i,
-                        0.0,
-                    ],
-                    dtype=torch.float32,
-                    device=self.world.device,
-                ),
+                pos,
                 batch_index=env_index,
             )
 

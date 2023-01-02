@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -71,6 +71,9 @@ class Scenario(BaseScenario):
             color=Color.WHITE,
         )
         world.add_landmark(floor)
+
+        self.pos_rew = torch.zeros(batch_dim, device=device, dtype=torch.float32)
+        self.ground_rew = self.pos_rew.clone()
 
         return world
 
@@ -201,12 +204,8 @@ class Scenario(BaseScenario):
         is_first = agent == self.world.agents[0]
 
         if is_first:
-            self.pos_rew = torch.zeros(
-                self.world.batch_dim, device=self.world.device, dtype=torch.float32
-            )
-            self.ground_rew = torch.zeros(
-                self.world.batch_dim, device=self.world.device, dtype=torch.float32
-            )
+            self.pos_rew[:] = 0
+            self.ground_rew[:] = 0
 
             self.on_the_ground = (
                 self.package.state.pos[:, Y] <= -self.world.y_semidim

@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 from typing import Dict
@@ -89,6 +89,9 @@ class Scenario(BaseScenario):
             world.add_joint(self.joints[i])
 
         self.build_path_line(world)
+
+        self.pos_rew = torch.zeros(batch_dim, device=device, dtype=torch.float32)
+        self.collision_rew = self.pos_rew.clone()
 
         return world
 
@@ -204,8 +207,8 @@ class Scenario(BaseScenario):
             self.rew = torch.zeros(
                 self.world.batch_dim, device=self.world.device, dtype=torch.float32
             )
-            self.pos_rew = self.rew.clone()
-            self.collision_rew = self.rew.clone()
+            self.pos_rew[:] = 0
+            self.collision_rew[:] = 0
             self.collided = torch.full(
                 (self.world.batch_dim,), False, device=self.world.device
             )

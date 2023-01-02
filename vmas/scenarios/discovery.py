@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -85,6 +85,8 @@ class Scenario(BaseScenario):
                     ),
                 ],
             )
+            agent.collision_rew = torch.zeros(batch_dim, device=device)
+            agent.covering_reward = agent.collision_rew.clone()
             world.add_agent(agent)
 
         self._targets = []
@@ -98,6 +100,9 @@ class Scenario(BaseScenario):
             )
             world.add_landmark(target)
             self._targets.append(target)
+
+        self.covered_targets = torch.zeros(batch_dim, self.n_targets, device=device)
+        self.shared_covering_rew = torch.zeros(batch_dim, device=device)
 
         return world
 
@@ -140,17 +145,13 @@ class Scenario(BaseScenario):
             )
             self.covered_targets = self.agents_per_target >= self._agents_per_target
 
-            self.shared_covering_rew = torch.zeros(
-                self.world.batch_dim, device=self.world.device
-            )
+            self.shared_covering_rew[:] = 0
             for a in self.world.agents:
                 self.shared_covering_rew += self.agent_reward(a)
             self.shared_covering_rew[self.shared_covering_rew != 0] /= 2
 
         # Avoid collisions with each other
-        agent.collision_rew = torch.zeros(
-            self.world.batch_dim, device=self.world.device
-        )
+        agent.collision_rew[:] = 0
         for a in self.world.agents:
             if a != agent:
                 agent.collision_rew[
@@ -206,9 +207,7 @@ class Scenario(BaseScenario):
     def agent_reward(self, agent):
         agent_index = self.world.agents.index(agent)
 
-        agent.covering_reward = torch.zeros(
-            self.world.batch_dim, device=self.world.device
-        )
+        agent.covering_reward[:] = 0
         targets_covered_by_agent = (
             self.agents_targets_dists[:, agent_index] < self._covering_range
         )

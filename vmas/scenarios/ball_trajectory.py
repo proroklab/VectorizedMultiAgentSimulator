@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 from typing import Dict
@@ -71,6 +71,10 @@ class Scenario(BaseScenario):
                     )
                 )
                 world.add_joint(self.joints[i])
+
+        self.pos_rew = torch.zeros(batch_dim, device=device, dtype=torch.float32)
+        self.speed_rew = self.pos_rew.clone()
+        self.dist_rew = self.pos_rew.clone()
 
         return world
 

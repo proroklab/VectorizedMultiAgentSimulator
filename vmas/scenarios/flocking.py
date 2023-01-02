@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 from typing import Dict, Callable
@@ -61,6 +61,11 @@ class Scenario(BaseScenario):
         )
         world.add_landmark(self._target)
 
+        self.collision_rew = torch.zeros(batch_dim, device=device)
+        self.velocity_rew = self.collision_rew.clone()
+        self.separation_rew = self.collision_rew.clone()
+        self.cohesion_rew = self.collision_rew.clone()
+
         return world
 
     def reset_world_at(self, env_index: int = None):
@@ -75,7 +80,7 @@ class Scenario(BaseScenario):
 
     def reward(self, agent: Agent):
         # Avoid collisions with each other
-        self.collision_rew = torch.zeros(self.world.batch_dim, device=self.world.device)
+        self.collision_rew[:] = 0
         for a in self.world.agents:
             if a != agent:
                 self.collision_rew[self.world.is_overlapping(a, agent)] -= 1.0
@@ -112,16 +117,14 @@ class Scenario(BaseScenario):
         )
 
     def info(self, agent: Agent) -> Dict[str, Tensor]:
-        try:
-            info = {
-                "collision_rew": self.collision_rew,
-                "velocity_rew": self.velocity_rew,
-                "separation_rew": self.separation_rew,
-                "cohesion_rew": self.cohesion_rew,
-            }
-        # When reset is called before reward()
-        except AttributeError:
-            info = {}
+
+        info = {
+            "collision_rew": self.collision_rew,
+            "velocity_rew": self.velocity_rew,
+            "separation_rew": self.separation_rew,
+            "cohesion_rew": self.cohesion_rew,
+        }
+
         return info
 
 

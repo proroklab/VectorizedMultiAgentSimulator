@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import math
@@ -188,6 +188,12 @@ class Scenario(BaseScenario):
 
         self.create_passage_map(world)
 
+        self.pos_rew = torch.zeros(batch_dim, device=device)
+        self.rot_rew = self.pos_rew.clone()
+        self.collision_rew = self.pos_rew.clone()
+        self.energy_rew = self.pos_rew.clone()
+        self.all_passed = torch.full((batch_dim,), False, device=device)
+
         return world
 
     def reset_world_at(self, env_index: int = None):
@@ -367,10 +373,10 @@ class Scenario(BaseScenario):
             self.rew = torch.zeros(
                 self.world.batch_dim, device=self.world.device, dtype=torch.float32
             )
-            self.pos_rew = self.rew.clone()
-            self.rot_rew = self.rew.clone()
-            self.collision_rew = self.rew.clone()
-            self.energy_rew = self.rew.clone()
+            self.pos_rew[:] = 0
+            self.rot_rew[:] = 0
+            self.collision_rew[:] = 0
+            self.energy_rew[:] = 0
 
             joint_passed = self.joint.landmark.state.pos[:, Y] > 0
             self.all_passed = (
@@ -524,15 +530,14 @@ class Scenario(BaseScenario):
         if is_first:
             just_passed = self.all_passed * (self.passed == 0)
             self.passed[just_passed] = 100
-            return {
+            self.info_stored = {
                 "pos_rew": self.pos_rew,
                 "rot_rew": self.rot_rew,
                 "collision_rew": self.collision_rew,
                 "energy_rew": self.energy_rew,
                 "passed": just_passed.to(torch.int),
             }
-        else:
-            return {}
+        return self.info_stored
 
     def create_passage_map(self, world: World):
         # Add landmarks

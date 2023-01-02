@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import typing
@@ -75,6 +75,8 @@ class Scenario(BaseScenario):
                 #     ),
                 # ],
             )
+            agent.pos_rew = torch.zeros(batch_dim, device=device)
+            agent.agent_collision_rew = agent.pos_rew.clone()
             world.add_agent(agent)
 
             # Add goals
@@ -86,6 +88,9 @@ class Scenario(BaseScenario):
             )
             world.add_landmark(goal)
             agent.goal = goal
+
+        self.pos_rew = torch.zeros(batch_dim, device=device)
+        self.final_rew = self.pos_rew.clone()
 
         return world
 
@@ -135,16 +140,12 @@ class Scenario(BaseScenario):
         is_first = agent == self.world.agents[0]
 
         if is_first:
-            self.pos_rew = torch.zeros(
-                self.world.batch_dim, device=self.world.device, dtype=torch.float32
-            )
-            self.final_rew = torch.zeros(self.world.batch_dim, device=self.world.device)
+            self.pos_rew[:] = 0
+            self.final_rew[:] = 0
 
             for a in self.world.agents:
                 self.pos_rew += self.agent_reward(a)
-                a.agent_collision_rew = torch.zeros(
-                    (self.world.batch_dim,), device=self.world.device
-                )
+                a.agent_collision_rew[:] = 0
 
             self.all_goal_reached = torch.all(
                 torch.stack([a.on_goal for a in self.world.agents], dim=-1), dim=-1
