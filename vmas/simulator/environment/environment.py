@@ -143,7 +143,7 @@ class Environment(TorchVectorizedObject):
         # Scenarios can define a custom action processor. This step takes care also of scripted agents automatically
         for agent in self.world.agents:
             self.scenario.env_process_action(agent)
-        torch.rand(1, 3)
+
         # advance world state
         self.world.step()
 
