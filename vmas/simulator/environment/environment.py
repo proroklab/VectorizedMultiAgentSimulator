@@ -71,7 +71,7 @@ class Environment(TorchVectorizedObject):
         self.headless = None
         self.visible_display = None
 
-    def reset(self, seed: Optional[int] = None):
+    def reset(self, seed: Optional[int] = None, return_info: bool = False):
         """
         Resets the environment in a vectorized way
         Returns observations for all envs and agents
@@ -83,11 +83,14 @@ class Environment(TorchVectorizedObject):
         self.steps = torch.zeros(self.num_envs, device=self.device)
         # record observations for each agent
         obs = []
+        info = []
         for agent in self.agents:
             obs.append(self.scenario.observation(agent))
-        return obs
+            if return_info:
+                info.append(self.scenario.info(agent))
+        return (obs, info) if return_info else obs
 
-    def reset_at(self, index: int = None):
+    def reset_at(self, index: int = None, return_info: bool = False):
         """
         Resets the environment at index
         Returns observations for all agents in that environment
@@ -96,9 +99,17 @@ class Environment(TorchVectorizedObject):
         self.scenario.env_reset_world_at(index)
         self.steps[index] = 0
         obs = []
+        info = []
         for agent in self.agents:
             obs.append(self.scenario.observation(agent)[index].unsqueeze(0))
-        return obs
+            if return_info:
+                info.append(
+                    {
+                        key: val[index].unsqueeze(0)
+                        for key, val in self.scenario.info(agent)
+                    }
+                )
+        return (obs, info) if return_info else obs
 
     def seed(self, seed=None):
         if seed is None:
@@ -161,7 +172,6 @@ class Environment(TorchVectorizedObject):
         self.steps += 1
         if self.max_steps is not None:
             dones += self.steps >= self.max_steps
-
         # print("\nStep results in unwrapped environment")
         # print(
         #     f"Actions len (n_agents): {len(actions)}, "
