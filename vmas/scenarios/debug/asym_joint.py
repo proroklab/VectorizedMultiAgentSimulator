@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import math
@@ -141,6 +141,9 @@ class Scenario(BaseScenario):
             )
             world.add_joint(joint)
 
+        self.rot_rew = torch.zeros(batch_dim, device=device)
+        self.energy_rew = self.rot_rew.clone()
+
         return world
 
     def reset_world_at(self, env_index: int = None):
@@ -227,10 +230,7 @@ class Scenario(BaseScenario):
         is_first = agent == self.world.agents[0]
 
         if is_first:
-            self.rew = torch.zeros(
-                self.world.batch_dim, device=self.world.device, dtype=torch.float32
-            )
-            self.rot_rew = self.rew.clone()
+            self.rot_rew[:] = 0
 
             # Rot shaping
             joint_dist_to_90_rot = get_line_angle_dist_0_180(

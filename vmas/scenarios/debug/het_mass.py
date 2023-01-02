@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import math
@@ -7,6 +7,7 @@ from typing import Dict
 import numpy as np
 import torch
 from torch import Tensor
+
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World
 from vmas.simulator.scenario import BaseScenario
@@ -36,6 +37,9 @@ class Scenario(BaseScenario):
             name=f"agent 1", collide=False, render_action=True, f_range=1
         )
         world.add_agent(self.blue_agent)
+
+        self.max_speed = torch.zeros(batch_dim, device=device)
+        self.energy_expenditure = self.max_speed.clone()
 
         return world
 

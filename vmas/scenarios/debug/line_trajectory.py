@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 from typing import Dict
@@ -38,6 +38,10 @@ class Scenario(BaseScenario):
 
         self.tangent = torch.zeros((world.batch_dim, world.dim_p), device=world.device)
         self.tangent[:, Y] = 1
+
+        self.pos_rew = torch.zeros(batch_dim, device=device)
+        self.dot_product = self.pos_rew.clone()
+        self.steady_rew = self.pos_rew.clone()
 
         return world
 

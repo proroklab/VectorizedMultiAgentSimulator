@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import math
@@ -77,7 +77,11 @@ class Scenario(BaseScenario):
             agent, world, controller_params, "standard"
         )
         agent.goal = self.goal
+        agent.energy_rew = torch.zeros(batch_dim, device=device)
         world.add_agent(agent)
+
+        self.pos_rew = torch.zeros(batch_dim, device=device)
+        self.time_rew = self.pos_rew.clone()
 
         return world
 
@@ -189,8 +193,8 @@ class Scenario(BaseScenario):
         is_first = agent == self.world.agents[0]
 
         if is_first:
-            self.pos_rew = torch.zeros(self.world.batch_dim, device=self.world.device)
-            self.time_rew = torch.zeros(self.world.batch_dim, device=self.world.device)
+            self.pos_rew[:] = 0
+            self.time_rew[:] = 0
 
             # Pos shaping
             goal_dist = torch.stack(

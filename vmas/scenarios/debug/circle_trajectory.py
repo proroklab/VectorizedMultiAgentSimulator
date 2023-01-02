@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 from typing import Dict
@@ -52,6 +52,9 @@ class Scenario(BaseScenario):
             self.agent, world, controller_params, "standard"
         )
         world.add_agent(self.agent)
+
+        self.pos_rew = torch.zeros(batch_dim, device=device)
+        self.dot_product = self.pos_rew.clone()
 
         return world
 

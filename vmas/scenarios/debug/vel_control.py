@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 from typing import Dict
@@ -83,6 +83,8 @@ class Scenario(BaseScenario):
 
         self.landmark = Landmark("landmark 0", collide=False, movable=True)
         world.add_landmark(self.landmark)
+
+        self.energy_expenditure = torch.zeros(batch_dim, device=device)
 
         return world
 
