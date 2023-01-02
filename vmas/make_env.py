@@ -1,15 +1,8 @@
-"""
-Code for creating a multiagent environment with one of the scenarios listed
-in ./scenarios/.
-Can be called by using, for example:
-    env = make_env('waterfall')
-After producing the env object, can be used similarly to an OpenAI gym
-environment.
-"""
-
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
+
+from typing import Optional
 
 from vmas import scenarios
 from vmas.simulator.environment import Environment
@@ -21,8 +14,11 @@ def make_env(
     num_envs: int = 32,
     device: str = "cpu",
     continuous_actions: bool = True,
-    wrapper: Wrapper = None,  # One of: None, vmas.Wrapper.RLLIB, and vmas.Wrapper.GYM
-    max_steps: int = None,
+    wrapper: Optional[
+        Wrapper
+    ] = None,  # One of: None, vmas.Wrapper.RLLIB, and vmas.Wrapper.GYM
+    max_steps: Optional[int] = None,
+    seed: Optional[int] = None,
     **kwargs,
 ):
     # load scenario from script
@@ -35,6 +31,7 @@ def make_env(
         device=device,
         continuous_actions=continuous_actions,
         max_steps=max_steps,
+        seed=seed,
         **kwargs,
     )
 

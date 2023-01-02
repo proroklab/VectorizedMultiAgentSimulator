@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 """
@@ -281,6 +281,7 @@ def render_interactively(
             device="cpu",
             continuous_actions=True,
             wrapper=Wrapper.GYM,
+            seed=0,
             # Environment specific variables
             **kwargs,
         ),

@@ -2,7 +2,7 @@
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 from ctypes import byref
-from typing import List, Tuple, Callable
+from typing import List, Tuple, Callable, Optional
 
 import gym
 import numpy as np
@@ -30,8 +30,9 @@ class Environment(TorchVectorizedObject):
         scenario: BaseScenario,
         num_envs: int = 32,
         device: str = "cpu",
-        max_steps: int = None,
+        max_steps: Optional[int] = None,
         continuous_actions: bool = True,
+        seed: Optional[int] = None,
         **kwargs,
     ):
 
@@ -45,7 +46,7 @@ class Environment(TorchVectorizedObject):
         self.max_steps = max_steps
         self.continuous_actions = continuous_actions
 
-        self.reset()
+        self.reset(seed=seed)
 
         # configure spaces
         self.action_space = gym.spaces.Tuple(
@@ -70,12 +71,11 @@ class Environment(TorchVectorizedObject):
         self.headless = None
         self.visible_display = None
 
-    def reset(self, seed: int = None):
+    def reset(self, seed: Optional[int] = None):
         """
         Resets the environment in a vectorized way
         Returns observations for all envs and agents
         """
-        # Seed will be none at first call of this fun from constructor
         if seed is not None:
             self.seed(seed)
         # reset world
