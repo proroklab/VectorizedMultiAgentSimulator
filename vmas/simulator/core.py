@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -1063,12 +1063,6 @@ class World(TorchVectorizedObject):
     @property
     def scripted_agents(self) -> List[Agent]:
         return [agent for agent in self._agents if agent.action_script is not None]
-
-    def seed(self, seed=None):
-        if seed is None:
-            seed = 0
-        torch.manual_seed(seed)
-        return [seed]
 
     def _cast_ray_to_box(
         self,

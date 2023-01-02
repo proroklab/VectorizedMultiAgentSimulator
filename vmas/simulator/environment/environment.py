@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 from ctypes import byref
@@ -104,7 +104,6 @@ class Environment(TorchVectorizedObject):
         if seed is None:
             seed = 0
         torch.manual_seed(seed)
-        self.scenario.seed()
         return [seed]
 
     def step(self, actions: List):
@@ -144,7 +143,7 @@ class Environment(TorchVectorizedObject):
         # Scenarios can define a custom action processor. This step takes care also of scripted agents automatically
         for agent in self.world.agents:
             self.scenario.env_process_action(agent)
-
+        torch.rand(1, 3)
         # advance world state
         self.world.step()
 

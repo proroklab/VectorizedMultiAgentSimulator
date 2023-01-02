@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 from typing import List, Optional, Tuple, Callable
@@ -48,6 +48,8 @@ class GymWrapper(gym.Env):
         return_info: bool = False,
         options: Optional[dict] = None,
     ):
+        if seed is not None:
+            self._env.seed(seed)
         obs = self._env.reset_at(index=0)
         for i in range(self._env.n_agents):
             obs[i] = obs[i]

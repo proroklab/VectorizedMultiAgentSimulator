@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import typing
@@ -35,14 +35,6 @@ class BaseScenario(ABC):
             self._world is not None
         ), "You first need to set `self._world` in the `make_world` method"
         return self._world
-
-    def seed(self, seed: int = None):
-        """Do not override"""
-        if seed is None:
-            seed = 0
-        torch.manual_seed(seed)
-        self.world.seed()
-        return [seed]
 
     def env_make_world(self, batch_dim: int, device: torch.device, **kwargs) -> World:
         """Do not override"""
