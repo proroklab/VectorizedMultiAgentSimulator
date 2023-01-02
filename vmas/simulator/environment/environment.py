@@ -1,6 +1,7 @@
 #  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
+import random
 from ctypes import byref
 from typing import List, Tuple, Callable, Optional
 
@@ -115,6 +116,8 @@ class Environment(TorchVectorizedObject):
         if seed is None:
             seed = 0
         torch.manual_seed(seed)
+        np.random.seed(seed)
+        random.seed(seed)
         return [seed]
 
     def step(self, actions: List):
