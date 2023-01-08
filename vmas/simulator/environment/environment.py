@@ -91,7 +91,7 @@ class Environment(TorchVectorizedObject):
                 info.append(self.scenario.info(agent))
         return (obs, info) if return_info else obs
 
-    def reset_at(self, index: int = None, return_info: bool = False):
+    def reset_at(self, index: int, return_info: bool = False):
         """
         Resets the environment at index
         Returns observations for all agents in that environment
@@ -107,7 +107,7 @@ class Environment(TorchVectorizedObject):
                 info.append(
                     {
                         key: val[index].unsqueeze(0)
-                        for key, val in self.scenario.info(agent)
+                        for key, val in self.scenario.info(agent).items()
                     }
                 )
         return (obs, info) if return_info else obs
