@@ -56,10 +56,10 @@ class Environment(TorchVectorizedObject):
         self.observation_space = gym.spaces.Tuple(
             [
                 spaces.Box(
-                    low=-float("inf"),
-                    high=float("inf"),
+                    low=-np.float32("inf"),
+                    high=np.float32("inf"),
                     shape=(len(self.scenario.observation(agent)[0]),),
-                    dtype=float,
+                    dtype=np.float32,
                 )
                 for agent in self.agents
             ]
@@ -208,17 +208,19 @@ class Environment(TorchVectorizedObject):
         if self.continuous_actions:
             return spaces.Box(
                 low=np.array(
-                    [-float(agent.u_range)] * self.world.dim_p
-                    + [-float(agent.u_rot_range)] * (1 if agent.u_rot_range != 0 else 0)
+                    [-np.float32(agent.u_range)] * self.world.dim_p
+                    + [-np.float32(agent.u_rot_range)]
+                    * (1 if agent.u_rot_range != 0 else 0)
                     + [0.0] * (self.world.dim_c if not agent.silent else 0)
                 ),
                 high=np.array(
-                    [float(agent.u_range)] * self.world.dim_p
-                    + [float(agent.u_rot_range)] * (1 if agent.u_rot_range != 0 else 0)
+                    [np.float32(agent.u_range)] * self.world.dim_p
+                    + [np.float32(agent.u_rot_range)]
+                    * (1 if agent.u_rot_range != 0 else 0)
                     + [1.0] * (self.world.dim_c if not agent.silent else 0)
                 ),
                 shape=(self.get_agent_action_size(agent),),
-                dtype=float,
+                dtype=np.float32,
             )
         else:
             if (self.world.dim_c == 0 or agent.silent) and agent.u_rot_range == 0.0:
