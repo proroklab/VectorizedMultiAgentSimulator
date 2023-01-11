@@ -14,7 +14,7 @@ Scenario creation is made simple and modular to incentivize contributions.
 VMAS simulates agents and landmarks of different shapes and supports rotations, elastic collisions, joints, and custom gravity.
 Holonomic motion models are used for the agents to simplify simulation. Custom sensors such as LIDARs are available and the simulator supports inter-agent communication.
 Vectorization in [PyTorch](https://pytorch.org/) allows VMAS to perform simulations in a batch, seamlessly scaling to tens of thousands of parallel environments on accelerated hardware.
-VMAS has an interface compatible with [OpenAI Gym](https://github.com/openai/gym) and with the [RLlib](https://docs.ray.io/en/latest/rllib/index.html) library, enabling out-of-the-box integration with a wide range of RL algorithms. 
+VMAS has an interface compatible with [OpenAI Gym](https://github.com/openai/gym), with [RLlib](https://docs.ray.io/en/latest/rllib/index.html) and with [torchrl](https://github.com/pytorch/rl), enabling out-of-the-box integration with a wide range of RL algorithms. 
 The implementation is inspired by [OpenAI's MPE](https://github.com/openai/multiagent-particle-envs). 
 Alongside VMAS's scenarios, we port and vectorize all the scenarios in MPE.
 
@@ -89,9 +89,17 @@ git clone https://github.com/proroklab/VectorizedMultiAgentSimulator.git
 cd VectorizedMultiAgentSimulator
 pip install -e .
 ```
-By default, rllib is an optional requirement, if you want to install it, you can use:
+By default, vmas has only the core requirements. Here are some optional packages you may want to install:
 ```
-pip install "ray[rllib]"==2.1 # We support versions "ray[rllib]<=2.1,>=1.13"
+# Training
+pip install "ray[rllib]"==2.2 # We support versions "ray[rllib]<=2.2,>=1.13"
+pip install torchrl
+
+# Logging
+pip installl wandb 
+
+# Tests
+pip install pytest pyyaml pytest-instafail tqdm
 ```
 
 ### Run 
@@ -110,6 +118,7 @@ Here is an example:
         continuous_actions=True,
         wrapper=None,  # One of: None, vmas.Wrapper.RLLIB, and vmas.Wrapper.GYM
         max_steps=None, # Defines the horizon. None is infinite horizon.
+        seed=None, # Seed of the environment
         **kwargs # Additional arguments you want to pass to the scenario initialization
     )
 ```
@@ -125,7 +134,7 @@ To see how to use VMAS in RLlib, check out the script in `examples/rllib.py`.
 - **Simple**: Complex vectorized physics engines exist (e.g., [Brax](https://github.com/google/brax)), but they do not scale efficiently when dealing with multiple agents. This defeats the computational speed goal set by vectorization. VMAS uses a simple custom 2D dynamics engine written in PyTorch to provide fast simulation. 
 - **General**: The core of VMAS is structured so that it can be used to implement general high-level multi-robot problems in 2D. It can support adversarial as well as cooperative scenarios. Holonomic point-robot simulation has been chosen to focus on general high-level problems, without learning low-level custom robot controls through MARL.
 - **Extensible**: VMAS is not just a simulator with a set of environments. It is a framework that can be used to create new multi-agent scenarios in a format that is usable by the whole MARL community. For this purpose, we have modularized the process of creating a task and introduced interactive rendering to debug it. You can define your own scenario in minutes. Have a look at the dedicated section in this document.
-- **Compatible**: VMAS has wrappers for [RLlib](https://docs.ray.io/en/latest/rllib/index.html) and [OpenAI Gym](https://github.com/openai/gym). RLlib has a large number of already implemented RL algorithms.
+- **Compatible**: VMAS has wrappers for [RLlib](https://docs.ray.io/en/latest/rllib/index.html), [torchrl](https://pytorch.org/rl/reference/generated/torchrl.envs.libs.vmas.VmasEnv.html), and [OpenAI Gym](https://github.com/openai/gym). RLlib and torchrl have a large number of already implemented RL algorithms.
 Keep in mind that this interface is less efficient than the unwrapped version. For an example of wrapping, see the main of `make_env`.
 - **Tested**: Our scenarios come with tests which run a custom designed heuristic on each scenario.
 - **Entity shapes**: Our entities (agent and landmarks) can have different customizable shapes (spheres, boxes, lines).
@@ -268,7 +277,7 @@ To create a fake screen you need to have `Xvfb` installed.
 
 - [X] Talk about action preprocessing and velocity controller
 - [X] New envs from joint project with their descriptions
-- [ ] Docs and notebook on how to use torch rl with vmas
+- [ ] Notebook on how to use torch rl with vmas
 - [ ] Reset any number of dimensions
 - [ ] Improve test efficiency and add new tests
 - [ ] New envs from adversarial project
