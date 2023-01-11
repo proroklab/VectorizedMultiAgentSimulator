@@ -1,7 +1,7 @@
 """
 2D rendering framework
 """
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -14,7 +14,6 @@ import sys
 import numpy as np
 import pyglet
 import six
-from gym import error
 
 try:
     from pyglet.gl import (
@@ -79,7 +78,7 @@ def get_display(spec):
     elif isinstance(spec, six.string_types):
         return pyglet.canvas.Display(spec)
     else:
-        raise error.Error(
+        raise RuntimeError(
             "Invalid display specification: {}. (Must be a string like :0 or None.)".format(
                 spec
             )

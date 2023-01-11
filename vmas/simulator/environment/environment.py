@@ -5,7 +5,6 @@ import random
 from ctypes import byref
 from typing import List, Tuple, Callable, Optional
 
-import gym
 import numpy as np
 import torch
 from gym import spaces
@@ -50,10 +49,10 @@ class Environment(TorchVectorizedObject):
         self.reset(seed=seed)
 
         # configure spaces
-        self.action_space = gym.spaces.Tuple(
+        self.action_space = spaces.Tuple(
             [self.get_action_space(agent) for agent in self.agents]
         )
-        self.observation_space = gym.spaces.Tuple(
+        self.observation_space = spaces.Tuple(
             [
                 spaces.Box(
                     low=-np.float32("inf"),
