@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import math
@@ -112,6 +112,9 @@ class VelocityController:
         return e
 
     def process_force(self):
+        self.accum_errs = self.accum_errs.to(self.world.device)
+        self.prev_err = self.prev_err.to(self.world.device)
+
         des_vel = self.agent.action.u
         cur_vel = self.agent.state.vel
 
