@@ -1,10 +1,10 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import os
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 import numpy as np
 import torch
@@ -23,6 +23,8 @@ JOINT_FORCE = 130
 DRAG = 0.25
 LINEAR_FRICTION = 0.0
 ANGULAR_FRICTION = 0.0
+
+DEVICE_TYPING = Union[torch.device, str, int]
 
 
 class Color(Enum):

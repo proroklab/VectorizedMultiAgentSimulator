@@ -36,6 +36,13 @@ class BaseScenario(ABC):
         ), "You first need to set `self._world` in the `make_world` method"
         return self._world
 
+    def to(self, device: torch.device):
+        """Do not override"""
+        for attr, value in self.__dict__.items():
+            if isinstance(value, Tensor):
+                self.__dict__[attr] = value.to(device)
+        self.world.to(device)
+
     def env_make_world(self, batch_dim: int, device: torch.device, **kwargs) -> World:
         """Do not override"""
         self._world = self.make_world(batch_dim, device, **kwargs)

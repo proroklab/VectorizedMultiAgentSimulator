@@ -14,7 +14,7 @@ import vmas.simulator.utils
 from vmas.simulator.core import Agent, TorchVectorizedObject
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import VIEWER_MIN_ZOOM
-from vmas.simulator.utils import X, Y, ALPHABET
+from vmas.simulator.utils import X, Y, ALPHABET, DEVICE_TYPING, override
 
 
 # environment for all agents in the multiagent world
@@ -29,7 +29,7 @@ class Environment(TorchVectorizedObject):
         self,
         scenario: BaseScenario,
         num_envs: int = 32,
-        device: str = "cpu",
+        device: DEVICE_TYPING = "cpu",
         max_steps: Optional[int] = None,
         continuous_actions: bool = True,
         seed: Optional[int] = None,
@@ -554,3 +554,9 @@ class Environment(TorchVectorizedObject):
                     text_line = rendering.TextLine(self.viewer.window, idx)
                     self.viewer.text_lines.append(text_line)
                     idx += 1
+
+    @override(TorchVectorizedObject)
+    def to(self, device: DEVICE_TYPING):
+        device = torch.device(device)
+        self.scenario.to(device)
+        super().to(device)

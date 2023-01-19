@@ -7,12 +7,13 @@ from typing import Optional
 from vmas import scenarios
 from vmas.simulator.environment import Environment
 from vmas.simulator.environment import Wrapper
+from vmas.simulator.utils import DEVICE_TYPING
 
 
 def make_env(
     scenario_name,
     num_envs: int = 32,
-    device: str = "cpu",
+    device: DEVICE_TYPING = "cpu",
     continuous_actions: bool = True,
     wrapper: Optional[
         Wrapper
