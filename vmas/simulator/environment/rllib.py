@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 from typing import List, Optional, Tuple, Callable
@@ -58,8 +58,8 @@ class VectorEnvWrapper(rllib.VectorEnv):
             total_env_rew = 0.0
             for i, agent in enumerate(self._env.agents):
                 obs_list[j].append(obs[i][j].cpu().numpy())
-                total_env_rew += rews[i][j].item()
-                env_infos["rewards"].update({i: rews[i][j].item()})
+                total_env_rew += np.float32(rews[i][j].item())
+                env_infos["rewards"].update({i: np.float32(rews[i][j].item())})
                 env_infos.update(
                     {agent.name: {k: v[j].tolist() for k, v in infos[i].items()}}
                 )
