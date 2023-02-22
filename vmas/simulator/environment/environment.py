@@ -351,9 +351,11 @@ class Environment(TorchVectorizedObject):
         env_index=0,
         agent_index_focus: int = None,
         visualize_when_rgb: bool = False,
-        plot_position_function: Callable[[Tuple[float, float]], float] = None,
+        plot_position_function: Callable[
+            [float, float], Tuple[float, float, float, float]
+        ] = None,
         plot_position_function_precision: float = 0.05,
-        plot_position_function_range: float = 1,
+        plot_position_function_range: Tuple[float, float] = (1, 1),
     ):
         """
         Render function for environment using pyglet
@@ -370,7 +372,7 @@ class Environment(TorchVectorizedObject):
                                   If None, the camera will stay in the center and zoom out to contain all agents
         :param visualize_when_rgb: Also run human visualization when mode=="rgb_array"
         :param plot_position_function: A function to plot under the rendering. This function takes
-         the position (x,y) as input and outputs a transparency alpha value
+         the position (x,y) as input and outputs a list of 4 floats representing rgb values between 0 and 1 and the alpha
         :param plot_position_function_precision: The precision to use for plotting the function
         :param plot_position_function_range: The position range to plot the function in
         :return: Rgb array or None, depending on the mode
@@ -503,44 +505,24 @@ class Environment(TorchVectorizedObject):
             grid.set_color(*vmas.simulator.utils.Color.BLACK.value, alpha=0.3)
             self.viewer.add_onetime(grid)
 
-        for geom in self.scenario.extra_render(env_index):
-            self.viewer.add_onetime(geom)
+        self.viewer.add_onetime_list(self.scenario.extra_render(env_index))
 
         for entity in self.world.entities:
-            [
-                self.viewer.add_onetime(geom)
-                for geom in entity.render(env_index=env_index)
-            ]
+            self.viewer.add_onetime_list(entity.render(env_index=env_index))
 
         # render to display or array
         return self.viewer.render(return_rgb_array=mode == "rgb_array")
 
     def plot_function(
         self,
-        f: Callable[[Tuple[float, float]], float],
+        f: Callable[[float, float], Tuple[float, float, float, float]],
         precision: float,
-        plot_range: float,
+        plot_range: Tuple[float, float],
     ):
-        from vmas.simulator.rendering import Transform, make_polygon
+        from vmas.simulator.rendering import render_function_util
 
-        l, r, t, b = (
-            0,
-            precision,
-            precision,
-            0,
-        )
-        poly_points = [(l, b), (l, t), (r, t), (r, b)]
-
-        points = np.arange(-plot_range, plot_range, precision)
-        for x in points:
-            for y in points:
-                alpha = f(x, y)
-                box = make_polygon(poly_points, draw_border=False)
-                transform = Transform()
-                transform.set_translation(x, y)
-                box.add_attr(transform)
-                box.set_color(*vmas.simulator.utils.Color.BLACK.value, alpha=alpha)
-                self.viewer.add_onetime(box)
+        geoms = render_function_util(f=f, precision=precision, plot_range=plot_range)
+        self.viewer.add_onetime_list(geoms)
 
     def _init_rendering(self):
         from vmas.simulator import rendering

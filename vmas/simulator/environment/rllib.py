@@ -93,9 +93,11 @@ class VectorEnvWrapper(rllib.VectorEnv):
         mode="human",
         agent_index_focus: Optional[int] = None,
         visualize_when_rgb: bool = False,
-        plot_position_function: Callable[[Tuple[float, float]], float] = None,
+        plot_position_function: Callable[
+            [float, float], Tuple[float, float, float, float]
+        ] = None,
         plot_position_function_precision: float = 0.05,
-        plot_position_function_range: float = 1,
+        plot_position_function_range: Tuple[float, float] = (1, 1),
     ) -> Optional[np.ndarray]:
         """
         Render function for environment using pyglet
@@ -112,7 +114,7 @@ class VectorEnvWrapper(rllib.VectorEnv):
                                   If None, the camera will stay in the center and zoom out to contain all agents
         :param visualize_when_rgb: Also run human visualization when mode=="rgb_array"
         :param plot_position_function: A function to plot under the rendering. This function takes
-         the position (x,y) as input and outputs a transparency alpha value
+         the position (x,y) as input and outputs a list of 4 floats representing rgb values between 0 and 1 and the alpha
         :param plot_position_function_precision: The precision to use for plotting the function
         :param plot_position_function_range: The position range to plot the function in
         :return: Rgb array or None, depending on the mode

@@ -10,6 +10,7 @@ from __future__ import division
 import math
 import os
 import sys
+from typing import Callable, Tuple
 
 import numpy as np
 import pyglet
@@ -130,6 +131,9 @@ class Viewer(object):
 
     def add_onetime(self, geom):
         self.onetime_geoms.append(geom)
+
+    def add_onetime_list(self, geoms):
+        self.onetime_geoms.extend(geoms)
 
     def render(self, return_rgb_array=False):
         glClearColor(1, 1, 1, 1)
@@ -370,6 +374,34 @@ class FilledPolygon(Geom):
             for p in self.v:
                 glVertex3f(p[0], p[1], 0)  # draw each vertex
             glEnd()
+
+
+def render_function_util(
+    f: Callable[[float, float], Tuple[float, float, float, float]],
+    precision: float,
+    plot_range: Tuple[float, float],
+):
+
+    l, r, t, b = (
+        0,
+        precision,
+        precision,
+        0,
+    )
+    poly_points = [(l, b), (l, t), (r, t), (r, b)]
+    geoms = []
+    xpoints = np.arange(-plot_range[0], plot_range[0], precision)
+    ypoints = np.arange(-plot_range[1], plot_range[1], precision)
+    for x in xpoints:
+        for y in ypoints:
+            color = f(x, y)
+            box = make_polygon(poly_points, draw_border=False)
+            transform = Transform()
+            transform.set_translation(x, y)
+            box.add_attr(transform)
+            box.set_color(*color)
+            geoms.append(box)
+    return geoms
 
 
 def make_circle(radius=10, res=30, filled=True):

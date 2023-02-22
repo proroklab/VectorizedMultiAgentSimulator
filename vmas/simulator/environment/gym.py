@@ -60,9 +60,11 @@ class GymWrapper(gym.Env):
         mode="human",
         agent_index_focus: Optional[int] = None,
         visualize_when_rgb: bool = False,
-        plot_position_function: Callable[[Tuple[float, float]], float] = None,
+        plot_position_function: Callable[
+            [float, float], Tuple[float, float, float, float]
+        ] = None,
         plot_position_function_precision: float = 0.05,
-        plot_position_function_range: float = 1,
+        plot_position_function_range: Tuple[float, float] = (1, 1),
     ) -> Optional[np.ndarray]:
 
         return self._env.render(
