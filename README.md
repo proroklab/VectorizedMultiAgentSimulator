@@ -196,7 +196,7 @@ env.render(
     agent_index_focus=4, # If None keep all agents in camera, else focus camera on specific agent
     index=0, # Index of batched environment to render
     visualize_when_rgb: bool = False, # Also run human visualization when mode=="rgb_array"
-    plot_position_function=None, # A function to plot under the rendering. This function takes the position (x,y) as input and outputs a transparency alpha value. This can be used to visualize a value function.
+    plot_position_function=None, # A function to plot under the rendering. This function takes the position (x,y) as input and outputs 4 floats representing the rgb values and the alpha (all between 0 and 1). This can be used to visualize a value function.
 )
 ```
 
