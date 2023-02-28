@@ -10,11 +10,12 @@ from __future__ import division
 import math
 import os
 import sys
-from typing import Callable, Tuple
+from typing import Callable, Tuple, Optional, Union
 
 import numpy as np
 import pyglet
 import six
+import torch
 
 try:
     from pyglet.gl import (
@@ -103,6 +104,7 @@ class Viewer(object):
         self.text_lines = []
         self.onetime_geoms = []
         self.transform = Transform()
+        self.bounds = np.array([0.,0.,0.,0.])
 
         glEnable(GL_BLEND)
         # glEnable(GL_MULTISAMPLE)
@@ -120,6 +122,7 @@ class Viewer(object):
 
     def set_bounds(self, left, right, bottom, top):
         assert right > left and top > bottom
+        self.bounds = np.array([left, right, bottom, top])
         scalex = self.width / (right - left)
         scaley = self.height / (top - bottom)
         self.transform = Transform(
@@ -345,6 +348,33 @@ class Point(Geom):
         glEnd()
 
 
+class Image(Geom):
+    def __init__(self, img, x, y, scale):
+        super().__init__()
+        self.x = x
+        self.y = y
+        self.scale = scale
+        img_shape = img.shape
+        img = img.astype(np.uint8).reshape(-1)
+        tex_data = (pyglet.gl.GLubyte * img.size)(*img)
+        pyg_img = pyglet.image.ImageData(
+            img_shape[1],
+            img_shape[0],
+            "RGBA",
+            tex_data,
+            pitch=img_shape[1] * img_shape[2] * 1,  # width x channels x bytes per pixel
+        )
+        self.img = pyg_img
+        self.sprite = pyglet.sprite.Sprite(img=self.img, x=self.x, y=self.y)
+        # self.sprite.update(scale_x=self.wx, scale_y=self.wy)
+        self.sprite.update(scale=self.scale)
+        # breakpoint()
+
+    def render1(self):
+        self.sprite.draw()
+
+
+
 class FilledPolygon(Geom):
     def __init__(self, v, draw_border: float = True):
         Geom.__init__(self)
@@ -377,31 +407,133 @@ class FilledPolygon(Geom):
 
 
 def render_function_util(
-    f: Callable[[float, float], Tuple[float, float, float, float]],
-    precision: float,
-    plot_range: Tuple[float, float],
+        f: Callable,
+        env,
+        precision: Optional[float] = None,
+        plot_range: Optional[Union[
+            float,
+            Tuple[float, float],
+            Tuple[Tuple[float, float], Tuple[float, float]]]
+        ] = None,
+        cmap_range: Optional[Tuple[float, float]] = None
 ):
 
-    l, r, t, b = (
-        0,
-        precision,
-        precision,
-        0,
-    )
-    poly_points = [(l, b), (l, t), (r, t), (r, b)]
     geoms = []
-    xpoints = np.arange(-plot_range[0], plot_range[0], precision)
-    ypoints = np.arange(-plot_range[1], plot_range[1], precision)
-    for x in xpoints:
-        for y in ypoints:
-            color = f(x, y)
-            box = make_polygon(poly_points, draw_border=False)
-            transform = Transform()
-            transform.set_translation(x, y)
-            box.add_attr(transform)
-            box.set_color(*color)
-            geoms.append(box)
+
+    if plot_range is None:
+        x_min, x_max, y_min, y_max = env.viewer.bounds.tolist()
+        x_min -= precision
+        y_min -= precision
+        x_max += precision
+        y_max += precision
+    elif isinstance(plot_range, int) or isinstance(plot_range, float):
+        x_min = -plot_range
+        y_min = -plot_range
+        x_max = plot_range
+        y_max = plot_range
+    elif len(plot_range) == 2:
+        if isinstance(plot_range[0], int) or isinstance(plot_range[0], float):
+            x_min = -(plot_range[0])
+            y_min = -(plot_range[1])
+            x_max = plot_range[0]
+            y_max = plot_range[1]
+        else:
+            x_min = plot_range[0][0]
+            y_min = plot_range[1][0]
+            x_max = plot_range[0][1]
+            y_max = plot_range[1][1]
+    # The width and height of a Pyglet image must be integers, so we do floor/ceil
+    xpoints = np.arange(np.floor(x_min), np.ceil(x_max), precision)
+    ypoints = np.arange(np.floor(y_min), np.ceil(y_max), precision)
+
+    xgrid, ygrid = np.meshgrid(xpoints, ypoints)
+    x = np.stack((xgrid, ygrid), axis=-1).reshape(-1,2)
+    outputs = f(x, env=env)
+
+    if isinstance(outputs, torch.Tensor):
+        outputs = outputs.detach().cpu().numpy()
+
+    if outputs.ndim==1 or outputs.shape[-1] == 1:
+        if outputs.ndim > 1:
+            outputs = outputs.squeeze(axis=1)
+        if cmap_range is None:
+            minimum_range = 0.1
+            low = np.min(outputs)
+            high = np.max(outputs)
+            high = max(high, low+minimum_range)
+            cmap_range = [low, high]
+        outputs = colormap(outputs, low=cmap_range[0], high=cmap_range[1], alpha=1)
+
+    img = outputs.reshape(xgrid.shape[0], xgrid.shape[1], outputs.shape[-1])
+
+    # To account for the larger plotting area, we set the added regions to be blank
+    x_left_rounding = int(np.floor((x_min - np.floor(x_min)) / precision))
+    x_right_rounding = int(np.floor((np.ceil(x_max) - x_max) / precision))
+    y_bottom_rounding = int(np.floor((y_min - np.floor(y_min)) / precision))
+    y_top_rounding = int(np.floor((np.ceil(y_max) - y_max) / precision))
+    if x_left_rounding > 0:
+        img[:x_left_rounding,:,:] = 0
+    if x_right_rounding > 0:
+        img[-x_right_rounding:, :, :] = 0
+    if x_right_rounding > 0:
+        img[:,:y_bottom_rounding, :] = 0
+    if y_top_rounding > 0:
+        img[:,-y_top_rounding:, :] = 0
+
+    img = img * 255
+    img = np.transpose(img, (1,0,2))
+    geom = Image(img, x=np.floor(x_min), y=np.floor(y_min), scale=precision)
+    geoms.append(geom)
+
+    # ### OLD METHOD ###
+    # l, r, t, b = (
+    #     0,
+    #     precision,
+    #     precision,
+    #     0,
+    # )
+    # poly_points = [(l, b), (l, t), (r, t), (r, b)]
+    # xpoints = np.arange(x_min, x_max, precision)
+    # ypoints = np.arange(y_min, y_max, precision)
+    # for ix, x in enumerate(xpoints):
+    #     for iy, y in enumerate(ypoints):
+    #         color = f(x, y)
+    #         color = np.array(color).clip(0, 1)
+    #         img[ix, iy, :] = color
+    #         box = make_polygon(poly_points, draw_border=False)
+    #         transform = Transform()
+    #         transform.set_translation(x, y)
+    #         box.add_attr(transform)
+    #         box.set_color(*color)
+    #         geoms.append(box)
+
     return geoms
+
+
+def colormap(x, low=None, high=None, alpha=1.):
+    cmap = np.array([[0.267004, 0.004874, 0.329415],
+                     [0.278826, 0.17549, 0.483397],
+                     [0.229739, 0.322361, 0.545706],
+                     [0.172719, 0.448791, 0.557885],
+                     [0.127568, 0.566949, 0.550556],
+                     [0.157851, 0.683765, 0.501686],
+                     [0.369214, 0.788888, 0.382914],
+                     [0.678489, 0.863742, 0.189503]])
+    res = cmap.shape[0]
+    if low is None:
+        low = np.min(x)
+    if high is None:
+        high = np.max(x)
+    x = np.clip(x, low, high)
+    x = (x - low) / (high - low) * (res-1)
+    x_c0_idx = np.floor(x).astype(int)
+    x_c1_idx = np.ceil(x).astype(int)
+    x_c0 = cmap[x_c0_idx,:]
+    x_c1 = cmap[x_c1_idx,:]
+    t = (x - x_c0_idx)
+    rgb = t[:,None] * (x_c1) + (1-t)[:,None] * x_c0
+    colors = np.concatenate([rgb, alpha * np.ones((rgb.shape[0],1))], axis=-1)
+    return colors
 
 
 def make_circle(radius=10, res=30, filled=True):
@@ -505,20 +637,6 @@ class Grid(Geom):
             glVertex2f(-self.length / 2, point)
             glVertex2f(self.length / 2, point)
             glEnd()
-
-
-class Image(Geom):
-    def __init__(self, fname):
-        Geom.__init__(self)
-        img = pyglet.image.load(fname)
-        img.anchor_x = img.width // 2
-        img.anchor_y = img.height // 2
-        sprite = pyglet.sprite.Sprite(img)
-        self.sprite = sprite
-        self.flip = False
-
-    def render1(self):
-        self.sprite.draw()
 
 
 # ================================================================

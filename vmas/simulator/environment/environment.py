@@ -3,7 +3,7 @@
 #  All rights reserved.
 import random
 from ctypes import byref
-from typing import List, Tuple, Callable, Optional
+from typing import List, Tuple, Callable, Optional, Union
 
 import numpy as np
 import torch
@@ -351,11 +351,14 @@ class Environment(TorchVectorizedObject):
         env_index=0,
         agent_index_focus: int = None,
         visualize_when_rgb: bool = False,
-        plot_position_function: Callable[
-            [float, float], Tuple[float, float, float, float]
+        plot_position_function: Callable = None,
+        plot_position_function_precision: Optional[float] = 0.05,
+        plot_position_function_range: Optional[Union[
+            float,
+            Tuple[float, float],
+            Tuple[Tuple[float,float],Tuple[float,float]]]
         ] = None,
-        plot_position_function_precision: float = 0.05,
-        plot_position_function_range: Tuple[float, float] = (1, 1),
+        plot_position_function_cmap_range: Optional[Tuple[float, float]] = None,
     ):
         """
         Render function for environment using pyglet
@@ -498,6 +501,7 @@ class Environment(TorchVectorizedObject):
                 plot_position_function,
                 precision=plot_position_function_precision,
                 plot_range=plot_position_function_range,
+                cmap_range=plot_position_function_cmap_range,
             )
 
         if self.scenario.plot_grid:
@@ -515,13 +519,18 @@ class Environment(TorchVectorizedObject):
 
     def plot_function(
         self,
-        f: Callable[[float, float], Tuple[float, float, float, float]],
-        precision: float,
-        plot_range: Tuple[float, float],
+        f: Callable = None,
+        precision: Optional[float] = None,
+        plot_range: Optional[Union[
+            float,
+            Tuple[float, float],
+            Tuple[Tuple[float, float], Tuple[float, float]]]
+        ] = None,
+        cmap_range: Optional[Tuple[float, float]] = None,
     ):
         from vmas.simulator.rendering import render_function_util
 
-        geoms = render_function_util(f=f, precision=precision, plot_range=plot_range)
+        geoms = render_function_util(f=f, env=self, precision=precision, plot_range=plot_range, cmap_range=cmap_range)
         self.viewer.add_onetime_list(geoms)
 
     def _init_rendering(self):
