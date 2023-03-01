@@ -105,7 +105,7 @@ pip install torchrl
 pip installl wandb 
 
 # Save renders
-pip install opencv-python
+pip install opencv-python moviepy
 
 # Tests
 pip install pytest pyyaml pytest-instafail tqdm
