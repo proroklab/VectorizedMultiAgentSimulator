@@ -65,6 +65,7 @@ Watch the talk at DARS 2022 about VMAS.
   * [Creating a new scenario](#creating-a-new-scenario)
   * [Play a scenario](#play-a-scenario)
   * [Rendering](#rendering)
+    + [Plot function under rendering](#plot-function-under-rendering)
     + [Rendering on server machines](#rendering-on-server-machines)
   * [List of environments](#list-of-environments)
     + [VMAS](#vmas)
@@ -196,7 +197,6 @@ env.render(
     agent_index_focus=4, # If None keep all agents in camera, else focus camera on specific agent
     index=0, # Index of batched environment to render
     visualize_when_rgb: bool = False, # Also run human visualization when mode=="rgb_array"
-    plot_position_function=None, # A function to plot under the rendering. This function takes the position (x,y) as input and outputs 4 floats representing the rgb values and the alpha (all between 0 and 1). This can be used to visualize a value function.
 )
 ```
 
@@ -207,6 +207,21 @@ You can also change the viewer size, zoom, and enable a background rendered grid
 |        <img src="https://github.com/matteobettini/vmas-media/blob/main/media/vmas_simple.gif?raw=true" alt="drawing" width="260"/>        | With ` agent_index_focus=None` the camera keeps focus on all agents |
 | <img src="https://github.com/matteobettini/vmas-media/blob/main/media/vmas_simple_focus_agent_0.gif?raw=true" alt="drawing" width="260"/> |       With ` agent_index_focus=0` the camera follows agent 0        |
 | <img src="https://github.com/matteobettini/vmas-media/blob/main/media/vmas_simple_focus_agent_4.gif?raw=true" alt="drawing" width="260"/> |       With ` agent_index_focus=4` the camera follows agent 4        |
+### Plot function under rendering 
+
+It is possible to plot a function under the rendering of the agents by providing a function `f` to the `render` function.
+```
+env.render(
+    plot_position_function=f
+)
+```
+The function takes a numpy array with shape `(n_points, 2)`, which represents a set of x, y values to evaluate f over for plotting.
+`f` outputs either an array with shape `(n_points, 1)`, which will be plotted as a colormap,
+or an array with shape `(n_points, 4)`, which will be plotted as RGBA values.
+
+<p align="center">
+<img src="https://github.com/matteobettini/vmas-media/blob/main/media/render_function.png?raw=true"  alt="drawing" width="400"/>
+</p>
 
 ### Rendering on server machines
 To render in machines without a display use `mode="rgb_array"`. Make sure you have OpenGL and Pyglet installed.

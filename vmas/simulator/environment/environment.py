@@ -3,13 +3,12 @@
 #  All rights reserved.
 import random
 from ctypes import byref
-from typing import List, Tuple, Callable, Optional
+from typing import List, Tuple, Callable, Optional, Union
 
 import numpy as np
 import torch
 from gym import spaces
 from torch import Tensor
-
 import vmas.simulator.utils
 from vmas.simulator.core import Agent, TorchVectorizedObject
 from vmas.simulator.scenario import BaseScenario
@@ -351,11 +350,17 @@ class Environment(TorchVectorizedObject):
         env_index=0,
         agent_index_focus: int = None,
         visualize_when_rgb: bool = False,
-        plot_position_function: Callable[
-            [float, float], Tuple[float, float, float, float]
+        plot_position_function: Callable = None,
+        plot_position_function_precision: float = 0.01,
+        plot_position_function_range: Optional[
+            Union[
+                float,
+                Tuple[float, float],
+                Tuple[Tuple[float, float], Tuple[float, float]],
+            ]
         ] = None,
-        plot_position_function_precision: float = 0.05,
-        plot_position_function_range: Tuple[float, float] = (1, 1),
+        plot_position_function_cmap_range: Optional[Tuple[float, float]] = None,
+        plot_position_function_cmap_alpha: Optional[float] = 1.0,
     ):
         """
         Render function for environment using pyglet
@@ -371,10 +376,17 @@ class Environment(TorchVectorizedObject):
         :param agent_index_focus: If specified the camera will stay on the agent with this index.
                                   If None, the camera will stay in the center and zoom out to contain all agents
         :param visualize_when_rgb: Also run human visualization when mode=="rgb_array"
-        :param plot_position_function: A function to plot under the rendering. This function takes
-         the position (x,y) as input and outputs a list of 4 floats representing rgb values between 0 and 1 and the alpha
+        :param plot_position_function: A function to plot under the rendering.
+        The function takes a numpy array with shape (n_points, 2), which represents a set of x,y values to evaluate f over and plot it
+        It should output either an array with shape (n_points, 1) which will be plotted as a colormap
+        or an array with shape (n_points, 4), which will be plotted as RGBA values
         :param plot_position_function_precision: The precision to use for plotting the function
-        :param plot_position_function_range: The position range to plot the function in
+        :param plot_position_function_range: The position range to plot the function in.
+        If float, the range for x and y is (-function_range, function_range)
+        If Tuple[float, float], the range for x is (-function_range[0], function_range[0]) and y is (-function_range[1], function_range[1])
+        If Tuple[Tuple[float, float], Tuple[float, float]], the first tuple is the x range and the second tuple is the y range
+        :param plot_position_function_cmap_range: The range of the cmap in case plot_position_function outputs a single value
+        :param plot_position_function_cmap_alpha: The alpha of the cmap in case plot_position_function outputs a single value
         :return: Rgb array or None, depending on the mode
         """
         self._check_batch_index(env_index)
@@ -498,6 +510,8 @@ class Environment(TorchVectorizedObject):
                 plot_position_function,
                 precision=plot_position_function_precision,
                 plot_range=plot_position_function_range,
+                cmap_range=plot_position_function_cmap_range,
+                cmap_alpha=plot_position_function_cmap_alpha,
             )
 
         if self.scenario.plot_grid:
@@ -513,15 +527,23 @@ class Environment(TorchVectorizedObject):
         # render to display or array
         return self.viewer.render(return_rgb_array=mode == "rgb_array")
 
-    def plot_function(
-        self,
-        f: Callable[[float, float], Tuple[float, float, float, float]],
-        precision: float,
-        plot_range: Tuple[float, float],
-    ):
+    def plot_function(self, f, precision, plot_range, cmap_range, cmap_alpha):
         from vmas.simulator.rendering import render_function_util
 
-        geoms = render_function_util(f=f, precision=precision, plot_range=plot_range)
+        if plot_range is None:
+            x_min, x_max, y_min, y_max = self.viewer.bounds.tolist()
+            plot_range = [x_min - precision, x_max - precision], [
+                y_min - precision,
+                y_max + precision,
+            ]
+
+        geoms = render_function_util(
+            f=f,
+            precision=precision,
+            plot_range=plot_range,
+            cmap_range=cmap_range,
+            cmap_alpha=cmap_alpha,
+        )
         self.viewer.add_onetime_list(geoms)
 
     def _init_rendering(self):

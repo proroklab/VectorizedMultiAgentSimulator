@@ -26,6 +26,19 @@ ANGULAR_FRICTION = 0.0
 
 DEVICE_TYPING = Union[torch.device, str, int]
 
+VIRIDIS_CMAP = np.array(
+    [
+        [0.267004, 0.004874, 0.329415],
+        [0.278826, 0.17549, 0.483397],
+        [0.229739, 0.322361, 0.545706],
+        [0.172719, 0.448791, 0.557885],
+        [0.127568, 0.566949, 0.550556],
+        [0.157851, 0.683765, 0.501686],
+        [0.369214, 0.788888, 0.382914],
+        [0.678489, 0.863742, 0.189503],
+    ]
+)
+
 
 class Color(Enum):
     RED = (0.75, 0.25, 0.25)
@@ -96,6 +109,26 @@ def save_video(name: str, frame_list: List[np.array], fps: int):
         img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
         video.write(img)
     video.release()
+
+
+def x_to_rgb_colormap(
+    x: np.ndarray, low: float = None, high: float = None, alpha: float = 1.0
+):
+    res = VIRIDIS_CMAP.shape[0]
+    if low is None:
+        low = np.min(x)
+    if high is None:
+        high = np.max(x)
+    x = np.clip(x, low, high)
+    x = (x - low) / (high - low) * (res - 1)
+    x_c0_idx = np.floor(x).astype(int)
+    x_c1_idx = np.ceil(x).astype(int)
+    x_c0 = VIRIDIS_CMAP[x_c0_idx, :]
+    x_c1 = VIRIDIS_CMAP[x_c1_idx, :]
+    t = x - x_c0_idx
+    rgb = t[:, None] * x_c1 + (1 - t)[:, None] * x_c0
+    colors = np.concatenate([rgb, alpha * np.ones((rgb.shape[0], 1))], axis=-1)
+    return colors
 
 
 class TorchUtils:

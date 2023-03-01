@@ -10,11 +10,13 @@ from __future__ import division
 import math
 import os
 import sys
-from typing import Callable, Tuple
+from typing import Callable, Tuple, Optional, Union
 
 import numpy as np
 import pyglet
 import six
+import torch
+from vmas.simulator.utils import x_to_rgb_colormap
 
 try:
     from pyglet.gl import (
@@ -50,6 +52,7 @@ try:
         gluOrtho2D,
         glVertex2f,
         glVertex3f,
+        GL_NEAREST,
     )
 except ImportError:
     raise ImportError(
@@ -103,6 +106,7 @@ class Viewer(object):
         self.text_lines = []
         self.onetime_geoms = []
         self.transform = Transform()
+        self.bounds = np.array([0.0, 0.0, 0.0, 0.0])
 
         glEnable(GL_BLEND)
         # glEnable(GL_MULTISAMPLE)
@@ -120,6 +124,7 @@ class Viewer(object):
 
     def set_bounds(self, left, right, bottom, top):
         assert right > left and top > bottom
+        self.bounds = np.array([left, right, bottom, top])
         scalex = self.width / (right - left)
         scaley = self.height / (top - bottom)
         self.transform = Transform(
@@ -345,6 +350,32 @@ class Point(Geom):
         glEnd()
 
 
+class Image(Geom):
+    def __init__(self, img, x, y, scale):
+        super().__init__()
+        self.x = x
+        self.y = y
+        self.scale = scale
+        img_shape = img.shape
+        img = img.astype(np.uint8).reshape(-1)
+        tex_data = (pyglet.gl.GLubyte * img.size)(*img)
+        pyg_img = pyglet.image.ImageData(
+            img_shape[1],
+            img_shape[0],
+            "RGBA",
+            tex_data,
+            pitch=img_shape[1] * img_shape[2] * 1,  # width x channels x bytes per pixel
+        )
+        self.img = pyg_img
+        self.sprite = pyglet.sprite.Sprite(
+            img=self.img, x=self.x, y=self.y, subpixel=True
+        )
+        self.sprite.update(scale=self.scale)
+
+    def render1(self):
+        self.sprite.draw()
+
+
 class FilledPolygon(Geom):
     def __init__(self, v, draw_border: float = True):
         Geom.__init__(self)
@@ -377,30 +408,70 @@ class FilledPolygon(Geom):
 
 
 def render_function_util(
-    f: Callable[[float, float], Tuple[float, float, float, float]],
-    precision: float,
-    plot_range: Tuple[float, float],
+    f: Callable,
+    plot_range: Union[
+        float, Tuple[float, float], Tuple[Tuple[float, float], Tuple[float, float]]
+    ],
+    precision: float = 0.01,
+    cmap_range: Optional[Tuple[float, float]] = None,
+    cmap_alpha: float = 1.0,
 ):
 
-    l, r, t, b = (
-        0,
-        precision,
-        precision,
-        0,
-    )
-    poly_points = [(l, b), (l, t), (r, t), (r, b)]
     geoms = []
-    xpoints = np.arange(-plot_range[0], plot_range[0], precision)
-    ypoints = np.arange(-plot_range[1], plot_range[1], precision)
-    for x in xpoints:
-        for y in ypoints:
-            color = f(x, y)
-            box = make_polygon(poly_points, draw_border=False)
-            transform = Transform()
-            transform.set_translation(x, y)
-            box.add_attr(transform)
-            box.set_color(*color)
-            geoms.append(box)
+
+    if isinstance(plot_range, int) or isinstance(plot_range, float):
+        x_min = -plot_range
+        y_min = -plot_range
+        x_max = plot_range
+        y_max = plot_range
+    elif len(plot_range) == 2:
+        if isinstance(plot_range[0], int) or isinstance(plot_range[0], float):
+            x_min = -(plot_range[0])
+            y_min = -(plot_range[1])
+            x_max = plot_range[0]
+            y_max = plot_range[1]
+        else:
+            x_min = plot_range[0][0]
+            y_min = plot_range[1][0]
+            x_max = plot_range[0][1]
+            y_max = plot_range[1][1]
+
+    xpoints = np.arange(x_min, x_max, precision)
+    ypoints = np.arange(y_min, y_max, precision)
+
+    ygrid, xgrid = np.meshgrid(ypoints, xpoints)
+    pos = np.stack((xgrid, ygrid), axis=-1).reshape(-1, 2)
+    pos_shape = pos.shape
+
+    outputs = f(pos)
+
+    if isinstance(outputs, torch.Tensor):
+        outputs = outputs.detach().cpu().numpy()
+
+    assert isinstance(outputs, np.ndarray)
+    assert outputs.shape[0] == pos_shape[0]
+    assert outputs.ndim <= 2
+
+    if outputs.ndim == 2 and outputs.shape[1] == 1:
+        outputs = outputs.squeeze(-1)
+    elif outputs.ndim == 2:
+        assert outputs.shape[1] == 4
+
+    # Output is an alpha
+    if outputs.ndim == 1:
+        if cmap_range is None:
+            cmap_range = [None, None]
+        outputs = x_to_rgb_colormap(
+            outputs, low=cmap_range[0], high=cmap_range[1], alpha=cmap_alpha
+        )
+
+    img = outputs.reshape(xgrid.shape[0], xgrid.shape[1], outputs.shape[-1])
+
+    img = img * 255
+    img = np.transpose(img, (1, 0, 2))
+    geom = Image(img, x=x_min, y=y_min, scale=precision)
+    geoms.append(geom)
+
     return geoms
 
 
@@ -507,56 +578,4 @@ class Grid(Geom):
             glEnd()
 
 
-class Image(Geom):
-    def __init__(self, fname):
-        Geom.__init__(self)
-        img = pyglet.image.load(fname)
-        img.anchor_x = img.width // 2
-        img.anchor_y = img.height // 2
-        sprite = pyglet.sprite.Sprite(img)
-        self.sprite = sprite
-        self.flip = False
-
-    def render1(self):
-        self.sprite.draw()
-
-
 # ================================================================
-
-
-class SimpleImageViewer(object):
-    def __init__(self, display=None):
-        self.window = None
-        self.isopen = False
-        self.display = display
-
-    def imshow(self, arr):
-        if self.window is None:
-            height, width, channels = arr.shape
-            self.window = pyglet.window.Window(
-                width=width, height=height, display=self.display
-            )
-            self.width = width
-            self.height = height
-            self.isopen = True
-        assert arr.shape == (
-            self.height,
-            self.width,
-            3,
-        ), "You passed in an image with the wrong number shape"
-        image = pyglet.image.ImageData(
-            self.width, self.height, "RGB", arr.tobytes(), pitch=self.width * -3
-        )
-        self.window.clear()
-        self.window.switch_to()
-        self.window.dispatch_events()
-        image.blit(0, 0)
-        self.window.flip()
-
-    def close(self):
-        if self.isopen:
-            self.window.close()
-            self.isopen = False
-
-    def __del__(self):
-        self.close()

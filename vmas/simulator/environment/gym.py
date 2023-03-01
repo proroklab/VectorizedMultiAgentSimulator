@@ -1,12 +1,11 @@
 #  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-from typing import List, Optional, Tuple, Callable
+from typing import List, Optional
 
 import gym
 import numpy as np
 import torch
-
 from vmas.simulator.environment.environment import Environment
 
 
@@ -60,11 +59,7 @@ class GymWrapper(gym.Env):
         mode="human",
         agent_index_focus: Optional[int] = None,
         visualize_when_rgb: bool = False,
-        plot_position_function: Callable[
-            [float, float], Tuple[float, float, float, float]
-        ] = None,
-        plot_position_function_precision: float = 0.05,
-        plot_position_function_range: Tuple[float, float] = (1, 1),
+        **kwargs,
     ) -> Optional[np.ndarray]:
 
         return self._env.render(
@@ -72,9 +67,7 @@ class GymWrapper(gym.Env):
             env_index=0,
             agent_index_focus=agent_index_focus,
             visualize_when_rgb=visualize_when_rgb,
-            plot_position_function=plot_position_function,
-            plot_position_function_precision=plot_position_function_precision,
-            plot_position_function_range=plot_position_function_range,
+            **kwargs,
         )
 
     def _action_list_to_tensor(self, list_in: List) -> List:
