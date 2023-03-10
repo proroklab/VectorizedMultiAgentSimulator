@@ -1,11 +1,10 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import unittest
 
 import torch
 from tqdm import tqdm
-
 from vmas import make_env
 
 
@@ -16,7 +15,7 @@ class TestFootball(unittest.TestCase):
         self.continuous_actions = True
         self.n_envs = 15
         self.env = make_env(
-            scenario_name="football",
+            scenario="football",
             num_envs=self.n_envs,
             device="cpu",
             continuous_actions=True,

@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import unittest
@@ -16,7 +16,7 @@ class TestFlocking(unittest.TestCase):
 
         self.n_envs = 15
         self.env = make_env(
-            scenario_name="flocking",
+            scenario="flocking",
             num_envs=self.n_envs,
             device="cpu",
             # Environment specific variables

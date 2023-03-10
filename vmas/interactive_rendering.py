@@ -13,7 +13,6 @@ and switch the agent with these controls using LSHIFT
 from operator import add
 
 import numpy as np
-
 from vmas.make_env import make_env
 from vmas.simulator.environment import Wrapper
 from vmas.simulator.environment.gym import GymWrapper
@@ -276,7 +275,7 @@ def render_interactively(
 
     InteractiveEnv(
         make_env(
-            scenario_name=scenario_name,
+            scenario=scenario_name,
             num_envs=1,
             device="cpu",
             continuous_actions=True,

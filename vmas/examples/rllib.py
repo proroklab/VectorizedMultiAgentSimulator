@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -16,7 +16,6 @@ from ray.rllib.evaluation import Episode, MultiAgentEpisode
 from ray.rllib.utils.typing import PolicyID
 from ray.tune import register_env
 from ray.tune.integration.wandb import WandbLoggerCallback
-
 from vmas import make_env, Wrapper
 
 scenario_name = "balance"
@@ -35,7 +34,7 @@ vmas_device = "cpu"  # or cuda
 
 def env_creator(config: Dict):
     env = make_env(
-        scenario_name=config["scenario_name"],
+        scenario=config["scenario_name"],
         num_envs=config["num_envs"],
         device=config["device"],
         continuous_actions=config["continuous_actions"],

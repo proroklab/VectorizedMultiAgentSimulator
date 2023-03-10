@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -7,6 +7,7 @@ import operator
 from functools import reduce
 
 import torch
+from vmas import render_interactively
 from vmas.simulator.core import Agent, World, Landmark, Sphere, Box, Line
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color, X, Y
@@ -1653,11 +1654,7 @@ class AgentPolicy:
 
 
 """ Run """
-
-
-def interactive():
-    from vmas.interactive_rendering import render_interactively
-
+if __name__ == "__main__":
     render_interactively(
         __file__,
         control_two_agents=True,
@@ -1666,57 +1663,3 @@ def interactive():
         n_red_agents=3,
         dense_reward_ratio=0.001,
     )
-
-
-def multiple_envs():
-    from vmas import make_env
-
-    scenario_name = "football"
-
-    # Scenario specific variables
-    env_args = {
-        "n_blue_agents": 2,
-        "n_red_agents": 2,
-        "ai_red_agents": True,
-        "ai_blue_agents": True,
-    }
-
-    num_envs = 64
-    render_env = 0
-    device = "cpu"
-    n_steps = 10000
-
-    action = [0.0, 0.0]
-
-    env = make_env(
-        scenario_name=scenario_name,
-        num_envs=num_envs,
-        device=device,
-        continuous_actions=True,
-        # Environment specific variables
-        **env_args,
-    )
-
-    step = 0
-    n_agents = 0  # env_args["n_blue_agents"]
-    for s in range(n_steps):
-        actions = []
-        step += 1
-        for i in range(n_agents):
-            actions.append(
-                torch.tensor(
-                    action,
-                    device=device,
-                ).repeat(num_envs, 1)
-            )
-        obs, rews, dones, info = env.step(actions)
-        env.render(
-            mode="rgb_array",
-            agent_index_focus=None,
-            visualize_when_rgb=True,
-            env_index=render_env,
-        )
-
-
-if __name__ == "__main__":
-    interactive()

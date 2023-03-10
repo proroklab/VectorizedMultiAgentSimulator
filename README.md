@@ -121,7 +121,7 @@ object with the OpenAI gym interface:
 Here is an example:
 ```
  env = vmas.make_env(
-        scenario_name="waterfall",
+        scenario="waterfall", # can be scenario name or BaseScenario class
         num_envs=32,
         device="cpu", # Or "cuda" for GPU
         continuous_actions=True,

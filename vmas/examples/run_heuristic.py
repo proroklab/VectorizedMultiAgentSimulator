@@ -1,18 +1,17 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import time
 from typing import Type
 
 import torch
-
 from vmas import make_env
 from vmas.simulator.heuristic_policy import BaseHeuristicPolicy, RandomPolicy
 from vmas.simulator.utils import save_video
 
 
 def run_heuristic(
-    scenario_name: str = "transport",
+    scenario_name: str,
     heuristic: Type[BaseHeuristicPolicy] = RandomPolicy,
     n_steps: int = 200,
     n_envs: int = 32,
@@ -28,7 +27,7 @@ def run_heuristic(
     policy = heuristic(continuous_action=True)
 
     env = make_env(
-        scenario_name=scenario_name,
+        scenario=scenario_name,
         num_envs=n_envs,
         device=device,
         continuous_actions=True,

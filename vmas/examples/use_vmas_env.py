@@ -1,11 +1,10 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import time
 
 import numpy as np
 import torch
-
 from vmas import make_env, Wrapper
 from vmas.simulator.utils import save_video
 
@@ -29,7 +28,7 @@ def use_vmas_env(render: bool = False, save_render: bool = False):
     )  # Sample action tell each agent to go down
 
     env = make_env(
-        scenario_name=scenario_name,
+        scenario=scenario_name,
         num_envs=num_envs,
         device=device,
         continuous_actions=continuous_actions,

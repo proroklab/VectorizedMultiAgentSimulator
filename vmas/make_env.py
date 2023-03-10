@@ -2,16 +2,17 @@
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
-from typing import Optional
+from typing import Optional, Union
 
 from vmas import scenarios
 from vmas.simulator.environment import Environment
 from vmas.simulator.environment import Wrapper
+from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import DEVICE_TYPING
 
 
 def make_env(
-    scenario_name,
+    scenario: Union[str, BaseScenario],
     num_envs: int = 32,
     device: DEVICE_TYPING = "cpu",
     continuous_actions: bool = True,
@@ -23,9 +24,10 @@ def make_env(
     **kwargs,
 ):
     # load scenario from script
-    if not scenario_name.endswith(".py"):
-        scenario_name += ".py"
-    scenario = scenarios.load(scenario_name).Scenario()
+    if isinstance(scenario, str):
+        if not scenario.endswith(".py"):
+            scenario += ".py"
+        scenario = scenarios.load(scenario).Scenario()
     env = Environment(
         scenario,
         num_envs=num_envs,

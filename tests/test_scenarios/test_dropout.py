@@ -1,10 +1,9 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import unittest
 
 import torch
-
 from vmas import make_env
 from vmas.scenarios.dropout import DEFAULT_ENERGY_COEFF
 
@@ -23,7 +22,7 @@ class TestDropout(unittest.TestCase):
         self.continuous_actions = True
         self.n_envs = num_envs
         self.env = make_env(
-            scenario_name="dropout",
+            scenario="dropout",
             num_envs=self.n_envs,
             device="cpu",
             continuous_actions=self.continuous_actions,

@@ -1,10 +1,9 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import unittest
 
 import torch
-
 from vmas import make_env
 from vmas.scenarios import transport
 
@@ -21,7 +20,7 @@ class TestTransport(unittest.TestCase):
         self.continuous_actions = True
         self.n_envs = 15
         self.env = make_env(
-            scenario_name="transport",
+            scenario="transport",
             num_envs=self.n_envs,
             device="cpu",
             continuous_actions=self.continuous_actions,
