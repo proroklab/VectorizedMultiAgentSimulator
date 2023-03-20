@@ -51,7 +51,7 @@ class GymWrapper(gym.Env):
             self._env.seed(seed)
         obs = self._env.reset_at(index=0)
         for i in range(self._env.n_agents):
-            obs[i] = obs[i]
+            obs[i] = obs[i][0]
         return obs
 
     def render(

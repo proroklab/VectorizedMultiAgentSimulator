@@ -37,6 +37,10 @@ class VectorEnvWrapper(rllib.VectorEnv):
     def reset_at(self, index: Optional[int] = None) -> EnvObsType:
         assert index is not None
         obs = self._env.reset_at(index)
+
+        for i in range(self._env.n_agents):
+            obs[i] = obs[i][index].unsqueeze(0)
+
         return self._tensor_to_list(obs, 1)[0]
 
     def vector_step(

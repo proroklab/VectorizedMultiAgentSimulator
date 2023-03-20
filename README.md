@@ -128,6 +128,8 @@ Here is an example:
         wrapper=None,  # One of: None, vmas.Wrapper.RLLIB, and vmas.Wrapper.GYM
         max_steps=None, # Defines the horizon. None is infinite horizon.
         seed=None, # Seed of the environment
+        dict_spaces=False, # By default tuple spaces are used with each element in the tuple being an agent.
+        # If dict_spaces=True, the spaces will become Dict with each key being the agent's name
         **kwargs # Additional arguments you want to pass to the scenario initialization
     )
 ```
@@ -136,6 +138,48 @@ A further example that you can run is contained in `use_vmas_env.py` in the `exa
 #### RLlib
 
 To see how to use VMAS in RLlib, check out the script in `examples/rllib.py`.
+
+### Input and output spaces
+
+VMAS uses gym spaces for input and output spaces. 
+By default, action and observation spaces are tuples:
+```python
+spaces.Tuple(
+    [agent_space for agent in agents]
+)
+```
+When creating the environment,  by setting `dict_spaces=True`, tuples can be changed to dictionaries:
+```python
+spaces.Dict(
+  {agent.name: agent_space for agent in agents}
+)
+```
+
+#### Output spaces
+
+If `dict_spaces=False`, observations, infos, and rewards returned by the environment will be a list with each element being the value for that agent.
+
+If `dict_spaces=True`, observations, infos, and rewards returned by the environment will be a dictionary with each element having key = agent_name and value being the value for that agent.
+
+Each agent observation in either of these structures is a tensor with shape `[num_envs, observation_size]`, where `observation_size` is the size of the agent's observation.
+
+Each agent reward in either of these structures is a tensor with shape `[num_envs]`.
+
+Each agent info in either of these structures is a dictionary where each entry has key representing the name of that info and value a tensor with shape `[num_envs, info_size]`, where `info_size` is the size of that info for that agent.
+
+Done is a tensor of shape `[num_envs]`.
+
+
+#### Input action space
+  
+Each agent in vmas has to provide an action tensor with shape `[num_envs, action_size]`, where `num_envs` is the number of vectorized environments and `action_size` is the size of the agent's action.
+
+The agents' actions can be provided to the `env.step()` in two ways:
+- A **List** of length equal to the number of agents which looks like `[tensor_action_agent_0, ..., tensor_action_agent_n]`
+- A **Dict** of length equal to the number of agents and with each entry looking like `{agent_0.name: tensor_action_agent_0, ..., agent_n.name: tensor_action_agent_n}`
+
+Users can interchangeably use either of the two formats and even change formats during execution, vmas will always perform all sanity checks. 
+Each format will work regardless of the fact that tuples or dictionary spaces have been chosen.
 
 ## Simulator features
 

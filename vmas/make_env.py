@@ -21,8 +21,27 @@ def make_env(
     ] = None,  # One of: None, vmas.Wrapper.RLLIB, and vmas.Wrapper.GYM
     max_steps: Optional[int] = None,
     seed: Optional[int] = None,
+    dict_spaces: bool = False,
     **kwargs,
 ):
+    """
+    Create a vmas environment
+    Args:
+        scenario: Scenario to load. Can be the name of a file in the "scenarios" folder or a `BaseScenario` class.
+        num_envs: Number of vectorized simulation environments.
+        device: Device for simulation
+        continuous_actions: Weather to use continuous actions.
+        wrapper: Wrapper class to use. For example can be Wrapper.RLLIB.
+        max_steps: Maximum number of steps in each vectorized environment after which done is returned
+        seed: seed
+        dict_spaces:  Weather to use dictionary i/o spaces with format {agent_name: tensor}
+        for obs, rewards, and info instead of tuples.
+        **kwargs ():
+
+    Returns:
+
+    """
+
     # load scenario from script
     if isinstance(scenario, str):
         if not scenario.endswith(".py"):
@@ -35,6 +54,7 @@ def make_env(
         continuous_actions=continuous_actions,
         max_steps=max_steps,
         seed=seed,
+        dict_spaces=dict_spaces,
         **kwargs,
     )
 

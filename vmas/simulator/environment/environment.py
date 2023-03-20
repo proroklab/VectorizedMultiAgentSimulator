@@ -3,7 +3,7 @@
 #  All rights reserved.
 import random
 from ctypes import byref
-from typing import List, Tuple, Callable, Optional, Union
+from typing import List, Tuple, Callable, Optional, Union, Dict
 
 import numpy as np
 import torch
@@ -32,6 +32,7 @@ class Environment(TorchVectorizedObject):
         max_steps: Optional[int] = None,
         continuous_actions: bool = True,
         seed: Optional[int] = None,
+        dict_spaces: bool = False,
         **kwargs,
     ):
 
@@ -44,24 +45,13 @@ class Environment(TorchVectorizedObject):
         self.n_agents = len(self.agents)
         self.max_steps = max_steps
         self.continuous_actions = continuous_actions
+        self.dict_spaces = dict_spaces
 
         self.reset(seed=seed)
 
         # configure spaces
-        self.action_space = spaces.Tuple(
-            [self.get_action_space(agent) for agent in self.agents]
-        )
-        self.observation_space = spaces.Tuple(
-            [
-                spaces.Box(
-                    low=-np.float32("inf"),
-                    high=np.float32("inf"),
-                    shape=(len(self.scenario.observation(agent)[0]),),
-                    dtype=np.float32,
-                )
-                for agent in self.agents
-            ]
-        )
+        self.action_space = self.get_action_space()
+        self.observation_space = self.get_observation_space()
 
         # rendering
         self.render_geoms_xform = None
@@ -70,7 +60,13 @@ class Environment(TorchVectorizedObject):
         self.headless = None
         self.visible_display = None
 
-    def reset(self, seed: Optional[int] = None, return_info: bool = False):
+    def reset(
+        self,
+        seed: Optional[int] = None,
+        return_observations: bool = True,
+        return_info: bool = False,
+        return_dones: bool = False,
+    ):
         """
         Resets the environment in a vectorized way
         Returns observations for all envs and agents
@@ -80,16 +76,22 @@ class Environment(TorchVectorizedObject):
         # reset world
         self.scenario.env_reset_world_at(env_index=None)
         self.steps = torch.zeros(self.num_envs, device=self.device)
-        # record observations for each agent
-        obs = []
-        info = []
-        for agent in self.agents:
-            obs.append(self.scenario.observation(agent))
-            if return_info:
-                info.append(self.scenario.info(agent))
-        return (obs, info) if return_info else obs
 
-    def reset_at(self, index: int, return_info: bool = False):
+        result = self.get_from_scenario(
+            get_observations=return_observations,
+            get_infos=return_info,
+            get_rewards=False,
+            get_dones=return_dones,
+        )
+        return result[0] if result and len(result) == 1 else result
+
+    def reset_at(
+        self,
+        index: int,
+        return_observations: bool = True,
+        return_info: bool = False,
+        return_dones: bool = False,
+    ):
         """
         Resets the environment at index
         Returns observations for all agents in that environment
@@ -97,18 +99,63 @@ class Environment(TorchVectorizedObject):
         self._check_batch_index(index)
         self.scenario.env_reset_world_at(index)
         self.steps[index] = 0
-        obs = []
-        info = []
+
+        result = self.get_from_scenario(
+            get_observations=return_observations,
+            get_infos=return_info,
+            get_rewards=False,
+            get_dones=return_dones,
+        )
+
+        return result[0] if result and len(result) == 1 else result
+
+    def get_from_scenario(
+        self,
+        get_observations: bool,
+        get_rewards: bool,
+        get_infos: bool,
+        get_dones: bool,
+        dict_agent_names: Optional[bool] = None,
+    ):
+        if not get_infos and not get_dones and not get_rewards and not get_observations:
+            return
+        if dict_agent_names is None:
+            dict_agent_names = self.dict_spaces
+
+        obs = rewards = infos = dones = None
+
+        if get_observations:
+            obs = {} if dict_agent_names else []
+        if get_rewards:
+            rewards = {} if dict_agent_names else []
+        if get_infos:
+            infos = {} if dict_agent_names else []
+
         for agent in self.agents:
-            obs.append(self.scenario.observation(agent)[index].unsqueeze(0))
-            if return_info:
-                info.append(
-                    {
-                        key: val[index].unsqueeze(0)
-                        for key, val in self.scenario.info(agent).items()
-                    }
-                )
-        return (obs, info) if return_info else obs
+            if get_rewards:
+                reward = self.scenario.reward(agent)
+                if dict_agent_names:
+                    rewards.update({agent.name: reward})
+                else:
+                    rewards.append(reward)
+            if get_observations:
+                observation = self.scenario.observation(agent)
+                if dict_agent_names:
+                    obs.update({agent.name: observation})
+                else:
+                    obs.append(observation)
+            if get_infos:
+                info = self.scenario.info(agent)
+                if dict_agent_names:
+                    infos.update({agent.name: info})
+                else:
+                    infos.append(info)
+
+        if get_dones:
+            dones = self.done()
+
+        result = [obs, rewards, dones, infos]
+        return [data for data in result if data is not None]
 
     def seed(self, seed=None):
         if seed is None:
@@ -118,7 +165,7 @@ class Environment(TorchVectorizedObject):
         random.seed(seed)
         return [seed]
 
-    def step(self, actions: List):
+    def step(self, actions: Union[List, Dict]):
         """Performs a vectorized step on all sub environments using `actions`.
         Args:
             actions: Is a list on len 'self.n_agents' of which each element is a torch.Tensor of shape
@@ -131,6 +178,20 @@ class Environment(TorchVectorizedObject):
             infos : List on len 'self.n_agents' of which each element is a dictionary for which each key is a metric
                     and the value is a tensor of shape '(self.num_envs, metric_size_per_agent)'
         """
+        if isinstance(actions, Dict):
+            actions_dict = actions
+            actions = []
+            for agent in self.agents:
+                try:
+                    actions.append(actions_dict[agent.name])
+                except KeyError:
+                    raise AssertionError(
+                        f"Agent '{agent.name}' not contained in action dict"
+                    )
+            assert (
+                len(actions_dict) == self.n_agents
+            ), f"Expecting actions for {self.n_agents}, got {len(actions_dict)} actions"
+
         assert (
             len(actions) == self.n_agents
         ), f"Expecting actions for {self.n_agents}, got {len(actions)} actions"
@@ -159,17 +220,11 @@ class Environment(TorchVectorizedObject):
         # advance world state
         self.world.step()
 
-        obs = []
-        rewards = []
-        infos = []
-        for agent in self.agents:
-            rewards.append(self.scenario.reward(agent))
-            obs.append(self.scenario.observation(agent))
-            # A dictionary per agent
-            infos.append(self.scenario.info(agent))
-
         self.steps += 1
-        dones = self.done()
+        obs, rewards, dones, infos = self.get_from_scenario(
+            get_observations=True, get_infos=True, get_rewards=True, get_dones=True
+        )
+
         # print("\nStep results in unwrapped environment")
         # print(
         #     f"Actions len (n_agents): {len(actions)}, "
@@ -194,6 +249,32 @@ class Environment(TorchVectorizedObject):
             dones += self.steps >= self.max_steps
         return dones
 
+    def get_action_space(self):
+        if not self.dict_spaces:
+            return spaces.Tuple(
+                [self.get_agent_action_space(agent) for agent in self.agents]
+            )
+        else:
+            return spaces.Dict(
+                {
+                    agent.name: self.get_agent_action_space(agent)
+                    for agent in self.agents
+                }
+            )
+
+    def get_observation_space(self):
+        if not self.dict_spaces:
+            return spaces.Tuple(
+                [self.get_agent_observation_space(agent) for agent in self.agents]
+            )
+        else:
+            return spaces.Dict(
+                {
+                    agent.name: self.get_agent_observation_space(agent)
+                    for agent in self.agents
+                }
+            )
+
     def get_agent_action_size(self, agent: Agent):
         return (
             self.world.dim_p
@@ -205,7 +286,7 @@ class Environment(TorchVectorizedObject):
             + (1 if not agent.silent else 0)
         )
 
-    def get_action_space(self, agent: Agent):
+    def get_agent_action_space(self, agent: Agent):
         if self.continuous_actions:
             return spaces.Box(
                 low=np.array(
@@ -237,6 +318,14 @@ class Environment(TorchVectorizedObject):
                     )
                 )
                 return spaces.MultiDiscrete(actions)
+
+    def get_agent_observation_space(self, agent: Agent):
+        return spaces.Box(
+            low=-np.float32("inf"),
+            high=np.float32("inf"),
+            shape=(len(self.scenario.observation(agent)[0]),),
+            dtype=np.float32,
+        )
 
     def _check_discrete_action(self, action: Tensor, low: int, high: int, type: str):
         assert torch.all(
