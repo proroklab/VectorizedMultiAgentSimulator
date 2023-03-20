@@ -6,7 +6,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="vmas",
-    version="1.2.6",
+    version="1.2.7",
     description="Vectorized Multi-Agent Simulator",
     url="https://github.com/proroklab/VectorizedMultiAgentSimulator",
     license="GPLv3",
