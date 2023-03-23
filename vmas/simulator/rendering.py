@@ -91,7 +91,6 @@ def get_display(spec):
 
 class Viewer(object):
     def __init__(self, width, height, display=None, visible=True):
-
         display = get_display(display)
 
         self.width = width
@@ -106,7 +105,7 @@ class Viewer(object):
         self.text_lines = []
         self.onetime_geoms = []
         self.transform = Transform()
-        self.bounds = np.array([0.0, 0.0, 0.0, 0.0])
+        self.bounds = None
 
         glEnable(GL_BLEND)
         # glEnable(GL_MULTISAMPLE)
@@ -124,7 +123,7 @@ class Viewer(object):
 
     def set_bounds(self, left, right, bottom, top):
         assert right > left and top > bottom
-        self.bounds = np.array([left, right, bottom, top])
+        self.bounds = torch.tensor([left, right, bottom, top], device=left.device)
         scalex = self.width / (right - left)
         scaley = self.height / (top - bottom)
         self.transform = Transform(
@@ -416,7 +415,6 @@ def render_function_util(
     cmap_range: Optional[Tuple[float, float]] = None,
     cmap_alpha: float = 1.0,
 ):
-
     geoms = []
 
     if isinstance(plot_range, int) or isinstance(plot_range, float):

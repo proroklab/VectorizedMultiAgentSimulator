@@ -35,7 +35,6 @@ class Environment(TorchVectorizedObject):
         dict_spaces: bool = False,
         **kwargs,
     ):
-
         self.scenario = scenario
         self.num_envs = num_envs
         TorchVectorizedObject.__init__(self, num_envs, torch.device(device))
@@ -620,6 +619,7 @@ class Environment(TorchVectorizedObject):
         from vmas.simulator.rendering import render_function_util
 
         if plot_range is None:
+            assert self.viewer.bounds is not None, "Set viewer bounds before plotting"
             x_min, x_max, y_min, y_max = self.viewer.bounds.tolist()
             plot_range = [x_min - precision, x_max - precision], [
                 y_min - precision,
