@@ -6,7 +6,6 @@ from typing import Dict
 
 import torch
 from torch import Tensor
-
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, Sphere, World
 from vmas.simulator.scenario import BaseScenario
@@ -40,6 +39,7 @@ class Scenario(BaseScenario):
 
         self.pos_rew = torch.zeros(batch_dim, device=device)
         self.energy_rew = self.pos_rew.clone()
+        self._done = torch.zeros(batch_dim, device=device, dtype=torch.bool)
 
         return world
 
@@ -79,9 +79,11 @@ class Scenario(BaseScenario):
                     (self.world.batch_dim,), False, device=self.world.device
                 )
                 landmark.reset_render()
+                self._done[:] = False
             else:
                 landmark.eaten[env_index] = False
                 landmark.is_rendering[env_index] = True
+                self._done[env_index] = False
 
     def reward(self, agent: Agent):
         is_first = agent == self.world.agents[0]

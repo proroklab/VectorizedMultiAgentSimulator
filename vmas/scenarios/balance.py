@@ -78,7 +78,6 @@ class Scenario(BaseScenario):
         return world
 
     def reset_world_at(self, env_index: int = None):
-
         goal_pos = torch.cat(
             [
                 torch.zeros(
@@ -183,6 +182,9 @@ class Scenario(BaseScenario):
                 device=self.world.device,
             ),
             batch_index=env_index,
+        )
+        self.on_the_ground = (self.package.state.pos[:, Y] <= -self.world.y_semidim) + (
+            self.line.state.pos[:, Y] <= -self.world.y_semidim
         )
         if env_index is None:
             self.global_shaping = (

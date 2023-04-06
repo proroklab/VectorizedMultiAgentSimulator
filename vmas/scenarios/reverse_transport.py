@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -51,7 +51,6 @@ class Scenario(BaseScenario):
         return world
 
     def reset_world_at(self, env_index: int = None):
-
         package_pos = torch.zeros(
             (1, self.world.dim_p)
             if env_index is not None
@@ -111,12 +110,16 @@ class Scenario(BaseScenario):
             ),
             batch_index=env_index,
         )
+
         if env_index is None:
             self.package.global_shaping = (
                 torch.linalg.vector_norm(
                     self.package.state.pos - self.package.goal.state.pos, dim=1
                 )
                 * self.shaping_factor
+            )
+            self.package.on_goal = torch.zeros(
+                self.world.batch_dim, dtype=torch.bool, device=self.world.device
             )
         else:
             self.package.global_shaping[env_index] = (
@@ -126,6 +129,7 @@ class Scenario(BaseScenario):
                 )
                 * self.shaping_factor
             )
+            self.package.on_goal[env_index] = False
 
     def reward(self, agent: Agent):
         is_first = agent == self.world.agents[0]

@@ -23,6 +23,7 @@ class Scenario(BaseScenario):
         self.init_walls(world)
         self.init_goals(world)
         # self.init_traj_pts(world)
+        self._done = torch.zeros(batch_dim, device=device, dtype=torch.bool)
         return world
 
     def reset_world_at(self, env_index: int = None):
@@ -32,6 +33,10 @@ class Scenario(BaseScenario):
         self.reset_walls(env_index)
         self.reset_goals(env_index)
         self.reset_controllers(env_index)
+        if env_index is None:
+            self._done[:] = False
+        else:
+            self._done[env_index] = False
 
     def init_params(self, **kwargs):
         self.viewer_size = kwargs.get("viewer_size", (1200, 800))
@@ -313,7 +318,6 @@ class Scenario(BaseScenario):
                 )
 
     def init_walls(self, world):
-
         right_top_wall = Landmark(
             name="Right Top Wall",
             collide=True,
