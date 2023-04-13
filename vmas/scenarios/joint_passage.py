@@ -6,7 +6,6 @@ from typing import Dict
 
 import torch
 from torch import Tensor
-
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Box, Landmark, Sphere, World, Line
 from vmas.simulator.joints import Joint
@@ -521,7 +520,10 @@ class Scenario(BaseScenario):
         ] + ([angle_to_vector(joint_angle)] if self.observe_joint_angle else [])
 
         for i, obs in enumerate(observations):
-            noise = torch.zeros(*obs.shape, device=self.world.device,).uniform_(
+            noise = torch.zeros(
+                *obs.shape,
+                device=self.world.device,
+            ).uniform_(
                 -self.obs_noise,
                 self.obs_noise,
             )
@@ -614,7 +616,6 @@ class Scenario(BaseScenario):
         self.joint.landmark.collision_filter = joint_collides
 
     def spawn_passage_map(self, env_index):
-
         passage_indexes = []
         j = self.n_boxes // 2
         for i in range(self.n_passages):
