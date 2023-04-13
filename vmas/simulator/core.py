@@ -464,6 +464,7 @@ class Entity(TorchVectorizedObject, Observable, ABC):
         drag: float = None,
         linear_friction: float = None,
         angular_friction: float = None,
+        gravity: float = None,
         collision_filter: Callable[[Entity], bool] = lambda _: True,
     ):
         TorchVectorizedObject.__init__(self)
@@ -498,6 +499,8 @@ class Entity(TorchVectorizedObject, Observable, ABC):
         # friction
         self._linear_friction = linear_friction
         self._angular_friction = angular_friction
+        # gravity
+        self._gravity = gravity
         # entity goal
         self._goal = None
         # Render the entity
@@ -591,6 +594,18 @@ class Entity(TorchVectorizedObject, Observable, ABC):
     @property
     def linear_friction(self):
         return self._linear_friction
+
+    @linear_friction.setter
+    def linear_friction(self, value):
+        self._linear_friction = value
+
+    @property
+    def gravity(self):
+        return self._gravity
+
+    @gravity.setter
+    def gravity(self, value):
+        self._gravity = value
 
     @property
     def angular_friction(self):
@@ -687,6 +702,7 @@ class Landmark(Entity):
         drag: float = None,
         linear_friction: float = None,
         angular_friction: float = None,
+        gravity: float = None,
         collision_filter: Callable[[Entity], bool] = lambda _: True,
     ):
         super().__init__(
@@ -704,6 +720,7 @@ class Landmark(Entity):
             drag,
             linear_friction,
             angular_friction,
+            gravity,
             collision_filter,
         )
 
@@ -743,6 +760,7 @@ class Agent(Entity):
         drag: float = None,
         linear_friction: float = None,
         angular_friction: float = None,
+        gravity: float = None,
         collision_filter: Callable[[Entity], bool] = lambda _: True,
         render_action: bool = False,
     ):
@@ -761,6 +779,7 @@ class Agent(Entity):
             drag=drag,
             linear_friction=linear_friction,
             angular_friction=angular_friction,
+            gravity=gravity,
             collision_filter=collision_filter,
         )
         if obs_range == 0.0:
@@ -1511,9 +1530,11 @@ class World(TorchVectorizedObject):
             assert not self.torque.isnan().any()
 
     def _apply_gravity(self, entity: Entity, index: int):
-        if not (self._gravity == 0.0).all():
-            if entity.movable:
+        if entity.movable:
+            if not (self._gravity == 0.0).all():
                 self.force[:, index] += entity.mass * self._gravity
+            if entity.gravity is not None:
+                self.force[:, index] += entity.mass * entity.gravity
 
     def _apply_friction_force(self, entity: Entity, index: int):
         def get_friction_force(vel, coeff, force, mass):
