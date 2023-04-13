@@ -11,7 +11,6 @@ from typing import Callable, List, Tuple
 
 import torch
 from torch import Tensor
-
 from vmas.simulator.joints import JointConstraint, Joint
 from vmas.simulator.sensors import Sensor
 from vmas.simulator.utils import (
@@ -1521,9 +1520,12 @@ class World(TorchVectorizedObject):
             speed = torch.linalg.vector_norm(vel, dim=1)
             static = speed == 0
 
-            friction_force_constant = torch.full_like(
-                force, coeff * mass, device=self.device
-            )
+            if not isinstance(coeff, Tensor):
+                coeff = torch.full_like(force, coeff, device=self.device)
+            coeff = coeff.expand(force.shape)
+
+            friction_force_constant = coeff * mass
+
             friction_force = -(vel / speed.unsqueeze(-1)) * torch.minimum(
                 friction_force_constant, (vel.abs() / self._sub_dt) * mass
             )
@@ -1860,7 +1862,6 @@ class World(TorchVectorizedObject):
     def _get_closest_points_line_line(
         self, line_pos, line_rot, line_length, line2_pos, line2_rot, line2_length
     ):
-
         point_a1, point_a2 = self.get_line_extrema(line_pos, line_rot, line_length)
         point_b1, point_b2 = self.get_line_extrema(line2_pos, line2_rot, line2_length)
 
