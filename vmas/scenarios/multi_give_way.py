@@ -5,7 +5,6 @@ import typing
 from typing import List
 
 import torch
-
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World, Landmark, Sphere, Line, Box
 from vmas.simulator.scenario import BaseScenario
@@ -26,6 +25,7 @@ class Scenario(BaseScenario):
         self.min_input_norm = kwargs.get("min_input_norm", 0.08)
         self.comms_range = kwargs.get("comms_range", 5)
         self.shared_rew = kwargs.get("shared_rew", True)
+        self.n_agents = kwargs.get("n_agents", 4)
 
         self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 1)  # max is 8
         self.final_reward = kwargs.get("final_reward", 0.01)
@@ -272,7 +272,10 @@ class Scenario(BaseScenario):
 
         if self.obs_noise > 0:
             for i, obs in enumerate(observations):
-                noise = torch.zeros(*obs.shape, device=self.world.device,).uniform_(
+                noise = torch.zeros(
+                    *obs.shape,
+                    device=self.world.device,
+                ).uniform_(
                     -self.obs_noise,
                     self.obs_noise,
                 )
@@ -319,7 +322,6 @@ class Scenario(BaseScenario):
         return geoms
 
     def spawn_map(self, world: World):
-
         self.scenario_length = 5
         self.scenario_width = 0.4
 
