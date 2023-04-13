@@ -350,8 +350,9 @@ To create a fake screen you need to have `Xvfb` installed.
 - [ ] Notebook on how to use torch rl with vmas
 - [ ] Reset any number of dimensions
 - [ ] Improve test efficiency and add new tests
-- [ ] New envs from adversarial project
+- [ ] Talk about navigation / multi_goal
 - [ ] Implement 1D camera sensor
+- [ ] Implement 2D birds eye view camera sensor
 - [ ] Make football heuristic efficient
 - [X] Link video of experiments
 - [X] Add LIDAR section

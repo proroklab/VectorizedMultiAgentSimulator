@@ -560,7 +560,7 @@ class Environment(TorchVectorizedObject):
             all_poses = torch.stack(
                 [agent.state.pos[env_index] for agent in self.world.agents], dim=0
             )
-            max_agent_radius = np.max(
+            max_agent_radius = max(
                 [agent.shape.circumscribed_radius() for agent in self.world.agents]
             )
             viewer_size_fit = (
