@@ -16,6 +16,7 @@ import numpy as np
 import pyglet
 import six
 import torch
+
 from vmas.simulator.utils import x_to_rgb_colormap
 
 try:
@@ -335,8 +336,6 @@ class TextLine:
             anchor_x="left",
             anchor_y="bottom",
         )
-
-        self.label.draw()
 
 
 class Point(Geom):
