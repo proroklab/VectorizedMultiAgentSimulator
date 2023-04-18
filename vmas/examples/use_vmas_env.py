@@ -66,13 +66,13 @@ def use_vmas_env(render: bool = False, save_render: bool = False):
         obs, rews, dones, info = env.step(actions)
 
         if render:
-            frame_list.append(
-                env.render(
-                    mode="rgb_array",
-                    agent_index_focus=None,
-                    visualize_when_rgb=True,
-                )
-            )  # Can give the camera an agent index to focus on
+            frame = env.render(
+                mode="rgb_array" if save_render else "human",
+                agent_index_focus=None,  # Can give the camera an agent index to focus on
+                visualize_when_rgb=True,
+            )
+            if save_render:
+                frame_list.append(frame)
 
     if render and save_render:
         save_video(scenario_name, frame_list, fps=1 / env.scenario.world.dt)
