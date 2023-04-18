@@ -13,6 +13,7 @@ and switch the agent with these controls using LSHIFT
 from operator import add
 
 import numpy as np
+
 from vmas.make_env import make_env
 from vmas.simulator.environment import Wrapper
 from vmas.simulator.environment.gym import GymWrapper
@@ -40,7 +41,6 @@ class InteractiveEnv:
         save_render: bool = False,
         render_name: str = "interactive",
     ):
-
         self.env = env
         self.control_two_agents = control_two_agents
         # hard-coded keyboard events
@@ -122,12 +122,12 @@ class InteractiveEnv:
                 message = f"Selected: {self.env.unwrapped().agents[self.current_agent_index].name}"
                 self._write_values(self.text_idx + 5, message)
 
-            self.frame_list.append(
-                self.env.render(
-                    mode="rgb_array",
-                    visualize_when_rgb=True,
-                )
+            frame = self.env.render(
+                mode="rgb_array" if self.save_render else "human",
+                visualize_when_rgb=True,
             )
+            if self.save_render:
+                self.frame_list.append(frame)
 
             if done:
                 self.reset = True

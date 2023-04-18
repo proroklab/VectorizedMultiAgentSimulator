@@ -16,6 +16,7 @@ import numpy as np
 import pyglet
 import six
 import torch
+
 from vmas.simulator.utils import x_to_rgb_colormap
 
 try:
@@ -309,34 +310,34 @@ class TextLine:
     def __init__(self, window, idx):
         self.idx = idx
         self.window = window
+
         pyglet.font.add_file(os.path.join(os.path.dirname(__file__), "secrcode.ttf"))
-        self.label = None
-        self.set_text("")
-
-    def render(self):
-        if self.label is not None:
-            self.label.draw()
-
-    def set_text(self, text, font_size: int = 20):
         if pyglet.font.have_font("Courier"):
             font = "Courier"
         elif pyglet.font.have_font("Secret Code"):
             font = "Secret Code"
         else:
-            return
+            font = None
 
         self.label = pyglet.text.Label(
-            text,
+            "",
             font_name=font,
             color=(0, 0, 0, 255),
-            font_size=font_size,
+            font_size=20,
             x=0,
             y=self.idx * 40 + 20,
             anchor_x="left",
             anchor_y="bottom",
         )
 
-        self.label.draw()
+    def render(self):
+        if self.label is not None:
+            self.label.draw()
+
+    def set_text(self, text, font_size: Optional[int] = None):
+        self.label.text = text
+        if font_size is not None:
+            self.label.font_size = font_size
 
 
 class Point(Geom):
