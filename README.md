@@ -61,6 +61,7 @@ Watch the talk at DARS 2022 about VMAS.
     + [Install](#install)
     + [Run](#run)
       - [RLlib](#rllib)
+      - [TorchRL](#torchrl)
     + [Input and output spaces](#input-and-output-spaces)
       - [Output spaces](#output-spaces)
       - [Input action space](#input-action-space)
@@ -101,7 +102,7 @@ pip install -e .
 By default, vmas has only the core requirements. Here are some optional packages you may want to install:
 ```
 # Training
-pip install "ray[rllib]"==2.2 # We support versions "ray[rllib]<=2.2,>=1.13"
+pip install "ray[rllib]"==2.1.0 # We support versions "ray[rllib]<=2.2,>=1.13"
 pip install torchrl
 
 # Logging
@@ -141,6 +142,13 @@ A further example that you can run is contained in `use_vmas_env.py` in the `exa
 #### RLlib
 
 To see how to use VMAS in RLlib, check out the script in `examples/rllib.py`.
+
+You can find more examples of multi-agent training in VMAS in the [HetGPPO repository](https://github.com/proroklab/HetGPPO).
+
+#### TorchRL
+
+VMAS is supported by torchrl and can be used with a wide selection of algorithms.
+See [here](https://github.com/pytorch/rl/pull/1027) for some example scripts.
 
 ### Input and output spaces
 
