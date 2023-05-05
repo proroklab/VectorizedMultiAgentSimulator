@@ -6,10 +6,10 @@ from typing import Dict, Callable, List
 
 import torch
 from torch import Tensor
-
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, World, Sphere, Entity
 from vmas.simulator.scenario import BaseScenario
+from vmas.simulator.sensors import Lidar
 from vmas.simulator.utils import Color, ScenarioUtils
 
 if typing.TYPE_CHECKING:
@@ -21,7 +21,7 @@ class Scenario(BaseScenario):
         self.n_agents = kwargs.get("n_agents", 4)
         self.lidar_range = kwargs.get("lidar_range", 0.35)
         self.agent_radius = kwargs.get("agent_radius", 0.1)
-        self.comms_range = kwargs.get("comms_range", 0.55)
+        self.comms_range = kwargs.get("comms_range", 0)
 
         self.shared_rew = kwargs.get("shared_rew", True)
         self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 1)
@@ -64,16 +64,16 @@ class Scenario(BaseScenario):
                 color=color,
                 alpha=1,
                 shape=Sphere(radius=self.agent_radius),
-                # sensors=[
-                #     Lidar(
-                #         world,
-                #         angle_start=0.05,
-                #         angle_end=2 * torch.pi + 0.05,
-                #         n_rays=12,
-                #         max_range=self.lidar_range,
-                #         entity_filter=entity_filter_agents,
-                #     ),
-                # ],
+                sensors=[
+                    Lidar(
+                        world,
+                        angle_start=0.05,
+                        angle_end=2 * torch.pi + 0.05,
+                        n_rays=12,
+                        max_range=self.lidar_range,
+                        entity_filter=entity_filter_agents,
+                    ),
+                ],
             )
             agent.pos_rew = torch.zeros(batch_dim, device=device)
             agent.agent_collision_rew = agent.pos_rew.clone()
@@ -187,10 +187,23 @@ class Scenario(BaseScenario):
                 agent.state.pos,
                 agent.state.vel,
                 agent.state.pos - agent.goal.state.pos,
-                # agent.sensors[0].measure(),
+                agent.sensors[0].measure(),
             ],
             dim=-1,
         )
+
+    def done(self):
+        return torch.stack(
+            [
+                torch.linalg.vector_norm(
+                    agent.state.pos - agent.goal.state.pos,
+                    dim=-1,
+                )
+                < agent.shape.radius
+                for agent in self.world.agents
+            ],
+            dim=-1,
+        ).all(-1)
 
     def info(self, agent: Agent) -> Dict[str, Tensor]:
         return {
