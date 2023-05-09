@@ -271,8 +271,6 @@ def render_interactively(
     If you have more than 1 agent, you can control another one with W,A,S,D
     and switch the agent with these controls using LSHIFT
     """
-    if scenario_name.endswith(".py"):
-        scenario_name = scenario_name[:-3]
 
     InteractiveEnv(
         make_env(
@@ -288,7 +286,7 @@ def render_interactively(
         control_two_agents=control_two_agents,
         display_info=display_info,
         save_render=save_render,
-        render_name=scenario_name,
+        render_name=f"{scenario}",
     )
 
 
