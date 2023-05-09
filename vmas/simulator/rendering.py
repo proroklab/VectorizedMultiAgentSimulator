@@ -53,7 +53,6 @@ try:
         gluOrtho2D,
         glVertex2f,
         glVertex3f,
-        GL_NEAREST,
     )
 except ImportError:
     raise ImportError(

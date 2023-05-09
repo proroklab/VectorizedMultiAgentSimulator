@@ -128,7 +128,6 @@ class Scenario(BaseScenario):
     def reward(self, agent: Agent):
         is_first = agent == self.world.agents[0]
         is_last = agent == self.world.agents[-1]
-        agent_index = self.world.agents.index(agent)
 
         if is_first:
             self.time_rew = torch.full(

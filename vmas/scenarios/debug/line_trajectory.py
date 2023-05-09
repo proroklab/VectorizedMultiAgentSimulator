@@ -24,7 +24,7 @@ class Scenario(BaseScenario):
         world = World(batch_dim, device, drag=0.1)
         # Add agents
         self.agent = Agent(
-            name=f"agent",
+            name="agent",
             shape=Sphere(self.agent_radius),
             mass=2,
             f_range=0.5,
@@ -104,7 +104,10 @@ class Scenario(BaseScenario):
     def observation(self, agent: Agent):
         observations = [agent.state.pos, agent.state.vel, agent.state.pos]
         for i, obs in enumerate(observations):
-            noise = torch.zeros(*obs.shape, device=self.world.device,).uniform_(
+            noise = torch.zeros(
+                *obs.shape,
+                device=self.world.device,
+            ).uniform_(
                 -self.obs_noise,
                 self.obs_noise,
             )

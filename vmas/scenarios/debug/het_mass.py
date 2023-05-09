@@ -25,7 +25,7 @@ class Scenario(BaseScenario):
         world = World(batch_dim, device)
         # Add agents
         self.green_agent = Agent(
-            name=f"agent 0",
+            name="agent 0",
             collide=False,
             color=Color.GREEN,
             render_action=True,
@@ -34,7 +34,7 @@ class Scenario(BaseScenario):
         )
         world.add_agent(self.green_agent)
         self.blue_agent = Agent(
-            name=f"agent 1", collide=False, render_action=True, f_range=1
+            name="agent 1", collide=False, render_action=True, f_range=1
         )
         world.add_agent(self.blue_agent)
 

@@ -46,7 +46,7 @@ class Scenario(BaseScenario):
 
         # Add agents
         agent = Agent(
-            name=f"agent 0",
+            name="agent 0",
             collide=False,
             color=Color.GREEN,
             render_action=True,
@@ -59,7 +59,7 @@ class Scenario(BaseScenario):
         )
         world.add_agent(agent)
         agent = Agent(
-            name=f"agent 1",
+            name="agent 1",
             collide=False,
             render_action=True,
             # f_range=30,
@@ -70,7 +70,7 @@ class Scenario(BaseScenario):
         )
         world.add_agent(agent)
         agent = Agent(
-            name=f"agent 2",
+            name="agent 2",
             collide=False,
             render_action=True,
             f_range=30,
@@ -149,7 +149,6 @@ class Scenario(BaseScenario):
         is_first = agent == self.world.agents[0]
 
         if is_first:
-
             self.energy_expenditure = (
                 -torch.stack(
                     [
