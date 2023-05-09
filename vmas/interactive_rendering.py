@@ -11,12 +11,13 @@ If you have more than 1 agent, you can control another one with W,A,S,D
 and switch the agent with these controls using LSHIFT
 """
 from operator import add
+from typing import Union
 
 import numpy as np
-
 from vmas.make_env import make_env
 from vmas.simulator.environment import Wrapper
 from vmas.simulator.environment.gym import GymWrapper
+from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import save_video
 
 N_TEXT_LINES_INTERACTIVE = 6
@@ -255,7 +256,7 @@ class InteractiveEnv:
 
 
 def render_interactively(
-    scenario_name: str,
+    scenario: Union[str, BaseScenario],
     control_two_agents: bool = False,
     display_info: bool = True,
     save_render: bool = False,
@@ -275,7 +276,7 @@ def render_interactively(
 
     InteractiveEnv(
         make_env(
-            scenario=scenario_name,
+            scenario=scenario,
             num_envs=1,
             device="cpu",
             continuous_actions=True,
