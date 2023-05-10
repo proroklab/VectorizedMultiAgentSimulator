@@ -92,7 +92,7 @@ class Scenario(BaseScenario):
 
         # Add agents
         self.big_agent = Agent(
-            name=f"agent 0",
+            name="agent 0",
             render_action=True,
             shape=Sphere(radius=0.05),
             u_range=self.u_range,
@@ -106,7 +106,7 @@ class Scenario(BaseScenario):
         world.add_agent(self.big_agent)
 
         self.small_agent = Agent(
-            name=f"agent 1",
+            name="agent 1",
             render_action=True,
             shape=Sphere(radius=0.03),
             u_range=self.u_range,
