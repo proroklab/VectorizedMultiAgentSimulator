@@ -1,7 +1,8 @@
 #  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-from typing import Dict
+import typing
+from typing import Dict, List
 
 import torch
 from torch import Tensor
@@ -10,6 +11,9 @@ from vmas.simulator.core import Agent, World, Sphere
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Y, Color, X
 from vmas.simulator.velocity_controller import VelocityController
+
+if typing.TYPE_CHECKING:
+    from vmas.simulator.rendering import Geom
 
 
 def angle_to_vector(angle):
