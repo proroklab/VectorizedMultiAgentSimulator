@@ -107,6 +107,8 @@ def save_video(name: str, frame_list: List[np.array], fps: int):
     )
     for img in frame_list:
         img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        # cv2.imwrite(f"{name}.png", img)
+        # break
         video.write(img)
     video.release()
 

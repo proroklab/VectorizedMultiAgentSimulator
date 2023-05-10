@@ -18,7 +18,14 @@ if typing.TYPE_CHECKING:
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
+        self.plot_grid = False
         self.n_agents = kwargs.get("n_agents", 4)
+        self.collisions = kwargs.get("collisions", True)
+
+        self.agents_with_same_goal = kwargs.get("agents_with_same_goal", 1)
+        self.split_goals = kwargs.get("split_goals", False)
+        self.observe_all_goals = kwargs.get("observe_all_goals", False)
+
         self.lidar_range = kwargs.get("lidar_range", 0.35)
         self.agent_radius = kwargs.get("agent_radius", 0.1)
         self.comms_range = kwargs.get("comms_range", 0)
@@ -29,25 +36,40 @@ class Scenario(BaseScenario):
 
         self.agent_collision_penalty = kwargs.get("agent_collision_penalty", -1)
 
+        self.min_distance_between_entities = self.agent_radius * 2 + 0.05
+        self.world_semidim = 1
+        self.min_collision_distance = 0.005
+
+        assert 1 <= self.agents_with_same_goal <= self.n_agents
+        if self.agents_with_same_goal > 1:
+            assert (
+                not self.collisions
+            ), "If agents share goals they cannot be collidables"
+        # agents_with_same_goal == n_agents: all agent same goal
+        # agents_with_same_goal = x: the first x agents share the goal
+        # agents_with_same_goal = 1: all independent goals
+        if self.split_goals:
+            assert (
+                self.n_agents % 2 == 0
+                and self.agents_with_same_goal == self.n_agents // 2
+            ), "Splitting the goals is allowed when the agents are even and half the team has the same goal"
+
+        # Make world
+        world = World(batch_dim, device, substeps=2)
+
         known_colors = [
-            Color.GREEN,
-            Color.RED,
-            Color.GRAY,
-            Color.WHITE,
-            Color.BLUE,
+            (0.22, 0.49, 0.72),
+            (1.00, 0.50, 0),
+            (0.30, 0.69, 0.29),
+            (0.97, 0.51, 0.75),
+            (0.60, 0.31, 0.64),
+            (0.89, 0.10, 0.11),
+            (0.87, 0.87, 0),
         ]
         colors = torch.randn(
             (max(self.n_agents - len(known_colors), 0), 3), device=device
         )
-
-        self.min_istance_between_entities = self.agent_radius * 2 + 0.05
-        self.world_semidim = 1
-        self.min_collision_distance = 0.005
-
         entity_filter_agents: Callable[[Entity], bool] = lambda e: isinstance(e, Agent)
-
-        # Make world
-        world = World(batch_dim, device, substeps=2)
 
         # Add agents
         for i in range(self.n_agents):
@@ -60,20 +82,20 @@ class Scenario(BaseScenario):
             # Constraint: all agents have same action range and multiplier
             agent = Agent(
                 name=f"agent {i}",
-                collide=True,
+                collide=self.collisions,
                 color=color,
-                alpha=1,
                 shape=Sphere(radius=self.agent_radius),
+                render_action=True,
                 sensors=[
                     Lidar(
                         world,
-                        angle_start=0.05,
-                        angle_end=2 * torch.pi + 0.05,
                         n_rays=12,
                         max_range=self.lidar_range,
                         entity_filter=entity_filter_agents,
                     ),
-                ],
+                ]
+                if self.collisions
+                else None,
             )
             agent.pos_rew = torch.zeros(batch_dim, device=device)
             agent.agent_collision_rew = agent.pos_rew.clone()
@@ -84,7 +106,6 @@ class Scenario(BaseScenario):
                 name=f"goal {i}",
                 collide=False,
                 color=color,
-                shape=Sphere(radius=0.04),
             )
             world.add_landmark(goal)
             agent.goal = goal
@@ -96,42 +117,46 @@ class Scenario(BaseScenario):
 
     def reset_world_at(self, env_index: int = None):
         ScenarioUtils.spawn_entities_randomly(
-            self.world.agents + self.world.landmarks,
+            self.world.agents,
             self.world,
             env_index,
-            self.min_istance_between_entities,
+            self.min_distance_between_entities,
             (-self.world_semidim, self.world_semidim),
             (-self.world_semidim, self.world_semidim),
         )
-        for i, landmark in enumerate(self.world.landmarks):
-            # landmark.set_pos(
-            #     torch.zeros(
-            #         (1, self.world.dim_p)
-            #         if env_index is not None
-            #         else (self.world.batch_dim, self.world.dim_p),
-            #         device=self.world.device,
-            #         dtype=torch.float32,
-            #     ).uniform_(
-            #         -self.world_semidim,
-            #         self.world_semidim,
-            #     ),
-            #     batch_index=env_index,
-            # )
+
+        goal_poses = []
+        for _ in self.world.agents:
+            goal_poses.append(
+                torch.zeros(
+                    (1, self.world.dim_p)
+                    if env_index is not None
+                    else (self.world.batch_dim, self.world.dim_p),
+                    device=self.world.device,
+                    dtype=torch.float32,
+                ).uniform_(-1, 1)
+            )
+
+        for i, agent in enumerate(self.world.agents):
+            if self.split_goals:
+                goal_index = int(i // self.agents_with_same_goal)
+            else:
+                goal_index = 0 if i < self.agents_with_same_goal else i
+
+            agent.goal.set_pos(goal_poses[goal_index], batch_index=env_index)
 
             if env_index is None:
-                self.world.agents[i].pos_shaping = (
+                agent.pos_shaping = (
                     torch.linalg.vector_norm(
-                        self.world.agents[i].state.pos
-                        - self.world.agents[i].goal.state.pos,
+                        agent.state.pos - agent.goal.state.pos,
                         dim=1,
                     )
                     * self.pos_shaping_factor
                 )
             else:
-                self.world.agents[i].pos_shaping[env_index] = (
+                agent.pos_shaping[env_index] = (
                     torch.linalg.vector_norm(
-                        self.world.agents[i].state.pos[env_index]
-                        - self.world.agents[i].goal.state.pos[env_index]
+                        agent.state.pos[env_index] - agent.goal.state.pos[env_index]
                     )
                     * self.pos_shaping_factor
                 )
@@ -182,13 +207,23 @@ class Scenario(BaseScenario):
         return agent.pos_rew
 
     def observation(self, agent: Agent):
+        goal_poses = []
+        if self.observe_all_goals:
+            for a in self.world.agents:
+                goal_poses.append(agent.state.pos - a.goal.state.pos)
+        else:
+            goal_poses.append(agent.state.pos - agent.goal.state.pos)
         return torch.cat(
             [
                 agent.state.pos,
                 agent.state.vel,
-                agent.state.pos - agent.goal.state.pos,
-                agent.sensors[0].measure(),
-            ],
+            ]
+            + goal_poses
+            + (
+                [agent.sensors[0]._max_range - agent.sensors[0].measure()]
+                if self.collisions
+                else []
+            ),
             dim=-1,
         )
 
