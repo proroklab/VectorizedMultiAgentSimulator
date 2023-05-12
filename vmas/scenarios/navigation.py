@@ -125,17 +125,24 @@ class Scenario(BaseScenario):
             (-self.world_semidim, self.world_semidim),
         )
 
+        occupied_positions = torch.stack(
+            [agent.state.pos for agent in self.world.agents], dim=1
+        )
+        if env_index is not None:
+            occupied_positions = occupied_positions[env_index].unsqueeze(0)
+
         goal_poses = []
         for _ in self.world.agents:
-            goal_poses.append(
-                torch.zeros(
-                    (1, self.world.dim_p)
-                    if env_index is not None
-                    else (self.world.batch_dim, self.world.dim_p),
-                    device=self.world.device,
-                    dtype=torch.float32,
-                ).uniform_(-1, 1)
+            position = ScenarioUtils.find_random_pos_for_entity(
+                occupied_positions=occupied_positions,
+                env_index=env_index,
+                world=self.world,
+                min_dist_between_entities=self.min_distance_between_entities,
+                x_bounds=(-self.world_semidim, self.world_semidim),
+                y_bounds=(-self.world_semidim, self.world_semidim),
             )
+            goal_poses.append(position.squeeze(1))
+            occupied_positions = torch.cat([occupied_positions, position], dim=1)
 
         for i, agent in enumerate(self.world.agents):
             if self.split_goals:
