@@ -14,6 +14,7 @@ from operator import add
 from typing import Union
 
 import numpy as np
+
 from vmas.make_env import make_env
 from vmas.simulator.environment import Wrapper
 from vmas.simulator.environment.gym import GymWrapper
@@ -52,8 +53,8 @@ class InteractiveEnv:
         self.reset = False
         self.keys = np.array([0.0, 0.0, 0.0, 0.0])  # up, down, left, right
         self.keys2 = np.array([0.0, 0.0, 0.0, 0.0])  # up, down, left, right
-        self.u = 0 if not self.continuous else (0.0, 0.0)
-        self.u2 = 0 if not self.continuous else (0.0, 0.0)
+        self.u = 0 if not self.continuous else (0.0, 0.0, 0.0)
+        self.u2 = 0 if not self.continuous else (0.0, 0.0, 0.0)
         self.frame_list = []
         self.display_info = display_info
         self.save_render = save_render
@@ -92,7 +93,7 @@ class InteractiveEnv:
                 total_rew = [0] * self.n_agents
 
             if self.continuous:
-                action_list = [(0.0, 0.0)] * self.n_agents
+                action_list = [(0.0, 0.0, 0.0)] * self.n_agents
             else:
                 action_list = [0] * self.n_agents
             action_list[self.current_agent_index] = self.u
@@ -211,7 +212,7 @@ class InteractiveEnv:
             self.reset = True
 
         if self.continuous:
-            self.u = (self.keys[1] - self.keys[0], self.keys[3] - self.keys[2])
+            self.u = (self.keys[3] - self.keys[2], 0, self.keys[1] - self.keys[0])
             self.u2 = (self.keys2[1] - self.keys2[0], self.keys2[3] - self.keys2[2])
         else:
             self.u = u
@@ -242,7 +243,7 @@ class InteractiveEnv:
             self.reset = False
 
         if self.continuous:
-            self.u = (self.keys[1] - self.keys[0], self.keys[3] - self.keys[2])
+            self.u = (self.keys[3] - self.keys[2], 0, self.keys[1] - self.keys[0])
             self.u2 = (self.keys2[1] - self.keys2[0], self.keys2[3] - self.keys2[2])
         else:
             if np.sum(self.keys) == 1:
