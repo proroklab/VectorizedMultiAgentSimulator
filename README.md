@@ -213,7 +213,9 @@ customizable. Examples are: drag, friction, gravity, simulation timestep, non-di
 - **Sensors**: Our simulator implements ray casting, which can be used to simulate a wide range of distance-based sensors that can be added to agents. We currently support LIDARs. To see available sensors, have a look at the `sensors` script.
 - **Joints**: Our simulator supports joints. Joints are constraints that keep entities at a specified distance. The user can specify the anchor points on the two objects, the distance (including 0), the thickness of the joint, if the joint is allowed to rotate at either anchor point, and if he wants the joint to be collidable. Have a look at the waterfall scenario to see how you can use joints. See the `waterfall` and `joint_passage` scenarios for an example.
 - **Agent actions**: Agents' physical actions are 2D forces for holonomic motion. Agent rotation can also be controlled through a torque action (activated by setting `agent.action.u_rot_range` at agent creation time). Agents can also be equipped with continuous or discrete communication actions.
-- **Action preprocessing and velocity controller**: By implementing the `process_action` function of a scenario, you can modify the agents' actions before they are passed to the simulator. This can be used to enforce a specific dynamics model (e.g., differential drive). We provide a `VelocityController` which can be used in this function to treat input actions as velocities (instead of forces). This PID controller takes velocities and outputs the forces which are fed to the simulator. See the `vel_control` debug scenario for an example.
+- **Action preprocessing**: By implementing the `process_action` function of a scenario, you can modify the agents' actions before they are passed to the simulator. This is used in `controllers` (where we provide different types of controllers to use) and `dynamics` (where we provide custom robot dynamic models).
+- **Controllers**: Controllers are components that can be appended to the neural network policy or replace it completely.  We provide a `VelocityController` which can be used to treat input actions as velocities (instead of default vmas input forces). This PID controller takes velocities and outputs the forces which are fed to the simulator. See the `vel_control` debug scenario for an example.
+- **Dynamic models**: VMAS simulates holonomic dynamics models by default. Custom dynamic constraints can be enforced in an action preprocessing step. We implement `DiffDriveDynamics`, which can be used to simulate differential drive robots. See the `diff_drive` debug scenario for an example.
 
 ## Creating a new scenario
 
@@ -232,6 +234,7 @@ You can play with a scenario interactively! **Just execute its script!**
 Just use the `render_interactively` function in the `interactive_rendering.py` script. Relevant values will be plotted to screen.
 Move the agent with the arrow keys and switch agents with TAB. You can reset the environment by pressing R.
 If you have more than 1 agent, you can control another one with W,A,S,D and switch the second agent using LSHIFT. To do this, just set `control_two_agents=True`.
+If the agents also have rotational actions, you can control them with M,N for the first agent and with Q,E (for example in the `diff_drive` scenario).
 
 On the screen you will see some data from the agent controlled with arrow keys. This data includes: name, current obs, 
 current reward, total reward so far and environment done flag.
