@@ -14,6 +14,7 @@ from operator import add
 from typing import Union
 
 import numpy as np
+
 from vmas.make_env import make_env
 from vmas.simulator.environment import Wrapper
 from vmas.simulator.environment.gym import GymWrapper
@@ -29,8 +30,8 @@ class InteractiveEnv:
 
     You can change agent by pressing TAB
     You can reset the environment by pressing R
-    You can move agents with the arrow keys
-    If you have more than 1 agent, you can control another one with W,A,S,D
+    You can move agents with the arrow keys and if the agent has a rotational action you can control it with M, N
+    If you have more than 1 agent, you can control another one with W,A,S,D and Q,E for eventual rotational actions
     and switch the agent with these controls using LSHIFT
     """
 
@@ -48,12 +49,17 @@ class InteractiveEnv:
         self.current_agent_index = 0
         self.current_agent_index2 = 1
         self.n_agents = self.env.unwrapped().n_agents
+        self.agents = self.env.unwrapped().agents
         self.continuous = self.env.unwrapped().continuous_actions
         self.reset = False
-        self.keys = np.array([0.0, 0.0, 0.0, 0.0])  # up, down, left, right
-        self.keys2 = np.array([0.0, 0.0, 0.0, 0.0])  # up, down, left, right
-        self.u = 0 if not self.continuous else (0.0, 0.0)
-        self.u2 = 0 if not self.continuous else (0.0, 0.0)
+        self.keys = np.array(
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        )  # up, down, left, right, rot+, rot-
+        self.keys2 = np.array(
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        )  # up, down, left, right, rot+, rot-
+        self.u = [0] * (3 if self.continuous else 2)
+        self.u2 = [0] * (3 if self.continuous else 2)
         self.frame_list = []
         self.display_info = display_info
         self.save_render = save_render
@@ -91,13 +97,22 @@ class InteractiveEnv:
                 self.reset = False
                 total_rew = [0] * self.n_agents
 
-            if self.continuous:
-                action_list = [(0.0, 0.0)] * self.n_agents
-            else:
-                action_list = [0] * self.n_agents
-            action_list[self.current_agent_index] = self.u
+            action_list = [
+                [0.0] * self.env.unwrapped().get_agent_action_size(agent)
+                for agent in self.agents
+            ]
+            action_list[self.current_agent_index] = self.u[
+                : self.env.unwrapped().get_agent_action_size(
+                    self.agents[self.current_agent_index]
+                )
+            ]
+
             if self.n_agents > 1 and self.control_two_agents:
-                action_list[self.current_agent_index2] = self.u2
+                action_list[self.current_agent_index2] = self.u2[
+                    : self.env.unwrapped().get_agent_action_size(
+                        self.agents[self.current_agent_index2]
+                    )
+                ]
             obs, rew, done, info = self.env.step(action_list)
 
             if self.display_info:
@@ -156,22 +171,21 @@ class InteractiveEnv:
     def _key_press(self, k, mod):
         from pyglet.window import key
 
-        agent_range = self.env.unwrapped().agents[self.current_agent_index].u_range
+        agent_range = self.agents[self.current_agent_index].u_range
+        agent_rot_range = self.agents[self.current_agent_index].u_rot_range
 
-        u = self.u
-        u2 = self.u2
         if k == key.LEFT:
             self.keys[0] = agent_range
-            u = 1
         elif k == key.RIGHT:
             self.keys[1] = agent_range
-            u = 2
         elif k == key.DOWN:
             self.keys[2] = agent_range
-            u = 3
         elif k == key.UP:
             self.keys[3] = agent_range
-            u = 4
+        elif k == key.M:
+            self.keys[4] = agent_rot_range
+        elif k == key.N:
+            self.keys[5] = agent_rot_range
         elif k == key.TAB:
             self.current_agent_index = self._increment_selected_agent_index(
                 self.current_agent_index
@@ -183,21 +197,22 @@ class InteractiveEnv:
                     )
 
         if self.control_two_agents:
-            agent2_range = (
-                self.env.unwrapped().agents[self.current_agent_index2].u_range
-            )
+            agent2_range = self.agents[self.current_agent_index2].u_range
+            agent2_rot_range = self.agents[self.current_agent_index2].u_rot_range
+
             if k == key.A:
                 self.keys2[0] = agent2_range
-                u2 = 1
             elif k == key.D:
                 self.keys2[1] = agent2_range
-                u2 = 2
             elif k == key.S:
                 self.keys2[2] = agent2_range
-                u2 = 3
             elif k == key.W:
                 self.keys2[3] = agent2_range
-                u2 = 4
+            elif k == key.E:
+                self.keys2[4] = agent2_rot_range
+            elif k == key.Q:
+                self.keys2[5] = agent2_rot_range
+
             elif k == key.LSHIFT:
                 self.current_agent_index2 = self._increment_selected_agent_index(
                     self.current_agent_index2
@@ -210,12 +225,7 @@ class InteractiveEnv:
         if k == key.R:
             self.reset = True
 
-        if self.continuous:
-            self.u = (self.keys[1] - self.keys[0], self.keys[3] - self.keys[2])
-            self.u2 = (self.keys2[1] - self.keys2[0], self.keys2[3] - self.keys2[2])
-        else:
-            self.u = u
-            self.u2 = u2
+        self.set_u()
 
     def _key_release(self, k, mod):
         from pyglet.window import key
@@ -228,31 +238,57 @@ class InteractiveEnv:
             self.keys[2] = 0
         elif k == key.UP:
             self.keys[3] = 0
+        elif k == key.M:
+            self.keys[4] = 0
+        elif k == key.N:
+            self.keys[5] = 0
 
-        elif k == key.A:
-            self.keys2[0] = 0
-        elif k == key.D:
-            self.keys2[1] = 0
-        elif k == key.S:
-            self.keys2[2] = 0
-        elif k == key.W:
-            self.keys2[3] = 0
+        if self.control_two_agents:
+            if k == key.A:
+                self.keys2[0] = 0
+            elif k == key.D:
+                self.keys2[1] = 0
+            elif k == key.S:
+                self.keys2[2] = 0
+            elif k == key.W:
+                self.keys2[3] = 0
+            elif k == key.E:
+                self.keys2[4] = 0
+            elif k == key.Q:
+                self.keys2[5] = 0
 
-        elif k == key.R:
-            self.reset = False
+        self.set_u()
 
+    def set_u(self):
         if self.continuous:
-            self.u = (self.keys[1] - self.keys[0], self.keys[3] - self.keys[2])
-            self.u2 = (self.keys2[1] - self.keys2[0], self.keys2[3] - self.keys2[2])
+            self.u = [
+                self.keys[1] - self.keys[0],
+                self.keys[3] - self.keys[2],
+                self.keys[4] - self.keys[5],
+            ]
+            self.u2 = [
+                self.keys2[1] - self.keys2[0],
+                self.keys2[3] - self.keys2[2],
+                self.keys2[4] - self.keys2[5],
+            ]
         else:
-            if np.sum(self.keys) == 1:
-                self.u = np.argmax(self.keys) + 1
+            if np.sum(self.keys[:4]) >= 1:
+                self.u[0] = np.argmax(self.keys[:4]) + 1
             else:
-                self.u = 0
-            if np.sum(self.keys2) == 1:
-                self.u2 = np.argmax(self.keys2) + 1
+                self.u[0] = 0
+            if np.sum(self.keys[4:]) >= 1:
+                self.u[1] = np.argmax(self.keys[4:]) + 1
             else:
-                self.u2 = 0
+                self.u[1] = 0
+
+            if np.sum(self.keys2[:4]) >= 1:
+                self.u2[0] = np.argmax(self.keys2[:4]) + 1
+            else:
+                self.u2[0] = 0
+            if np.sum(self.keys2[4:]) >= 1:
+                self.u2[1] = np.argmax(self.keys2[4:]) + 1
+            else:
+                self.u2[1] = 0
 
 
 def render_interactively(
@@ -267,8 +303,8 @@ def render_interactively(
 
     You can change agent by pressing TAB
     You can reset the environment by pressing R
-    You can move agents with the arrow keys
-    If you have more than 1 agent, you can control another one with W,A,S,D
+    You can move agents with the arrow keys and if the agent has a rotational action you can control it with M, N
+    If you have more than 1 agent, you can control another one with W,A,S,D and Q,E for eventual rotational actions
     and switch the agent with these controls using LSHIFT
     """
 
@@ -295,8 +331,8 @@ if __name__ == "__main__":
     #
     # You can change agent by pressing TAB
     # You can reset the environment by pressing R
-    # You can move agents with the arrow keys
-    # If you have more than 1 agent, you can control another one with W,A,S,D
+    # You can move agents with the arrow keys and if the agent has a rotational action you can control it with M, N
+    # If you have more than 1 agent, you can control another one with W,A,S,D and Q,E for eventual rotational actions
     # and switch the agent with these controls using LSHIFT
 
     scenario_name = "waterfall"

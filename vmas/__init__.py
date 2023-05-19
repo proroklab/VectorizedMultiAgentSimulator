@@ -53,6 +53,7 @@ debug_scenarios = sorted(
         "line_trajectory",
         "vel_control",
         "waterfall",
+        "diff_drive",
     ]
 )
 

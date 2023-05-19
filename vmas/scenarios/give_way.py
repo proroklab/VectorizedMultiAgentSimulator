@@ -4,11 +4,12 @@
 import math
 
 import torch
+
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World, Landmark, Sphere, Line, Box
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color, TorchUtils
-from vmas.simulator.velocity_controller import VelocityController
+from vmas.simulator.controllers.velocity_controller import VelocityController
 
 
 class Scenario(BaseScenario):

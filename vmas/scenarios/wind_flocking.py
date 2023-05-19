@@ -6,11 +6,12 @@ from typing import Dict, List
 
 import torch
 from torch import Tensor
+
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World, Sphere
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Y, Color, X
-from vmas.simulator.velocity_controller import VelocityController
+from vmas.simulator.controllers.velocity_controller import VelocityController
 
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom

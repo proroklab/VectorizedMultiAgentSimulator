@@ -6,12 +6,13 @@ from typing import Dict
 
 import torch
 from torch import Tensor
+
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Box, Landmark, Sphere, World, Line
 from vmas.simulator.joints import Joint
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color, Y, X
-from vmas.simulator.velocity_controller import VelocityController
+from vmas.simulator.controllers.velocity_controller import VelocityController
 
 
 def angle_to_vector(angle):

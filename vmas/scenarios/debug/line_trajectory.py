@@ -10,7 +10,7 @@ from vmas import render_interactively
 from vmas.simulator.core import Agent, Sphere, World
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color, X, Y
-from vmas.simulator.velocity_controller import VelocityController
+from vmas.simulator.controllers.velocity_controller import VelocityController
 
 
 class Scenario(BaseScenario):
