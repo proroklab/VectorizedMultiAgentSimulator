@@ -44,7 +44,7 @@ class DiffDriveDynamics:
 
     def process_force(self):
         u_forward = self.agent.action.u[:, vmas.simulator.utils.X]
-        u_rot = self.agent.action.u_rot
+        u_rot = self.agent.action.u_rot.squeeze(-1)
 
         def f(rot):
             return torch.stack(

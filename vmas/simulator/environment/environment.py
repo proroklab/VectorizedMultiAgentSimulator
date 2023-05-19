@@ -9,6 +9,7 @@ import numpy as np
 import torch
 from gym import spaces
 from torch import Tensor
+
 import vmas.simulator.utils
 from vmas.simulator.core import Agent, TorchVectorizedObject
 from vmas.simulator.scenario import BaseScenario
@@ -381,18 +382,18 @@ class Environment(TorchVectorizedObject):
 
         agent.action.u *= agent.u_multiplier
         if agent.u_rot_range != 0:
-            agent.action.u_rot = torch.zeros(
-                self.batch_dim, 1, device=self.device, dtype=torch.float32
-            )
             if self.continuous_actions:
-                physical_action = action[:, action_index]
+                physical_action = action[:, action_index].unsqueeze(-1)
                 action_index += 1
                 assert not torch.any(
                     torch.abs(physical_action) > agent.u_rot_range
                 ), f"Physical rotation actions of agent {agent.name} are out of its range {agent.u_rot_range}"
-
                 agent.action.u_rot = physical_action.to(torch.float32)
+
             else:
+                agent.action.u_rot = torch.zeros(
+                    self.batch_dim, 1, device=self.device, dtype=torch.float32
+                )
                 physical_action = action[:, action_index].unsqueeze(-1)
                 action_index += 1
                 self._check_discrete_action(
