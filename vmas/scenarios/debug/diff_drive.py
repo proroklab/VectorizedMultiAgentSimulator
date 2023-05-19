@@ -10,7 +10,7 @@ from vmas import render_interactively
 from vmas.simulator.core import Agent, World
 from vmas.simulator.dynamics.diff_drive import DiffDriveDynamics
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color
+from vmas.simulator.utils import Color, ScenarioUtils
 
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
@@ -19,31 +19,38 @@ if typing.TYPE_CHECKING:
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.plot_grid = True
+        self.n_agents = kwargs.get("n_agents", 2)
 
         # Make world
         world = World(batch_dim, device, substeps=10)
 
-        agent = Agent(
-            name="agent 0",
-            collide=True,
-            color=Color.GREEN,
-            render_action=True,
-            u_range=1,
-            u_rot_range=1,
-            u_rot_multiplier=0.001,
-        )
-        agent.dynamics = DiffDriveDynamics(agent, world, integration="rk4")
+        for i in range(self.n_agents):
+            agent = Agent(
+                name=f"agent {i}",
+                collide=True,
+                render_action=True,
+                u_range=1,
+                u_rot_range=1,
+                u_rot_multiplier=0.001,
+            )
+            agent.dynamics = DiffDriveDynamics(agent, world, integration="rk4")
 
-        world.add_agent(agent)
+            world.add_agent(agent)
 
         return world
 
     def reset_world_at(self, env_index: int = None):
-        pass
+        ScenarioUtils.spawn_entities_randomly(
+            self.world.agents,
+            self.world,
+            env_index,
+            min_dist_between_entities=0.1,
+            x_bounds=(-1, 1),
+            y_bounds=(-1, 1),
+        )
 
     def process_action(self, agent: Agent):
-        for agent in self.world.agents:
-            agent.dynamics.process_force()
+        agent.dynamics.process_force()
 
     def reward(self, agent: Agent):
         return torch.zeros(self.world.batch_dim)
@@ -64,21 +71,22 @@ class Scenario(BaseScenario):
         geoms: List[Geom] = []
 
         # Agent rotation
-        color = Color.BLACK.value
-        line = rendering.Line(
-            (0, 0),
-            (0.1, 0),
-            width=1,
-        )
-        xform = rendering.Transform()
-        xform.set_rotation(self.world.agents[0].state.rot[env_index])
-        xform.set_translation(*self.world.agents[0].state.pos[env_index])
-        line.add_attr(xform)
-        line.set_color(*color)
-        geoms.append(line)
+        for agent in self.world.agents:
+            color = Color.BLACK.value
+            line = rendering.Line(
+                (0, 0),
+                (0.1, 0),
+                width=1,
+            )
+            xform = rendering.Transform()
+            xform.set_rotation(agent.state.rot[env_index])
+            xform.set_translation(*agent.state.pos[env_index])
+            line.add_attr(xform)
+            line.set_color(*color)
+            geoms.append(line)
 
         return geoms
 
 
 if __name__ == "__main__":
-    render_interactively(__file__)
+    render_interactively(__file__, control_two_agents=True)
