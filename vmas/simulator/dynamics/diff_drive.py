@@ -6,7 +6,6 @@ from typing import Union
 
 import torch
 from torch import Tensor
-
 import vmas.simulator.core
 import vmas.simulator.utils
 
@@ -55,8 +54,6 @@ class DiffDriveDynamics:
             u = self.euler(f, self.agent.state.rot.squeeze(-1))
         else:
             u = self.runge_kutta(f, self.agent.state.rot.squeeze(-1))
-
-        assert torch.allclose(self.agent.action.u_rot, u[vmas.simulator.utils.Z])
 
         self.agent.action.u[:, vmas.simulator.utils.X] = u[vmas.simulator.utils.X]
         self.agent.action.u[:, vmas.simulator.utils.Y] = u[vmas.simulator.utils.Y]

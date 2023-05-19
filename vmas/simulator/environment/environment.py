@@ -9,7 +9,6 @@ import numpy as np
 import torch
 from gym import spaces
 from torch import Tensor
-
 import vmas.simulator.utils
 from vmas.simulator.core import Agent, TorchVectorizedObject
 from vmas.simulator.scenario import BaseScenario
@@ -408,8 +407,8 @@ class Environment(TorchVectorizedObject):
 
                 disc_action_value = agent.u_rot_range
 
-                agent.action.u_rot[:] -= disc_action_value * arr1.squeeze(-1)
-                agent.action.u_rot[:] += disc_action_value * arr2.squeeze(-1)
+                agent.action.u_rot[:, 0] -= disc_action_value * arr1.squeeze(-1)
+                agent.action.u_rot[:, 0] += disc_action_value * arr2.squeeze(-1)
 
             agent.action.u_rot *= agent.u_rot_multiplier
         if self.world.dim_c > 0 and not agent.silent:
