@@ -18,6 +18,20 @@ if typing.TYPE_CHECKING:
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
+        """
+        Differential drive example scenario
+        Run this file to try it out
+
+        The first agent has differential drive dynamics.
+        You can control its forward input with the LEFT and RIGHT arrows.
+        You can control its rotation with N and M.
+
+        The second agent has standard vmas holonomic dynamics.
+        You can control it with WASD
+        You can control its rotation withQ and E.
+
+        """
+        # T
         self.plot_grid = True
         self.n_agents = kwargs.get("n_agents", 2)
 
@@ -33,7 +47,8 @@ class Scenario(BaseScenario):
                 u_rot_range=1,
                 u_rot_multiplier=0.001,
             )
-            agent.dynamics = DiffDriveDynamics(agent, world, integration="rk4")
+            if i == 0:
+                agent.dynamics = DiffDriveDynamics(agent, world, integration="rk4")
 
             world.add_agent(agent)
 
@@ -50,7 +65,10 @@ class Scenario(BaseScenario):
         )
 
     def process_action(self, agent: Agent):
-        agent.dynamics.process_force()
+        try:
+            agent.dynamics.process_force()
+        except AttributeError:
+            pass
 
     def reward(self, agent: Agent):
         return torch.zeros(self.world.batch_dim)
