@@ -12,6 +12,7 @@ from gym import spaces
 from torch import Tensor
 from vmas.simulator.core import Agent, TorchVectorizedObject
 from vmas.simulator.scenario import BaseScenario
+import vmas.simulator.utils
 from vmas.simulator.utils import (
     VIEWER_MIN_ZOOM,
     AGENT_OBS_TYPE,
