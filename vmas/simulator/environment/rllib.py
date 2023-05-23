@@ -8,7 +8,6 @@ import torch
 from ray import rllib
 from ray.rllib.utils.typing import EnvActionType, EnvInfoDict, EnvObsType
 from torch import Tensor
-
 from vmas.simulator.environment.environment import Environment
 from vmas.simulator.utils import (
     OBS_TYPE,
@@ -44,7 +43,6 @@ class VectorEnvWrapper(rllib.VectorEnv):
     def reset_at(self, index: Optional[int] = None) -> EnvObsType:
         assert index is not None
         obs = self._env.reset_at(index)
-
         return self._read_data(obs, env_index=index)[0]
 
     def vector_step(
@@ -190,14 +188,15 @@ class VectorEnvWrapper(rllib.VectorEnv):
         reward: Optional[REWARD_TYPE] = None,
     ):
         assert len(obs) == self._env.n_agents
+        if info:
+            new_info = {"rewards": {}}
+
         if isinstance(obs, Dict):
             total_rew = 0.0
             new_obs = {}
-            if info:
-                new_info = {}
             if reward:
                 new_reward = {}
-            for agent in self._env.agents:
+            for agent_index, agent in enumerate(self._env.agents):
                 new_obs[agent.name] = self._get_agent_data_at_env_index(
                     env_index, obs[agent.name]
                 )
@@ -206,16 +205,15 @@ class VectorEnvWrapper(rllib.VectorEnv):
                         env_index, info[agent.name]
                     )
                 if reward:
-                    new_reward[agent.name] = self._get_agent_data_at_env_index(
+                    agent_rew = self._get_agent_data_at_env_index(
                         env_index, reward[agent.name]
                     )
-                    total_rew += new_reward[agent.name]
+                    new_info["rewards"].update({agent_index: agent_rew})
+                    total_rew += agent_rew
 
         elif isinstance(obs, List):
             total_rew = 0.0
             new_obs = []
-            if info:
-                new_info = {}
             if reward:
                 new_reward = []
             for agent_index, agent in enumerate(self._env.agents):
@@ -227,27 +225,15 @@ class VectorEnvWrapper(rllib.VectorEnv):
                         env_index, info[agent_index]
                     )
                 if reward:
-                    new_reward.append(
-                        self._get_agent_data_at_env_index(
-                            env_index, reward[agent_index]
-                        )
+                    agent_rew = self._get_agent_data_at_env_index(
+                        env_index, reward[agent_index]
                     )
-                    total_rew += new_reward[agent_index]
+                    new_info["rewards"].update({agent_index: agent_rew})
+                    total_rew += agent_rew
 
         else:
             raise ValueError(f"Unsupported obs type {obs}")
 
-        if info and reward:
-            new_info.update(
-                {
-                    "rewards": {
-                        agent_index: new_reward[
-                            agent_index if isinstance(obs, List) else agent.name
-                        ]
-                        for agent_index, agent in enumerate(self._env.agents)
-                    }
-                }
-            )
         return (
             new_obs,
             new_info if info else None,
