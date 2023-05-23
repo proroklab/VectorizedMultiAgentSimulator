@@ -369,15 +369,16 @@ To create a fake screen you need to have `Xvfb` installed.
 
 ## TODOS
 
-- [X] Talk about action preprocessing and velocity controller
-- [X] New envs from joint project with their descriptions
+- [ ] Improve VMAS performance
+- [ ] Allow dict obs spaces and multidim obs
+- [ ] Implement 2D birds eye view camera sensor
 - [ ] Notebook on how to use torch rl with vmas
 - [ ] Reset any number of dimensions
 - [ ] Improve test efficiency and add new tests
-- [ ] Talk about navigation / multi_goal
 - [ ] Implement 1D camera sensor
-- [ ] Implement 2D birds eye view camera sensor
-- [ ] Make football heuristic efficient
+- [X] Talk about action preprocessing and velocity controller
+- [X] New envs from joint project with their descriptions
+- [X] Talk about navigation / multi_goal
 - [X] Link video of experiments
 - [X] Add LIDAR section
 - [X] Implement LIDAR
