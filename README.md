@@ -173,11 +173,23 @@ If `dict_spaces=False`, observations, infos, and rewards returned by the environ
 
 If `dict_spaces=True`, observations, infos, and rewards returned by the environment will be a dictionary with each element having key = agent_name and value being the value for that agent.
 
-Each agent observation in either of these structures is a tensor with shape `[num_envs, observation_size]`, where `observation_size` is the size of the agent's observation.
+Each agent **observation** in either of these structures is either (depending on how you implement the scenario):
+  - a tensor with shape `[num_envs, observation_size]`, where `observation_size` is the size of the agent's observation.
+```python
+ def observation(self, agent: Agent):
+        return torch.cat([agent.state.pos, agent.state.vel], dim=-1)
+```
+  - a dictionary of such tensors
+```python
+ def observation(self, agent: Agent):
+        return {
+            "pos": agent.state.pos,
+            "nested": {"vel": agent.state.vel},
+        }
+```
+Each agent **reward** in either of these structures is a tensor with shape `[num_envs]`.
 
-Each agent reward in either of these structures is a tensor with shape `[num_envs]`.
-
-Each agent info in either of these structures is a dictionary where each entry has key representing the name of that info and value a tensor with shape `[num_envs, info_size]`, where `info_size` is the size of that info for that agent.
+Each agent **info** in either of these structures is a dictionary where each entry has key representing the name of that info and value a tensor with shape `[num_envs, info_size]`, where `info_size` is the size of that info for that agent.
 
 Done is a tensor of shape `[num_envs]`.
 
@@ -370,7 +382,7 @@ To create a fake screen you need to have `Xvfb` installed.
 ## TODOS
 
 - [ ] Improve VMAS performance
-- [ ] Allow dict obs spaces and multidim obs
+- [X] Allow dict obs spaces and multidim obs
 - [ ] Implement 2D birds eye view camera sensor
 - [ ] Notebook on how to use torch rl with vmas
 - [ ] Reset any number of dimensions
