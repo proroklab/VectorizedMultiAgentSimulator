@@ -4,7 +4,7 @@
 import os
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Dict, Sequence
 
 import numpy as np
 import torch
@@ -38,6 +38,15 @@ VIRIDIS_CMAP = np.array(
         [0.678489, 0.863742, 0.189503],
     ]
 )
+
+AGENT_OBS_TYPE = Union[Tensor, Dict[str, Tensor]]
+AGENT_INFO_TYPE = Dict[str, Tensor]
+AGENT_REWARD_TYPE = Tensor
+
+OBS_TYPE = Union[List[AGENT_OBS_TYPE], Dict[str, AGENT_OBS_TYPE]]
+INFO_TYPE = Union[List[AGENT_INFO_TYPE], Dict[str, AGENT_INFO_TYPE]]
+REWARD_TYPE = Union[List[AGENT_REWARD_TYPE], Dict[str, AGENT_REWARD_TYPE]]
+DONE_TYPE = Tensor
 
 
 class Color(Enum):
@@ -133,6 +142,17 @@ def x_to_rgb_colormap(
     return colors
 
 
+def extract_nested_with_index(data: Union[Tensor, Dict[str, Tensor]], index: int):
+    if isinstance(data, Tensor):
+        return data[index]
+    elif isinstance(data, Dict):
+        return {
+            key: extract_nested_with_index(value, index) for key, value in data.items()
+        }
+    else:
+        raise NotImplementedError(f"Invalid type of data {data}")
+
+
 class TorchUtils:
     @staticmethod
     def clamp_with_norm(tensor: Tensor, max_norm: float):
@@ -166,6 +186,17 @@ class TorchUtils:
     @staticmethod
     def compute_torque(f: Tensor, r: Tensor) -> Tensor:
         return TorchUtils.cross(r, f)
+
+    @staticmethod
+    def to_numpy(data: Union[Tensor, Dict[str, Tensor], List[Tensor]]):
+        if isinstance(data, Tensor):
+            return data.cpu().detach().numpy()
+        elif isinstance(data, Dict):
+            return {key: TorchUtils.to_numpy(value) for key, value in data.items()}
+        elif isinstance(data, Sequence):
+            return [TorchUtils.to_numpy(value) for value in data]
+        else:
+            raise NotImplementedError(f"Invalid type of data {data}")
 
 
 class ScenarioUtils:

@@ -1,13 +1,21 @@
 #  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict
 
 import numpy as np
 import torch
+from numpy import ndarray
 from ray import rllib
 from ray.rllib.utils.typing import EnvActionType, EnvInfoDict, EnvObsType
+from torch import Tensor
 from vmas.simulator.environment.environment import Environment
+from vmas.simulator.utils import (
+    OBS_TYPE,
+    REWARD_TYPE,
+    INFO_TYPE,
+    TorchUtils,
+)
 
 
 class VectorEnvWrapper(rllib.VectorEnv):
@@ -31,43 +39,22 @@ class VectorEnvWrapper(rllib.VectorEnv):
         return self._env
 
     def vector_reset(self) -> List[EnvObsType]:
-        obs = self._env.reset()
-        return self._tensor_to_list(obs, self.num_envs)
+        obs = TorchUtils.to_numpy(self._env.reset())
+        return self._read_data(obs)[0]
 
     def reset_at(self, index: Optional[int] = None) -> EnvObsType:
         assert index is not None
         obs = self._env.reset_at(index)
-
-        for i in range(self._env.n_agents):
-            obs[i] = obs[i][index].unsqueeze(0)
-
-        return self._tensor_to_list(obs, 1)[0]
+        return self._read_data(obs, env_index=index)[0]
 
     def vector_step(
         self, actions: List[EnvActionType]
     ) -> Tuple[List[EnvObsType], List[float], List[bool], List[EnvInfoDict]]:
         # saved_actions = actions
         actions = self._action_list_to_tensor(actions)
-        obs, rews, dones, infos = self._env.step(actions)
+        obs, rews, dones, infos = TorchUtils.to_numpy(self._env.step(actions))
 
-        dones = dones.tolist()
-
-        total_rews = []
-        total_infos = []
-        obs_list = []
-        for j in range(self.num_envs):
-            obs_list.append([])
-            env_infos = {"rewards": {}}
-            total_env_rew = 0.0
-            for i, agent in enumerate(self._env.agents):
-                obs_list[j].append(obs[i][j].cpu().numpy())
-                total_env_rew += np.float32(rews[i][j].item())
-                env_infos["rewards"].update({i: np.float32(rews[i][j].item())})
-                env_infos.update(
-                    {agent.name: {k: v[j].tolist() for k, v in infos[i].items()}}
-                )
-            total_infos.append(env_infos)
-            total_rews.append(total_env_rew / self._env.n_agents)  # Average reward
+        obs, infos, rews = self._read_data(obs, infos, rews)
 
         # print("\nStep results in wrapped environment")
         # print(
@@ -85,7 +72,7 @@ class VectorEnvWrapper(rllib.VectorEnv):
         # print(
         #     f"Total infos len (num_envs): {len(total_infos)}, total_infos[0] (infos env 0): {total_infos[0]}"
         # )
-        return obs_list, total_rews, dones, total_infos
+        return obs, rews, dones, infos
 
     def seed(self, seed=None):
         return self._env.seed(seed)
@@ -163,18 +150,109 @@ class VectorEnvWrapper(rllib.VectorEnv):
         else:
             assert False, "Input action is not in correct format"
 
-    def _tensor_to_list(self, list_in: List, num_envs: int) -> List:
-        assert (
-            len(list_in) == self._env.n_agents
-        ), f"Tensor used in output of env must be of len {self._env.n_agents}, got {len(list_in)}"
-        assert list_in[0].shape[0] == num_envs, (
-            f"Input tensor for each agent should have"
-            f" vector dim {num_envs}, but got {list_in[0].shape[0]}"
+    def _read_data(
+        self,
+        obs: Optional[OBS_TYPE],
+        info: Optional[INFO_TYPE] = None,
+        reward: Optional[REWARD_TYPE] = None,
+        env_index: Optional[int] = None,
+    ):
+        if env_index is None:
+            obs_list = []
+            if info:
+                info_list = []
+            if reward:
+                rew_list = []
+
+            for env_index in range(self.num_envs):
+                (
+                    observations_processed,
+                    info_processed,
+                    reward_processed,
+                ) = self._get_data_at_env_index(env_index, obs, info, reward)
+                obs_list.append(observations_processed)
+                if info:
+                    info_list.append(info_processed)
+                if reward:
+                    rew_list.append(reward_processed)
+
+            return obs_list, info_list if info else None, rew_list if reward else None
+        else:
+            return self._get_data_at_env_index(env_index, obs, info, reward)
+
+    def _get_data_at_env_index(
+        self,
+        env_index: int,
+        obs: Optional[OBS_TYPE],
+        info: Optional[INFO_TYPE] = None,
+        reward: Optional[REWARD_TYPE] = None,
+    ):
+        assert len(obs) == self._env.n_agents
+        total_rew = 0.0
+        if info:
+            new_info = {"rewards": {}}
+        if isinstance(obs, Dict):
+            new_obs = {}
+            for agent_index, agent in enumerate(self._env.agents):
+                new_obs[agent.name] = self._get_agent_data_at_env_index(
+                    env_index, obs[agent.name]
+                )
+                if info:
+                    new_info[agent.name] = self._get_agent_data_at_env_index(
+                        env_index, info[agent.name]
+                    )
+                if reward:
+                    agent_rew = self._get_agent_data_at_env_index(
+                        env_index, reward[agent.name]
+                    )
+                    new_info["rewards"].update({agent_index: agent_rew})
+                    total_rew += agent_rew
+
+        elif isinstance(obs, List):
+            new_obs = []
+            for agent_index, agent in enumerate(self._env.agents):
+                new_obs.append(
+                    self._get_agent_data_at_env_index(env_index, obs[agent_index])
+                )
+                if info:
+                    new_info[agent.name] = self._get_agent_data_at_env_index(
+                        env_index, info[agent_index]
+                    )
+                if reward:
+                    agent_rew = self._get_agent_data_at_env_index(
+                        env_index, reward[agent_index]
+                    )
+                    new_info["rewards"].update({agent_index: agent_rew})
+                    total_rew += agent_rew
+
+        else:
+            raise ValueError(f"Unsupported obs type {obs}")
+
+        return (
+            new_obs,
+            new_info if info else None,
+            total_rew / self._env.n_agents if reward else None,
         )
-        list_out = []
-        for j in range(num_envs):
-            list_per_env = []
-            for i in range(self._env.n_agents):
-                list_per_env.append(list_in[i][j].cpu().numpy())
-            list_out.append(list_per_env)
-        return list_out
+
+    def _get_agent_data_at_env_index(
+        self,
+        env_index: int,
+        agent_data,
+    ):
+        if isinstance(agent_data, (ndarray, Tensor)):
+            assert agent_data.shape[0] == self._env.num_envs
+            if len(agent_data.shape) == 1 or (
+                len(agent_data.shape) == 2 and agent_data.shape[1] == 1
+            ):
+                return agent_data[env_index].item()
+            elif isinstance(agent_data, Tensor):
+                return agent_data[env_index].cpu().detach().numpy()
+            else:
+                return agent_data[env_index]
+        elif isinstance(agent_data, Dict):
+            return {
+                key: self._get_agent_data_at_env_index(env_index, value)
+                for key, value in agent_data.items()
+            }
+        else:
+            raise ValueError(f"Unsupported data type {agent_data}")

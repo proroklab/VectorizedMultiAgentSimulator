@@ -3,13 +3,19 @@
 #  All rights reserved.
 import typing
 from abc import ABC, abstractmethod
-from typing import Dict, List
+from typing import List
 
 import torch
 from torch import Tensor
 
 from vmas.simulator.core import World, Agent
-from vmas.simulator.utils import INITIAL_VIEWER_SIZE, VIEWER_MIN_ZOOM
+from vmas.simulator.utils import (
+    INITIAL_VIEWER_SIZE,
+    VIEWER_MIN_ZOOM,
+    AGENT_OBS_TYPE,
+    AGENT_REWARD_TYPE,
+    AGENT_INFO_TYPE,
+)
 
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
@@ -157,7 +163,7 @@ class BaseScenario(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def observation(self, agent: Agent) -> Tensor:
+    def observation(self, agent: Agent) -> AGENT_OBS_TYPE:
         """
         This function computes the observations for 'agent' in a vectorized way
         The returned tensor should contain the observations for 'agent' in all envs and should have
@@ -185,7 +191,7 @@ class BaseScenario(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def reward(self, agent: Agent) -> Tensor:
+    def reward(self, agent: Agent) -> AGENT_REWARD_TYPE:
         """
         This function computes the reward for 'agent' in a vectorized way
         The returned tensor should contain the reward for 'agent' in all envs and should have
@@ -224,11 +230,11 @@ class BaseScenario(ABC):
 
         :return dones: Bool tensor of shape (n_envs)
         """
-        return torch.tensor([False], device=self.world.device).repeat(
+        return torch.tensor([False], device=self.world.device).expand(
             self.world.batch_dim
         )
 
-    def info(self, agent: Agent) -> Dict[str, Tensor]:
+    def info(self, agent: Agent) -> AGENT_INFO_TYPE:
         """
         This function computes the info dict for 'agent' in a vectorized way
         The returned dict should have a key for each info of interest and the corresponding value should
