@@ -3,7 +3,7 @@
 #  All rights reserved.
 import typing
 from abc import ABC, abstractmethod
-from typing import Dict, List
+from typing import Dict, List, Union
 
 import torch
 from torch import Tensor
@@ -157,7 +157,7 @@ class BaseScenario(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def observation(self, agent: Agent) -> Tensor:
+    def observation(self, agent: Agent) -> Union[Tensor, Dict[str, Tensor]]:
         """
         This function computes the observations for 'agent' in a vectorized way
         The returned tensor should contain the observations for 'agent' in all envs and should have
