@@ -10,12 +10,17 @@ import numpy as np
 import torch
 from gym import spaces
 from torch import Tensor
-
-import vmas.simulator.utils
 from vmas.simulator.core import Agent, TorchVectorizedObject
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import VIEWER_MIN_ZOOM
-from vmas.simulator.utils import X, Y, ALPHABET, DEVICE_TYPING, override
+from vmas.simulator.utils import (
+    VIEWER_MIN_ZOOM,
+    AGENT_OBS_TYPE,
+    X,
+    Y,
+    ALPHABET,
+    DEVICE_TYPING,
+    override,
+)
 
 
 # environment for all agents in the multiagent world
@@ -327,9 +332,7 @@ class Environment(TorchVectorizedObject):
                 )
                 return spaces.MultiDiscrete(actions)
 
-    def get_agent_observation_space(
-        self, agent: Agent, obs: Union[Tensor, Dict[str, Tensor]]
-    ):
+    def get_agent_observation_space(self, agent: Agent, obs: AGENT_OBS_TYPE):
         if isinstance(obs, Tensor):
             return spaces.Box(
                 low=-np.float32("inf"),
