@@ -146,15 +146,14 @@ class Environment(TorchVectorizedObject):
                 else:
                     obs.append(observation)
             if get_infos:
-                info = self.scenario.info(agent)
-                info = {key: val.clone() for key, val in info.items()}
+                info = copy.deepcopy(self.scenario.info(agent))
                 if dict_agent_names:
                     infos.update({agent.name: info})
                 else:
                     infos.append(info)
 
         if get_dones:
-            dones = self.done().clone()
+            dones = self.done()
 
         result = [obs, rewards, dones, infos]
         return [data for data in result if data is not None]
