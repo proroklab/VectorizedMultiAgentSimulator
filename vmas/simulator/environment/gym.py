@@ -6,7 +6,11 @@ from typing import List, Optional
 import gym
 import numpy as np
 import torch
+
 from vmas.simulator.environment.environment import Environment
+from vmas.simulator.utils import (
+    extract_nested_with_index,
+)
 
 
 class GymWrapper(gym.Env):
@@ -35,9 +39,16 @@ class GymWrapper(gym.Env):
         action = self._action_list_to_tensor(action)
         obs, rews, done, info = self._env.step(action)
         done = done[0].item()
-        for i in range(self._env.n_agents):
-            obs[i] = obs[i][0]
-            rews[i] = rews[i][0].item()
+        if self._env.dict_spaces:
+            for agent in obs.keys():
+                obs[agent] = extract_nested_with_index(obs[agent], index=0)
+                info[agent] = extract_nested_with_index(info[agent], index=0)
+                rews[agent] = rews[agent][0].item()
+        else:
+            for i in range(self._env.n_agents):
+                obs[i] = extract_nested_with_index(obs[i], index=0)
+                info[i] = extract_nested_with_index(info[i], index=0)
+                rews[i] = rews[i][0].item()
         return obs, rews, done, info
 
     def reset(
@@ -50,8 +61,12 @@ class GymWrapper(gym.Env):
         if seed is not None:
             self._env.seed(seed)
         obs = self._env.reset_at(index=0)
-        for i in range(self._env.n_agents):
-            obs[i] = obs[i][0]
+        if self._env.dict_spaces:
+            for agent in obs.keys():
+                obs[agent] = extract_nested_with_index(obs[agent], index=0)
+        else:
+            for i in range(self._env.n_agents):
+                obs[i] = extract_nested_with_index(obs[i], index=0)
         return obs
 
     def render(
@@ -61,7 +76,6 @@ class GymWrapper(gym.Env):
         visualize_when_rgb: bool = False,
         **kwargs,
     ) -> Optional[np.ndarray]:
-
         return self._env.render(
             mode=mode,
             env_index=0,

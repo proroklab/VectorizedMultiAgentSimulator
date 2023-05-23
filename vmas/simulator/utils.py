@@ -44,7 +44,7 @@ AGENT_INFO_TYPE = Dict[str, Tensor]
 AGENT_REWARD_TYPE = Tensor
 
 OBS_TYPE = Union[List[AGENT_OBS_TYPE], Dict[str, AGENT_OBS_TYPE]]
-INFO_YPE = Union[List[AGENT_INFO_TYPE], Dict[str, AGENT_INFO_TYPE]]
+INFO_TYPE = Union[List[AGENT_INFO_TYPE], Dict[str, AGENT_INFO_TYPE]]
 REWARD_TYPE = Union[List[AGENT_REWARD_TYPE], Dict[str, AGENT_REWARD_TYPE]]
 DONE_TYPE = Tensor
 
@@ -142,16 +142,15 @@ def x_to_rgb_colormap(
     return colors
 
 
-def extract_nested_obs_with_index(obs: AGENT_OBS_TYPE, index: int):
-    if isinstance(obs, Tensor):
-        return obs[index]
-    elif isinstance(obs, Dict):
+def extract_nested_with_index(data: Union[Tensor, Dict[str, Tensor]], index: int):
+    if isinstance(data, Tensor):
+        return data[index]
+    elif isinstance(data, Dict):
         return {
-            key: extract_nested_obs_with_index(value, index)
-            for key, value in obs.items()
+            key: extract_nested_with_index(value, index) for key, value in data.items()
         }
     else:
-        raise NotImplementedError(f"Invalid type of observation {obs}")
+        raise NotImplementedError(f"Invalid type of data {data}")
 
 
 class TorchUtils:
