@@ -188,11 +188,10 @@ class VectorEnvWrapper(rllib.VectorEnv):
         reward: Optional[REWARD_TYPE] = None,
     ):
         assert len(obs) == self._env.n_agents
+        total_rew = 0.0
         if info:
             new_info = {"rewards": {}}
-
         if isinstance(obs, Dict):
-            total_rew = 0.0
             new_obs = {}
             for agent_index, agent in enumerate(self._env.agents):
                 new_obs[agent.name] = self._get_agent_data_at_env_index(
@@ -210,7 +209,6 @@ class VectorEnvWrapper(rllib.VectorEnv):
                     total_rew += agent_rew
 
         elif isinstance(obs, List):
-            total_rew = 0.0
             new_obs = []
             for agent_index, agent in enumerate(self._env.agents):
                 new_obs.append(
