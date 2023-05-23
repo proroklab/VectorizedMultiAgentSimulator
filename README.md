@@ -187,6 +187,7 @@ Each agent **observation** in either of these structures is either (depending on
             "nested": {"vel": agent.state.vel},
         }
 ```
+
 Each agent **reward** in either of these structures is a tensor with shape `[num_envs]`.
 
 Each agent **info** in either of these structures is a dictionary where each entry has key representing the name of that info and value a tensor with shape `[num_envs, info_size]`, where `info_size` is the size of that info for that agent.
