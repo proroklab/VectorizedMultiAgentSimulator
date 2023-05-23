@@ -1,10 +1,11 @@
 #  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-from typing import List, Optional, Tuple, Dict, Union
+from typing import List, Optional, Tuple, Dict
 
 import numpy as np
 import torch
+from numpy import ndarray
 from ray import rllib
 from ray.rllib.utils.typing import EnvActionType, EnvInfoDict, EnvObsType
 from torch import Tensor
@@ -13,6 +14,7 @@ from vmas.simulator.utils import (
     OBS_TYPE,
     REWARD_TYPE,
     INFO_TYPE,
+    TorchUtils,
 )
 
 
@@ -37,7 +39,7 @@ class VectorEnvWrapper(rllib.VectorEnv):
         return self._env
 
     def vector_reset(self) -> List[EnvObsType]:
-        obs = self._env.reset()
+        obs = TorchUtils.to_numpy(self._env.reset())
         return self._read_data(obs)[0]
 
     def reset_at(self, index: Optional[int] = None) -> EnvObsType:
@@ -50,9 +52,7 @@ class VectorEnvWrapper(rllib.VectorEnv):
     ) -> Tuple[List[EnvObsType], List[float], List[bool], List[EnvInfoDict]]:
         # saved_actions = actions
         actions = self._action_list_to_tensor(actions)
-        obs, rews, dones, infos = self._env.step(actions)
-
-        dones = dones.tolist()
+        obs, rews, dones, infos = TorchUtils.to_numpy(self._env.step(actions))
 
         obs, infos, rews = self._read_data(obs, infos, rews)
 
@@ -194,8 +194,6 @@ class VectorEnvWrapper(rllib.VectorEnv):
         if isinstance(obs, Dict):
             total_rew = 0.0
             new_obs = {}
-            if reward:
-                new_reward = {}
             for agent_index, agent in enumerate(self._env.agents):
                 new_obs[agent.name] = self._get_agent_data_at_env_index(
                     env_index, obs[agent.name]
@@ -214,8 +212,6 @@ class VectorEnvWrapper(rllib.VectorEnv):
         elif isinstance(obs, List):
             total_rew = 0.0
             new_obs = []
-            if reward:
-                new_reward = []
             for agent_index, agent in enumerate(self._env.agents):
                 new_obs.append(
                     self._get_agent_data_at_env_index(env_index, obs[agent_index])
@@ -243,11 +239,18 @@ class VectorEnvWrapper(rllib.VectorEnv):
     def _get_agent_data_at_env_index(
         self,
         env_index: int,
-        agent_data: Union[Tensor, Dict[str, Tensor]],
+        agent_data,
     ):
-        if isinstance(agent_data, Tensor):
+        if isinstance(agent_data, (ndarray, Tensor)):
             assert agent_data.shape[0] == self._env.num_envs
-            return agent_data[env_index].cpu().numpy()
+            if len(agent_data.shape) == 1 or (
+                len(agent_data.shape) == 2 and agent_data.shape[1] == 1
+            ):
+                return agent_data[env_index].item()
+            elif isinstance(agent_data, Tensor):
+                return agent_data[env_index].cpu().detach().numpy()
+            else:
+                return agent_data[env_index]
         elif isinstance(agent_data, Dict):
             return {
                 key: self._get_agent_data_at_env_index(env_index, value)

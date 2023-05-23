@@ -4,7 +4,7 @@
 import os
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import List, Tuple, Union, Dict
+from typing import List, Tuple, Union, Dict, Sequence
 
 import numpy as np
 import torch
@@ -186,6 +186,17 @@ class TorchUtils:
     @staticmethod
     def compute_torque(f: Tensor, r: Tensor) -> Tensor:
         return TorchUtils.cross(r, f)
+
+    @staticmethod
+    def to_numpy(data: Union[Tensor, Dict[str, Tensor], List[Tensor]]):
+        if isinstance(data, Tensor):
+            return data.cpu().detach().numpy()
+        elif isinstance(data, Dict):
+            return {key: TorchUtils.to_numpy(value) for key, value in data.items()}
+        elif isinstance(data, Sequence):
+            return [TorchUtils.to_numpy(value) for value in data]
+        else:
+            raise NotImplementedError(f"Invalid type of data {data}")
 
 
 class ScenarioUtils:
