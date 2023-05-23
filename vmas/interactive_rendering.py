@@ -11,9 +11,10 @@ If you have more than 1 agent, you can control another one with W,A,S,D
 and switch the agent with these controls using LSHIFT
 """
 from operator import add
-from typing import Union
+from typing import Union, Dict
 
 import numpy as np
+from torch import Tensor
 
 from vmas.make_env import make_env
 from vmas.simulator.environment import Wrapper
@@ -116,13 +117,11 @@ class InteractiveEnv:
             obs, rew, done, info = self.env.step(action_list)
 
             if self.display_info:
-                obs[self.current_agent_index] = np.around(
-                    obs[self.current_agent_index].cpu().tolist(), decimals=2
-                )
-                len_obs = len(obs[self.current_agent_index])
-                message = f"\t\t{obs[self.current_agent_index][len_obs//2:]}"
+                # TODO: Determine number of lines of obs_str and render accordingly
+                obs_str = str(InteractiveEnv.format_obs(obs[self.current_agent_index]))
+                message = f"\t\t{obs_str[len(obs_str) // 2:]}"
                 self._write_values(self.text_idx, message)
-                message = f"Obs: {obs[self.current_agent_index][:len_obs//2]}"
+                message = f"Obs: {obs_str[:len(obs_str) // 2]}"
                 self._write_values(self.text_idx + 1, message)
 
                 message = f"Rew: {round(rew[self.current_agent_index],3)}"
@@ -289,6 +288,15 @@ class InteractiveEnv:
                 self.u2[1] = np.argmax(self.keys2[4:]) + 1
             else:
                 self.u2[1] = 0
+
+    @staticmethod
+    def format_obs(obs):
+        if isinstance(obs, Tensor):
+            return list(np.around(obs.cpu().tolist(), decimals=2))
+        elif isinstance(obs, Dict):
+            return {key: InteractiveEnv.format_obs(value) for key, value in obs.items()}
+        else:
+            raise NotImplementedError(f"Invalid type of observation {obs}")
 
 
 def render_interactively(
