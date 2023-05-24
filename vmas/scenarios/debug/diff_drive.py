@@ -75,8 +75,8 @@ class Scenario(BaseScenario):
 
     def observation(self, agent: Agent):
         observations = [
-            agent.state.pos,
-            agent.state.vel,
+            agent.state.pos, agent.state.rot,
+            agent.state.vel, agent.state.ang_vel, t
         ]
         return torch.cat(
             observations,
@@ -102,6 +102,11 @@ class Scenario(BaseScenario):
             line.add_attr(xform)
             line.set_color(*color)
             geoms.append(line)
+
+        # DO NOT COMMIT THIS INTO MASTER, IT IS ONLY TO SHOW TEXT RENDER EXAMPLE
+        self.render_text = []  # Reset the text from last round
+        for i in range(2):
+            self.render_text.append(f"{i}: This is a test of custom text rendering from scenario file")
 
         return geoms
 

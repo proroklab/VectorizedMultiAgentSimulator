@@ -524,11 +524,11 @@ class Environment(TorchVectorizedObject):
                 self.headless = False
             pyglet.options["headless"] = self.headless
 
-            self._init_rendering()
+            self._init_rendering(env_index)
 
         # Render comm messages
+        text_idx = 0
         if self.world.dim_c > 0:
-            idx = 0
             for agent in self.world.agents:
                 if agent.silent:
                     continue
@@ -545,8 +545,8 @@ class Environment(TorchVectorizedObject):
                     word = ALPHABET[torch.argmax(agent.state.c[env_index]).item()]
 
                 message = agent.name + " sends " + word + "   "
-                self.viewer.text_lines[idx].set_text(message)
-                idx += 1
+                self.viewer.text_lines[text_idx].set_text(message)
+                text_idx += 1
 
         zoom = max(VIEWER_MIN_ZOOM, self.scenario.viewer_zoom)
 
@@ -610,6 +610,11 @@ class Environment(TorchVectorizedObject):
 
         self.viewer.add_onetime_list(self.scenario.extra_render(env_index))
 
+        # Rendering the text set from extra_render method:
+        for message in self.scenario.render_text:
+            self.viewer.text_lines[text_idx].set_text(message)
+            text_idx += 1
+
         for entity in self.world.entities:
             self.viewer.add_onetime_list(entity.render(env_index=env_index))
 
@@ -636,21 +641,28 @@ class Environment(TorchVectorizedObject):
         )
         self.viewer.add_onetime_list(geoms)
 
-    def _init_rendering(self):
+    def _init_rendering(self, env_index):
         from vmas.simulator import rendering
 
         self.viewer = rendering.Viewer(
             *self.scenario.viewer_size, visible=self.visible_display
         )
 
+        self.viewer.text_lines = []
         idx = 0
         if self.world.dim_c > 0:
-            self.viewer.text_lines = []
             for agent in self.world.agents:
                 if not agent.silent:
                     text_line = rendering.TextLine(self.viewer.window, idx)
                     self.viewer.text_lines.append(text_line)
                     idx += 1
+
+        # Overhead in drawing (called once), but we get the number of lines expected to be rendered:
+        self.scenario.extra_render(env_index)
+        for _ in self.scenario.render_text:
+            text_line = rendering.TextLine(self.viewer.window, idx)
+            self.viewer.text_lines.append(text_line)
+            idx += 1
 
     @override(TorchVectorizedObject)
     def to(self, device: DEVICE_TYPING):

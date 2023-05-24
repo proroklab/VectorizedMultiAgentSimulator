@@ -27,6 +27,8 @@ class BaseScenario(ABC):
         self.plot_grid = False
         # The distance between lines in the background grid
         self.grid_spacing = 0.1
+        # Text to be rendered by environment:
+        self.render_text = []
 
     @property
     def world(self):
