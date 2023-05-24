@@ -1,6 +1,7 @@
 #  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
+import copy
 import random
 from ctypes import byref
 from typing import List, Tuple, Callable, Optional, Union, Dict
@@ -9,11 +10,18 @@ import numpy as np
 import torch
 from gym import spaces
 from torch import Tensor
-import vmas.simulator.utils
 from vmas.simulator.core import Agent, TorchVectorizedObject
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import VIEWER_MIN_ZOOM
-from vmas.simulator.utils import X, Y, ALPHABET, DEVICE_TYPING, override
+import vmas.simulator.utils
+from vmas.simulator.utils import (
+    VIEWER_MIN_ZOOM,
+    AGENT_OBS_TYPE,
+    X,
+    Y,
+    ALPHABET,
+    DEVICE_TYPING,
+    override,
+)
 
 
 # environment for all agents in the multiagent world
@@ -138,21 +146,20 @@ class Environment(TorchVectorizedObject):
                 else:
                     rewards.append(reward)
             if get_observations:
-                observation = self.scenario.observation(agent).clone()
+                observation = copy.deepcopy(self.scenario.observation(agent))
                 if dict_agent_names:
                     obs.update({agent.name: observation})
                 else:
                     obs.append(observation)
             if get_infos:
-                info = self.scenario.info(agent)
-                info = {key: val.clone() for key, val in info.items()}
+                info = copy.deepcopy(self.scenario.info(agent))
                 if dict_agent_names:
                     infos.update({agent.name: info})
                 else:
                     infos.append(info)
 
         if get_dones:
-            dones = self.done().clone()
+            dones = self.done()
 
         result = [obs, rewards, dones, infos]
         return [data for data in result if data is not None]
@@ -265,12 +272,19 @@ class Environment(TorchVectorizedObject):
     def get_observation_space(self):
         if not self.dict_spaces:
             return spaces.Tuple(
-                [self.get_agent_observation_space(agent) for agent in self.agents]
+                [
+                    self.get_agent_observation_space(
+                        agent, self.scenario.observation(agent)
+                    )
+                    for agent in self.agents
+                ]
             )
         else:
             return spaces.Dict(
                 {
-                    agent.name: self.get_agent_observation_space(agent)
+                    agent.name: self.get_agent_observation_space(
+                        agent, self.scenario.observation(agent)
+                    )
                     for agent in self.agents
                 }
             )
@@ -319,13 +333,25 @@ class Environment(TorchVectorizedObject):
                 )
                 return spaces.MultiDiscrete(actions)
 
-    def get_agent_observation_space(self, agent: Agent):
-        return spaces.Box(
-            low=-np.float32("inf"),
-            high=np.float32("inf"),
-            shape=(len(self.scenario.observation(agent)[0]),),
-            dtype=np.float32,
-        )
+    def get_agent_observation_space(self, agent: Agent, obs: AGENT_OBS_TYPE):
+        if isinstance(obs, Tensor):
+            return spaces.Box(
+                low=-np.float32("inf"),
+                high=np.float32("inf"),
+                shape=(len(obs[0]),),
+                dtype=np.float32,
+            )
+        elif isinstance(obs, Dict):
+            return spaces.Dict(
+                {
+                    key: self.get_agent_observation_space(agent, value)
+                    for key, value in obs.items()
+                }
+            )
+        else:
+            raise NotImplementedError(
+                f"Invalid type of observation {obs} for agent {agent.name}"
+            )
 
     def _check_discrete_action(self, action: Tensor, low: int, high: int, type: str):
         assert torch.all(
