@@ -6,6 +6,7 @@ from typing import Dict, Callable
 import torch
 from torch import Tensor
 from torch.distributions import MultivariateNormal
+
 from vmas import render_interactively
 from vmas.simulator.core import World, Line, Agent, Sphere, Entity
 from vmas.simulator.scenario import BaseScenario
@@ -293,16 +294,14 @@ class Scenario(BaseScenario):
         from vmas.simulator import rendering
         from vmas.simulator.rendering import render_function_util
 
-        geoms = []
-
         # Function
-        geoms.extend(
+        geoms = [
             render_function_util(
                 f=self.density_for_plot(env_index=env_index),
                 plot_range=(self.xdim, self.ydim),
                 cmap_alpha=self.alpha_plot,
             )
-        )
+        ]
 
         # Communication lines
         for i, agent1 in enumerate(self.world.agents):
