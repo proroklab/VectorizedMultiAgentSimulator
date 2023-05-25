@@ -1,6 +1,7 @@
 #  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
+import random
 import typing
 from typing import List
 
@@ -52,7 +53,22 @@ class Scenario(BaseScenario):
 
             world.add_agent(agent)
 
+        self._init_text()
+
         return world
+
+    def _init_text(self):
+        from vmas.simulator import rendering
+
+        state = rendering.RenderStateSingleton()
+        # here the index an be customized to change the position of the text
+        offset = len(state.text_lines)
+
+        # I used a list here but you could also add variables:
+        self.custom_obs_text_index = 0 + offset
+        state.text_lines.append(rendering.TextLine(self.custom_obs_text_index))
+        self.custom_rew_text_index = 1 + offset
+        state.text_lines.append(rendering.TextLine(self.custom_rew_text_index))
 
     def reset_world_at(self, env_index: int = None):
         ScenarioUtils.spawn_entities_randomly(
@@ -76,7 +92,7 @@ class Scenario(BaseScenario):
     def observation(self, agent: Agent):
         observations = [
             agent.state.pos, agent.state.rot,
-            agent.state.vel, agent.state.ang_vel, t
+            agent.state.vel, agent.state.ang_vel,
         ]
         return torch.cat(
             observations,
@@ -85,8 +101,7 @@ class Scenario(BaseScenario):
 
     def extra_render(self, env_index: int = 0) -> "List[Geom]":
         from vmas.simulator import rendering
-
-        geoms: List[Geom] = []
+        state = rendering.RenderStateSingleton()
 
         # Agent rotation
         for agent in self.world.agents:
@@ -101,14 +116,12 @@ class Scenario(BaseScenario):
             xform.set_translation(*agent.state.pos[env_index])
             line.add_attr(xform)
             line.set_color(*color)
-            geoms.append(line)
+            state.onetime_geoms.append(line)
 
         # DO NOT COMMIT THIS INTO MASTER, IT IS ONLY TO SHOW TEXT RENDER EXAMPLE
-        self.render_text = []  # Reset the text from last round
-        for i in range(2):
-            self.render_text.append(f"{i}: This is a test of custom text rendering from scenario file")
-
-        return geoms
+        state.text_lines[self.custom_obs_text_index].set_text(f"custom obs text {random.randint(0, 100)}")
+        state.text_lines[self.custom_rew_text_index].set_text(f"custom rew text {random.randint(0, 100)}")
+        return []
 
 
 if __name__ == "__main__":

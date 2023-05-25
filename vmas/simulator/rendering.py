@@ -89,6 +89,17 @@ def get_display(spec):
         )
 
 
+class RenderStateSingleton(object):
+
+    def __new__(cls):
+        if not hasattr(cls, 'instance'):
+            cls.instance = super(RenderStateSingleton, cls).__new__(cls)
+            cls.instance.geoms = []
+            cls.instance.onetime_geoms = []
+            cls.instance.text_lines = []
+        return cls.instance
+
+
 class Viewer(object):
     def __init__(self, width, height, display=None, visible=True):
         display = get_display(display)
@@ -104,6 +115,7 @@ class Viewer(object):
         self.geoms = []
         self.text_lines = []
         self.onetime_geoms = []
+        self.render_state = RenderStateSingleton()
         self.transform = Transform()
         self.bounds = None
 
@@ -132,12 +144,15 @@ class Viewer(object):
 
     def add_geom(self, geom):
         self.geoms.append(geom)
+        self.render_state.geoms.append(geom)
 
     def add_onetime(self, geom):
         self.onetime_geoms.append(geom)
+        self.render_state.onetime_geoms.append(geom)
 
     def add_onetime_list(self, geoms):
         self.onetime_geoms.extend(geoms)
+        self.render_state.onetime_geoms.extend(geoms)
 
     def render(self, return_rgb_array=False):
         glClearColor(1, 1, 1, 1)
@@ -146,17 +161,26 @@ class Viewer(object):
         self.window.switch_to()
         self.window.dispatch_events()
 
+        # self.transform.enable()
+        # for geom in self.geoms:
+        #     geom.render()
+        # for geom in self.onetime_geoms:
+        #     geom.render()
+        # self.transform.disable()
         self.transform.enable()
-        for geom in self.geoms:
+        for geom in self.render_state.geoms:
             geom.render()
-        for geom in self.onetime_geoms:
+        for geom in self.render_state.onetime_geoms:
             geom.render()
         self.transform.disable()
 
         pyglet.gl.glMatrixMode(pyglet.gl.GL_PROJECTION)
         pyglet.gl.glLoadIdentity()
         gluOrtho2D(0, self.width, 0, self.height)
-        for geom in self.text_lines:
+        # for geom in self.text_lines:
+        #     geom.render()
+
+        for geom in self.render_state.text_lines:
             geom.render()
 
         arr = None
@@ -174,6 +198,7 @@ class Viewer(object):
             arr = arr[::-1, :, 0:3]
 
         self.window.flip()
+        self.render_state.onetime_geoms = []
         self.onetime_geoms = []
         return arr
 
@@ -306,9 +331,9 @@ class LineWidth(Attr):
 
 
 class TextLine:
-    def __init__(self, window, idx):
+    def __init__(self, idx):
         self.idx = idx
-        self.window = window
+        # self.window = window
 
         pyglet.font.add_file(os.path.join(os.path.dirname(__file__), "secrcode.ttf"))
         if pyglet.font.have_font("Courier"):

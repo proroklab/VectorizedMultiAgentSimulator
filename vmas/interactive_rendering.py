@@ -37,12 +37,12 @@ class InteractiveEnv:
     """
 
     def __init__(
-        self,
-        env: GymWrapper,
-        control_two_agents: bool = False,
-        display_info: bool = True,
-        save_render: bool = False,
-        render_name: str = "interactive",
+            self,
+            env: GymWrapper,
+            control_two_agents: bool = False,
+            display_info: bool = True,
+            save_render: bool = False,
+            render_name: str = "interactive",
     ):
         self.env = env
         self.control_two_agents = control_two_agents
@@ -68,7 +68,7 @@ class InteractiveEnv:
 
         if self.control_two_agents:
             assert (
-                self.n_agents >= 2
+                    self.n_agents >= 2
             ), "Control_two_agents is true but not enough agents in scenario"
 
         self.env.render()
@@ -103,17 +103,17 @@ class InteractiveEnv:
                 for agent in self.agents
             ]
             action_list[self.current_agent_index] = self.u[
-                : self.env.unwrapped().get_agent_action_size(
-                    self.agents[self.current_agent_index]
-                )
-            ]
+                                                    : self.env.unwrapped().get_agent_action_size(
+                                                        self.agents[self.current_agent_index]
+                                                    )
+                                                    ]
 
             if self.n_agents > 1 and self.control_two_agents:
                 action_list[self.current_agent_index2] = self.u2[
-                    : self.env.unwrapped().get_agent_action_size(
-                        self.agents[self.current_agent_index2]
-                    )
-                ]
+                                                         : self.env.unwrapped().get_agent_action_size(
+                                                             self.agents[self.current_agent_index2]
+                                                         )
+                                                         ]
             obs, rew, done, info = self.env.step(action_list)
 
             if self.display_info:
@@ -124,7 +124,7 @@ class InteractiveEnv:
                 message = f"Obs: {obs_str[:len(obs_str) // 2]}"
                 self._write_values(self.text_idx + 1, message)
 
-                message = f"Rew: {round(rew[self.current_agent_index],3)}"
+                message = f"Rew: {round(rew[self.current_agent_index], 3)}"
                 self._write_values(self.text_idx + 2, message)
 
                 total_rew = list(map(add, total_rew, rew))
@@ -149,22 +149,25 @@ class InteractiveEnv:
 
     def _init_text(self):
         from vmas.simulator import rendering
-
-        try:
-            self.text_idx = len(self.env.unwrapped().viewer.text_lines)
-        except AttributeError:
-            self.text_idx = 0
+        state = rendering.RenderStateSingleton()
+        self.text_idx = len(state.text_lines)
 
         for i in range(N_TEXT_LINES_INTERACTIVE):
             text_line = rendering.TextLine(
-                self.env.unwrapped().viewer.window, self.text_idx + i
+                # self.env.unwrapped().viewer.window,
+                self.text_idx + i
             )
-            self.env.unwrapped().viewer.text_lines.append(text_line)
+            state.text_lines.append(text_line)
 
     def _write_values(self, index: int, message: str, font_size: int = 15):
-        self.env.unwrapped().viewer.text_lines[index].set_text(
+        from vmas.simulator import rendering
+        rendering.RenderStateSingleton().text_lines[index].set_text(
             message, font_size=font_size
         )
+
+        # self.env.unwrapped().viewer.text_lines[index].set_text(
+        #     message, font_size=font_size
+        # )
 
     # keyboard event callbacks
     def _key_press(self, k, mod):
@@ -300,11 +303,11 @@ class InteractiveEnv:
 
 
 def render_interactively(
-    scenario: Union[str, BaseScenario],
-    control_two_agents: bool = False,
-    display_info: bool = True,
-    save_render: bool = False,
-    **kwargs,
+        scenario: Union[str, BaseScenario],
+        control_two_agents: bool = False,
+        display_info: bool = True,
+        save_render: bool = False,
+        **kwargs,
 ):
     """
     Use this script to interactively play with scenarios

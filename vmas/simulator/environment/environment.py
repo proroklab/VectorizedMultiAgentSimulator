@@ -8,6 +8,7 @@ from typing import List, Tuple, Callable, Optional, Union, Dict
 
 import numpy as np
 import torch
+import typing
 from gym import spaces
 from torch import Tensor
 from vmas.simulator.core import Agent, TorchVectorizedObject
@@ -22,6 +23,9 @@ from vmas.simulator.utils import (
     DEVICE_TYPING,
     override,
 )
+
+if typing.TYPE_CHECKING:
+    from vmas.simulator.rendering import Viewer
 
 
 # environment for all agents in the multiagent world
@@ -63,7 +67,7 @@ class Environment(TorchVectorizedObject):
         # rendering
         self.render_geoms_xform = None
         self.render_geoms = None
-        self.viewer = None
+        self.viewer: Viewer = None
         self.headless = None
         self.visible_display = None
 
@@ -636,11 +640,6 @@ class Environment(TorchVectorizedObject):
 
         self.viewer.add_onetime_list(self.scenario.extra_render(env_index))
 
-        # Rendering the text set from extra_render method:
-        for message in self.scenario.render_text:
-            self.viewer.text_lines[text_idx].set_text(message)
-            text_idx += 1
-
         for entity in self.world.entities:
             self.viewer.add_onetime_list(entity.render(env_index=env_index))
 
@@ -679,16 +678,9 @@ class Environment(TorchVectorizedObject):
         if self.world.dim_c > 0:
             for agent in self.world.agents:
                 if not agent.silent:
-                    text_line = rendering.TextLine(self.viewer.window, idx)
+                    text_line = rendering.TextLine(idx)
                     self.viewer.text_lines.append(text_line)
                     idx += 1
-
-        # Overhead in drawing (called once), but we get the number of lines expected to be rendered:
-        self.scenario.extra_render(env_index)
-        for _ in self.scenario.render_text:
-            text_line = rendering.TextLine(self.viewer.window, idx)
-            self.viewer.text_lines.append(text_line)
-            idx += 1
 
     @override(TorchVectorizedObject)
     def to(self, device: DEVICE_TYPING):
