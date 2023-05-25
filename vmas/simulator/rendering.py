@@ -10,6 +10,7 @@ from __future__ import division
 import math
 import os
 import sys
+from itertools import chain
 from typing import Callable, Tuple, Optional, Union
 
 import numpy as np
@@ -17,7 +18,7 @@ import pyglet
 import six
 import torch
 
-from vmas.simulator.utils import x_to_rgb_colormap
+from vmas.simulator.utils import x_to_rgb_colormap, TorchUtils
 
 try:
     from pyglet.gl import (
@@ -102,7 +103,6 @@ class Viewer(object):
         self.window.on_close = self.window_closed_by_user
 
         self.geoms = []
-        self.text_lines = []
         self.onetime_geoms = []
         self.transform = Transform()
         self.bounds = None
@@ -147,77 +147,43 @@ class Viewer(object):
         self.window.dispatch_events()
 
         self.transform.enable()
-        for geom in self.geoms:
-            geom.render()
-        for geom in self.onetime_geoms:
-            geom.render()
+
+        text_lines = []
+        for geom in chain(self.geoms, self.onetime_geoms):
+            if isinstance(geom, TextLine):
+                text_lines.append(geom)
+            else:
+                geom.render()
+
         self.transform.disable()
+
+        for text in text_lines:
+            text.render()
 
         pyglet.gl.glMatrixMode(pyglet.gl.GL_PROJECTION)
         pyglet.gl.glLoadIdentity()
         gluOrtho2D(0, self.width, 0, self.height)
-        for geom in self.text_lines:
-            geom.render()
 
         arr = None
         if return_rgb_array:
-            buffer = pyglet.image.get_buffer_manager().get_color_buffer()
-            image_data = buffer.get_image_data()
-            arr = np.frombuffer(image_data.get_data(), dtype=np.uint8)
-            # In https://github.com/openai/gym-http-api/issues/2, we
-            # discovered that someone using Xmonad on Arch was having
-            # a window of size 598 x 398, though a 600 x 400 window
-            # was requested. (Guess Xmonad was preserving a pixel for
-            # the boundary.) So we use the buffer height/width rather
-            # than the requested one.
-            arr = arr.reshape((buffer.height, buffer.width, 4))
-            arr = arr[::-1, :, 0:3]
-
+            arr = self.get_array()
         self.window.flip()
         self.onetime_geoms = []
         return arr
 
-    # Convenience
-    def draw_circle(self, radius=10, res=30, filled=True, **attrs):
-        geom = make_circle(radius=radius, res=res, filled=filled)
-        _add_attrs(geom, attrs)
-        self.add_onetime(geom)
-        return geom
-
-    def draw_polygon(self, v, filled=True, **attrs):
-        geom = make_polygon(v=v, filled=filled)
-        _add_attrs(geom, attrs)
-        self.add_onetime(geom)
-        return geom
-
-    def draw_polyline(self, v, **attrs):
-        geom = make_polyline(v=v)
-        _add_attrs(geom, attrs)
-        self.add_onetime(geom)
-        return geom
-
-    def draw_line(self, start, end, **attrs):
-        geom = Line(start, end)
-        _add_attrs(geom, attrs)
-        self.add_onetime(geom)
-        return geom
-
     def get_array(self):
-        self.window.flip()
-        image_data = (
-            pyglet.image.get_buffer_manager().get_color_buffer().get_image_data()
-        )
-        self.window.flip()
-        arr = np.fromstring(image_data.data, dtype=np.uint8, sep="")
-        arr = arr.reshape((self.height, self.width, 4))
-        return arr[::-1, :, 0:3]
-
-
-def _add_attrs(geom, attrs):
-    if "color" in attrs:
-        geom.set_color(*attrs["color"])
-    if "linewidth" in attrs:
-        geom.set_linewidth(attrs["linewidth"])
+        buffer = pyglet.image.get_buffer_manager().get_color_buffer()
+        image_data = buffer.get_image_data()
+        arr = np.frombuffer(image_data.get_data(), dtype=np.uint8)
+        # In https://github.com/openai/gym-http-api/issues/2, we
+        # discovered that someone using Xmonad on Arch was having
+        # a window of size 598 x 398, though a 600 x 400 window
+        # was requested. (Guess Xmonad was preserving a pixel for
+        # the boundary.) So we use the buffer height/width rather
+        # than the requested one.
+        arr = arr.reshape((buffer.height, buffer.width, 4))
+        arr = arr[::-1, :, 0:3]
+        return arr
 
 
 class Geom(object):
@@ -305,12 +271,16 @@ class LineWidth(Attr):
         glLineWidth(self.stroke)
 
 
-class TextLine:
-    def __init__(self, window, idx):
-        self.idx = idx
-        self.window = window
+class TextLine(Geom):
+    def __init__(
+        self,
+        text: str = "",
+        font_size: int = 15,
+        x: float = 0.0,
+        y: float = 0.0,
+    ):
+        super().__init__()
 
-        pyglet.font.add_file(os.path.join(os.path.dirname(__file__), "secrcode.ttf"))
         if pyglet.font.have_font("Courier"):
             font = "Courier"
         elif pyglet.font.have_font("Secret Code"):
@@ -319,17 +289,17 @@ class TextLine:
             font = None
 
         self.label = pyglet.text.Label(
-            "",
+            text,
             font_name=font,
+            font_size=font_size,
             color=(0, 0, 0, 255),
-            font_size=20,
-            x=0,
-            y=self.idx * 40 + 20,
+            x=x,
+            y=y,
             anchor_x="left",
             anchor_y="bottom",
         )
 
-    def render(self):
+    def render1(self):
         if self.label is not None:
             self.label.draw()
 
@@ -406,105 +376,6 @@ class FilledPolygon(Geom):
             glEnd()
 
 
-def render_function_util(
-    f: Callable,
-    plot_range: Union[
-        float, Tuple[float, float], Tuple[Tuple[float, float], Tuple[float, float]]
-    ],
-    precision: float = 0.01,
-    cmap_range: Optional[Tuple[float, float]] = None,
-    cmap_alpha: float = 1.0,
-):
-    geoms = []
-
-    if isinstance(plot_range, int) or isinstance(plot_range, float):
-        x_min = -plot_range
-        y_min = -plot_range
-        x_max = plot_range
-        y_max = plot_range
-    elif len(plot_range) == 2:
-        if isinstance(plot_range[0], int) or isinstance(plot_range[0], float):
-            x_min = -(plot_range[0])
-            y_min = -(plot_range[1])
-            x_max = plot_range[0]
-            y_max = plot_range[1]
-        else:
-            x_min = plot_range[0][0]
-            y_min = plot_range[1][0]
-            x_max = plot_range[0][1]
-            y_max = plot_range[1][1]
-
-    xpoints = np.arange(x_min, x_max, precision)
-    ypoints = np.arange(y_min, y_max, precision)
-
-    ygrid, xgrid = np.meshgrid(ypoints, xpoints)
-    pos = np.stack((xgrid, ygrid), axis=-1).reshape(-1, 2)
-    pos_shape = pos.shape
-
-    outputs = f(pos)
-
-    if isinstance(outputs, torch.Tensor):
-        outputs = outputs.detach().cpu().numpy()
-
-    assert isinstance(outputs, np.ndarray)
-    assert outputs.shape[0] == pos_shape[0]
-    assert outputs.ndim <= 2
-
-    if outputs.ndim == 2 and outputs.shape[1] == 1:
-        outputs = outputs.squeeze(-1)
-    elif outputs.ndim == 2:
-        assert outputs.shape[1] == 4
-
-    # Output is an alpha
-    if outputs.ndim == 1:
-        if cmap_range is None:
-            cmap_range = [None, None]
-        outputs = x_to_rgb_colormap(
-            outputs, low=cmap_range[0], high=cmap_range[1], alpha=cmap_alpha
-        )
-
-    img = outputs.reshape(xgrid.shape[0], xgrid.shape[1], outputs.shape[-1])
-
-    img = img * 255
-    img = np.transpose(img, (1, 0, 2))
-    geom = Image(img, x=x_min, y=y_min, scale=precision)
-    geoms.append(geom)
-
-    return geoms
-
-
-def make_circle(radius=10, res=30, filled=True):
-    points = []
-    for i in range(res):
-        ang = 2 * math.pi * i / res
-        points.append((math.cos(ang) * radius, math.sin(ang) * radius))
-    if filled:
-        return FilledPolygon(points)
-    else:
-        return PolyLine(points, True)
-
-
-def make_polygon(v, filled=True, draw_border: float = True):
-    if filled:
-        return FilledPolygon(v, draw_border=draw_border)
-    else:
-        return PolyLine(v, True)
-
-
-def make_polyline(v):
-    return PolyLine(v, False)
-
-
-def make_capsule(length, width):
-    l, r, t, b = 0, length, width / 2, -width / 2
-    box = make_polygon([(l, b), (l, t), (r, t), (r, b)])
-    circ0 = make_circle(width / 2)
-    circ1 = make_circle(width / 2)
-    circ1.add_attr(Transform(translation=(length, 0)))
-    geom = Compound([box, circ0, circ1])
-    return geom
-
-
 class Compound(Geom):
     def __init__(self, gs):
         Geom.__init__(self)
@@ -574,6 +445,102 @@ class Grid(Geom):
             glVertex2f(-self.length / 2, point)
             glVertex2f(self.length / 2, point)
             glEnd()
+
+
+def render_function_util(
+    f: Callable,
+    plot_range: Union[
+        float, Tuple[float, float], Tuple[Tuple[float, float], Tuple[float, float]]
+    ],
+    precision: float = 0.01,
+    cmap_range: Optional[Tuple[float, float]] = None,
+    cmap_alpha: float = 1.0,
+):
+    if isinstance(plot_range, int) or isinstance(plot_range, float):
+        x_min = -plot_range
+        y_min = -plot_range
+        x_max = plot_range
+        y_max = plot_range
+    elif len(plot_range) == 2:
+        if isinstance(plot_range[0], int) or isinstance(plot_range[0], float):
+            x_min = -(plot_range[0])
+            y_min = -(plot_range[1])
+            x_max = plot_range[0]
+            y_max = plot_range[1]
+        else:
+            x_min = plot_range[0][0]
+            y_min = plot_range[1][0]
+            x_max = plot_range[0][1]
+            y_max = plot_range[1][1]
+
+    xpoints = np.arange(x_min, x_max, precision)
+    ypoints = np.arange(y_min, y_max, precision)
+
+    ygrid, xgrid = np.meshgrid(ypoints, xpoints)
+    pos = np.stack((xgrid, ygrid), axis=-1).reshape(-1, 2)
+    pos_shape = pos.shape
+
+    outputs = f(pos)
+
+    if isinstance(outputs, torch.Tensor):
+        outputs = TorchUtils.to_numpy(outputs)
+
+    assert isinstance(outputs, np.ndarray)
+    assert outputs.shape[0] == pos_shape[0]
+    assert outputs.ndim <= 2
+
+    if outputs.ndim == 2 and outputs.shape[1] == 1:
+        outputs = outputs.squeeze(-1)
+    elif outputs.ndim == 2:
+        assert outputs.shape[1] == 4
+
+    # Output is an alpha
+    if outputs.ndim == 1:
+        if cmap_range is None:
+            cmap_range = [None, None]
+        outputs = x_to_rgb_colormap(
+            outputs, low=cmap_range[0], high=cmap_range[1], alpha=cmap_alpha
+        )
+
+    img = outputs.reshape(xgrid.shape[0], xgrid.shape[1], outputs.shape[-1])
+
+    img = img * 255
+    img = np.transpose(img, (1, 0, 2))
+    geom = Image(img, x=x_min, y=y_min, scale=precision)
+
+    return geom
+
+
+def make_circle(radius=10, res=30, filled=True):
+    points = []
+    for i in range(res):
+        ang = 2 * math.pi * i / res
+        points.append((math.cos(ang) * radius, math.sin(ang) * radius))
+    if filled:
+        return FilledPolygon(points)
+    else:
+        return PolyLine(points, True)
+
+
+def make_polygon(v, filled=True, draw_border: float = True):
+    if filled:
+        return FilledPolygon(v, draw_border=draw_border)
+    else:
+        return PolyLine(v, True)
+
+
+def make_polyline(v):
+    return PolyLine(v, False)
+
+
+def make_capsule(length, width):
+    l, r, t, b = 0, length, width / 2, -width / 2
+    box = make_polygon([(l, b), (l, t), (r, t), (r, b)])
+    circ0 = make_circle(width / 2)
+    circ1 = make_circle(width / 2)
+    circ1.add_attr(Transform(translation=(length, 0)))
+    geom = Compound([box, circ0, circ1])
+    return geom
 
 
 # ================================================================
