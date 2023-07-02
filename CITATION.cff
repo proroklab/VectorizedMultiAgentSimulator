@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: If you use this software, please cite it as below.
+title: VMAS
+authors:
+  - family-names: Bettini
+    given-names: Matteo
+preferred-citation:
+  type: conference-paper
+  title: "VMAS: A Vectorized Multi-Agent Simulator for Collective Robot Learning"
+  authors:
+    - family-names: Bettini
+      given-names: Matteo
+    - family-names: Kortvelesy
+      given-names: Ryan
+    - family-names: Blumenkamp
+      given-names: Jan
+    - family-names: Prorok
+      given-names: Amanda
+  collection-title: Proceedings of the 16th International Symposium on Distributed Autonomous Robotic Systems
+  publisher: Springer
+  year: 2023
