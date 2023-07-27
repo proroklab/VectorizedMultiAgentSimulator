@@ -385,6 +385,7 @@ To create a fake screen you need to have `Xvfb` installed.
 - [VMAS](https://matteobettini.github.io/publication/vmas-a-vectorized-multi-agent-simulator-for-collective-robot-learning/) features training of `balance`, `transport`, `give_way`, `wheel`
 - [HetGPPO](https://matteobettini.github.io/publication/heterogeneous-multi-robot-reinforcement-learning/) features training of `het_mass`, `give_way`, `joint_passage`, `joint_passage_size`
 - [SND](https://matteobettini.github.io/publication/system-neural-diversity-measuring-behavioral-heterogeneity-in-multi-agent-learning/) features training of `navigation`, `joint_passage`, `joint_passage_size`, `wind`
+- [TorchRL](https://matteobettini.com/publication/torchrl-a-data-driven-decision-making-library-for-pytorch/) features training of `navigation`, `sampling`, `balance`
 
 ## TODOS
 
