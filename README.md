@@ -393,7 +393,7 @@ To create a fake screen you need to have `Xvfb` installed.
 - [ ] Dict obs support in torchrl
 - [X] Make TextLine a Geom usable in a scenario
 - [ ] Implement 2D birds eye view camera sensor
-- [ ] Notebook on how to use torch rl with vmas
+- [X] Notebook on how to use torch rl with vmas
 - [ ] Reset any number of dimensions
 - [ ] Improve test efficiency and add new tests
 - [ ] Implement 1D camera sensor
