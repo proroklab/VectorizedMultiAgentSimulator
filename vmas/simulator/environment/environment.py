@@ -355,11 +355,8 @@ class Environment(TorchVectorizedObject):
 
     def _check_discrete_action(self, action: Tensor, low: int, high: int, type: str):
         assert torch.all(
-            torch.any(
-                torch.arange(low, high, device=self.device).repeat(self.num_envs)
-                == action,
-                dim=-1,
-            )
+            (action >= torch.tensor(low, device=self.device))
+            * (action < torch.tensor(high, device=self.device))
         ), f"Discrete {type} actions are out of bounds, allowed int range [{low},{high})"
 
     # set env action for a particular agent
