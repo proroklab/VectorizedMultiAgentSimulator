@@ -4,6 +4,7 @@
 import importlib
 import os
 import os.path as osp
+from pathlib import Path
 
 
 def load(name: str):
@@ -11,7 +12,7 @@ def load(name: str):
     for dirpath, dirnames, filenames in os.walk(osp.dirname(__file__)):
         if pathname is None:
             for filename in filenames:
-                if filename == name:
+                if name == filename or name == str(Path(dirpath) / Path(filename)):
                     pathname = os.path.join(dirpath, filename)
                     break
     assert pathname is not None, f"{name} scenario not found."
