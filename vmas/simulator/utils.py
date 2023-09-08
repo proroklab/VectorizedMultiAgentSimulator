@@ -198,6 +198,13 @@ class TorchUtils:
         else:
             raise NotImplementedError(f"Invalid type of data {data}")
 
+    @staticmethod
+    def recursive_clone(value: Union[Dict[str, Tensor], Tensor]):
+        if isinstance(value, Tensor):
+            return value.clone()
+        else:
+            return {key: TorchUtils.recursive_clone(val) for key, val in value.items()}
+
 
 class ScenarioUtils:
     @staticmethod

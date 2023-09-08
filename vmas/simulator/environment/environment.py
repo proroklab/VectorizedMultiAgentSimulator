@@ -1,7 +1,6 @@
 #  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-import copy
 import random
 from ctypes import byref
 from typing import List, Tuple, Callable, Optional, Union, Dict
@@ -22,6 +21,7 @@ from vmas.simulator.utils import (
     ALPHABET,
     DEVICE_TYPING,
     override,
+    TorchUtils,
 )
 
 
@@ -146,13 +146,15 @@ class Environment(TorchVectorizedObject):
                 else:
                     rewards.append(reward)
             if get_observations:
-                observation = copy.deepcopy(self.scenario.observation(agent))
+                observation = TorchUtils.recursive_clone(
+                    self.scenario.observation(agent)
+                )
                 if dict_agent_names:
                     obs.update({agent.name: observation})
                 else:
                     obs.append(observation)
             if get_infos:
-                info = copy.deepcopy(self.scenario.info(agent))
+                info = TorchUtils.recursive_clone(self.scenario.info(agent))
                 if dict_agent_names:
                     infos.update({agent.name: info})
                 else:
