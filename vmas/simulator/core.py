@@ -7,7 +7,7 @@ from __future__ import annotations
 import math
 import typing
 from abc import ABC, abstractmethod
-from typing import Callable, List, Tuple
+from typing import Callable, List, Tuple, Dict
 
 import torch
 from torch import Tensor
@@ -2205,3 +2205,58 @@ class World(TorchVectorizedObject):
         super().to(device)
         for e in self.entities:
             e.to(device)
+
+class CapabilityAwareAgent(Agent):
+    def __init__(self, name: str, capabilities_dict: Dict[str, float], shape: Shape = Sphere(), movable: bool = True, rotatable: bool = True, 
+                 collide: bool = True, density: float = 25, mass: float = 1, f_range: float = None, 
+                 max_f: float = None, t_range: float = None, max_t: float = None, v_range: float = None, 
+                 max_speed: float = None, color=Color.BLUE, alpha: float = 0.5, obs_range: float = None, 
+                 obs_noise: float = None, u_noise: float = None, u_range: float = 1, u_multiplier: float = 1, 
+                 u_rot_noise: float = None, u_rot_range: float = 0, u_rot_multiplier: float = 1, 
+                 action_script: Callable[[Agent, World], None] = None, sensors: List[Sensor] = None, 
+                 c_noise: float = None, silent: bool = True, adversary: bool = False, drag: float = None, 
+                 linear_friction: float = None, angular_friction: float = None, gravity: float = None, 
+                 collision_filter: Callable[[Entity], bool] = lambda _: True, render_action: bool = False):
+        super().__init__(name, 
+                         shape, 
+                         movable, 
+                         rotatable, 
+                         collide, 
+                         density, 
+                         mass, 
+                         f_range, 
+                         max_f, 
+                         t_range, 
+                         max_t, 
+                         v_range, 
+                         max_speed, 
+                         color, 
+                         alpha, 
+                         obs_range, 
+                         obs_noise, 
+                         u_noise, 
+                         u_range, 
+                         u_multiplier, 
+                         u_rot_noise, 
+                         u_rot_range, 
+                         u_rot_multiplier, 
+                         action_script, 
+                         sensors, 
+                         c_noise, 
+                         silent, 
+                         adversary, 
+                         drag, 
+                         linear_friction, 
+                         angular_friction, 
+                         gravity, 
+                         collision_filter, 
+                         render_action)
+        
+        self.capabilities_dict = capabilities_dict
+        self._capabilities = []
+        for capability, value in self.capabilities_dict.items():
+            self._capabilities.append(value)
+
+    @property
+    def capabilities(self) -> List[Sensor]:
+        return self._capabilities
