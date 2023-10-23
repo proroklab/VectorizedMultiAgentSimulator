@@ -2,7 +2,7 @@ import math
 from typing import Callable, List, Dict, Tuple
 import torch
 from vmas import render_interactively
-from vmas.simulator.core import Agent, Entity, Shape, World, Landmark, Sphere, Line, Box, CapabilityAwareAgent
+from vmas.simulator.core import Agent, Entity, Shape, World, Landmark, Sphere, Line, Box
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.sensors import Sensor
 from vmas.simulator.utils import Color, TorchUtils
@@ -19,13 +19,13 @@ class Scenario(BaseScenario):
         self.done_on_completion = kwargs.get("done_on_completion", False)
 
         # agents have different sizes and max speeds
-        
-        self.blue_agent_radius = kwargs.get("blue_agent_radius", np.random.uniform(0.10, 0.25))
-        self.blue_agent_v_range = kwargs.get("blue_agent_max_vel", np.random.uniform(0.30, 0.50))
-        self.green_agent_radius = kwargs.get("green_agent_radius", np.random.uniform(0.10, 0.25))
-        self.green_agent_v_range = kwargs.get("green_agent_max_vel", np.random.uniform(0.10, 0.20))
-        blue_agent_capabilities = {'max_vel': self.blue_agent_v_range, 'radius': self.blue_agent_radius}
-        green_agent_capabilities = {'max_vel': self.green_agent_v_range, 'radius': self.green_agent_radius}
+        # TODO: Remove once you get the self._reset_capability_at function working.
+        # self.blue_agent_radius = kwargs.get("blue_agent_radius", np.random.uniform(0.10, 0.25))
+        # self.blue_agent_v_range = kwargs.get("blue_agent_max_vel", np.random.uniform(0.30, 0.50))
+        # self.green_agent_radius = kwargs.get("green_agent_radius", np.random.uniform(0.10, 0.25))
+        # self.green_agent_v_range = kwargs.get("green_agent_max_vel", np.random.uniform(0.10, 0.20))
+        # blue_agent_capabilities = {'max_vel': self.blue_agent_v_range, 'radius': self.blue_agent_radius}
+        # green_agent_capabilities = {'max_vel': self.green_agent_v_range, 'radius': self.green_agent_radius}
 
 
         # Reward params
@@ -65,10 +65,13 @@ class Scenario(BaseScenario):
         self.spawn_pos_noise = 0.02
         self.min_collision_distance = 0.005
 
+        # TODO: Make shape, u_range, f_range, and v_range apart of the AgentState,
+        # such that we can get heterogeneous robots in speed and size.
+
         # Add agents
-        blue_agent = CapabilityAwareAgent(
+        blue_agent = Agent(
             name="blue agent",
-            capabilities_dict=blue_agent_capabilities,
+            capability_aware=True,
             color=Color.BLUE,
             rotatable=False,
             linear_friction=self.linear_friction,
@@ -78,6 +81,9 @@ class Scenario(BaseScenario):
             v_range = self.blue_agent_v_range,
             render_action=True,
         )
+        # TODO: Remove
+        # blue_agent.set_capability([self.blue_agent_v_range, self.blue_agent_radius])
+
         if self.use_velocity_controller:
             blue_agent.controller = VelocityController(
                 blue_agent, world, controller_params, "standard"
@@ -94,9 +100,9 @@ class Scenario(BaseScenario):
         world.add_agent(blue_agent)
         world.add_landmark(blue_goal)
 
-        green_agent = CapabilityAwareAgent(
+        green_agent = Agent(
             name="green agent",
-            capabilities_dict=green_agent_capabilities,
+            capability_aware=True,
             color=Color.GREEN,
             rotatable=False,
             linear_friction=self.linear_friction,
@@ -106,6 +112,9 @@ class Scenario(BaseScenario):
             v_range = self.green_agent_v_range,
             render_action=True,
         )
+
+        # TODO: remove, taken care of by _reset_capability_at function
+        # green_agent.set_capability([self.green_agent_v_range, self.green_agent_radius])
         if self.use_velocity_controller:
             green_agent.controller = VelocityController(
                 green_agent, world, controller_params, "standard"
@@ -124,6 +133,9 @@ class Scenario(BaseScenario):
 
         null_action=torch.zeros(world.batch_dim, world.dim_p, device=world.device)
 
+        # set the agent's capabilities
+        self._reset_capability_at()
+
         # control delayted by n dts
         blue_agent.input_queue = [null_action.clone() for _ in range(self.dt_delay)]
         green_agent.input_queue = [null_action.clone() for _ in range(self.dt_delay)]
@@ -140,6 +152,33 @@ class Scenario(BaseScenario):
         self.final_rew = self.pos_rew.clone()
         
         return(world)
+
+    def _reset_capability_at(self, env_index: int = None):
+        """
+        Resets the blue and green agents capability
+        When a None index is passed to env_index, the world should make a vectorized (batch) reset of capabilities
+        """
+        # capabilities [max velocity, agent radius]
+        # blue agent
+        self.world.agents[0].set_capability(
+            torch.tensor(
+                [np.random.uniform(0.30, 0.50), np.random.uniform(0.10, 0.25)],
+                dtype=torch.float32,
+                device=self.world.device
+            ),
+            batch_index=env_index,
+        )
+
+        # green agent
+        self.world.agents[1].set_capability(
+            torch.tensor(
+                [np.random.uniform(0.10, 0.20), np.random.uniform(0.10, 0.25)],
+                dtype=torch.float32,
+                device=self.world.device
+            ),
+            batch_index=env_index,
+        )
+
 
     def reset_world_at(self, env_index: int = None):
         """
@@ -178,6 +217,8 @@ class Scenario(BaseScenario):
             batch_index=env_index,
         )
 
+        # reset the blue agent's capability
+
         if self.use_velocity_controller:
             self.world.agents[0].controller.reset(env_index)
         self.world.landmarks[0].set_pos(
@@ -188,7 +229,7 @@ class Scenario(BaseScenario):
             ),
             batch_index=env_index,
         )
-        # reset grean agent
+        # reset green agent
         self.world.agents[1].set_pos(
             torch.tensor(
                 [self.scenario_length / 2 - self.agent_dist_from_wall, 0.0],
@@ -214,6 +255,9 @@ class Scenario(BaseScenario):
             ),
             batch_index=env_index,
         )
+
+        # reset the capabilities of agents
+        self._reset_capability_at(env_index)
 
         self.reset_map(env_index)
 
@@ -242,7 +286,7 @@ class Scenario(BaseScenario):
         else:
             self.goal_reached[env_index] = False
 
-    def process_action(self, agent: CapabilityAwareAgent):
+    def process_action(self, agent: Agent):
         # expects control to be between 0 and 1
         if self.use_velocity_controller:
             # Use queue for delay
@@ -269,7 +313,7 @@ class Scenario(BaseScenario):
                 # print(agent.action.u)
                 ...
 
-    def reward(self, agent: CapabilityAwareAgent):
+    def reward(self, agent: Agent):
         is_first = agent == self.world.agents[0]
         blue_agent = self.world.agents[0]
         green_agent = self.world.agents[-1]
@@ -346,15 +390,17 @@ class Scenario(BaseScenario):
             + self.final_rew
         )
     
-    def observation(self, agent: CapabilityAwareAgent):
+    def observation(self, agent: Agent):
         capabilities = agent.capabilities
         observations = [
             agent.state.pos,
-            agent.state.vel
+            agent.state.vel,
+            agent.state.capability,
         ]
 
         if self.obs_noise > 0:
-            for i, obs in enumerate(observations):
+            # observation noise not added to capability, only position and velocity
+            for i, obs in enumerate(observations[:-1]):
                 noise = torch.zeros(
                     *obs.shape,
                     device=self.world.device,
@@ -363,14 +409,16 @@ class Scenario(BaseScenario):
                     self.obs_noise,
                 )
                 observations[i] = obs + noise
-        batch_dim = agent.state.pos.shape[-2]
-        observations = observations + [torch.tensor([capabilities]*batch_dim, dtype=torch.float32, device=self.world.device).reshape(batch_dim, -1)]
+        # TODO: Remove the following two lines
+        # batch_dim = agent.state.pos.shape[-2]
+        # observations = observations + [torch.tensor([capabilities]*batch_dim, dtype=torch.float32, device=self.world.device).reshape(batch_dim, -1)]
+        
         return torch.cat(
             observations,
             dim=-1,
         )
     
-    def info(self, agent: CapabilityAwareAgent):
+    def info(self, agent: Agent):
         return {
             "pos_rew": self.pos_rew,
             "final_rew": self.final_rew,
