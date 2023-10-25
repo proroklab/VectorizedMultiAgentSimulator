@@ -8,6 +8,7 @@ import torch
 from torch import Tensor
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, World, Sphere, Entity
+from vmas.simulator.heuristic_policy import BaseHeuristicPolicy
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.sensors import Lidar
 from vmas.simulator.utils import Color, ScenarioUtils
@@ -281,6 +282,40 @@ class Scenario(BaseScenario):
 
         return geoms
 
+class HeuristicPolicy(BaseHeuristicPolicy):
+    def compute_action(self, observation: torch.Tensor, u_range: float) -> torch.Tensor:
+        assert self.continuous_actions
+
+        current_pos = observation[:, :2]
+        current_vel = observation[:, 2:4]
+        # NOTE: this assumes agents can only observe own goal (observe_all_goals = False)
+        dir_from_goal = observation[:, 4:6]
+        # this is a weird output, it's not the raw LIDAR but rather
+        # LIDAR max_range - LIDAR measurement * n_lidar_rays
+        lidar = observation[:, 6:]
+
+        # move towards goal (w/out considering obstacles) 
+        action_dir = -dir_from_goal
+
+        # however, if any obstacles in visibility range, move directly away
+        # from them, instead of towards goal
+        # TODO: implement? performance is pretty good for this env though
+        # visible_objects = torch.any(lidar > 0.0)
+        # if visible_objects:
+        #     # TODO: instead of finding max dist, should find min of > 0.0
+        #     _, object_dir_index = torch.max(lidar, dim=1)
+        #     angle_to_obj = object_dir_index / lidar.shape[1] * 2 * torch.pi
+        #     dir_to_obj = [torch.cos(angle_to_obj), torch.sin(angle_to_obj)]
+        #     towards_obj_dir = torch.stack(dir_to_obj, dim=1)
+        #     action_dir = -0.01 * towards_obj_dir
+
+        action = torch.clamp(
+            action_dir,
+            min=-u_range,
+            max=u_range,
+        )
+
+        return action
 
 if __name__ == "__main__":
     render_interactively(
