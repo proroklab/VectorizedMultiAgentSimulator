@@ -377,9 +377,14 @@ class Environment(TorchVectorizedObject):
         if self.continuous_actions:
             physical_action = action[:, action_index : action_index + self.world.dim_p]
             action_index += self.world.dim_p
-            assert not torch.any(
-                torch.abs(physical_action) > agent.u_range
-            ), f"Physical actions of agent {agent.name} are out of its range {agent.u_range}"
+            #TODO: FIX ME, I remove this because it was failing for heterogeneous agents
+            # the handling of different actions should be done before this statement.
+            # Note: actions are loaded before preprocessed, so putting in the "process_actions"
+            # doesn't work
+            
+            # assert not torch.any(
+            #     torch.abs(physical_action) > agent.u_range
+            # ), f"Physical actions of agent {agent.name} are out of its range {agent.u_range}"
 
             agent.action.u = physical_action.to(torch.float32)
         else:

@@ -7,7 +7,7 @@ from __future__ import annotations
 import math
 import typing
 from abc import ABC, abstractmethod
-from typing import Callable, List, Tuple
+from typing import Callable, List, Tuple, Dict
 
 import torch
 from torch import Tensor
@@ -278,7 +278,7 @@ class EntityState(TorchVectorizedObject):
                 else:
                     attr[env_index] = 0.0
 
-    def _spawn(self, dim_c: int, dim_p: int):
+    def _spawn(self, dim_c: int, dim_p: int, dim_capability: int):
         self.pos = torch.zeros(
             self.batch_dim, dim_p, device=self.device, dtype=torch.float32
         )
@@ -300,6 +300,8 @@ class AgentState(EntityState):
         super().__init__()
         # communication utterance
         self._c = None
+        # capability state
+        self._capability = None
 
     @property
     def c(self):
@@ -315,10 +317,23 @@ class AgentState(EntityState):
         ), f"Internal state must match batch dim, got {c.shape[0]}, expected {self._batch_dim}"
 
         self._c = c.to(self._device)
+    @property
+    def capability(self):
+        return self._capability
+    
+    @capability.setter
+    def capability(self, capability: Tensor):
+        assert (
+            self._batch_dim is not None and self._device is not None
+        ), "First add an entity to the world before settings its capability state"
 
+        assert (
+            capability.shape[0] == self._batch_dim
+        ), f"Internal state must match batch dim, got {capability.shape[0]}, expected {self._batch_dim}"
+        self._capability = capability
     @override(EntityState)
     def _reset(self, env_index: typing.Optional[int]):
-        for attr in [self.c]:
+        for attr in [self.c, self.capability]:
             if attr is not None:
                 if env_index is None:
                     attr[:] = 0.0
@@ -327,12 +342,17 @@ class AgentState(EntityState):
         super()._reset(env_index)
 
     @override(EntityState)
-    def _spawn(self, dim_c: int, dim_p: int):
+    def _spawn(self, dim_c: int, dim_p: int, dim_capability: int):
         if dim_c > 0:
             self.c = torch.zeros(
                 self.batch_dim, dim_c, device=self.device, dtype=torch.float32
             )
-        super()._spawn(dim_c, dim_p)
+
+        if dim_capability > 0:
+            self.capability = torch.zeros(
+                self.batch_dim, dim_capability, device=self.device, dtype=torch.float
+            )
+        super()._spawn(dim_c, dim_p, dim_capability)
 
 
 # action of an agent
@@ -416,6 +436,11 @@ class Action(TorchVectorizedObject):
     @property
     def u_range(self):
         return self._u_range
+
+    @u_range.setter
+    def u_range(self, u_range: Tensor):
+        self._u_range = u_range
+
 
     @property
     def u_multiplier(self):
@@ -564,6 +589,9 @@ class Entity(TorchVectorizedObject, Observable, ABC):
     def shape(self):
         return self._shape
 
+    @shape.setter
+    def shape(self, shape: Shape):
+        self._shape = shape
     @property
     def max_speed(self):
         return self._max_speed
@@ -571,6 +599,10 @@ class Entity(TorchVectorizedObject, Observable, ABC):
     @property
     def v_range(self):
         return self._v_range
+
+    @v_range.setter
+    def v_range(self, v_range: float):
+        self._v_range = v_range
 
     @property
     def name(self):
@@ -630,8 +662,8 @@ class Entity(TorchVectorizedObject, Observable, ABC):
     def collision_filter(self, collision_filter: Callable[[Entity], bool]):
         self._collision_filter = collision_filter
 
-    def _spawn(self, dim_c: int, dim_p: int):
-        self.state._spawn(dim_c, dim_p)
+    def _spawn(self, dim_c: int, dim_p: int, dim_capability: int = None):
+            self.state._spawn(dim_c, dim_p, dim_capability)
 
     def _reset(self, env_index: int):
         self.state._reset(env_index)
@@ -647,7 +679,13 @@ class Entity(TorchVectorizedObject, Observable, ABC):
 
     def set_ang_vel(self, ang_vel: Tensor, batch_index: int):
         self._set_state_property(EntityState.ang_vel, self.state, ang_vel, batch_index)
-
+    
+    def set_capability(self, capability: Tensor, batch_index: int):
+        assert (
+            isinstance(self.state, AgentState)
+        ), f"Tried to set capability property of {self.name} which does not have state of type AgentState"
+        self._set_state_property(AgentState.capability, self.state, capability, batch_index)
+    
     def _set_state_property(
         self, prop, entity: EntityState, new: Tensor, batch_index: int
     ):
@@ -763,6 +801,7 @@ class Agent(Entity):
         sensors: List[Sensor] = None,
         c_noise: float = None,
         silent: bool = True,
+        capability_aware: bool = False,
         adversary: bool = False,
         drag: float = None,
         linear_friction: float = None,
@@ -811,7 +850,9 @@ class Agent(Entity):
         # non differentiable communication noise
         self._c_noise = c_noise
         # cannot send communication signals
-        self._silent = silent
+        self._silent = silent,
+        # capability awareness enabled/disabled
+        self._capability_aware = capability_aware
         # render the agent action force
         self._render_action = render_action
         # is adversary
@@ -916,6 +957,10 @@ class Agent(Entity):
         return self._silent
 
     @property
+    def capability_aware(self):
+        return self._capability_aware
+    
+    @property
     def sensors(self) -> List[Sensor]:
         return self._sensors
 
@@ -930,16 +975,33 @@ class Agent(Entity):
     @property
     def adversary(self):
         return self._adversary
+    
+    @property
+    def action(self):
+        return self._action
 
+    @action.setter
+    def action(self, action: Action):
+        self._action = action
+        
     @override(Entity)
-    def _spawn(self, dim_c: int, dim_p: int):
+    def _spawn(self, dim_c: int, dim_p: int, dim_capability: int = None):
         if dim_c == 0:
             assert (
                 self.silent
             ), f"Agent {self.name} must be silent when world has no communication"
         if self.silent:
             dim_c = 0
-        super()._spawn(dim_c, dim_p)
+
+        if dim_capability == 0:
+            assert(
+                not self.capability_aware
+            ), f"Agent {self.name} must have not have capabilities if dim_capability is set to 0"
+        
+        if(self.capability_aware):
+            dim_capability = 0
+        
+        super()._spawn(dim_c, dim_p, dim_capability)
 
     @override(Entity)
     def _reset(self, env_index: int):
@@ -992,6 +1054,7 @@ class World(TorchVectorizedObject):
         x_semidim: float = None,
         y_semidim: float = None,
         dim_c: int = 0,
+        dim_capability: int = 0,
         collision_force: float = COLLISION_FORCE,
         joint_force: float = JOINT_FORCE,
         contact_margin: float = 1e-3,
@@ -1010,6 +1073,8 @@ class World(TorchVectorizedObject):
         self._dim_p = 2
         # communication channel dimensionality
         self._dim_c = dim_c
+        # agent capabilities
+        self._dim_capability = dim_capability
         # simulation timestep
         self._dt = dt
         self._substeps = substeps
@@ -1045,7 +1110,7 @@ class World(TorchVectorizedObject):
         """Only way to add agents to the world"""
         agent.batch_dim = self._batch_dim
         agent.to(self._device)
-        agent._spawn(dim_c=self._dim_c, dim_p=self.dim_p)
+        agent._spawn(dim_c=self._dim_c, dim_p=self.dim_p, dim_capability=self._dim_capability)
         self._agents.append(agent)
 
     def add_landmark(self, landmark: Landmark):
@@ -2205,3 +2270,4 @@ class World(TorchVectorizedObject):
         super().to(device)
         for e in self.entities:
             e.to(device)
+
