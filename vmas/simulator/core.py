@@ -278,7 +278,7 @@ class EntityState(TorchVectorizedObject):
                 else:
                     attr[env_index] = 0.0
 
-    def _spawn(self, dim_c: int, dim_p: int):
+    def _spawn(self, dim_c: int, dim_p: int, dim_capability: int):
         self.pos = torch.zeros(
             self.batch_dim, dim_p, device=self.device, dtype=torch.float32
         )
@@ -330,7 +330,7 @@ class AgentState(EntityState):
         assert (
             capability.shape[0] == self._batch_dim
         ), f"Internal state must match batch dim, got {capability.shape[0]}, expected {self._batch_dim}"
-
+        self._capability = capability
     @override(EntityState)
     def _reset(self, env_index: typing.Optional[int]):
         for attr in [self.c, self.capability]:
@@ -342,18 +342,17 @@ class AgentState(EntityState):
         super()._reset(env_index)
 
     @override(EntityState)
-    def _spawn(self, dim_c: int, dim_p: int, dim_capability: int=None):
+    def _spawn(self, dim_c: int, dim_p: int, dim_capability: int):
         if dim_c > 0:
             self.c = torch.zeros(
                 self.batch_dim, dim_c, device=self.device, dtype=torch.float32
             )
 
-        if dim_capability is not None:
-            if dim_capability > 0:
-                self.capability = torch.zeros(
-                    self.batch_dim, dim_capability, device=self.device, dtype=torch.float
-                )
-        super()._spawn(dim_c, dim_p)
+        if dim_capability > 0:
+            self.capability = torch.zeros(
+                self.batch_dim, dim_capability, device=self.device, dtype=torch.float
+            )
+        super()._spawn(dim_c, dim_p, dim_capability)
 
 
 # action of an agent
@@ -437,6 +436,11 @@ class Action(TorchVectorizedObject):
     @property
     def u_range(self):
         return self._u_range
+
+    @u_range.setter
+    def u_range(self, u_range: Tensor):
+        self._u_range = u_range
+
 
     @property
     def u_multiplier(self):
@@ -585,6 +589,9 @@ class Entity(TorchVectorizedObject, Observable, ABC):
     def shape(self):
         return self._shape
 
+    @shape.setter
+    def shape(self, shape: Shape):
+        self._shape = shape
     @property
     def max_speed(self):
         return self._max_speed
@@ -592,6 +599,10 @@ class Entity(TorchVectorizedObject, Observable, ABC):
     @property
     def v_range(self):
         return self._v_range
+
+    @v_range.setter
+    def v_range(self, v_range: float):
+        self._v_range = v_range
 
     @property
     def name(self):
@@ -652,14 +663,7 @@ class Entity(TorchVectorizedObject, Observable, ABC):
         self._collision_filter = collision_filter
 
     def _spawn(self, dim_c: int, dim_p: int, dim_capability: int = None):
-        if(dim_capability is not None):
-            assert (
-                isinstance(self.state, AgentState)
-            ), f"Tried to set capability property of {self.name} which does not have state of type AgentState"
             self.state._spawn(dim_c, dim_p, dim_capability)
-        else:
-
-            self.state._spawn(dim_c, dim_p)
 
     def _reset(self, env_index: int):
         self.state._reset(env_index)
@@ -971,7 +975,15 @@ class Agent(Entity):
     @property
     def adversary(self):
         return self._adversary
+    
+    @property
+    def action(self):
+        return self._action
 
+    @action.setter
+    def action(self, action: Action):
+        self._action = action
+        
     @override(Entity)
     def _spawn(self, dim_c: int, dim_p: int, dim_capability: int = None):
         if dim_c == 0:
@@ -981,14 +993,15 @@ class Agent(Entity):
         if self.silent:
             dim_c = 0
 
-        if dim_capability is not None:
+        if dim_capability == 0:
             assert(
-                self.capability_aware
-            ), f"Agent {self.name} must have Agent.capability_aware when the agent has capabilities."
-            super()._spawn(dim_c, dim_p, dim_capability)
+                not self.capability_aware
+            ), f"Agent {self.name} must have not have capabilities if dim_capability is set to 0"
         
-        else:
-            super()._spawn(dim_c, dim_p)
+        if(self.capability_aware):
+            dim_capability = 0
+        
+        super()._spawn(dim_c, dim_p, dim_capability)
 
     @override(Entity)
     def _reset(self, env_index: int):
@@ -1041,6 +1054,7 @@ class World(TorchVectorizedObject):
         x_semidim: float = None,
         y_semidim: float = None,
         dim_c: int = 0,
+        dim_capability: int = 0,
         collision_force: float = COLLISION_FORCE,
         joint_force: float = JOINT_FORCE,
         contact_margin: float = 1e-3,
@@ -1059,6 +1073,8 @@ class World(TorchVectorizedObject):
         self._dim_p = 2
         # communication channel dimensionality
         self._dim_c = dim_c
+        # agent capabilities
+        self._dim_capability = dim_capability
         # simulation timestep
         self._dt = dt
         self._substeps = substeps
@@ -1094,7 +1110,7 @@ class World(TorchVectorizedObject):
         """Only way to add agents to the world"""
         agent.batch_dim = self._batch_dim
         agent.to(self._device)
-        agent._spawn(dim_c=self._dim_c, dim_p=self.dim_p)
+        agent._spawn(dim_c=self._dim_c, dim_p=self.dim_p, dim_capability=self._dim_capability)
         self._agents.append(agent)
 
     def add_landmark(self, landmark: Landmark):
@@ -2255,58 +2271,3 @@ class World(TorchVectorizedObject):
         for e in self.entities:
             e.to(device)
 
-# TODO: Remove Capability Agent since it is going to be natively included in the original Agent() class
-class CapabilityAwareAgent(Agent):
-    def __init__(self, name: str, capabilities_dict: Dict[str, float], shape: Shape = Sphere(), movable: bool = True, rotatable: bool = True, 
-                 collide: bool = True, density: float = 25, mass: float = 1, f_range: float = None, 
-                 max_f: float = None, t_range: float = None, max_t: float = None, v_range: float = None, 
-                 max_speed: float = None, color=Color.BLUE, alpha: float = 0.5, obs_range: float = None, 
-                 obs_noise: float = None, u_noise: float = None, u_range: float = 1, u_multiplier: float = 1, 
-                 u_rot_noise: float = None, u_rot_range: float = 0, u_rot_multiplier: float = 1, 
-                 action_script: Callable[[Agent, World], None] = None, sensors: List[Sensor] = None, 
-                 c_noise: float = None, silent: bool = True, adversary: bool = False, drag: float = None, 
-                 linear_friction: float = None, angular_friction: float = None, gravity: float = None, 
-                 collision_filter: Callable[[Entity], bool] = lambda _: True, render_action: bool = False):
-        super().__init__(name, 
-                         shape, 
-                         movable, 
-                         rotatable, 
-                         collide, 
-                         density, 
-                         mass, 
-                         f_range, 
-                         max_f, 
-                         t_range, 
-                         max_t, 
-                         v_range, 
-                         max_speed, 
-                         color, 
-                         alpha, 
-                         obs_range, 
-                         obs_noise, 
-                         u_noise, 
-                         u_range, 
-                         u_multiplier, 
-                         u_rot_noise, 
-                         u_rot_range, 
-                         u_rot_multiplier, 
-                         action_script, 
-                         sensors, 
-                         c_noise, 
-                         silent, 
-                         adversary, 
-                         drag, 
-                         linear_friction, 
-                         angular_friction, 
-                         gravity, 
-                         collision_filter, 
-                         render_action)
-        
-        self.capabilities_dict = capabilities_dict
-        self._capabilities = []
-        for capability, value in self.capabilities_dict.items():
-            self._capabilities.append(value)
-
-    @property
-    def capabilities(self) -> List[Sensor]:
-        return self._capabilities

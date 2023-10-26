@@ -2,7 +2,7 @@ import math
 from typing import Callable, List, Dict, Tuple
 import torch
 from vmas import render_interactively
-from vmas.simulator.core import Agent, Entity, Shape, World, Landmark, Sphere, Line, Box
+from vmas.simulator.core import Agent, Action, Entity, Shape, World, Landmark, Sphere, Line, Box
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.sensors import Sensor
 from vmas.simulator.utils import Color, TorchUtils
@@ -11,21 +11,14 @@ import numpy as np
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
+
+        self.batch_dim = batch_dim
         # self.v_range = kwargs.get("v_range", 0.5)
         self.a_range = kwargs.get("a_range", 1)
         self.obs_noise = kwargs.get("obs_noise", 0)
         self.linear_friction = kwargs.get("linear_friction", 0.1)
         self.mirror_passage = kwargs.get("mirror_passage", False)
         self.done_on_completion = kwargs.get("done_on_completion", False)
-
-        # agents have different sizes and max speeds
-        # TODO: Remove once you get the self._reset_capability_at function working.
-        # self.blue_agent_radius = kwargs.get("blue_agent_radius", np.random.uniform(0.10, 0.25))
-        # self.blue_agent_v_range = kwargs.get("blue_agent_max_vel", np.random.uniform(0.30, 0.50))
-        # self.green_agent_radius = kwargs.get("green_agent_radius", np.random.uniform(0.10, 0.25))
-        # self.green_agent_v_range = kwargs.get("green_agent_max_vel", np.random.uniform(0.10, 0.20))
-        # blue_agent_capabilities = {'max_vel': self.blue_agent_v_range, 'radius': self.blue_agent_radius}
-        # green_agent_capabilities = {'max_vel': self.green_agent_v_range, 'radius': self.green_agent_radius}
 
 
         # Reward params
@@ -47,19 +40,19 @@ class Scenario(BaseScenario):
         controller_params = [2, 6, 0.002]
 
         self.f_range = self.a_range + self.linear_friction
-        self.blue_agent_u_range = self.blue_agent_v_range if self.use_velocity_controller else self.f_range
-        self.green_agent_u_range = self.green_agent_v_range if self.use_velocity_controller else self.f_range
+        # self.blue_agent_u_range = self.blue_agent_v_range if self.use_velocity_controller else self.f_range
+        # self.green_agent_u_range = self.green_agent_v_range if self.use_velocity_controller else self.f_range
 
         # make world
         world = World(
-            batch_dim,
+            batch_dim, 
             device,
             drag=0,
             dt=0.05,
+            dim_capability=2,
             linear_friction=self.linear_friction,
             substeps=5, 
-            collision_force=500,
-        )
+            collision_force=500)
 
 
         self.spawn_pos_noise = 0.02
@@ -75,10 +68,8 @@ class Scenario(BaseScenario):
             color=Color.BLUE,
             rotatable=False,
             linear_friction=self.linear_friction,
-            shape=Sphere(radius=self.blue_agent_radius),
-            u_range=self.blue_agent_u_range,
+            shape=Sphere(radius=0.1),
             f_range = self.f_range,
-            v_range = self.blue_agent_v_range,
             render_action=True,
         )
         # TODO: Remove
@@ -92,7 +83,7 @@ class Scenario(BaseScenario):
         blue_goal = Landmark(
             name="blue goal",
             collide=False,
-            shape=Sphere(radius=self.green_agent_radius / 2),
+            shape=Sphere(radius=0.10),
             color=Color.BLUE,
         )
 
@@ -106,10 +97,8 @@ class Scenario(BaseScenario):
             color=Color.GREEN,
             rotatable=False,
             linear_friction=self.linear_friction,
-            shape=Sphere(radius=self.green_agent_radius),
-            u_range=self.green_agent_u_range,
+            shape=Sphere(radius=0.1), # will be reset by set capability function
             f_range = self.f_range,
-            v_range = self.green_agent_v_range,
             render_action=True,
         )
 
@@ -123,7 +112,7 @@ class Scenario(BaseScenario):
         green_goal = Landmark(
             name="green goal",
             collide=False,
-            shape=Sphere(radius=self.green_agent_radius / 2),
+            shape=Sphere(radius=0.1),
             color=Color.GREEN,
         )
 
@@ -133,14 +122,16 @@ class Scenario(BaseScenario):
 
         null_action=torch.zeros(world.batch_dim, world.dim_p, device=world.device)
 
-        # set the agent's capabilities
-        self._reset_capability_at()
-
         # control delayted by n dts
         blue_agent.input_queue = [null_action.clone() for _ in range(self.dt_delay)]
         green_agent.input_queue = [null_action.clone() for _ in range(self.dt_delay)]
         
         self.spawn_map(world)
+
+        # set the agent's capabilities
+        # NOTE: Agent's v_range and u_range will be reset in this function!
+        # self._reset_capability_at()
+
 
         # initialize agent rewards
         for agent in world.agents:
@@ -158,27 +149,57 @@ class Scenario(BaseScenario):
         Resets the blue and green agents capability
         When a None index is passed to env_index, the world should make a vectorized (batch) reset of capabilities
         """
+        # TODO: Enable loading from specific teams
+
         # capabilities [max velocity, agent radius]
         # blue agent
+        blue_agent_max_v = np.random.uniform(0.10, 0.50)
+        blue_agent_radius = np.random.uniform(0.10, 0.25)
+        green_agent_max_v = np.random.uniform(0.10, 0.50)
+        green_agent_radius = np.random.uniform(0.10, 0.25)
         self.world.agents[0].set_capability(
             torch.tensor(
-                [np.random.uniform(0.30, 0.50), np.random.uniform(0.10, 0.25)],
+                [blue_agent_max_v, blue_agent_radius],
                 dtype=torch.float32,
                 device=self.world.device
             ),
             batch_index=env_index,
         )
+        
+        # TODO: Note that only velocity controller is supported
+        self.world.agents[0].action = Action(
+            u_range=blue_agent_max_v,
+            u_multiplier = 1.0,
+            u_noise = None,
+            u_rot_range = 0.0,
+            u_rot_multiplier = 1.0,
+            u_rot_noise = None,
+        )
+        self.world.agents[0].action.to(self.world.device)  
+        self.world.agents[0].action.batch_dim = self.world.batch_dim      
+        self.world.agents[0].shape = Sphere(radius=blue_agent_radius)
 
         # green agent
         self.world.agents[1].set_capability(
             torch.tensor(
-                [np.random.uniform(0.10, 0.20), np.random.uniform(0.10, 0.25)],
+                [green_agent_max_v, green_agent_radius],
                 dtype=torch.float32,
                 device=self.world.device
             ),
             batch_index=env_index,
         )
-
+        self.world.agents[1].action = Action(
+            u_range=green_agent_max_v,
+            u_multiplier = 1.0,
+            u_noise = None,
+            u_rot_range = 0.0,
+            u_rot_multiplier = 1.0,
+            u_rot_noise = None
+        )
+        self.world.agents[1].action.to(self.world.device)
+        self.world.agents[1].action.batch_dim = self.world.batch_dim
+        self.world.agents[1].v_range = green_agent_max_v
+        self.world.agents[1].shape = Sphere(radius=green_agent_radius)        
 
     def reset_world_at(self, env_index: int = None):
         """
@@ -391,13 +412,11 @@ class Scenario(BaseScenario):
         )
     
     def observation(self, agent: Agent):
-        capabilities = agent.capabilities
         observations = [
             agent.state.pos,
             agent.state.vel,
-            agent.state.capability,
+            agent.state.capability
         ]
-
         if self.obs_noise > 0:
             # observation noise not added to capability, only position and velocity
             for i, obs in enumerate(observations[:-1]):
@@ -435,7 +454,7 @@ class Scenario(BaseScenario):
         self.small_ceiling_length = (self.scenario_length / 2) - (
             self.passage_length / 2
         )
-        self.goal_dist_from_wall = max(self.blue_agent_radius, self.green_agent_radius) + 0.05
+        self.goal_dist_from_wall = self.passage_width
         self.agent_dist_from_wall = 0.5
 
         self.walls = []
