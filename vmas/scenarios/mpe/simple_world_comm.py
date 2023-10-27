@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -110,21 +110,31 @@ class Scenario(BaseScenario):
 
         for agent in self.world.agents:
             agent.set_pos(
-                2
-                * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float32
-                )
-                - 1,
+                torch.zeros(
+                    (1, self.world.dim_p)
+                    if env_index is not None
+                    else (self.world.batch_dim, self.world.dim_p),
+                    device=self.world.device,
+                    dtype=torch.float32,
+                ).uniform_(
+                    -1.0,
+                    1.0,
+                ),
                 batch_index=env_index,
             )
 
         for landmark in self.world.landmarks:
             landmark.set_pos(
-                1.8
-                * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float32
-                )
-                - 0.9,
+                torch.zeros(
+                    (1, self.world.dim_p)
+                    if env_index is not None
+                    else (self.world.batch_dim, self.world.dim_p),
+                    device=self.world.device,
+                    dtype=torch.float32,
+                ).uniform_(
+                    -0.9,
+                    0.9,
+                ),
                 batch_index=env_index,
             )
 
@@ -331,7 +341,6 @@ class Scenario(BaseScenario):
                 dim=-1,
             )
         if agent.leader:
-
             return torch.cat(
                 [
                     agent.state.vel,

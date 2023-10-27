@@ -1,10 +1,10 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
 import torch
-from vmas import render_interactively
 
+from vmas import render_interactively
 from vmas.simulator.core import World, Agent, Landmark, Sphere
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color
@@ -58,21 +58,31 @@ class Scenario(BaseScenario):
 
         for agent in self.world.agents:
             agent.set_pos(
-                2
-                * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float32
-                )
-                - 1,
+                torch.zeros(
+                    (1, self.world.dim_p)
+                    if env_index is not None
+                    else (self.world.batch_dim, self.world.dim_p),
+                    device=self.world.device,
+                    dtype=torch.float32,
+                ).uniform_(
+                    -1.0,
+                    1.0,
+                ),
                 batch_index=env_index,
             )
 
         for landmark in self.world.landmarks:
             landmark.set_pos(
-                2
-                * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float32
-                )
-                - 1,
+                torch.zeros(
+                    (1, self.world.dim_p)
+                    if env_index is not None
+                    else (self.world.batch_dim, self.world.dim_p),
+                    device=self.world.device,
+                    dtype=torch.float32,
+                ).uniform_(
+                    -1.0,
+                    1.0,
+                ),
                 batch_index=env_index,
             )
 
