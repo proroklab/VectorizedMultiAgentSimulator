@@ -49,7 +49,7 @@ class Scenario(BaseScenario):
         entity_filter_agents: Callable[[Entity], bool] = lambda e: isinstance(e, Agent)
         for i in range(self.n_agents):
             agent = Agent(
-                name=f"agent {i}",
+                name=f"agent_{i}",
                 render_action=True,
                 collide=True,
                 shape=Sphere(radius=self.agent_radius),

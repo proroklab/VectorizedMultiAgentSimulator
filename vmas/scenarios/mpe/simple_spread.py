@@ -1,10 +1,10 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
 import torch
-from vmas import render_interactively
 
+from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, Sphere, World
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color
@@ -23,7 +23,7 @@ class Scenario(BaseScenario):
         # Add agents
         for i in range(num_agents):
             agent = Agent(
-                name=f"agent {i}",
+                name=f"agent_{i}",
                 collide=True,
                 shape=Sphere(radius=0.15),
                 color=Color.BLUE,
@@ -43,51 +43,63 @@ class Scenario(BaseScenario):
     def reset_world_at(self, env_index: int = None):
         for agent in self.world.agents:
             agent.set_pos(
-                2
-                * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float32
-                )
-                - 1,
+                torch.zeros(
+                    (1, self.world.dim_p)
+                    if env_index is not None
+                    else (self.world.batch_dim, self.world.dim_p),
+                    device=self.world.device,
+                    dtype=torch.float32,
+                ).uniform_(
+                    -1.0,
+                    1.0,
+                ),
                 batch_index=env_index,
             )
 
         for landmark in self.world.landmarks:
             landmark.set_pos(
-                2
-                * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float32
-                )
-                - 1,
+                torch.zeros(
+                    (1, self.world.dim_p)
+                    if env_index is not None
+                    else (self.world.batch_dim, self.world.dim_p),
+                    device=self.world.device,
+                    dtype=torch.float32,
+                ).uniform_(
+                    -1.0,
+                    1.0,
+                ),
                 batch_index=env_index,
             )
 
     def reward(self, agent: Agent):
-        # Agents are rewarded based on minimum agent distance to each landmark, penalized for collisions
-        rew = torch.zeros(
-            self.world.batch_dim, device=self.world.device, dtype=torch.float32
-        )
+        is_first = agent == self.world.agents[0]
+        if is_first:
+            # Agents are rewarded based on minimum agent distance to each landmark, penalized for collisions
+            self.rew = torch.zeros(
+                self.world.batch_dim, device=self.world.device, dtype=torch.float32
+            )
+            for single_agent in self.world.agents:
+                for landmark in self.world.landmarks:
+                    closest = torch.min(
+                        torch.stack(
+                            [
+                                torch.linalg.vector_norm(
+                                    a.state.pos - landmark.state.pos, dim=1
+                                )
+                                for a in self.world.agents
+                            ],
+                            dim=-1,
+                        ),
+                        dim=-1,
+                    )[0]
+                    self.rew -= closest
 
-        for landmark in self.world.landmarks:
-            closest = torch.min(
-                torch.stack(
-                    [
-                        torch.linalg.vector_norm(
-                            a.state.pos - landmark.state.pos, dim=1
-                        )
-                        for a in self.world.agents
-                    ],
-                    dim=1,
-                ),
-                dim=-1,
-            )[0]
-            rew -= closest
+                if single_agent.collide:
+                    for a in self.world.agents:
+                        if a != single_agent:
+                            self.rew[self.world.is_overlapping(a, single_agent)] -= 1
 
-        if agent.collide:
-            for a in self.world.agents:
-                if a != agent:
-                    rew[self.world.is_overlapping(a, agent)] -= 1
-
-        return rew
+        return self.rew
 
     def observation(self, agent: Agent):
         # get positions of all landmarks in this agent's reference frame

@@ -63,7 +63,7 @@ class Scenario(BaseScenario):
 
         # Add agents
         blue_agent = Agent(
-            name="blue agent",
+            name="blue_agent_0",
             rotatable=False,
             linear_friction=self.linear_friction,
             shape=Sphere(radius=self.agent_radius)
@@ -89,7 +89,7 @@ class Scenario(BaseScenario):
         world.add_landmark(blue_goal)
 
         green_agent = Agent(
-            name="green agent",
+            name="green_agent_0",
             color=Color.GREEN,
             linear_friction=self.linear_friction,
             shape=Sphere(radius=self.agent_radius)

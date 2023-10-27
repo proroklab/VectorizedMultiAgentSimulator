@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -24,7 +24,7 @@ class Scenario(BaseScenario):
         for i in range(n_agents):
             # Constraint: all agents have same action range and multiplier
             agent = Agent(
-                name=f"agent {i}",
+                name=f"agent_{i}",
                 collide=False,
                 shape=Sphere(radius=0.035),
             )

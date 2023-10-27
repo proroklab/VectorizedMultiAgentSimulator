@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -17,7 +17,7 @@ class Scenario(BaseScenario):
 
         # Add agents
         for i in range(n_agents):
-            agent = Agent(name=f"agent {i}", collide=False, silent=False)
+            agent = Agent(name=f"agent_{i}", collide=False, silent=False)
             world.add_agent(agent)
         # Add landmarks
         for i in range(n_landmarks):
@@ -66,34 +66,50 @@ class Scenario(BaseScenario):
         # set random initial states
         for agent in self.world.agents:
             agent.set_pos(
-                2
-                * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float32
-                )
-                - 1,
+                torch.zeros(
+                    (1, self.world.dim_p)
+                    if env_index is not None
+                    else (self.world.batch_dim, self.world.dim_p),
+                    device=self.world.device,
+                    dtype=torch.float32,
+                ).uniform_(
+                    -1.0,
+                    1.0,
+                ),
                 batch_index=env_index,
             )
         for landmark in self.world.landmarks:
             landmark.set_pos(
-                2
-                * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float32
-                )
-                - 1,
+                torch.zeros(
+                    (1, self.world.dim_p)
+                    if env_index is not None
+                    else (self.world.batch_dim, self.world.dim_p),
+                    device=self.world.device,
+                    dtype=torch.float32,
+                ).uniform_(
+                    -1.0,
+                    1.0,
+                ),
                 batch_index=env_index,
             )
 
     def reward(self, agent: Agent):
-        if agent.goal_a is None or agent.goal_b is None:
-            return torch.zeros(
-                self.world.batch_dim, device=self.world.device, dtype=torch.float32
-            )
-        dist2 = torch.sqrt(
-            torch.sum(
-                torch.square(agent.goal_a.state.pos - agent.goal_b.state.pos), dim=-1
-            )
-        )
-        return -dist2
+        is_first = agent == self.world.agents[0]
+        if is_first:
+            self.rew = torch.zeros(self.world.batch_dim, device=self.world.device)
+            for a in self.world.agents:
+                if a.goal_a is None or a.goal_b is None:
+                    return torch.zeros(
+                        self.world.batch_dim,
+                        device=self.world.device,
+                        dtype=torch.float32,
+                    )
+                self.rew += -torch.sqrt(
+                    torch.sum(
+                        torch.square(a.goal_a.state.pos - a.goal_b.state.pos), dim=-1
+                    )
+                )
+        return self.rew
 
     def observation(self, agent: Agent):
         # goal color

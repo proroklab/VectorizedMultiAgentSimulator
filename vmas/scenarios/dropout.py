@@ -6,6 +6,7 @@ from typing import Dict
 
 import torch
 from torch import Tensor
+
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, Sphere, World
 from vmas.simulator.scenario import BaseScenario
@@ -26,7 +27,7 @@ class Scenario(BaseScenario):
         # Add agents
         for i in range(n_agents):
             # Constraint: all agents have same action range and multiplier
-            agent = Agent(name=f"agent {i}", collide=False)
+            agent = Agent(name=f"agent_{i}", collide=False)
             world.add_agent(agent)
         # Add landmarks
         goal = Landmark(

@@ -4,7 +4,7 @@ Scenario:
 adversary to goal. Adversary is rewarded for its distance to the goal.
 """
 
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -34,7 +34,7 @@ class Scenario(BaseScenario):
             adversary = True if i < num_adversaries else False
             speaker = True if i == 2 else False
             agent = Agent(
-                name=("eve" if adversary else ("alice" if speaker else "bob")),
+                name=("eve_0" if adversary else ("alice_0" if speaker else "bob_0")),
                 collide=False,
                 movable=False,
                 color=Color.RED
@@ -61,11 +61,16 @@ class Scenario(BaseScenario):
                 agent.key = None if not agent.speaker else key
                 agent.secret = secret
                 agent.set_pos(
-                    2
-                    * torch.rand(
-                        self.world.dim_p, device=self.world.device, dtype=torch.float32
-                    )
-                    - 1,
+                    torch.zeros(
+                        (1, self.world.dim_p)
+                        if env_index is not None
+                        else (self.world.batch_dim, self.world.dim_p),
+                        device=self.world.device,
+                        dtype=torch.float32,
+                    ).uniform_(
+                        -1.0,
+                        1.0,
+                    ),
                     batch_index=env_index,
                 )
         else:

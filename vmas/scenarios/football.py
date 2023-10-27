@@ -7,6 +7,7 @@ import operator
 from functools import reduce
 
 import torch
+
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World, Landmark, Sphere, Box, Line
 from vmas.simulator.scenario import BaseScenario
@@ -82,7 +83,7 @@ class Scenario(BaseScenario):
         blue_agents = []
         for i in range(self.n_blue_agents):
             agent = Agent(
-                name=f"Agent Blue {i}",
+                name=f"agent_blue_{i}",
                 shape=Sphere(radius=self.agent_size),
                 action_script=self.blue_controller.run if self.ai_blue_agents else None,
                 u_multiplier=self.u_multiplier,
@@ -95,7 +96,7 @@ class Scenario(BaseScenario):
         red_agents = []
         for i in range(self.n_red_agents):
             agent = Agent(
-                name=f"Agent Red {i}",
+                name=f"agent_red_{i}",
                 shape=Sphere(radius=self.agent_size),
                 action_script=self.red_controller.run if self.ai_red_agents else None,
                 u_multiplier=self.u_multiplier,
