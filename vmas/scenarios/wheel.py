@@ -1,6 +1,6 @@
 #  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
-#  All rights reserved.rved.
+#  All rights reserved.
 
 import torch
 
