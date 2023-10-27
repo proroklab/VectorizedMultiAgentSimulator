@@ -17,7 +17,7 @@ class Scenario(BaseScenario):
 
         # Add agents
         for i in range(n_agents):
-            agent = Agent(name=f"agent {i}", collide=False, silent=False)
+            agent = Agent(name=f"agent_{i}", collide=False, silent=False)
             world.add_agent(agent)
         # Add landmarks
         for i in range(n_landmarks):

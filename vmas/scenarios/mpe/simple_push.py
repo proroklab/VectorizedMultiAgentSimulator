@@ -23,8 +23,9 @@ class Scenario(BaseScenario):
         # Add agents
         for i in range(num_agents):
             adversary = True if i < num_adversaries else False
+            name = f"adversary_{i}" if adversary else f"agent_{i - num_adversaries}"
             agent = Agent(
-                name=f"agent {i}",
+                name=name,
                 collide=True,
                 adversary=adversary,
             )

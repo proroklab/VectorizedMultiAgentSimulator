@@ -39,9 +39,9 @@ class Scenario(BaseScenario):
             drag=0,
         )
         # Add agents
-        agent = Agent(name="agent 0", shape=Sphere(self.agent_radius), drag=0.25)
+        agent = Agent(name="agent_0", shape=Sphere(self.agent_radius), drag=0.25)
         world.add_agent(agent)
-        agent = Agent(name="agent 1", shape=Sphere(self.agent_radius), drag=0.25)
+        agent = Agent(name="agent_1", shape=Sphere(self.agent_radius), drag=0.25)
         world.add_agent(agent)
 
         self.ball = Landmark(
@@ -79,7 +79,6 @@ class Scenario(BaseScenario):
         return world
 
     def reset_world_at(self, env_index: int = None):
-
         ball_pos = torch.zeros(
             (1, self.world.dim_p)
             if env_index is not None
@@ -163,7 +162,6 @@ class Scenario(BaseScenario):
             )
 
     def reward(self, agent: Agent):
-
         pos_shaping = (
             torch.linalg.vector_norm(
                 self.ball.state.pos

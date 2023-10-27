@@ -23,7 +23,7 @@ class Scenario(BaseScenario):
         # Add agents
         for i in range(num_agents):
             agent = Agent(
-                name=f"agent {i}",
+                name=f"agent_{i}",
                 collide=True,
                 shape=Sphere(radius=0.15),
                 color=Color.BLUE,

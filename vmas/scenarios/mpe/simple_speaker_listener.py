@@ -18,8 +18,9 @@ class Scenario(BaseScenario):
         # Add agents
         for i in range(num_agents):
             speaker = True if i == 0 else False
+            name = "speaker_0" if speaker else "listener_0"
             agent = Agent(
-                name=f"agent {i}",
+                name=name,
                 collide=False,
                 movable=False if speaker else True,
                 silent=False if speaker else True,

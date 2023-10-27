@@ -6,6 +6,7 @@ from typing import Dict, Callable, List
 
 import torch
 from torch import Tensor
+
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, World, Sphere, Entity
 from vmas.simulator.scenario import BaseScenario
@@ -81,7 +82,7 @@ class Scenario(BaseScenario):
 
             # Constraint: all agents have same action range and multiplier
             agent = Agent(
-                name=f"agent {i}",
+                name=f"agent_{i}",
                 collide=self.collisions,
                 color=color,
                 shape=Sphere(radius=self.agent_radius),

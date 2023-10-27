@@ -24,17 +24,23 @@ class Scenario(BaseScenario):
         # Add agents
         for i in range(num_agents):
             adversary = True if i < num_adversaries else False
+            leader = True if i == 0 else False
+            name = (
+                "lead_adversary_0"
+                if leader
+                else (f"adversary_{i}" if adversary else f"agent_{i-num_adversaries}")
+            )
             agent = Agent(
-                name=f"agent {i}",
+                name=name,
                 collide=True,
                 shape=Sphere(radius=0.075 if adversary else 0.045),
                 u_multiplier=3.0 if adversary else 4.0,
                 max_speed=1.0 if adversary else 1.3,
                 color=Color.RED if adversary else Color.GREEN,
                 adversary=adversary,
-                silent=True if i > 0 else False,
+                silent=not leader,
             )
-            agent.leader = True if i == 0 else False
+            agent.leader = leader
             world.add_agent(agent)
         # Add landmarks
         for i in range(num_landmarks):

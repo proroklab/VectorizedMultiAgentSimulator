@@ -5,6 +5,7 @@ from typing import Dict
 
 import torch
 from torch import Tensor
+
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, Sphere, World, Line
 from vmas.simulator.joints import Joint
@@ -38,14 +39,14 @@ class Scenario(BaseScenario):
         )
         # Add agents
         agent = Agent(
-            name="agent 0",
+            name="agent_0",
             shape=Sphere(self.agent_radius),
             u_multiplier=1,
             mass=1,
         )
         world.add_agent(agent)
         agent = Agent(
-            name="agent 1",
+            name="agent_1",
             shape=Sphere(self.agent_radius),
             u_multiplier=1,
             mass=1,
