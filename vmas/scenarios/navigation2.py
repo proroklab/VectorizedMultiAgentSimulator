@@ -18,6 +18,8 @@ from vmas.simulator.core import Agent, Landmark, World, Sphere, Entity
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.sensors import Lidar
 from vmas.simulator.utils import Color, ScenarioUtils
+from vmas.simulator.controllers.velocity_controller import VelocityController
+
 
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
@@ -31,8 +33,8 @@ class Scenario(BaseScenario):
 
         self.observe_all_goals = kwargs.get("observe_all_goals", False)
 
-        self.lidar_range = kwargs.get("lidar_range", 0.35)
         self.agent_radius = kwargs.get("agent_radius", 0.1)
+        self.lidar_range = kwargs.get("lidar_range", self.agent_radius*2)
         self.comms_range = kwargs.get("comms_range", 0)
 
         self.shared_rew = kwargs.get("shared_rew", True)
@@ -48,6 +50,8 @@ class Scenario(BaseScenario):
         self.world_semidim = 1
         
         self.min_collision_distance = 0.005
+
+        controller_params = [2, 6, 0.002]
 
          # Make world
         world = World(batch_dim, device, substeps=2)
@@ -91,6 +95,9 @@ class Scenario(BaseScenario):
                 ]
                 if self.collisions
                 else None,
+            )
+            agent.controller = VelocityController(
+                agent, world, controller_params, "standard"
             )
             agent.pos_rew = torch.zeros(batch_dim, device=device)
             agent.agent_collision_rew = agent.pos_rew.clone()

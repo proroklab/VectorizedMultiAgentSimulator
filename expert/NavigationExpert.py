@@ -1,3 +1,9 @@
+'''
+This is a proof of concept expert.
+The goal of this is to act as a template on how to create the real expert once the policy architecture is created
+This is not meant to be the final code that we are using
+'''
+
 import torch
 from torch.nn import ModuleDict
 import time
@@ -6,7 +12,14 @@ import xml.etree.ElementTree as ET
 from PIL import Image
 from vmas import make_env
 
-def select_action(position, waypoint):    
+stepsPerTimeInterval = 25 #This still assumes constant velocity...
+
+def select_action(position, waypoint):   
+    #Proof of concept action selector based on agent's position and desired waypoint
+    #This can be modified however needed to select better actions
+
+    ''' 
+    #For discrete actions
     x_mag = waypoint[0] - position[0]
     y_mag = waypoint[1] - position[1]
     if abs(x_mag) > abs(y_mag):
@@ -19,9 +32,17 @@ def select_action(position, waypoint):
             return [3]
         else:
             return [4]
+    '''
+
+    #For continuous actions
+    action = []
+    action.append(2 * (waypoint[0] - position[0]))
+    action.append(2 * (waypoint[1] - position[1]))
+
+    return action
 
 def get_agent_action(episodes, obs, steps):
-    scenario_time = steps / 40.0 #TODO this needs to be better
+    scenario_time = steps / stepsPerTimeInterval
     actions = []
     for i, ob in enumerate(obs.values()):
         env_actions = []
@@ -35,7 +56,7 @@ def get_agent_action(episodes, obs, steps):
                     appended = True
                     break
             if not appended:
-                env_actions.append([0])
+                env_actions.append(select_action([x,y],episode[i][-1][1:]))
         actions.append(env_actions)
         
     return actions
@@ -48,9 +69,8 @@ f = os.path.dirname(__file__)
 config = ET.parse(f'{f}/config.xml')
 config_root = config.getroot()
 agent_size = float(config_root.find('.//agent_size').text)
-time_limit = int(config_root.find('.//timelimit').text)
 
-#Load in all of the pregenerated episodes
+#Load in all of the pre generated episodes
 episodes = {}
 for file in os.listdir(f'{f}/logs/'):
     if file[-3:] != 'xml':
@@ -89,14 +109,14 @@ scenario_name = 'navigation2' #Scenario name
 n_agents = len(episodes[next(iter(episodes))].keys()) #Assumes all episodes has same number of agents
 
 num_envs = 5  # Number of vectorized environments
-continuous_actions = False
-n_steps = 360  # Number of steps before returning done
+continuous_actions = True
+n_steps = 500 # Number of steps before returning done
 dict_spaces = True  # Weather to return obs, rewards, and infos as dictionaries with agent names (by default they are lists of len # of agents)
 
-simple_2d_action = (
-    [0, 0.5] if continuous_actions else [3]
-)  # Simple action tell each agent to go down
-obs = []
+start_action = (
+    [0, 0] if continuous_actions else [0]
+)  # Simple action to start the program 
+
 env = make_env(
     scenario=scenario_name,
     num_envs=num_envs,
@@ -107,19 +127,21 @@ env = make_env(
     seed=None,
     # Environment specific variables
     n_agents=n_agents,
-    episodes = episodes
+    episodes = episodes,
+    agent_radius = agent_size
 )
 
 frame_list = []  # For creating a gif
 init_time = time.time()
 step = 0
 actions = {} 
+obs = []
 for s in range(n_steps):
     step += 1
     print(f"Step {step}")
     
     if len(obs) == 0:
-        agent_actions = [[simple_2d_action] * num_envs]* len(env.agents)
+        agent_actions = [[start_action] * num_envs]* len(env.agents)
     else:
         agent_actions = get_agent_action(episodes, obs, step)
 
@@ -127,7 +149,7 @@ for s in range(n_steps):
         action = torch.tensor(
             agent_actions[i],
             device=device,
-        )#.repeat(num_envs, 1)
+        )
         actions.update({agent.name: action})
 
     obs, rews, dones, info = env.step(actions)
@@ -135,6 +157,9 @@ for s in range(n_steps):
     frame_list.append(
         Image.fromarray(env.render(mode="rgb_array", agent_index_focus=None))
     )
+
+    if dones.all():
+        break
 
 total_time = time.time() - init_time
 print(
