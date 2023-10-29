@@ -1,0 +1,111 @@
+<?xml version='1.0' encoding='utf-8'?>
+<root>
+    <agent start_i="2" start_j="8" goal_i="6" goal_j="7"/>
+    <agent start_i="7" start_j="3" goal_i="0" goal_j="6"/>
+    <agent start_i="2" start_j="2" goal_i="7" goal_j="9"/>
+    <agent start_i="0" start_j="8" goal_i="6" goal_j="8"/>
+    <agent start_i="8" start_j="2" goal_i="1" goal_j="5"/>
+    <agent start_i="5" start_j="7" goal_i="8" goal_j="6"/>
+    <agent start_i="5" start_j="6" goal_i="8" goal_j="0"/>
+    <agent start_i="1" start_j="2" goal_i="3" goal_j="5"/>
+    <agent start_i="9" start_j="9" goal_i="0" goal_j="0"/>
+    <agent start_i="9" start_j="4" goal_i="7" goal_j="2"/>
+    <log>
+        <summary time="0.001157838" flowtime="66.597979746446669" makespan="13.313708498984763"/>
+        <agent number="0">
+            <path duration="4.4142135623730949">
+                <section number="0" start_i="2" start_j="8" goal_i="3" goal_j="7" duration="1.4142135623730951"/>
+                <section number="1" start_i="3" start_j="7" goal_i="4" goal_j="7" duration="0.99999999999999978"/>
+                <section number="2" start_i="4" start_j="7" goal_i="5" goal_j="7" duration="1"/>
+                <section number="3" start_i="5" start_j="7" goal_i="6" goal_j="7" duration="1"/>
+            </path>
+        </agent>
+        <agent number="1">
+            <path duration="8.2426406871192857">
+                <section number="0" start_i="7" start_j="3" goal_i="6" goal_j="4" duration="1.4142135623730951"/>
+                <section number="1" start_i="6" start_j="4" goal_i="5" goal_j="5" duration="1.4142135623730951"/>
+                <section number="2" start_i="5" start_j="5" goal_i="4" goal_j="6" duration="1.4142135623730954"/>
+                <section number="3" start_i="4" start_j="6" goal_i="3" goal_j="6" duration="1"/>
+                <section number="4" start_i="3" start_j="6" goal_i="2" goal_j="6" duration="1"/>
+                <section number="5" start_i="2" start_j="6" goal_i="1" goal_j="6" duration="1"/>
+                <section number="6" start_i="1" start_j="6" goal_i="0" goal_j="6" duration="1"/>
+            </path>
+        </agent>
+        <agent number="2">
+            <path duration="9.0710678118654755">
+                <section number="0" start_i="2" start_j="2" goal_i="3" goal_j="3" duration="1.4142135623730951"/>
+                <section number="1" start_i="3" start_j="3" goal_i="4" goal_j="4" duration="1.4142135623730951"/>
+                <section number="2" start_i="4" start_j="4" goal_i="5" goal_j="5" duration="1.4142135623730954"/>
+                <section number="3" start_i="5" start_j="5" goal_i="6" goal_j="6" duration="1.4142135623730949"/>
+                <section number="4" start_i="6" start_j="6" goal_i="7" goal_j="7" duration="1.4142135623730949"/>
+                <section number="5" start_i="7" start_j="7" goal_i="7" goal_j="8" duration="1"/>
+                <section number="6" start_i="7" start_j="8" goal_i="7" goal_j="9" duration="1"/>
+            </path>
+        </agent>
+        <agent number="3">
+            <path duration="6">
+                <section number="0" start_i="0" start_j="8" goal_i="1" goal_j="8" duration="1"/>
+                <section number="1" start_i="1" start_j="8" goal_i="2" goal_j="8" duration="1"/>
+                <section number="2" start_i="2" start_j="8" goal_i="3" goal_j="8" duration="1"/>
+                <section number="3" start_i="3" start_j="8" goal_i="4" goal_j="8" duration="1"/>
+                <section number="4" start_i="4" start_j="8" goal_i="5" goal_j="8" duration="1"/>
+                <section number="5" start_i="5" start_j="8" goal_i="6" goal_j="8" duration="1"/>
+            </path>
+        </agent>
+        <agent number="4">
+            <path duration="8.2426406871192839">
+                <section number="0" start_i="8" start_j="2" goal_i="7" goal_j="3" duration="1.4142135623730951"/>
+                <section number="1" start_i="7" start_j="3" goal_i="6" goal_j="4" duration="1.4142135623730951"/>
+                <section number="2" start_i="6" start_j="4" goal_i="5" goal_j="4" duration="1"/>
+                <section number="3" start_i="5" start_j="4" goal_i="4" goal_j="4" duration="0.99999999999999956"/>
+                <section number="4" start_i="4" start_j="4" goal_i="3" goal_j="4" duration="1"/>
+                <section number="5" start_i="3" start_j="4" goal_i="2" goal_j="5" duration="1.4142135623730949"/>
+                <section number="6" start_i="2" start_j="5" goal_i="1" goal_j="5" duration="0.99999999999999911"/>
+            </path>
+        </agent>
+        <agent number="5">
+            <path duration="3.4142135623730949">
+                <section number="0" start_i="5" start_j="7" goal_i="6" goal_j="6" duration="1.4142135623730951"/>
+                <section number="1" start_i="6" start_j="6" goal_i="7" goal_j="6" duration="0.99999999999999978"/>
+                <section number="2" start_i="7" start_j="6" goal_i="8" goal_j="6" duration="1"/>
+            </path>
+        </agent>
+        <agent number="6">
+            <path duration="7.2426406871192857">
+                <section number="0" start_i="5" start_j="6" goal_i="6" goal_j="5" duration="1.4142135623730951"/>
+                <section number="1" start_i="6" start_j="5" goal_i="7" goal_j="4" duration="1.4142135623730951"/>
+                <section number="2" start_i="7" start_j="4" goal_i="8" goal_j="3" duration="1.4142135623730954"/>
+                <section number="3" start_i="8" start_j="3" goal_i="8" goal_j="2" duration="1"/>
+                <section number="4" start_i="8" start_j="2" goal_i="8" goal_j="1" duration="1"/>
+                <section number="5" start_i="8" start_j="1" goal_i="8" goal_j="0" duration="1"/>
+            </path>
+        </agent>
+        <agent number="7">
+            <path duration="3.8284271247461898">
+                <section number="0" start_i="1" start_j="2" goal_i="1" goal_j="3" duration="1"/>
+                <section number="1" start_i="1" start_j="3" goal_i="2" goal_j="4" duration="1.4142135623730949"/>
+                <section number="2" start_i="2" start_j="4" goal_i="3" goal_j="5" duration="1.4142135623730949"/>
+            </path>
+        </agent>
+        <agent number="8">
+            <path duration="13.313708498984763">
+                <section number="0" start_i="9" start_j="9" goal_i="8" goal_j="8" duration="1.4142135623730951"/>
+                <section number="1" start_i="8" start_j="8" goal_i="7" goal_j="7" duration="1.4142135623730951"/>
+                <section number="2" start_i="7" start_j="7" goal_i="7" goal_j="6" duration="1"/>
+                <section number="3" start_i="7" start_j="6" goal_i="6" goal_j="5" duration="1.4142135623730954"/>
+                <section number="4" start_i="6" start_j="5" goal_i="5" goal_j="4" duration="1.4142135623730949"/>
+                <section number="5" start_i="5" start_j="4" goal_i="4" goal_j="3" duration="1.4142135623730949"/>
+                <section number="6" start_i="4" start_j="3" goal_i="3" goal_j="2" duration="1.4142135623730958"/>
+                <section number="7" start_i="3" start_j="2" goal_i="2" goal_j="1" duration="1.4142135623730958"/>
+                <section number="8" start_i="2" start_j="1" goal_i="1" goal_j="0" duration="1.4142135623730958"/>
+                <section number="9" start_i="1" start_j="0" goal_i="0" goal_j="0" duration="1"/>
+            </path>
+        </agent>
+        <agent number="9">
+            <path duration="2.8284271247461903">
+                <section number="0" start_i="9" start_j="4" goal_i="8" goal_j="3" duration="1.4142135623730951"/>
+                <section number="1" start_i="8" start_j="3" goal_i="7" goal_j="2" duration="1.4142135623730951"/>
+            </path>
+        </agent>
+    </log>
+</root>

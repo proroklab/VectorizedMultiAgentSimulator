@@ -44,6 +44,7 @@ class Scenario(BaseScenario):
         self.agent_collision_penalty = kwargs.get("agent_collision_penalty", -1)
 
         self.episodes = kwargs.get('episodes')
+        self.map = kwargs.get('map')
 
         #TODO delete next two lines
         self.min_distance_between_entities = self.agent_radius * 2 + 0.05
