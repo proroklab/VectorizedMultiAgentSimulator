@@ -14,7 +14,7 @@ import random
 import torch
 from torch import Tensor
 from vmas import render_interactively
-from vmas.simulator.core import Agent, Landmark, World, Sphere, Entity
+from vmas.simulator.core import Agent, Box, Landmark, World, Sphere, Entity
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.sensors import Lidar
 from vmas.simulator.utils import Color, ScenarioUtils
@@ -45,10 +45,7 @@ class Scenario(BaseScenario):
 
         self.episodes = kwargs.get('episodes')
         self.map = kwargs.get('map')
-
-        #TODO delete next two lines
-        self.min_distance_between_entities = self.agent_radius * 2 + 0.05
-        self.world_semidim = 1
+        self.first = True
         
         self.min_collision_distance = 0.005
 
@@ -113,6 +110,16 @@ class Scenario(BaseScenario):
             world.add_landmark(goal)
             agent.goal = goal
 
+        #Add in the map obstacles
+        indices = torch.nonzero(self.map == 1)
+        for coord in indices:
+            obstacle = Landmark(
+                name = f"Obstacle at {coord}",
+                collide = True,
+                shape = Box(1,1)
+            )
+            world.add_landmark(obstacle)            
+
         self.pos_rew = torch.zeros(batch_dim, device=device)
         self.final_rew = self.pos_rew.clone()
 
@@ -120,6 +127,21 @@ class Scenario(BaseScenario):
 
     def reset_world_at(self, env_index: int = None):
         episode_name, episode_agents = random.choice(list(self.episodes.items()))
+
+        if self.first:
+            #TODO: is there a way to do this in the constructor since it only needs to happen once?
+            counter = 0
+            indices = torch.nonzero(self.map == 1)
+            for i,coord in enumerate(indices):
+                self.world.landmarks[i+self.n_agents].set_pos(
+                    torch.tensor(
+                        [coord[1], coord[0]],
+                        dtype=torch.float32,
+                        device=self.world.device
+                    ),
+                    batch_index = None
+                )
+            self.first=False
 
         for i, agent in enumerate(self.world.agents):
             agent.set_pos(

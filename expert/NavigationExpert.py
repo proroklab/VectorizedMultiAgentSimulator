@@ -34,10 +34,10 @@ def load_map(map_file, device):
     for i, row_element in enumerate(row_elements):
         row_data = row_element.text.split()
         for j, value in enumerate(row_data):
-            grid[i, j] = int(value)
-    return grid
+            grid[height - 1 - i, j] = int(value)
+    return grid, width, height
 
-def load_episodes(log_dir, device):
+def load_episodes(log_dir, device, width, height):
     f = os.path.dirname(__file__)
     episodes = {}
     for file in os.listdir(f'{f}/{log_dir}/'):
@@ -49,7 +49,7 @@ def load_episodes(log_dir, device):
         episode_name = int(file[:-4].split('_')[-2])
         
         agent_paths = {}
-        log = ET.parse(f'{f}/logs/{file}')
+        log = ET.parse(f'{f}/{log_dir}/{file}')
         log_root = log.getroot()
         agents = log_root.findall(".//agent[@number]")
         for agent in agents:
@@ -60,13 +60,13 @@ def load_episodes(log_dir, device):
             first = True
             for waypoint in sections:
                 if first:
-                    x = int(waypoint.get('start_i'))
-                    y = int(waypoint.get('start_j'))
+                    y = height - 1 - int(waypoint.get('start_i')) #i is row, j is column...
+                    x = int(waypoint.get('start_j'))
                     duration = 0.0
                     waypoints.append(torch.tensor([duration, x, y], device=device))
                     first=False
-                x = int(waypoint.get("goal_i"))
-                y = int(waypoint.get('goal_j'))
+                y = height - 1 - int(waypoint.get("goal_i"))
+                x = int(waypoint.get('goal_j'))
                 duration = float(waypoint.get('duration')) + waypoints[-1][0]
                 waypoints.append(torch.tensor([duration, x, y], device=device))
             agent_paths[number] = waypoints
@@ -142,11 +142,11 @@ def main(args):
     config_root = config.getroot()
     agent_size = float(config_root.find('.//agent_size').text)
 
+    #load map. Currently assumes every task takes place on the same map
+    grid_map, width, height = load_map(args.map, device)
+    
     #Load in all of the pre generated episodes
-    episodes = load_episodes(args.log_dir, device=device)
-
-    #load map
-    grid_map = load_map(args.map, device)
+    episodes = load_episodes(args.log_dir, device, width, height)
 
     scenario_name = 'navigation2' #Scenario name
 
@@ -155,7 +155,7 @@ def main(args):
 
     num_envs = args.num_envs  # Number of vectorized environments
     continuous_actions = True
-    n_steps = 500 # Number of steps before returning done
+    n_steps = args.max_steps # Number of steps before returning done
     dict_spaces = True  # Weather to return obs, rewards, and infos as dictionaries with agent names (by default they are lists of len # of agents)
 
     start_action = (
@@ -225,12 +225,13 @@ def main(args):
 
 
 def create_parser():
-    parser = argparse.ArgumentParser(description='Generate a bunch of random scenarios based on the given map')
+    parser = argparse.ArgumentParser(description='Use the expert to solve the navigation2 scenario')
     parser.add_argument('--map', '-m', default='grid_map.xml', type=str, help='The map to generate tasks for. Only supports grid type maps')
     parser.add_argument('--config', '-c', default='config.xml', help='The config file for the task')
     parser.add_argument('--log_dir', '-l', default='logs', help='local path to logs directory')
     parser.add_argument('--device', '-d', default = 'cpu', help='device to run on')
     parser.add_argument('--num_envs', type=int, default = 10, help='number of environments to run at once')
+    parser.add_argument('--max_steps', type=int, default = 500, help='Max number of steps to run for')
     return parser
 
 if __name__ == "__main__":
