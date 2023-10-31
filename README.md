@@ -9,6 +9,11 @@
 <img src="https://github.com/matteobettini/vmas-media/blob/main/media/VMAS_scenarios.gif?raw=true" alt="drawing"/>  
 </p>
 
+> [!NOTE]  
+> We have just released [BenchMARL](https://github.com/facebookresearch/BenchMARL), a benchmarking library where you 
+> can train VMAS tasks using TorchRL!
+> Check out [how easy it is to use it.](https://colab.research.google.com/github/facebookresearch/BenchMARL/blob/main/notebooks/run.ipynb).
+
 ## Welcome to VMAS!
 
 This repository contains the code for the Vectorized Multi-Agent Simulator (VMAS).
@@ -19,7 +24,8 @@ Scenario creation is made simple and modular to incentivize contributions.
 VMAS simulates agents and landmarks of different shapes and supports rotations, elastic collisions, joints, and custom gravity.
 Holonomic motion models are used for the agents to simplify simulation. Custom sensors such as LIDARs are available and the simulator supports inter-agent communication.
 Vectorization in [PyTorch](https://pytorch.org/) allows VMAS to perform simulations in a batch, seamlessly scaling to tens of thousands of parallel environments on accelerated hardware.
-VMAS has an interface compatible with [OpenAI Gym](https://github.com/openai/gym), with [RLlib](https://docs.ray.io/en/latest/rllib/index.html) and with [torchrl](https://github.com/pytorch/rl), enabling out-of-the-box integration with a wide range of RL algorithms. 
+VMAS has an interface compatible with [OpenAI Gym](https://github.com/openai/gym), with [RLlib](https://docs.ray.io/en/latest/rllib/index.html), with [torchrl](https://github.com/pytorch/rl) and its MARL training library: [BenchMARL](https://github.com/facebookresearch/BenchMARL),
+enabling out-of-the-box integration with a wide range of RL algorithms. 
 The implementation is inspired by [OpenAI's MPE](https://github.com/openai/multiagent-particle-envs). 
 Alongside VMAS's scenarios, we port and vectorize all the scenarios in MPE.
 
@@ -84,6 +90,7 @@ Watch the talk at DARS 2022 about VMAS.
 ### Notebooks
 -  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/proroklab/VectorizedMultiAgentSimulator/blob/main/notebooks/VMAS_Use_vmas_environment.ipynb) &ensp; **Using a VMAS environment**.
  Here is a simple notebook that you can run to create, step and render any scenario in VMAS. It reproduces the `use_vmas_env.py` script in the `examples` folder.
+- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/facebookresearch/BenchMARL/blob/main/notebooks/run.ipynb) &ensp;  **Using VMAS in BenchMARL (suggested)**.  In this notebook, we show how to use VMAS in [BenchMARL](https://github.com/facebookresearch/BenchMARL), TorchRL's MARL training library.
 - [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/pytorch/rl/blob/gh-pages/_downloads/a977047786179278d12b52546e1c0da8/multiagent_ppo.ipynb)  &ensp;  **Using VMAS in TorchRL**.  In this notebook, [available in the TorchRL docs](https://pytorch.org/rl/tutorials/multiagent_ppo.html), we show how to use any VMAS scenario in TorchRL. It will guide you through the full pipeline needed to train agents using MAPPO/IPPO.
 - [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/proroklab/VectorizedMultiAgentSimulator/blob/main/notebooks/VMAS_RLlib.ipynb)  &ensp;  **Using VMAS in RLlib**.  In this notebook, we show how to use any VMAS scenario in RLlib. It reproduces the `rllib.py` script in the `examples` folder.
 
@@ -149,13 +156,17 @@ You can find more examples of multi-agent training in VMAS in the [HetGPPO repos
 
 #### TorchRL 
 
-VMAS is supported by [TorchRL](https://github.com/pytorch/rl).
+VMAS is supported by [TorchRL](https://github.com/pytorch/rl) and its MARL training library [BenchMARL](https://github.com/facebookresearch/BenchMARL).
+
+Check out how simple it is to use VMAS in [BenchMARL](https://github.com/facebookresearch/BenchMARL) with this [notebook](https://colab.research.google.com/github/facebookresearch/BenchMARL/blob/main/notebooks/run.ipynb).
 
 We provide a [notebook](https://pytorch.org/rl/tutorials/multiagent_ppo.html) which guides you through a full
 multi-agent reinforcement learning pipeline for training VMAS scenarios in TorchRL using MAPPO/IPPO.
 
 You can find **example scripts** in the TorchRL repo [here](https://github.com/pytorch/rl/tree/main/examples/multiagent)
 on how to run MAPPO-IPPO-MADDPG-QMIX-VDN using the [VMAS wrapper](https://github.com/pytorch/rl/blob/main/torchrl/envs/libs/vmas.py).
+
+
 
 ### Input and output spaces
 
