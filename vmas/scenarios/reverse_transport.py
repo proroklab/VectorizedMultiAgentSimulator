@@ -24,7 +24,7 @@ class Scenario(BaseScenario):
         world = World(batch_dim, device, contact_margin=6e-3)
         # Add agents
         for i in range(n_agents):
-            agent = Agent(name=f"agent {i}", shape=Sphere(0.03), u_multiplier=0.5)
+            agent = Agent(name=f"agent_{i}", shape=Sphere(0.03), u_multiplier=0.5)
             world.add_agent(agent)
         # Add landmarks
         goal = Landmark(

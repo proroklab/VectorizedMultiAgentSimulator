@@ -42,7 +42,7 @@ class Scenario(BaseScenario):
 
         # Add agents
         self.agent = Agent(
-            name="agent",
+            name="agent_0",
             shape=Sphere(self.agent_radius),
             f_range=self.f_range,
             u_range=self.u_range,

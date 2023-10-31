@@ -65,7 +65,7 @@ class Scenario(BaseScenario):
         # Add agents
         for i in range(self.n_agents):
             agent = Agent(
-                name=f"agent {i}",
+                name=f"agent_{i}",
                 rotatable=False,
                 linear_friction=self.linear_friction,
                 shape=Sphere(radius=self.agent_radius)

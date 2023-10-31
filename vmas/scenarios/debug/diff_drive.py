@@ -40,7 +40,7 @@ class Scenario(BaseScenario):
 
         for i in range(self.n_agents):
             agent = Agent(
-                name=f"agent {i}",
+                name=f"agent_{i}",
                 collide=True,
                 render_action=True,
                 u_range=1,
