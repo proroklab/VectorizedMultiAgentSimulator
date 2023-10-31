@@ -11,7 +11,7 @@
 
 > [!NOTE]  
 > We have just released [BenchMARL](https://github.com/facebookresearch/BenchMARL), a benchmarking library where you 
-> can train VMAS tasks using TorchRL. Check out how easy it is [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/facebookresearch/BenchMARL/blob/main/notebooks/run.ipynb)
+> can train VMAS tasks using TorchRL. Check out [how easy it is to use it.](https://colab.research.google.com/github/facebookresearch/BenchMARL/blob/main/notebooks/run.ipynb).
 
 ## Welcome to VMAS!
 
