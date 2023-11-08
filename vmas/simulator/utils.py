@@ -181,7 +181,7 @@ class TorchUtils:
     def cross(vector_a: Tensor, vector_b: Tensor):
         return (
             vector_a[:, X] * vector_b[:, Y] - vector_a[:, Y] * vector_b[:, X]
-        ).unsqueeze(1)
+        )
 
     @staticmethod
     def compute_torque(f: Tensor, r: Tensor) -> Tensor:
