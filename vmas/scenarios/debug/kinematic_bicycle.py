@@ -17,7 +17,7 @@ class Scenario(BaseScenario):
         """
         Kinematic bicycle model example scenario
         """
-        self.n_agents = kwargs.get("n_agents", 4)
+        self.n_agents = kwargs.get("n_agents", 2)
         width = kwargs.get("width", 0.1) # Agent width
         l_f = kwargs.get("l_f", 0.1) # Distance between the front axle and the center of gravity
         l_r = kwargs.get("l_r", 0.1) # Distance between the rear axle and the center of gravity
@@ -39,7 +39,7 @@ class Scenario(BaseScenario):
                     u_rot_multiplier=1,
                 )
                 agent.dynamics = KinematicBicycleDynamics(
-                    agent, world, width=width, l_f=l_f, l_r=l_r, max_steering_angle=max_steering_angle, integration="rk4" # one of "euler", "rk4"
+                    agent, world, width=width, l_f=l_f, l_r=l_r, max_steering_angle=max_steering_angle, integration="euler" # one of "euler", "rk4"
                 )
             else:
                 agent = Agent(
