@@ -35,29 +35,27 @@ class KinematicBicycleDynamics:
     def euler(self, state, velocity, steering_angle):
         # Update the state using Euler's method
         # For Euler's method, see https://math.libretexts.org/Bookshelves/Calculus/Book%3A_Active_Calculus_(Boelkins_et_al.)/07%3A_Differential_Equations/7.03%3A_Euler's_Method (the full link may not be recognized properly, please copy and paste in your browser)
-        x = state[0].unsqueeze(0).clone()
-        y = state[1].unsqueeze(0).clone()
-        theta = state[2].unsqueeze(0).clone() # jaw angle
+        x = state[:, 0].clone()
+        y = state[:, 1].clone()
+        theta = state[:, 2].clone() # jaw angle
 
         beta = torch.atan(torch.tan(steering_angle) * self.l_r / (self.l_f + self.l_r)) # slip angle
         x += velocity * torch.cos(theta + beta) * self.dt
         y += velocity * torch.sin(theta + beta) * self.dt
         theta += velocity / (self.l_f + self.l_r) * torch.sin(beta) * self.dt 
         
-        return torch.cat((x, y, theta),dim=0)
+        return torch.stack((x, y, theta),dim=1) # Should return torch.Size([batch_size,3])
 
     def runge_kutta(self, state, velocity, steering_angle):
         # Update the state using fourth-order Runge-Kutta method
         # For Runge-Kutta method, see https://math.libretexts.org/Courses/Monroe_Community_College/MTH_225_Differential_Equations/3%3A_Numerical_Methods/3.3%3A_The_Runge-Kutta_Method
         def f(state):
-            x = state[0].unsqueeze(0).clone()
-            y = state[1].unsqueeze(0).clone()
-            theta = state[2].unsqueeze(0).clone() # jaw angle
-            beta = torch.atan(torch.tan(steering_angle) * self.l_r / (self.l_f + self.l_r)).unsqueeze(0) # slip angle
+            theta = state[:, 2].clone() # jaw angle
+            beta = torch.atan(torch.tan(steering_angle) * self.l_r / (self.l_f + self.l_r)) # slip angle
             dx = velocity * torch.cos(theta + beta)
             dy = velocity * torch.sin(theta + beta)
             dtheta = velocity / (self.l_f + self.l_r) * torch.sin(beta)
-            return torch.cat((dx, dy, dtheta),dim=0)
+            return torch.stack((dx, dy, dtheta),dim=1) # Should return torch.Size([batch_size,3])
 
         k1 = f(state)
         k2 = f(state + self.dt * k1 / 2)
@@ -74,10 +72,9 @@ class KinematicBicycleDynamics:
 
         # Current state of the agent
         state = torch.cat((
-            self.agent.state.pos.reshape(-1,1), # Reshape to have a size of [2,1]
+            self.agent.state.pos,
             self.agent.state.rot),
-            dim=0) # Size [3,1]
-        assert state.size() == torch.Size([3,1]), f"Tensor size must be [3, 1], but got {state.size()}"
+            dim=1)
 
         # Select the integration method
         if self.integration == "euler":
@@ -85,15 +82,13 @@ class KinematicBicycleDynamics:
         else:
             new_state = self.runge_kutta(state, velocity, steering_angle)
         
-        assert new_state.size() == torch.Size([3,1]), f"Tensor size must be [3, 1], but got {new_state.size()}"
-
         # Calculate the change in state
         delta_state = new_state - state
 
         # Calculate the accelerations required to achieve the change in state
-        acceleration_x = delta_state[0] / self.dt
-        acceleration_y = delta_state[1] / self.dt
-        angular_acceleration = delta_state[2] / self.dt
+        acceleration_x = delta_state[:, 0] / self.dt
+        acceleration_y = delta_state[:, 1] / self.dt
+        angular_acceleration = delta_state[:, 2] / self.dt
 
         # Calculate the forces required for the linear accelerations
         force_x = self.agent.mass * acceleration_x
@@ -105,4 +100,4 @@ class KinematicBicycleDynamics:
         # Update the physical force and torque required for the user inputs
         self.agent.action.u[:, vmas.simulator.utils.X] = force_x
         self.agent.action.u[:, vmas.simulator.utils.Y] = force_y
-        self.agent.action.u_rot = torque
+        self.agent.action.u_rot[:, 0] = torque
