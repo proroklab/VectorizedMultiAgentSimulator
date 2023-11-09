@@ -32,7 +32,7 @@ class Scenario(BaseScenario):
                 agent = Agent(
                     name=f"agent_{i}",
                     shape=Box(length=l_f+l_r, width=width),
-                    collide=True,
+                    collide=False, # turn off since the check of box-box collisions is quite expensive currently
                     render_action=True,
                     u_range=1,
                     u_rot_range=max_steering_angle,
@@ -45,7 +45,7 @@ class Scenario(BaseScenario):
                 agent = Agent(
                     name=f"agent_{i}",
                     shape=Box(length=l_f+l_r, width=width),
-                    collide=True,
+                    collide=False,
                     render_action=True,
                     u_range=1,
                     u_rot_range=1,
@@ -110,4 +110,4 @@ class Scenario(BaseScenario):
 
 # ... and the code to run the simulation.
 if __name__ == "__main__":
-    render_interactively(__file__, control_two_agents=True, width=0.1, l_f=0.1, l_r=0.1)
+    render_interactively(__file__, control_two_agents=True, width=0.1, l_f=0.1, l_r=0.1, display_info=True)
