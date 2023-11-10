@@ -54,6 +54,7 @@ debug_scenarios = sorted(
         "vel_control",
         "waterfall",
         "diff_drive",
+        "kinematic_bicycle"
     ]
 )
 
