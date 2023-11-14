@@ -5,7 +5,6 @@ import random
 import time
 
 import torch
-
 from vmas import make_env
 from vmas.simulator.utils import save_video
 
@@ -27,7 +26,10 @@ def use_vmas_env(render: bool = False, save_render: bool = False):
 
     simple_2d_action = (
         [0, 0.5] if continuous_actions else [3]
-    )  # Simple action tell each agent to go down
+    )  # Simple action for an agent with 2d actions
+    simple_3d_action = (
+        [0, 0.5, 0.1] if continuous_actions else [3, 1]
+    )  # Simple action for an agent with 3d actions (2d forces and torque)
 
     env = make_env(
         scenario=scenario_name,
@@ -57,7 +59,7 @@ def use_vmas_env(render: bool = False, save_render: bool = False):
         actions = {} if dict_actions else []
         for i, agent in enumerate(env.agents):
             action = torch.tensor(
-                simple_2d_action,
+                simple_2d_action if agent.u_rot_range == 0 else simple_3d_action,
                 device=device,
             ).repeat(num_envs, 1)
             if dict_actions:
