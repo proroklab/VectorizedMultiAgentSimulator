@@ -24,7 +24,7 @@ class Scenario(BaseScenario):
         world = World(batch_dim, device, drag=0.1)
         # Add agents
         self.agent = Agent(
-            name="agent",
+            name="agent_0",
             shape=Sphere(self.agent_radius),
             mass=2,
             f_range=0.5,

@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -30,7 +30,7 @@ class Scenario(BaseScenario):
         # Add agents
         for i in range(self.n_agents):
             agent = Agent(
-                name=f"agent {i}", shape=Sphere(self.agent_radius), u_multiplier=0.7
+                name=f"agent_{i}", shape=Sphere(self.agent_radius), u_multiplier=0.7
             )
             world.add_agent(agent)
             goal = Landmark(

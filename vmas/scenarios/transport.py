@@ -1,8 +1,9 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
 import torch
+
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Box, Landmark, Sphere, World
 from vmas.simulator.heuristic_policy import BaseHeuristicPolicy
@@ -24,7 +25,7 @@ class Scenario(BaseScenario):
         world = World(batch_dim, device)
         # Add agents
         for i in range(n_agents):
-            agent = Agent(name=f"agent {i}", shape=Sphere(0.03), u_multiplier=0.6)
+            agent = Agent(name=f"agent_{i}", shape=Sphere(0.03), u_multiplier=0.6)
             world.add_agent(agent)
         # Add landmarks
         goal = Landmark(

@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -10,7 +10,6 @@ from vmas.simulator.scenario import BaseScenario
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-
         world = World(batch_dim=batch_dim, device=device, dim_c=3)
         # set any world properties first
         num_agents = 2
@@ -19,8 +18,9 @@ class Scenario(BaseScenario):
         # Add agents
         for i in range(num_agents):
             speaker = True if i == 0 else False
+            name = "speaker_0" if speaker else "listener_0"
             agent = Agent(
-                name=f"agent {i}",
+                name=name,
                 collide=False,
                 movable=False if speaker else True,
                 silent=False if speaker else True,
@@ -72,30 +72,46 @@ class Scenario(BaseScenario):
         # set random initial states
         for agent in self.world.agents:
             agent.set_pos(
-                2
-                * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float32
-                )
-                - 1,
+                torch.zeros(
+                    (1, self.world.dim_p)
+                    if env_index is not None
+                    else (self.world.batch_dim, self.world.dim_p),
+                    device=self.world.device,
+                    dtype=torch.float32,
+                ).uniform_(
+                    -1.0,
+                    1.0,
+                ),
                 batch_index=env_index,
             )
         for landmark in self.world.landmarks:
             landmark.set_pos(
-                2
-                * torch.rand(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float32
-                )
-                - 1,
+                torch.zeros(
+                    (1, self.world.dim_p)
+                    if env_index is not None
+                    else (self.world.batch_dim, self.world.dim_p),
+                    device=self.world.device,
+                    dtype=torch.float32,
+                ).uniform_(
+                    -1.0,
+                    1.0,
+                ),
                 batch_index=env_index,
             )
 
     def reward(self, agent: Agent):
         # squared distance from listener to landmark
-        a = self.world.agents[0]
-        dist2 = torch.sqrt(
-            torch.sum(torch.square(a.goal_a.state.pos - a.goal_b.state.pos), dim=-1)
-        )
-        return -dist2
+        is_first = agent == self.world.agents[0]
+        if is_first:
+            self.rew = torch.zeros(self.world.batch_dim, device=self.world.device)
+            for _ in self.world.agents:
+                a = self.world.agents[0]
+                self.rew += -torch.sqrt(
+                    torch.sum(
+                        torch.square(a.goal_a.state.pos - a.goal_b.state.pos), dim=-1
+                    )
+                )
+        return self.rew
 
     def observation(self, agent):
         # goal color

@@ -44,7 +44,7 @@ class Scenario(BaseScenario):
         # Add agents
         for i in range(2):
             agent = Agent(
-                name=f"agent {i}",
+                name=f"agent_{i}",
                 shape=Sphere(self.agent_radius),
                 u_multiplier=0.7,
                 mass=2,
@@ -79,7 +79,6 @@ class Scenario(BaseScenario):
         return world
 
     def reset_world_at(self, env_index: int = None):
-
         start_angle = torch.zeros(
             (1, 1) if env_index is not None else (self.world.batch_dim, 1),
             device=self.world.device,

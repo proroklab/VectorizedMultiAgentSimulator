@@ -1,54 +1,56 @@
-#  Copyright (c) 2022-2023.
-#  ProrokLab (https://www.proroklab.org/)
-#  All rights reserved.
 import typing
 from typing import List
 
 import torch
 
 from vmas import render_interactively
-from vmas.simulator.core import Agent, World
-from vmas.simulator.dynamics.diff_drive import DiffDriveDynamics
+from vmas.simulator.core import Agent, World, Box
+from vmas.simulator.dynamics.kinematic_bicycle import KinematicBicycleDynamics
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color, ScenarioUtils
 
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
 
-
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         """
-        Differential drive example scenario
-        Run this file to try it out
-
-        The first agent has differential drive dynamics.
-        You can control its forward input with the LEFT and RIGHT arrows.
-        You can control its rotation with N and M.
-
-        The second agent has standard vmas holonomic dynamics.
-        You can control it with WASD
-        You can control its rotation withQ and E.
-
+        Kinematic bicycle model example scenario
         """
-        # T
-        self.plot_grid = True
         self.n_agents = kwargs.get("n_agents", 2)
+        width = kwargs.get("width", 0.1) # Agent width
+        l_f = kwargs.get("l_f", 0.1) # Distance between the front axle and the center of gravity
+        l_r = kwargs.get("l_r", 0.1) # Distance between the rear axle and the center of gravity
+        max_steering_angle = kwargs.get("max_steering_angle", torch.deg2rad(torch.tensor(30.0)))
 
         # Make world
         world = World(batch_dim, device, substeps=10)
 
         for i in range(self.n_agents):
-            agent = Agent(
-                name=f"agent_{i}",
-                collide=True,
-                render_action=True,
-                u_range=1,
-                u_rot_range=1,
-                u_rot_multiplier=0.001,
-            )
             if i == 0:
-                agent.dynamics = DiffDriveDynamics(agent, world, integration="rk4")
+                # Use the kinematic bicycle model for the first agent
+                agent = Agent(
+                    name=f"agent_{i}",
+                    shape=Box(length=l_f+l_r, width=width),
+                    collide=False, # turn off since the check of box-box collisions is quite expensive currently
+                    render_action=True,
+                    u_range=1,
+                    u_rot_range=max_steering_angle,
+                    u_rot_multiplier=1,
+                )
+                agent.dynamics = KinematicBicycleDynamics(
+                    agent, world, width=width, l_f=l_f, l_r=l_r, max_steering_angle=max_steering_angle, integration="euler" # one of "euler", "rk4"
+                )
+            else:
+                agent = Agent(
+                    name=f"agent_{i}",
+                    shape=Box(length=l_f+l_r, width=width),
+                    collide=False,
+                    render_action=True,
+                    u_range=1,
+                    u_rot_range=1,
+                    u_rot_multiplier=0.001,
+                )
 
             world.add_agent(agent)
 
@@ -65,9 +67,10 @@ class Scenario(BaseScenario):
         )
 
     def process_action(self, agent: Agent):
-        try:
+        if hasattr(agent, 'dynamics') and hasattr(agent.dynamics, 'process_force'):
             agent.dynamics.process_force()
-        except AttributeError:
+        else:
+            # The agent does not have a dynamics property, or it does not have a process_force method
             pass
 
     def reward(self, agent: Agent):
@@ -105,6 +108,6 @@ class Scenario(BaseScenario):
 
         return geoms
 
-
+# ... and the code to run the simulation.
 if __name__ == "__main__":
-    render_interactively(__file__, control_two_agents=True)
+    render_interactively(__file__, control_two_agents=True, width=0.1, l_f=0.1, l_r=0.1, display_info=True)
