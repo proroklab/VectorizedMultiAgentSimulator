@@ -1040,6 +1040,7 @@ class World(TorchVectorizedObject):
         self._normal_vector = torch.tensor(
             [1.0, 0.0], dtype=torch.float32, device=self.device
         ).repeat(self._batch_dim, 1)
+        self.entity_index_map = {}
 
     def add_agent(self, agent: Agent):
         """Only way to add agents to the world"""
@@ -1442,6 +1443,8 @@ class World(TorchVectorizedObject):
 
     # update state of the world
     def step(self):
+        self.entity_index_map = {e: i for i, e in enumerate(self.entities)}
+
         # forces
         self.force = torch.zeros(
             self._batch_dim,
@@ -1474,6 +1477,9 @@ class World(TorchVectorizedObject):
                 self._apply_gravity(entity, i)
                 # apply environment forces (constraints)
                 self._apply_environment_force(entity, i)
+
+            self._apply_vectorized_collisions()
+
             for i, entity in enumerate(self.entities):
                 # integrate physical state
                 self._integrate_state(entity, i, substep)
@@ -1615,6 +1621,71 @@ class World(TorchVectorizedObject):
             if self.collides(entity_a, entity_b):
                 apply_env_forces(*self._get_collision_force(entity_a, entity_b))
 
+    def _apply_vectorized_collisions(self):
+        collidable_pairs = []
+        for a, entity_a in enumerate(self.entities):
+            for b, entity_b in enumerate(self.entities):
+                if b <= a or not self.collides(entity_a, entity_b):
+                    continue
+                collidable_pairs.append((entity_a, entity_b))
+
+        # Sphere and sphere
+        self._sphere_sphere_vectorized_collision(collidable_pairs)
+
+    def update_env_forces(self, entity_a, f_a, t_a, entity_b, f_b, t_b):
+        a = self.entity_index_map[entity_a]
+        b = self.entity_index_map[entity_b]
+        if entity_a.movable:
+            self.force[:, a] += f_a
+        if entity_a.rotatable:
+            self.torque[:, a] += t_a
+        if entity_b.movable:
+            self.force[:, b] += f_b
+        if entity_b.rotatable:
+            self.torque[:, b] += t_b
+
+    def _sphere_sphere_vectorized_collision(self, colliding_pairs):
+        s_s = [
+            (entity_a, entity_b)
+            for entity_a, entity_b in colliding_pairs
+            if isinstance(entity_a.shape, Sphere) and isinstance(entity_b.shape, Sphere)
+        ]
+        if len(s_s):
+            pos_s_a = torch.stack([s.state.pos for s, _ in s_s], dim=-2)
+            pos_s_b = torch.stack([s.state.pos for _, s in s_s], dim=-2)
+            radius_s_a = (
+                torch.stack(
+                    [torch.tensor(s.shape.radius, device=self.device) for s, _ in s_s],
+                    dim=-1,
+                )
+                .unsqueeze(0)
+                .expand(self.batch_dim, -1)
+            )
+            radius_s_b = (
+                torch.stack(
+                    [torch.tensor(s.shape.radius, device=self.device) for s, _ in s_s],
+                    dim=-1,
+                )
+                .unsqueeze(0)
+                .expand(self.batch_dim, -1)
+            )
+            force_a, force_b = self._get_constraint_forces(
+                pos_s_a,
+                pos_s_b,
+                dist_min=radius_s_a + radius_s_b,
+                force_multiplier=self._collision_force,
+            )
+
+            for i, (entity_a, entity_b) in enumerate(s_s):
+                self.update_env_forces(
+                    entity_a,
+                    force_a[:, i],
+                    0,
+                    entity_b,
+                    force_b[:, i],
+                    0,
+                )
+
     def collides(self, a: Entity, b: Entity) -> bool:
         if (not a.collides(b)) or (not b.collides(a)) or a is b:
             return False
@@ -1666,12 +1737,8 @@ class World(TorchVectorizedObject):
     def _get_collision_force(self, entity_a, entity_b):
         # Sphere and sphere
         if isinstance(entity_a.shape, Sphere) and isinstance(entity_b.shape, Sphere):
-            force_a, force_b = self._get_constraint_forces(
-                entity_a.state.pos,
-                entity_b.state.pos,
-                dist_min=entity_a.shape.radius + entity_b.shape.radius,
-                force_multiplier=self._collision_force,
-            )
+            force_a = 0
+            force_b = 0
             torque_a = 0
             torque_b = 0
         # Sphere and line
@@ -2112,13 +2179,13 @@ class World(TorchVectorizedObject):
         self,
         pos_a: Tensor,
         pos_b: Tensor,
-        dist_min: float,
+        dist_min,
         force_multiplier: float,
         attractive: bool = False,
     ) -> Tensor:
         min_dist = 1e-6
         delta_pos = pos_a - pos_b
-        dist = torch.linalg.vector_norm(delta_pos, dim=1)
+        dist = torch.linalg.vector_norm(delta_pos, dim=-1)
         sign = -1 if attractive else 1
 
         # softmax penetration
@@ -2139,9 +2206,9 @@ class World(TorchVectorizedObject):
         )
         force[dist < min_dist] = 0
         if not attractive:
-            force[dist > dist_min] = 0
+            force = torch.where(dist > dist_min, 0, force)
         else:
-            force[dist < dist_min] = 0
+            force = torch.where(dist < dist_min, 0, force)
         assert not force.isnan().any()
         return force, -force
 
