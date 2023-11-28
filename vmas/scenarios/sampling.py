@@ -1,12 +1,12 @@
 #  Copyright (c) 2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
+import typing
 from typing import Dict, Callable
 
 import torch
 from torch import Tensor
 from torch.distributions import MultivariateNormal
-
 from vmas import render_interactively
 from vmas.simulator.core import World, Line, Agent, Sphere, Entity
 from vmas.simulator.scenario import BaseScenario
@@ -27,7 +27,8 @@ class Scenario(BaseScenario):
         self.grid_spacing = kwargs.get("grid_spacing", 0.05)
 
         self.n_gaussians = kwargs.get("n_gaussians", 3)
-        self.cov = 0.05
+        self.cov = kwargs.get("cov", 0.05)
+        self.collisions = kwargs.get("collisions", True)
 
         assert (self.xdim / self.grid_spacing) % 1 == 0 and (
             self.ydim / self.grid_spacing
@@ -51,7 +52,7 @@ class Scenario(BaseScenario):
             agent = Agent(
                 name=f"agent_{i}",
                 render_action=True,
-                collide=True,
+                collide=self.collisions,
                 shape=Sphere(radius=self.agent_radius),
                 sensors=[
                     Lidar(
@@ -62,7 +63,9 @@ class Scenario(BaseScenario):
                         max_range=self.lidar_range,
                         entity_filter=entity_filter_agents,
                     ),
-                ],
+                ]
+                if self.collisions
+                else None,
             )
 
             world.add_agent(agent)
@@ -248,8 +251,15 @@ class Scenario(BaseScenario):
         return self.sampling_rew if self.shared_rew else agent.sample
 
     def observation(self, agent: Agent) -> Tensor:
-        observations = [agent.state.pos, agent.state.vel, agent.sensors[0].measure()]
+        # Removed vel
+        observations = self.observation_from_pos(agent.state.pos)
 
+        if self.collisions:
+            observations = torch.cat([observations, agent.sensors[0].measure()], dim=-1)
+
+        return observations
+
+    def observation_from_pos(self, pos: Tensor, env_index: typing.Optional[int] = None):
         for delta in [
             [self.grid_spacing, 0],
             [-self.grid_spacing, 0],
@@ -260,19 +270,21 @@ class Scenario(BaseScenario):
             [-self.grid_spacing, self.grid_spacing],
             [self.grid_spacing, self.grid_spacing],
         ]:
-            pos = agent.state.pos + torch.tensor(
+            pos = pos + torch.tensor(
                 delta,
                 device=self.world.device,
                 dtype=torch.float32,
             )
-            sample = self.sample(
-                pos,
-                update_sampled_flag=False,
-            ).unsqueeze(-1)
-            observations.append(sample)
+            if env_index is not None:
+                sample = self.sample_single_env(pos, env_index=env_index).unsqueeze(-1)
+            else:
+                sample = self.sample(
+                    pos,
+                    update_sampled_flag=False,
+                ).unsqueeze(-1)
 
         return torch.cat(
-            observations,
+            [pos, sample],
             dim=-1,
         )
 

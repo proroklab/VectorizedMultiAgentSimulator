@@ -24,7 +24,7 @@ class Scenario(BaseScenario):
 
         self.agents_with_same_goal = kwargs.get("agents_with_same_goal", 1)
         self.split_goals = kwargs.get("split_goals", False)
-        self.observe_all_goals = kwargs.get("observe_all_goals", False)
+        self.observe_all_goals = kwargs.get("observe_all_goals", True)
 
         self.lidar_range = kwargs.get("lidar_range", 0.35)
         self.agent_radius = kwargs.get("agent_radius", 0.1)
@@ -214,6 +214,8 @@ class Scenario(BaseScenario):
         return agent.pos_rew
 
     def observation(self, agent: Agent):
+        if self.observe_all_goals and not self.collisions:
+            return self.observation_from_pos(agent.state.pos)
         goal_poses = []
         if self.observe_all_goals:
             for a in self.world.agents:
@@ -234,13 +236,17 @@ class Scenario(BaseScenario):
             dim=-1,
         )
 
-    def observation_from_pos(self, pos: Tensor, env_index: int):
+    def observation_from_pos(self, pos: Tensor, env_index: typing.Optional[int] = None):
         assert self.observe_all_goals and not self.collisions
         goal_poses = []
         if self.observe_all_goals:
             for a in self.world.agents:
-                goal_poses.append(pos - a.goal.state.pos[env_index])
-
+                if env_index is None:
+                    goal_poses.append(pos - a.goal.state.pos)
+                else:
+                    goal_poses.append(
+                        pos - a.goal.state.pos[env_index].unsqueeze(0).expand(pos.shape)
+                    )
         return torch.cat(goal_poses, dim=-1)
 
     def done(self):
