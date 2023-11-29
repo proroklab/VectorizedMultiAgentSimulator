@@ -1657,11 +1657,17 @@ class World(TorchVectorizedObject):
                         else (entity_b, entity_a)
                     )
                     l_s.append((line, sphere))
+                elif isinstance(entity_a.shape, Line) and isinstance(
+                    entity_b.shape, Line
+                ):
+                    l_l.append((entity_a, entity_b))
 
         # Sphere and sphere
         self._sphere_sphere_vectorized_collision(s_s)
         # Line and sphere
         self._sphere_line_vectorized_collision(l_s)
+        # Line and line
+        self._line_line_vectorized_collision(l_l)
 
     def update_env_forces(self, entity_a, f_a, t_a, entity_b, f_b, t_b):
         a = self.entity_index_map[entity_a]
@@ -1773,6 +1779,71 @@ class World(TorchVectorizedObject):
                     entity_b,
                     force_sphere[:, i],
                     0,
+                )
+
+    def _line_line_vectorized_collision(self, l_l):
+        if len(l_l):
+            pos_l_a = []
+            pos_l_b = []
+            rot_l_a = []
+            rot_l_b = []
+            length_l_a = []
+            length_l_b = []
+            for l_a, l_b in l_l:
+                pos_l_a.append(l_a.state.pos)
+                pos_l_b.append(l_b.state.pos)
+                rot_l_a.append(l_a.state.rot)
+                rot_l_b.append(l_b.state.rot)
+                length_l_a.append(torch.tensor(l_a.shape.length, device=self.device))
+                length_l_b.append(torch.tensor(l_b.shape.length, device=self.device))
+            pos_l_a = torch.stack(pos_l_a, dim=-2)
+            pos_l_b = torch.stack(pos_l_b, dim=-2)
+            rot_l_a = torch.stack(rot_l_a, dim=-2)
+            rot_l_b = torch.stack(rot_l_b, dim=-2)
+            length_l_a = (
+                torch.stack(
+                    length_l_a,
+                    dim=-1,
+                )
+                .unsqueeze(0)
+                .expand(self.batch_dim, -1)
+            )
+            length_l_b = (
+                torch.stack(
+                    length_l_b,
+                    dim=-1,
+                )
+                .unsqueeze(0)
+                .expand(self.batch_dim, -1)
+            )
+
+            point_a, point_b = self._get_closest_points_line_line(
+                pos_l_a,
+                rot_l_a,
+                length_l_a,
+                pos_l_b,
+                rot_l_b,
+                length_l_b,
+            )
+            force_a, force_b = self._get_constraint_forces(
+                point_a,
+                point_b,
+                dist_min=LINE_MIN_DIST,
+                force_multiplier=self._collision_force,
+            )
+            r_a = point_a - pos_l_a
+            r_b = point_b - pos_l_b
+
+            torque_a = TorchUtils.compute_torque(force_a, r_a)
+            torque_b = TorchUtils.compute_torque(force_b, r_b)
+            for i, (entity_a, entity_b) in enumerate(l_l):
+                self.update_env_forces(
+                    entity_a,
+                    force_a[:, i],
+                    torque_a[:, i],
+                    entity_b,
+                    force_b[:, i],
+                    torque_b[:, i],
                 )
 
     def collides(self, a: Entity, b: Entity) -> bool:
@@ -1901,7 +1972,9 @@ class World(TorchVectorizedObject):
                 else (force_box, torque_box, force_sphere, 0)
             )
         # Line and line
-        elif isinstance(entity_a.shape, Line) and isinstance(entity_b.shape, Line):
+        elif not VecCollisions.VECTORIZED_COLLISIONS and (
+            isinstance(entity_a.shape, Line) and isinstance(entity_b.shape, Line)
+        ):
             point_a, point_b = self._get_closest_points_line_line(
                 entity_a.state.pos,
                 entity_a.state.rot,
@@ -2044,9 +2117,10 @@ class World(TorchVectorizedObject):
 
     @staticmethod
     def get_line_extrema(line_pos, line_rot, line_length):
+        line_length = line_length.view(line_rot.shape)
         x = (line_length / 2) * torch.cos(line_rot)
         y = (line_length / 2) * torch.sin(line_rot)
-        xy = torch.cat([x, y], dim=1)
+        xy = torch.cat([x, y], dim=-1)
 
         point_a = line_pos + xy
         point_b = line_pos - xy
@@ -2056,6 +2130,15 @@ class World(TorchVectorizedObject):
     def _get_closest_points_line_line(
         self, line_pos, line_rot, line_length, line2_pos, line2_rot, line2_length
     ):
+        if not isinstance(line_length, torch.Tensor):
+            line_length = torch.tensor(
+                line_length, dtype=torch.float32, device=self.device
+            ).expand(self.batch_dim)
+        if not isinstance(line2_length, torch.Tensor):
+            line2_length = torch.tensor(
+                line2_length, dtype=torch.float32, device=self.device
+            ).expand(self.batch_dim)
+
         point_a1, point_a2 = self.get_line_extrema(line_pos, line_rot, line_length)
         point_b1, point_b2 = self.get_line_extrema(line2_pos, line2_rot, line2_length)
 
@@ -2083,22 +2166,22 @@ class World(TorchVectorizedObject):
         )
 
         closest_point_1 = torch.full(
-            (self.batch_dim, self.dim_p),
+            line_pos.shape,
             float("inf"),
             device=self.device,
             dtype=torch.float32,
         )
         closest_point_2 = torch.full(
-            (self.batch_dim, self.dim_p),
+            line_pos.shape,
             float("inf"),
             device=self.device,
             dtype=torch.float32,
         )
         min_distance = torch.full(
-            (self.batch_dim,), float("inf"), device=self.device, dtype=torch.float32
+            line_pos.shape[:-1], float("inf"), device=self.device, dtype=torch.float32
         )
         for p1, p2 in point_pairs:
-            d = torch.linalg.vector_norm(p1 - p2, dim=1)
+            d = torch.linalg.vector_norm(p1 - p2, dim=-1)
             is_closest = d < min_distance
             closest_point_1[is_closest] = p1[is_closest]
             closest_point_2[is_closest] = p2[is_closest]
@@ -2129,29 +2212,20 @@ class World(TorchVectorizedObject):
         cross_r_s_is_zero = cross_r_s == 0
 
         distance = torch.full(
-            (self.batch_dim,), float("inf"), device=self.device, dtype=torch.float32
+            point_a1.shape[:-1], float("inf"), device=self.device, dtype=torch.float32
         )
         point = torch.full(
-            (self.batch_dim, self.dim_p),
+            point_a1.shape,
             float("inf"),
             device=self.device,
             dtype=torch.float32,
         )
 
-        point[
-            ~cross_r_s_is_zero.repeat(1, 2)
-            * u_in_range.repeat(1, 2)
-            * t_in_range.repeat(1, 2)
-        ] = (p + t * r)[
-            ~cross_r_s_is_zero.repeat(1, 2)
-            * u_in_range.repeat(1, 2)
-            * t_in_range.repeat(1, 2)
-        ]
-        distance[
-            ~cross_r_s_is_zero.squeeze(-1)
-            * u_in_range.squeeze(-1)
-            * t_in_range.squeeze(-1)
-        ] = 0
+        condition = ~cross_r_s_is_zero * u_in_range * t_in_range
+        condition_exp = condition.expand(point.shape)
+
+        point[condition_exp] = (p + t * r)[condition_exp]
+        distance[condition.squeeze(-1)] = 0.0
 
         return point, distance
 
