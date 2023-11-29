@@ -1,6 +1,7 @@
 #  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
+import pstats
 import random
 import time
 
@@ -89,4 +90,11 @@ def use_vmas_env(render: bool = False, save_render: bool = False):
 
 
 if __name__ == "__main__":
+    import cProfile
+
+    profiler = cProfile.Profile()
+    profiler.enable()
     use_vmas_env(render=True, save_render=False)
+    profiler.disable()
+    stats = pstats.Stats(profiler).sort_stats("tottime")
+    stats.print_stats()

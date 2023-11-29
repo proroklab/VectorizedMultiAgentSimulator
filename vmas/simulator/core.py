@@ -11,6 +11,7 @@ from typing import Callable, List, Tuple
 
 import torch
 from torch import Tensor
+
 from vmas.simulator.joints import JointConstraint, Joint
 from vmas.simulator.sensors import Sensor
 from vmas.simulator.utils import (
@@ -1036,7 +1037,8 @@ class World(TorchVectorizedObject):
             {Line, Box},
             {Box, Box},
         ]
-        # Horizontal unit vector
+        # Map to save entity indexes
+        self.entity_index_map = {}
         self._normal_vector = torch.tensor(
             [1.0, 0.0], dtype=torch.float32, device=self.device
         ).repeat(self._batch_dim, 1)
@@ -1442,6 +1444,8 @@ class World(TorchVectorizedObject):
 
     # update state of the world
     def step(self):
+        self.entity_index_map = {e: i for i, e in enumerate(self.entities)}
+
         # forces
         self.force = torch.zeros(
             self._batch_dim,
@@ -1474,6 +1478,9 @@ class World(TorchVectorizedObject):
                 self._apply_gravity(entity, i)
                 # apply environment forces (constraints)
                 self._apply_environment_force(entity, i)
+
+            self._apply_vectorized_collisions()
+
             for i, entity in enumerate(self.entities):
                 # integrate physical state
                 self._integrate_state(entity, i, substep)
@@ -1615,6 +1622,157 @@ class World(TorchVectorizedObject):
             if self.collides(entity_a, entity_b):
                 apply_env_forces(*self._get_collision_force(entity_a, entity_b))
 
+    def _apply_vectorized_collisions(self):
+        s_s = []
+        l_s = []
+        b_s = []
+        l_l = []
+        l_b = []
+        b_b = []
+        for a, entity_a in enumerate(self.entities):
+            for b, entity_b in enumerate(self.entities):
+                if b <= a or not self.collides(entity_a, entity_b):
+                    continue
+                joint = self._joints.get(
+                    frozenset({entity_a.name, entity_b.name}), None
+                )
+                if joint is not None and joint.dist == 0:
+                    continue
+
+                if isinstance(entity_a.shape, Sphere) and isinstance(
+                    entity_b.shape, Sphere
+                ):
+                    s_s.append((entity_a, entity_b))
+                elif (
+                    isinstance(entity_a.shape, Line)
+                    and isinstance(entity_b.shape, Sphere)
+                    or isinstance(entity_b.shape, Line)
+                    and isinstance(entity_a.shape, Sphere)
+                ):
+                    line, sphere = (
+                        (entity_a, entity_b)
+                        if isinstance(entity_b.shape, Sphere)
+                        else (entity_b, entity_a)
+                    )
+                    l_s.append((line, sphere))
+
+        # Sphere and sphere
+        self._sphere_sphere_vectorized_collision(s_s)
+        # Line and sphere
+        self._sphere_line_vectorized_collision(l_s)
+
+    def update_env_forces(self, entity_a, f_a, t_a, entity_b, f_b, t_b):
+        a = self.entity_index_map[entity_a]
+        b = self.entity_index_map[entity_b]
+        if entity_a.movable:
+            self.force[:, a] += f_a
+        if entity_a.rotatable:
+            self.torque[:, a] += t_a
+        if entity_b.movable:
+            self.force[:, b] += f_b
+        if entity_b.rotatable:
+            self.torque[:, b] += t_b
+
+    def _sphere_sphere_vectorized_collision(self, s_s):
+        if len(s_s):
+            pos_s_a = []
+            pos_s_b = []
+            radius_s_a = []
+            radius_s_b = []
+            for s_a, s_b in s_s:
+                pos_s_a.append(s_a.state.pos)
+                pos_s_b.append(s_b.state.pos)
+                radius_s_a.append(torch.tensor(s_a.shape.radius, device=self.device))
+                radius_s_b.append(torch.tensor(s_b.shape.radius, device=self.device))
+
+            pos_s_a = torch.stack(pos_s_a, dim=-2)
+            pos_s_b = torch.stack(pos_s_b, dim=-2)
+            radius_s_a = (
+                torch.stack(
+                    radius_s_a,
+                    dim=-1,
+                )
+                .unsqueeze(0)
+                .expand(self.batch_dim, -1)
+            )
+            radius_s_b = (
+                torch.stack(
+                    radius_s_b,
+                    dim=-1,
+                )
+                .unsqueeze(0)
+                .expand(self.batch_dim, -1)
+            )
+            force_a, force_b = self._get_constraint_forces(
+                pos_s_a,
+                pos_s_b,
+                dist_min=radius_s_a + radius_s_b,
+                force_multiplier=self._collision_force,
+            )
+
+            for i, (entity_a, entity_b) in enumerate(s_s):
+                self.update_env_forces(
+                    entity_a,
+                    force_a[:, i],
+                    0,
+                    entity_b,
+                    force_b[:, i],
+                    0,
+                )
+
+    def _sphere_line_vectorized_collision(self, l_s):
+        if len(l_s):
+            pos_l = []
+            pos_s = []
+            rot_l = []
+            radius_s = []
+            length_l = []
+            for l, s in l_s:
+                pos_l.append(l.state.pos)
+                pos_s.append(s.state.pos)
+                rot_l.append(l.state.rot)
+                radius_s.append(torch.tensor(s.shape.radius, device=self.device))
+                length_l.append(torch.tensor(l.shape.length, device=self.device))
+            pos_l = torch.stack(pos_l, dim=-2)
+            pos_s = torch.stack(pos_s, dim=-2)
+            rot_l = torch.stack(rot_l, dim=-2)
+            radius_s = (
+                torch.stack(
+                    radius_s,
+                    dim=-1,
+                )
+                .unsqueeze(0)
+                .expand(self.batch_dim, -1)
+            )
+            length_l = (
+                torch.stack(
+                    length_l,
+                    dim=-1,
+                )
+                .unsqueeze(0)
+                .expand(self.batch_dim, -1)
+            )
+
+            closest_point = self._get_closest_point_line(pos_l, rot_l, length_l, pos_s)
+            force_sphere, force_line = self._get_constraint_forces(
+                pos_s,
+                closest_point,
+                dist_min=radius_s + LINE_MIN_DIST,
+                force_multiplier=self._collision_force,
+            )
+            r = closest_point - pos_l
+            torque_line = TorchUtils.compute_torque(force_line, r)
+
+            for i, (entity_a, entity_b) in enumerate(l_s):
+                self.update_env_forces(
+                    entity_a,
+                    force_line[:, i],
+                    torque_line[:, i],
+                    entity_b,
+                    force_sphere[:, i],
+                    0,
+                )
+
     def collides(self, a: Entity, b: Entity) -> bool:
         if (not a.collides(b)) or (not b.collides(a)) or a is b:
             return False
@@ -1666,12 +1824,8 @@ class World(TorchVectorizedObject):
     def _get_collision_force(self, entity_a, entity_b):
         # Sphere and sphere
         if isinstance(entity_a.shape, Sphere) and isinstance(entity_b.shape, Sphere):
-            force_a, force_b = self._get_constraint_forces(
-                entity_a.state.pos,
-                entity_b.state.pos,
-                dist_min=entity_a.shape.radius + entity_b.shape.radius,
-                force_multiplier=self._collision_force,
-            )
+            force_a = 0
+            force_b = 0
             torque_a = 0
             torque_b = 0
         # Sphere and line
@@ -1681,28 +1835,10 @@ class World(TorchVectorizedObject):
             or isinstance(entity_b.shape, Line)
             and isinstance(entity_a.shape, Sphere)
         ):
-            line, sphere = (
-                (entity_a, entity_b)
-                if isinstance(entity_b.shape, Sphere)
-                else (entity_b, entity_a)
-            )
-            closest_point = self._get_closest_point_line(
-                line.state.pos, line.state.rot, line.shape.length, sphere.state.pos
-            )
-            force_sphere, force_line = self._get_constraint_forces(
-                sphere.state.pos,
-                closest_point,
-                dist_min=sphere.shape.radius + LINE_MIN_DIST,
-                force_multiplier=self._collision_force,
-            )
-            r = closest_point - line.state.pos
-            torque_line = TorchUtils.compute_torque(force_line, r)
-
-            force_a, torque_a, force_b, torque_b = (
-                (force_sphere, 0, force_line, torque_line)
-                if isinstance(entity_a.shape, Sphere)
-                else (force_line, torque_line, force_sphere, 0)
-            )
+            force_a = 0
+            force_b = 0
+            torque_a = 0
+            torque_b = 0
         # Sphere and box
         elif (
             isinstance(entity_a.shape, Box)
@@ -2014,10 +2150,9 @@ class World(TorchVectorizedObject):
 
     def _get_all_lines_box(self, box: Entity):
         # Rotate normal vector by the angle of the box
-        rotated_vector = TorchUtils.rotate_vector(self._normal_vector, box.state.rot)
-        rotated_vector2 = TorchUtils.rotate_vector(
-            self._normal_vector, box.state.rot + torch.pi / 2
-        )
+        rotated_vector = torch.cat([box.state.rot.cos(), box.state.rot.sin()], dim=-1)
+        rot_2 = box.state.rot + torch.pi / 2
+        rotated_vector2 = torch.cat([rot_2.cos(), rot_2.sin()], dim=-1)
 
         # Middle points of the sides
         p1 = box.state.pos + rotated_vector * (box.shape.length / 2)
@@ -2089,18 +2224,22 @@ class World(TorchVectorizedObject):
         test_point_pos,
         limit_to_line_length: bool = True,
     ):
+        if not isinstance(line_length, torch.Tensor):
+            line_length = torch.tensor(
+                line_length, dtype=torch.float32, device=self.device
+            ).expand(self.batch_dim)
         # Rotate it by the angle of the line
-        rotated_vector = TorchUtils.rotate_vector(self._normal_vector, line_rot)
+        rotated_vector = torch.cat([line_rot.cos(), line_rot.sin()], dim=-1)
         # Get distance between line and sphere
         delta_pos = line_pos - test_point_pos
         # Dot product of distance and line vector
-        dot_p = torch.einsum("bs,bs->b", delta_pos, rotated_vector).unsqueeze(-1)
+        dot_p = (delta_pos * rotated_vector).sum(-1).unsqueeze(-1)
         # Coordinates of the closes point
         sign = torch.sign(dot_p)
         distance_from_line_center = (
-            torch.min(
+            torch.minimum(
                 torch.abs(dot_p),
-                torch.tensor(line_length / 2, dtype=torch.float32, device=self.device),
+                (line_length / 2).view(dot_p.shape),
             )
             if limit_to_line_length
             else torch.abs(dot_p)
@@ -2112,13 +2251,13 @@ class World(TorchVectorizedObject):
         self,
         pos_a: Tensor,
         pos_b: Tensor,
-        dist_min: float,
+        dist_min,
         force_multiplier: float,
         attractive: bool = False,
     ) -> Tensor:
         min_dist = 1e-6
         delta_pos = pos_a - pos_b
-        dist = torch.linalg.vector_norm(delta_pos, dim=1)
+        dist = torch.linalg.vector_norm(delta_pos, dim=-1)
         sign = -1 if attractive else 1
 
         # softmax penetration
@@ -2137,11 +2276,11 @@ class World(TorchVectorizedObject):
             / dist.unsqueeze(-1)
             * penetration.unsqueeze(-1)
         )
-        force[dist < min_dist] = 0
+        force = torch.where((dist < min_dist).unsqueeze(-1), 0, force)
         if not attractive:
-            force[dist > dist_min] = 0
+            force = torch.where((dist > dist_min).unsqueeze(-1), 0, force)
         else:
-            force[dist < dist_min] = 0
+            force = torch.where((dist < dist_min).unsqueeze(-1), 0, force)
         assert not force.isnan().any()
         return force, -force
 
