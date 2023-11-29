@@ -2161,7 +2161,7 @@ class World(TorchVectorizedObject):
         # Get distance between line and sphere
         delta_pos = line_pos - test_point_pos
         # Dot product of distance and line vector
-        dot_p = torch.einsum("bs,bs->b", delta_pos, rotated_vector).unsqueeze(-1)
+        dot_p = (delta_pos * rotated_vector).sum(-1).unsqueeze(-1)
         # Coordinates of the closes point
         sign = torch.sign(dot_p)
         distance_from_line_center = (
@@ -2204,11 +2204,11 @@ class World(TorchVectorizedObject):
             / dist.unsqueeze(-1)
             * penetration.unsqueeze(-1)
         )
-        force[dist < min_dist] = 0
+        force = torch.where((dist < min_dist).unsqueeze(-1), 0, force)
         if not attractive:
-            force = torch.where(dist > dist_min, 0, force)
+            force = torch.where((dist > dist_min).unsqueeze(-1), 0, force)
         else:
-            force = torch.where(dist < dist_min, 0, force)
+            force = torch.where((dist < dist_min).unsqueeze(-1), 0, force)
         assert not force.isnan().any()
         return force, -force
 
