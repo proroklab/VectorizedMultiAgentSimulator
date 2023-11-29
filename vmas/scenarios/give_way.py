@@ -20,7 +20,7 @@ class Scenario(BaseScenario):
         self.linear_friction = kwargs.get("linear_friction", 0.1)
         self.mirror_passage = kwargs.get("mirror_passage", False)
         self.done_on_completion = kwargs.get("done_on_completion", False)
-        self.observe_rel_pos_and_vel = kwargs.get("observe_rel_pos_and_vel", False)
+        self.observe_rel_pos = kwargs.get("observe_rel_pos", False)
 
         # Reward params
         self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 1.0)
@@ -306,13 +306,13 @@ class Scenario(BaseScenario):
         for a in self.world.agents:
             if a != agent:
                 rel.append(agent.state.pos - a.state.pos)
-                rel.append(agent.state.vel - a.state.vel)
+
         observations = [
             agent.state.pos,
             agent.state.vel,
             # agent.state.pos,
         ]
-        if self.observe_rel_pos_and_vel:
+        if self.observe_rel_pos:
             observations += rel
 
         if self.obs_noise > 0:
