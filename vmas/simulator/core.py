@@ -1949,7 +1949,13 @@ class World(TorchVectorizedObject):
                 if isinstance(entity_b.shape, Sphere)
                 else (entity_b, entity_a)
             )
-            closest_point_box = self._get_closest_point_box(box, sphere.state.pos)
+            closest_point_box = self._get_closest_point_box(
+                box.state.pos,
+                box.state.rot,
+                box.shape.width,
+                box.shape.length,
+                sphere.state.pos,
+            )
             if not box.shape.hollow:
                 inner_point_box, d = self.get_inner_point_box(
                     sphere.state.pos, closest_point_box, box
@@ -2007,7 +2013,13 @@ class World(TorchVectorizedObject):
                 else (entity_b, entity_a)
             )
             point_box, point_line = self._get_closest_line_box(
-                box, line.state.pos, line.state.rot, line.shape.length
+                box.state.pos,
+                box.state.rot,
+                box.shape.width,
+                box.shape.length,
+                line.state.pos,
+                line.state.rot,
+                line.shape.length,
             )
             if not box.shape.hollow:
                 inner_point_box, d = self.get_inner_point_box(
@@ -2036,7 +2048,16 @@ class World(TorchVectorizedObject):
             )
         # Box and box
         elif isinstance(entity_a.shape, Box) and isinstance(entity_b.shape, Box):
-            point_a, point_b = self._get_closest_box_box(entity_a, entity_b)
+            point_a, point_b = self._get_closest_box_box(
+                entity_a.state.pos,
+                entity_a.state.rot,
+                entity_a.shape.width,
+                entity_a.shape.length,
+                entity_b.state.pos,
+                entity_b.state.rot,
+                entity_b.shape.width,
+                entity_b.shape.length,
+            )
             if not entity_a.shape.hollow:
                 inner_point_a, d_a = self.get_inner_point_box(
                     point_b, point_a, entity_a
@@ -2079,35 +2100,51 @@ class World(TorchVectorizedObject):
         x_magnitude[v_norm == 0] = 0
         return surface_point + x, torch.abs(x_magnitude.squeeze(-1))
 
-    def _get_closest_box_box(self, a: Entity, b: Entity):
-        lines_a = self._get_all_lines_box(a)
-        lines_b = self._get_all_lines_box(b)
+    def _get_closest_box_box(
+        self,
+        box_pos,
+        box_rot,
+        box_width,
+        box_length,
+        box2_pos,
+        box2_rot,
+        box2_width,
+        box2_length,
+    ):
+        lines_a = self._get_all_lines_box(box_pos, box_rot, box_width, box_length)
+        lines_b = self._get_all_lines_box(box2_pos, box2_rot, box2_width, box2_length)
 
         point_pairs = []
 
         for line_a in lines_a:
-            point_line_a_b = self._get_closest_line_box(b, *line_a)
+            point_line_a_b = self._get_closest_line_box(
+                box2_pos, box2_rot, box2_width, box2_length, *line_a
+            )
             point_pairs.append((point_line_a_b[1], point_line_a_b[0]))
         for line_b in lines_b:
-            point_pairs.append(self._get_closest_line_box(a, *line_b))
+            point_pairs.append(
+                self._get_closest_line_box(
+                    box_pos, box_rot, box_width, box_length, *line_b
+                )
+            )
 
         closest_point_1 = torch.full(
-            (self.batch_dim, self.dim_p),
+            box_pos.shape,
             float("inf"),
             device=self.device,
             dtype=torch.float32,
         )
         closest_point_2 = torch.full(
-            (self.batch_dim, self.dim_p),
+            box_pos.shape,
             float("inf"),
             device=self.device,
             dtype=torch.float32,
         )
         distance = torch.full(
-            (self.batch_dim,), float("inf"), device=self.device, dtype=torch.float32
+            box_pos.shape[:-1], float("inf"), device=self.device, dtype=torch.float32
         )
         for p1, p2 in point_pairs:
-            d = torch.linalg.vector_norm(p1 - p2, dim=1)
+            d = torch.linalg.vector_norm(p1 - p2, dim=-1)
             is_closest = d < distance
             closest_point_1[is_closest] = p1[is_closest]
             closest_point_2[is_closest] = p2[is_closest]
@@ -2231,21 +2268,23 @@ class World(TorchVectorizedObject):
 
         return point, distance
 
-    def _get_closest_point_box(self, box: Entity, test_point_pos):
-        assert isinstance(box.shape, Box)
-
-        closest_points = self._get_all_points_box(box, test_point_pos)
+    def _get_closest_point_box(
+        self, box_pos, box_rot, box_width, box_length, test_point_pos
+    ):
+        closest_points = self._get_all_points_box(
+            box_pos, box_rot, box_width, box_length, test_point_pos
+        )
         closest_point = torch.full(
-            (self.batch_dim, self.dim_p),
+            box_pos.shape,
             float("inf"),
             device=self.device,
             dtype=torch.float32,
         )
         distance = torch.full(
-            (self.batch_dim,), float("inf"), device=self.device, dtype=torch.float32
+            box_pos.shape[:-1], float("inf"), device=self.device, dtype=torch.float32
         )
         for p in closest_points:
-            d = torch.linalg.vector_norm(test_point_pos - p, dim=1)
+            d = torch.linalg.vector_norm(test_point_pos - p, dim=-1)
             is_closest = d < distance
             closest_point[is_closest] = p[is_closest]
             distance[is_closest] = d[is_closest]
@@ -2254,46 +2293,48 @@ class World(TorchVectorizedObject):
 
         return closest_point
 
-    def _get_all_lines_box(self, box: Entity):
+    def _get_all_lines_box(self, box_pos, box_rot, box_width, box_length):
         # Rotate normal vector by the angle of the box
-        rotated_vector = torch.cat([box.state.rot.cos(), box.state.rot.sin()], dim=-1)
-        rot_2 = box.state.rot + torch.pi / 2
+        rotated_vector = torch.cat([box_rot.cos(), box_rot.sin()], dim=-1)
+        rot_2 = box_rot + torch.pi / 2
         rotated_vector2 = torch.cat([rot_2.cos(), rot_2.sin()], dim=-1)
 
         # Middle points of the sides
-        p1 = box.state.pos + rotated_vector * (box.shape.length / 2)
-        p2 = box.state.pos - rotated_vector * (box.shape.length / 2)
-        p3 = box.state.pos + rotated_vector2 * (box.shape.width / 2)
-        p4 = box.state.pos - rotated_vector2 * (box.shape.width / 2)
+        p1 = box_pos + rotated_vector * (box_length / 2)
+        p2 = box_pos - rotated_vector * (box_length / 2)
+        p3 = box_pos + rotated_vector2 * (box_width / 2)
+        p4 = box_pos - rotated_vector2 * (box_width / 2)
 
         lines = []
         for i, p in enumerate([p1, p2, p3, p4]):
             lines.append(
                 [
                     p,
-                    box.state.rot + torch.pi / 2 if i <= 1 else box.state.rot,
-                    box.shape.width if i <= 1 else box.shape.length,
+                    box_rot + torch.pi / 2 if i <= 1 else box_rot,
+                    box_width if i <= 1 else box_length,
                 ]
             )
         return lines
 
-    def _get_closest_line_box(self, box: Entity, line_pos, line_rot, line_length):
-        lines = self._get_all_lines_box(box)
+    def _get_closest_line_box(
+        self, box_pos, box_rot, box_width, box_length, line_pos, line_rot, line_length
+    ):
+        lines = self._get_all_lines_box(box_pos, box_rot, box_width, box_length)
 
         closest_point_1 = torch.full(
-            (self.batch_dim, self.dim_p),
+            box_pos.shape,
             float("inf"),
             device=self.device,
             dtype=torch.float32,
         )
         closest_point_2 = torch.full(
-            (self.batch_dim, self.dim_p),
+            box_pos.shape,
             float("inf"),
             device=self.device,
             dtype=torch.float32,
         )
         distance = torch.full(
-            (self.batch_dim,), float("inf"), device=self.device, dtype=torch.float32
+            box_pos.shape[:-1], float("inf"), device=self.device, dtype=torch.float32
         )
 
         for box_line in lines:
@@ -2307,10 +2348,10 @@ class World(TorchVectorizedObject):
             distance[is_closest] = d[is_closest]
         return closest_point_1, closest_point_2
 
-    def _get_all_points_box(self, box: Entity, test_point_pos):
-        assert isinstance(box.shape, Box)
-
-        lines = self._get_all_lines_box(box)
+    def _get_all_points_box(
+        self, box_pos, box_rot, box_width, box_length, test_point_pos
+    ):
+        lines = self._get_all_lines_box(box_pos, box_rot, box_width, box_length)
         closest_points = []
 
         for line in lines:
