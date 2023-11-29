@@ -1660,11 +1660,21 @@ class World(TorchVectorizedObject):
             if isinstance(entity_a.shape, Sphere) and isinstance(entity_b.shape, Sphere)
         ]
         if len(s_s):
-            pos_s_a = torch.stack([s.state.pos for s, _ in s_s], dim=-2)
-            pos_s_b = torch.stack([s.state.pos for _, s in s_s], dim=-2)
+            pos_s_a = []
+            pos_s_b = []
+            radius_s_a = []
+            radius_s_b = []
+            for s_a, s_b in s_s:
+                pos_s_a.append(s_a.state.pos)
+                pos_s_b.append(s_b.state.pos)
+                radius_s_a.append(torch.tensor(s_a.shape.radius, device=self.device))
+                radius_s_b.append(torch.tensor(s_b.shape.radius, device=self.device))
+
+            pos_s_a = torch.stack(pos_s_a, dim=-2)
+            pos_s_b = torch.stack(pos_s_b, dim=-2)
             radius_s_a = (
                 torch.stack(
-                    [torch.tensor(s.shape.radius, device=self.device) for s, _ in s_s],
+                    radius_s_a,
                     dim=-1,
                 )
                 .unsqueeze(0)
@@ -1672,7 +1682,7 @@ class World(TorchVectorizedObject):
             )
             radius_s_b = (
                 torch.stack(
-                    [torch.tensor(s.shape.radius, device=self.device) for s, _ in s_s],
+                    radius_s_b,
                     dim=-1,
                 )
                 .unsqueeze(0)
@@ -1712,12 +1722,23 @@ class World(TorchVectorizedObject):
                 l_s.append((line, sphere))
 
         if len(l_s):
-            pos_l = torch.stack([l.state.pos for l, _ in l_s], dim=-2)
-            pos_s = torch.stack([s.state.pos for _, s in l_s], dim=-2)
-            rot_l = torch.stack([l.state.rot for l, _ in l_s], dim=-2)
+            pos_l = []
+            pos_s = []
+            rot_l = []
+            radius_s = []
+            length_l = []
+            for l, s in l_s:
+                pos_l.append(l.state.pos)
+                pos_s.append(s.state.pos)
+                rot_l.append(l.state.rot)
+                radius_s.append(torch.tensor(s.shape.radius, device=self.device))
+                length_l.append(torch.tensor(l.shape.length, device=self.device))
+            pos_l = torch.stack(pos_l, dim=-2)
+            pos_s = torch.stack(pos_s, dim=-2)
+            rot_l = torch.stack(rot_l, dim=-2)
             radius_s = (
                 torch.stack(
-                    [torch.tensor(s.shape.radius, device=self.device) for _, s in l_s],
+                    radius_s,
                     dim=-1,
                 )
                 .unsqueeze(0)
@@ -1725,7 +1746,7 @@ class World(TorchVectorizedObject):
             )
             length_l = (
                 torch.stack(
-                    [torch.tensor(l.shape.length, device=self.device) for l, _ in l_s],
+                    length_l,
                     dim=-1,
                 )
                 .unsqueeze(0)
@@ -2206,7 +2227,7 @@ class World(TorchVectorizedObject):
         if not isinstance(line_length, torch.Tensor):
             line_length = torch.tensor(
                 line_length, dtype=torch.float32, device=self.device
-            )
+            ).expand(self.batch_dim)
         # Rotate it by the angle of the line
         rotated_vector = torch.cat([line_rot.cos(), line_rot.sin()], dim=-1)
         # Get distance between line and sphere
