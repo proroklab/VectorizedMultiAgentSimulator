@@ -2146,18 +2146,20 @@ class World(TorchVectorizedObject):
             point_a1, point_a2, point_b1, point_b2
         )
 
-        point_a1_line_b = self._get_closest_point_line(
-            line2_pos, line2_rot, line2_length, point_a1
+        (
+            point_a1_line_b,
+            point_a2_line_b,
+            point_b1_line_a,
+            point_b2_line_a,
+        ) = self._get_closest_point_line(
+            torch.stack([line2_pos, line2_pos, line_pos, line_pos], dim=0),
+            torch.stack([line2_rot, line2_rot, line_rot, line_rot], dim=0),
+            torch.stack([line2_length, line2_length, line_length, line_length], dim=0),
+            torch.stack([point_a1, point_a2, point_b1, point_b2], dim=0),
+        ).unbind(
+            0
         )
-        point_a2_line_b = self._get_closest_point_line(
-            line2_pos, line2_rot, line2_length, point_a2
-        )
-        point_b1_line_a = self._get_closest_point_line(
-            line_pos, line_rot, line_length, point_b1
-        )
-        point_b2_line_a = self._get_closest_point_line(
-            line_pos, line_rot, line_length, point_b2
-        )
+
         point_pairs = (
             (point_a1, point_a1_line_b),
             (point_a2, point_a2_line_b),
