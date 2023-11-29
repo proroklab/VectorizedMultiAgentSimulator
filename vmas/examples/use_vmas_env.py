@@ -6,8 +6,9 @@ import random
 import time
 
 import torch
+
 from vmas import make_env
-from vmas.simulator.utils import save_video
+from vmas.simulator.utils import save_video, VecCollisions
 
 
 def use_vmas_env(render: bool = False, save_render: bool = False):
@@ -50,7 +51,7 @@ def use_vmas_env(render: bool = False, save_render: bool = False):
 
     for s in range(n_steps):
         step += 1
-        print(f"Step {step}")
+        # print(f"Step {step}")
 
         # VMAS actions can be either a list of tensors (one per agent)
         # or a dict of tensors (one entry per agent with its name as key)
@@ -63,6 +64,14 @@ def use_vmas_env(render: bool = False, save_render: bool = False):
                 simple_2d_action if agent.u_rot_range == 0 else simple_3d_action,
                 device=device,
             ).repeat(num_envs, 1)
+            # action = torch.zeros(
+            #     (num_envs, 2),
+            #     device=device,
+            #     dtype=torch.float32,
+            # ).uniform_(
+            #     -agent.action.u_range,
+            #     agent.action.u_range,
+            # )
             if dict_actions:
                 actions.update({agent.name: action})
             else:
@@ -87,14 +96,37 @@ def use_vmas_env(render: bool = False, save_render: bool = False):
         f"It took: {total_time}s for {n_steps} steps of {num_envs} parallel environments on device {device} "
         f"for {scenario_name} scenario."
     )
+    return env
+
+
+def check_env_same_state(env1, env2):
+    for entity_a, entity_b in zip(env1.world.entities, env2.world.entities):
+        assert torch.allclose(entity_a.state.pos, entity_b.state.pos, atol=1e-3)
+        assert torch.allclose(entity_a.state.rot, entity_b.state.rot, atol=1e-3)
 
 
 if __name__ == "__main__":
     import cProfile
 
     profiler = cProfile.Profile()
+
+    print("No vec collisions")
     profiler.enable()
-    use_vmas_env(render=True, save_render=False)
+    torch.manual_seed(0)
+    VecCollisions.VECTORIZED_COLLISIONS = False
+    env1 = use_vmas_env(render=False, save_render=False)
     profiler.disable()
     stats = pstats.Stats(profiler).sort_stats("tottime")
-    stats.print_stats()
+    # stats.print_stats()
+
+    profiler = cProfile.Profile()
+    print("Vec collisions")
+    torch.manual_seed(0)
+    profiler.enable()
+    VecCollisions.VECTORIZED_COLLISIONS = True
+    env2 = use_vmas_env(render=False, save_render=False)
+    profiler.disable()
+    stats = pstats.Stats(profiler).sort_stats("tottime")
+    # stats.print_stats()
+
+    check_env_same_state(env1, env2)
