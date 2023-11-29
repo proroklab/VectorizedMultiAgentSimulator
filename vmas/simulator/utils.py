@@ -48,6 +48,10 @@ class Color(Enum):
     BLACK = (0.15, 0.15, 0.15)
 
 
+class VecCollisions:
+    VECTORIZED_COLLISIONS = True
+
+
 def override(cls):
     """Decorator for documenting method overrides."""
 
