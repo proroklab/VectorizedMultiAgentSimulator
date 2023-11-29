@@ -1623,7 +1623,12 @@ class World(TorchVectorizedObject):
                 apply_env_forces(*self._get_collision_force(entity_a, entity_b))
 
     def _apply_vectorized_collisions(self):
-        collidable_pairs = []
+        s_s = []
+        l_s = []
+        b_s = []
+        l_l = []
+        l_b = []
+        b_b = []
         for a, entity_a in enumerate(self.entities):
             for b, entity_b in enumerate(self.entities):
                 if b <= a or not self.collides(entity_a, entity_b):
@@ -1634,12 +1639,27 @@ class World(TorchVectorizedObject):
                 if joint is not None and joint.dist == 0:
                     continue
 
-                collidable_pairs.append((entity_a, entity_b))
+                if isinstance(entity_a.shape, Sphere) and isinstance(
+                    entity_b.shape, Sphere
+                ):
+                    s_s.append((entity_a, entity_b))
+                elif (
+                    isinstance(entity_a.shape, Line)
+                    and isinstance(entity_b.shape, Sphere)
+                    or isinstance(entity_b.shape, Line)
+                    and isinstance(entity_a.shape, Sphere)
+                ):
+                    line, sphere = (
+                        (entity_a, entity_b)
+                        if isinstance(entity_b.shape, Sphere)
+                        else (entity_b, entity_a)
+                    )
+                    l_s.append((line, sphere))
 
         # Sphere and sphere
-        self._sphere_sphere_vectorized_collision(collidable_pairs)
+        self._sphere_sphere_vectorized_collision(s_s)
         # Line and sphere
-        self._sphere_line_vectorized_collision(collidable_pairs)
+        self._sphere_line_vectorized_collision(l_s)
 
     def update_env_forces(self, entity_a, f_a, t_a, entity_b, f_b, t_b):
         a = self.entity_index_map[entity_a]
@@ -1653,12 +1673,7 @@ class World(TorchVectorizedObject):
         if entity_b.rotatable:
             self.torque[:, b] += t_b
 
-    def _sphere_sphere_vectorized_collision(self, colliding_pairs):
-        s_s = [
-            (entity_a, entity_b)
-            for entity_a, entity_b in colliding_pairs
-            if isinstance(entity_a.shape, Sphere) and isinstance(entity_b.shape, Sphere)
-        ]
+    def _sphere_sphere_vectorized_collision(self, s_s):
         if len(s_s):
             pos_s_a = []
             pos_s_b = []
@@ -1705,22 +1720,7 @@ class World(TorchVectorizedObject):
                     0,
                 )
 
-    def _sphere_line_vectorized_collision(self, colliding_pairs):
-        l_s = []
-        for entity_a, entity_b in colliding_pairs:
-            if (
-                isinstance(entity_a.shape, Line)
-                and isinstance(entity_b.shape, Sphere)
-                or isinstance(entity_b.shape, Line)
-                and isinstance(entity_a.shape, Sphere)
-            ):
-                line, sphere = (
-                    (entity_a, entity_b)
-                    if isinstance(entity_b.shape, Sphere)
-                    else (entity_b, entity_a)
-                )
-                l_s.append((line, sphere))
-
+    def _sphere_line_vectorized_collision(self, l_s):
         if len(l_s):
             pos_l = []
             pos_s = []
