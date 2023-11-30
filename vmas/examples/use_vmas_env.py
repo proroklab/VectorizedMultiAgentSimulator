@@ -36,7 +36,21 @@ def _get_random_action(agent: Agent, continuous: bool):
                 ],
                 dim=-1,
             )
-        return action
+    else:
+        action = torch.randint(
+            low=0, high=5, size=(agent.batch_dim,), device=agent.device
+        )
+        if agent.u_rot_range > 0:
+            action = torch.stack(
+                [
+                    action,
+                    torch.randint(
+                        low=0, high=3, size=(agent.batch_dim,), device=agent.device
+                    ),
+                ],
+                dim=-1,
+            )
+    return action
 
 
 def use_vmas_env(
@@ -50,9 +64,10 @@ def use_vmas_env(
     n_agents: int = 4,
     continuous_actions: bool = True,
 ):
-    """
+    """Example function to use a vmas environment
 
     Args:
+        continuous_actions (bool): Whether the agents have continuous or discrete actions
         n_agents (int): Number of agents
         scenario_name (str): Name of scenario
         device (str): Torch device to use
@@ -135,14 +150,13 @@ def use_vmas_env(
         f"It took: {total_time}s for {n_steps} steps of {num_envs} parallel environments on device {device} "
         f"for {scenario_name} scenario."
     )
-    return env
 
 
 if __name__ == "__main__":
     use_vmas_env(
-        scenario_name="kinematic_bicycle",
+        scenario_name="waterfall",
         render=True,
         save_render=False,
-        random_action=True,
+        random_action=False,
         continuous_actions=True,
     )
