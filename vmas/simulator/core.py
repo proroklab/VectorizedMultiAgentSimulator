@@ -34,7 +34,7 @@ from vmas.simulator.utils import (
     DRAG,
     LINEAR_FRICTION,
     ANGULAR_FRICTION,
-    VecCollisions,
+    Vectorization,
     TorchUtils,
 )
 
@@ -1516,11 +1516,12 @@ class World(TorchVectorizedObject):
                 self._apply_friction_force(entity, i)
                 # apply gravity
                 self._apply_gravity(entity, i)
-                # apply environment forces (constraints)
-                self._apply_environment_force(entity, i)
+                if not Vectorization.VECTORIZED_CONSTRAINTS:
+                    # apply environment forces (constraints)
+                    self._apply_environment_force(entity, i)
 
-            if VecCollisions.VECTORIZED_COLLISIONS:
-                self._apply_vectorized_collisions()
+            if Vectorization.VECTORIZED_CONSTRAINTS:
+                self._apply_vectorized_enviornment_force()
 
             for i, entity in enumerate(self.entities):
                 # integrate physical state
@@ -1660,28 +1661,30 @@ class World(TorchVectorizedObject):
                 if joint.dist == 0:
                     continue
             # Collisions
-            if VecCollisions.VECTORIZED_COLLISIONS:
-                continue
             if self.collides(entity_a, entity_b):
                 apply_env_forces(*self._get_collision_force(entity_a, entity_b))
 
-    def _apply_vectorized_collisions(self):
+    def _apply_vectorized_enviornment_force(self):
         s_s = []
         l_s = []
         b_s = []
         l_l = []
         b_l = []
         b_b = []
+        joints = []
         for a, entity_a in enumerate(self.entities):
             for b, entity_b in enumerate(self.entities):
-                if b <= a or not self.collides(entity_a, entity_b):
+                if b <= a:
                     continue
                 joint = self._joints.get(
                     frozenset({entity_a.name, entity_b.name}), None
                 )
-                if joint is not None and joint.dist == 0:
+                if joint is not None:
+                    joints.append((entity_a, entity_b, joint))
+                    if joint.dist == 0:
+                        continue
+                if not self.collides(entity_a, entity_b):
                     continue
-
                 if isinstance(entity_a.shape, Sphere) and isinstance(
                     entity_b.shape, Sphere
                 ):
@@ -1732,6 +1735,8 @@ class World(TorchVectorizedObject):
                     b_b.append((entity_a, entity_b))
                 else:
                     assert False
+        # Joints
+        self._vectorized_joint_constraints(joints)
 
         # Sphere and sphere
         self._sphere_sphere_vectorized_collision(s_s)
@@ -1757,6 +1762,76 @@ class World(TorchVectorizedObject):
             self.force[:, b] += f_b
         if entity_b.rotatable:
             self.torque[:, b] += t_b
+
+    def _vectorized_joint_constraints(self, joints):
+        if len(joints):
+            pos_a = []
+            pos_b = []
+            pos_joint_a = []
+            pos_joint_b = []
+            dist = []
+            rotate = []
+            for entity_a, entity_b, joint in joints:
+                pos_joint_a.append(joint.pos_point(entity_a))
+                pos_joint_b.append(joint.pos_point(entity_b))
+                pos_a.append(entity_a.state.pos)
+                pos_b.append(entity_b.state.pos)
+                dist.append(torch.tensor(joint.dist, device=self.device))
+                rotate.append(torch.tensor(joint.rotate, device=self.device))
+            pos_a = torch.stack(pos_a, dim=-2)
+            pos_b = torch.stack(pos_b, dim=-2)
+            pos_joint_a = torch.stack(pos_joint_a, dim=-2)
+            pos_joint_b = torch.stack(pos_joint_b, dim=-2)
+            dist = (
+                torch.stack(
+                    dist,
+                    dim=-1,
+                )
+                .unsqueeze(0)
+                .expand(self.batch_dim, -1)
+            )
+            rotate_prior = torch.stack(
+                rotate,
+                dim=-1,
+            )
+            rotate = rotate_prior.unsqueeze(0).expand(self.batch_dim, -1).unsqueeze(-1)
+
+            force_a_attractive, force_b_attractive = self._get_constraint_forces(
+                pos_joint_a,
+                pos_joint_b,
+                dist_min=dist,
+                attractive=True,
+                force_multiplier=self._joint_force,
+            )
+            force_a_repulsive, force_b_repulsive = self._get_constraint_forces(
+                pos_joint_a,
+                pos_joint_b,
+                dist_min=dist,
+                attractive=False,
+                force_multiplier=self._joint_force,
+            )
+            force_a = force_a_attractive + force_a_repulsive
+            force_b = force_b_attractive + force_b_repulsive
+            r_a = pos_joint_a - pos_a
+            r_b = pos_joint_b - pos_b
+
+            torque_a = torch.zeros_like(rotate, device=self.device, dtype=torch.float)
+            torque_b = torch.zeros_like(rotate, device=self.device, dtype=torch.float)
+            if rotate_prior.any():
+                torque_a_rotate = TorchUtils.compute_torque(force_a, r_a)
+                torque_b_rotate = TorchUtils.compute_torque(force_b, r_b)
+                torque_a[rotate] = torque_a_rotate[rotate]
+                torque_b[rotate] = torque_b_rotate[rotate]
+
+            for i, (entity_a, entity_b, _) in enumerate(joints):
+                self.update_env_forces(
+                    entity_a,
+                    force_a[:, i],
+                    torque_a[:, i],
+                    entity_b,
+                    force_b[:, i],
+                    torque_b[:, i],
+                )
 
     def _sphere_sphere_vectorized_collision(self, s_s):
         if len(s_s):

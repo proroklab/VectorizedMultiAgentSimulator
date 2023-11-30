@@ -53,8 +53,8 @@ class Color(Enum):
     BLACK = (0.15, 0.15, 0.15)
 
 
-class VecCollisions:
-    VECTORIZED_COLLISIONS = True
+class Vectorization:
+    VECTORIZED_CONSTRAINTS = True
 
 
 def override(cls):
