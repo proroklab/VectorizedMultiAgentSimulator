@@ -142,14 +142,14 @@ def use_vmas_env(
             if save_render:
                 frame_list.append(frame)
 
-    if render and save_render:
-        save_video(scenario_name, frame_list, fps=1 / env.scenario.world.dt)
-
     total_time = time.time() - init_time
     print(
         f"It took: {total_time}s for {n_steps} steps of {num_envs} parallel environments on device {device} "
         f"for {scenario_name} scenario."
     )
+
+    if render and save_render:
+        save_video(scenario_name, frame_list, fps=1 / env.scenario.world.dt)
 
 
 if __name__ == "__main__":
