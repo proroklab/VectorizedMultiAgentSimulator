@@ -363,6 +363,7 @@ class Environment(TorchVectorizedObject):
     # set env action for a particular agent
     def _set_action(self, action, agent):
         action = action.clone().detach().to(self.device)
+        assert not action.isnan().any()
         agent.action.u = torch.zeros(
             self.batch_dim, self.world.dim_p, device=self.device, dtype=torch.float32
         )

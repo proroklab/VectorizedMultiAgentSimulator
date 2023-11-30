@@ -162,16 +162,18 @@ class TorchUtils:
 
     @staticmethod
     def rotate_vector(vector: Tensor, angle: Tensor):
-        if len(angle.shape) > 1:
+        if len(angle.shape) == len(vector.shape):
             angle = angle.squeeze(-1)
-        if len(vector.shape) == 1:
-            vector = vector.unsqueeze(0)
+
+        assert vector.shape[:-1] == angle.shape
+        assert vector.shape[-1] == 2
+
         cos = torch.cos(angle)
         sin = torch.sin(angle)
         return torch.stack(
             [
-                vector[:, X] * cos - vector[:, Y] * sin,
-                vector[:, X] * sin + vector[:, Y] * cos,
+                vector[..., X] * cos - vector[..., Y] * sin,
+                vector[..., X] * sin + vector[..., Y] * cos,
             ],
             dim=-1,
         )
@@ -179,8 +181,8 @@ class TorchUtils:
     @staticmethod
     def cross(vector_a: Tensor, vector_b: Tensor):
         return (
-            vector_a[:, X] * vector_b[:, Y] - vector_a[:, Y] * vector_b[:, X]
-        ).unsqueeze(1)
+            vector_a[..., X] * vector_b[..., Y] - vector_a[..., Y] * vector_b[..., X]
+        ).unsqueeze(-1)
 
     @staticmethod
     def compute_torque(f: Tensor, r: Tensor) -> Tensor:
