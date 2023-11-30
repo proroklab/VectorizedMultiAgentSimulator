@@ -285,12 +285,13 @@ def _get_all_lines_box(box_pos, box_rot, box_width, box_length):
     rotated_vector2 = torch.cat([rot_2.cos(), rot_2.sin()], dim=-1)
 
     expanded_half_box_length = box_length.unsqueeze(-1).expand(rotated_vector.shape) / 2
+    expanded_half_box_width = box_width.unsqueeze(-1).expand(rotated_vector.shape) / 2
 
     # Middle points of the sides
     p1 = box_pos + rotated_vector * expanded_half_box_length
     p2 = box_pos - rotated_vector * expanded_half_box_length
-    p3 = box_pos + rotated_vector2 * expanded_half_box_length
-    p4 = box_pos - rotated_vector2 * expanded_half_box_length
+    p3 = box_pos + rotated_vector2 * expanded_half_box_width
+    p4 = box_pos - rotated_vector2 * expanded_half_box_width
 
     ps = []
     rots = []
