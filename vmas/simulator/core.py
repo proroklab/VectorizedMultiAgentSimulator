@@ -12,7 +12,7 @@ from typing import Callable, List, Tuple
 import torch
 from torch import Tensor
 
-from vmas.simulator.joints import JointConstraint, Joint
+from vmas.simulator.joints import Joint
 from vmas.simulator.physics import (
     _get_closest_point_line,
     _get_closest_point_box,
@@ -34,7 +34,6 @@ from vmas.simulator.utils import (
     DRAG,
     LINEAR_FRICTION,
     ANGULAR_FRICTION,
-    Vectorization,
     TorchUtils,
 )
 
@@ -1516,12 +1515,10 @@ class World(TorchVectorizedObject):
                 self._apply_friction_force(entity, i)
                 # apply gravity
                 self._apply_gravity(entity, i)
-                if not Vectorization.VECTORIZED_CONSTRAINTS:
-                    # apply environment forces (constraints)
-                    self._apply_environment_force(entity, i)
 
-            if Vectorization.VECTORIZED_CONSTRAINTS:
-                self._apply_vectorized_enviornment_force()
+                # self._apply_environment_force(entity, i)
+
+            self._apply_vectorized_enviornment_force()
 
             for i, entity in enumerate(self.entities):
                 # integrate physical state
@@ -1638,31 +1635,6 @@ class World(TorchVectorizedObject):
                 self.torque[:, index],
                 entity.moment_of_inertia,
             )
-
-    # gather physical forces acting on entities
-    def _apply_environment_force(self, entity_a: Entity, a: int):
-        def apply_env_forces(f_a, t_a, f_b, t_b):
-            if entity_a.movable:
-                self.force[:, a] += f_a
-            if entity_a.rotatable:
-                self.torque[:, a] += t_a
-            if entity_b.movable:
-                self.force[:, b] += f_b
-            if entity_b.rotatable:
-                self.torque[:, b] += t_b
-
-        for b, entity_b in enumerate(self.entities):
-            if b <= a:
-                continue
-            # Joints
-            if frozenset({entity_a.name, entity_b.name}) in self._joints:
-                joint = self._joints[frozenset({entity_a.name, entity_b.name})]
-                apply_env_forces(*self._get_joint_forces(entity_a, entity_b, joint))
-                if joint.dist == 0:
-                    continue
-            # Collisions
-            if self.collides(entity_a, entity_b):
-                apply_env_forces(*self._get_collision_force(entity_a, entity_b))
 
     def _apply_vectorized_enviornment_force(self):
         s_s = []
@@ -2338,226 +2310,6 @@ class World(TorchVectorizedObject):
 
         return True
 
-    def _get_joint_forces(
-        self, entity_a: Entity, entity_b: Entity, joint: JointConstraint
-    ):
-        pos_point_a = joint.pos_point(entity_a)
-        pos_point_b = joint.pos_point(entity_b)
-        force_a_attractive, force_b_attractive = self._get_constraint_forces(
-            pos_point_a,
-            pos_point_b,
-            dist_min=joint.dist,
-            attractive=True,
-            force_multiplier=self._joint_force,
-        )
-        force_a_repulsive, force_b_repulsive = self._get_constraint_forces(
-            pos_point_a,
-            pos_point_b,
-            dist_min=joint.dist,
-            attractive=False,
-            force_multiplier=self._joint_force,
-        )
-        force_a = force_a_attractive + force_a_repulsive
-        force_b = force_b_attractive + force_b_repulsive
-        r_a = pos_point_a - entity_a.state.pos
-        r_b = pos_point_b - entity_b.state.pos
-        if joint.rotate:
-            torque_a = TorchUtils.compute_torque(force_a, r_a)
-            torque_b = TorchUtils.compute_torque(force_b, r_b)
-        else:
-            torque_a = torque_b = 0
-        return force_a, torque_a, force_b, torque_b
-
-    # get collision forces for any contact between two entities
-    # collisions among lines and boxes or these objects among themselves will be ignored
-    def _get_collision_force(self, entity_a, entity_b):
-        # Sphere and sphere
-        if isinstance(entity_a.shape, Sphere) and isinstance(entity_b.shape, Sphere):
-            force_a, force_b = self._get_constraint_forces(
-                entity_a.state.pos,
-                entity_b.state.pos,
-                dist_min=entity_a.shape.radius + entity_b.shape.radius,
-                force_multiplier=self._collision_force,
-            )
-            torque_a = 0
-            torque_b = 0
-        # Sphere and line
-        elif (
-            isinstance(entity_a.shape, Line)
-            and isinstance(entity_b.shape, Sphere)
-            or isinstance(entity_b.shape, Line)
-            and isinstance(entity_a.shape, Sphere)
-        ):
-            line, sphere = (
-                (entity_a, entity_b)
-                if isinstance(entity_b.shape, Sphere)
-                else (entity_b, entity_a)
-            )
-            closest_point = _get_closest_point_line(
-                line.state.pos, line.state.rot, line.shape.length, sphere.state.pos
-            )
-            force_sphere, force_line = self._get_constraint_forces(
-                sphere.state.pos,
-                closest_point,
-                dist_min=sphere.shape.radius + LINE_MIN_DIST,
-                force_multiplier=self._collision_force,
-            )
-            r = closest_point - line.state.pos
-            torque_line = TorchUtils.compute_torque(force_line, r)
-
-            force_a, torque_a, force_b, torque_b = (
-                (force_sphere, 0, force_line, torque_line)
-                if isinstance(entity_a.shape, Sphere)
-                else (force_line, torque_line, force_sphere, 0)
-            )
-        # Sphere and box
-        elif (
-            isinstance(entity_a.shape, Box)
-            and isinstance(entity_b.shape, Sphere)
-            or isinstance(entity_b.shape, Box)
-            and isinstance(entity_a.shape, Sphere)
-        ):
-            box, sphere = (
-                (entity_a, entity_b)
-                if isinstance(entity_b.shape, Sphere)
-                else (entity_b, entity_a)
-            )
-            closest_point_box = _get_closest_point_box(
-                box.state.pos,
-                box.state.rot,
-                box.shape.width,
-                box.shape.length,
-                sphere.state.pos,
-            )
-            if not box.shape.hollow:
-                inner_point_box, d = _get_inner_point_box(
-                    sphere.state.pos, closest_point_box, box.state.pos
-                )
-            else:
-                inner_point_box = closest_point_box
-                d = 0
-            force_sphere, force_box = self._get_constraint_forces(
-                sphere.state.pos,
-                inner_point_box,
-                dist_min=sphere.shape.radius + LINE_MIN_DIST + d,
-                force_multiplier=self._collision_force,
-            )
-            r = closest_point_box - box.state.pos
-            torque_box = TorchUtils.compute_torque(force_box, r)
-
-            force_a, torque_a, force_b, torque_b = (
-                (force_sphere, 0, force_box, torque_box)
-                if isinstance(entity_a.shape, Sphere)
-                else (force_box, torque_box, force_sphere, 0)
-            )
-        # Line and line
-        elif isinstance(entity_a.shape, Line) and isinstance(entity_b.shape, Line):
-            point_a, point_b = _get_closest_points_line_line(
-                entity_a.state.pos,
-                entity_a.state.rot,
-                entity_a.shape.length,
-                entity_b.state.pos,
-                entity_b.state.rot,
-                entity_b.shape.length,
-            )
-            force_a, force_b = self._get_constraint_forces(
-                point_a,
-                point_b,
-                dist_min=LINE_MIN_DIST,
-                force_multiplier=self._collision_force,
-            )
-            r_a = point_a - entity_a.state.pos
-            r_b = point_b - entity_b.state.pos
-
-            torque_a = TorchUtils.compute_torque(force_a, r_a)
-            torque_b = TorchUtils.compute_torque(force_b, r_b)
-        # Line and box
-        elif (
-            isinstance(entity_a.shape, Box)
-            and isinstance(entity_b.shape, Line)
-            or isinstance(entity_b.shape, Box)
-            and isinstance(entity_a.shape, Line)
-        ):
-            box, line = (
-                (entity_a, entity_b)
-                if isinstance(entity_b.shape, Line)
-                else (entity_b, entity_a)
-            )
-            point_box, point_line = _get_closest_line_box(
-                box.state.pos,
-                box.state.rot,
-                box.shape.width,
-                box.shape.length,
-                line.state.pos,
-                line.state.rot,
-                line.shape.length,
-            )
-            if not box.shape.hollow:
-                inner_point_box, d = _get_inner_point_box(
-                    point_line, point_box, box.state.pos
-                )
-            else:
-                inner_point_box = point_box
-                d = 0
-
-            force_box, force_line = self._get_constraint_forces(
-                inner_point_box,
-                point_line,
-                dist_min=LINE_MIN_DIST + d,
-                force_multiplier=self._collision_force,
-            )
-            r_box = point_box - box.state.pos
-            r_line = point_line - line.state.pos
-
-            torque_box = TorchUtils.compute_torque(force_box, r_box)
-            torque_line = TorchUtils.compute_torque(force_line, r_line)
-
-            force_a, torque_a, force_b, torque_b = (
-                (force_line, torque_line, force_box, torque_box)
-                if isinstance(entity_a.shape, Line)
-                else (force_box, torque_box, force_line, torque_line)
-            )
-        # Box and box
-        elif isinstance(entity_a.shape, Box) and isinstance(entity_b.shape, Box):
-            point_a, point_b = _get_closest_box_box(
-                entity_a.state.pos,
-                entity_a.state.rot,
-                entity_a.shape.width,
-                entity_a.shape.length,
-                entity_b.state.pos,
-                entity_b.state.rot,
-                entity_b.shape.width,
-                entity_b.shape.length,
-            )
-            if not entity_a.shape.hollow:
-                inner_point_a, d_a = _get_inner_point_box(
-                    point_b, point_a, entity_a.state.pos
-                )
-            else:
-                inner_point_a = point_a
-                d_a = 0
-            if not entity_b.shape.hollow:
-                inner_point_b, d_b = _get_inner_point_box(
-                    point_a, point_b, entity_b.state.pos
-                )
-            else:
-                inner_point_b = point_b
-                d_b = 0
-            force_a, force_b = self._get_constraint_forces(
-                inner_point_a,
-                inner_point_b,
-                dist_min=d_a + d_b + LINE_MIN_DIST,
-                force_multiplier=self._collision_force,
-            )
-            r_a = point_a - entity_a.state.pos
-            r_b = point_b - entity_b.state.pos
-            torque_a = TorchUtils.compute_torque(force_a, r_a)
-            torque_b = TorchUtils.compute_torque(force_b, r_b)
-        else:
-            assert False
-
-        return force_a, torque_a, force_b, torque_b
-
     def _get_constraint_forces(
         self,
         pos_a: Tensor,
@@ -2649,3 +2401,252 @@ class World(TorchVectorizedObject):
         super().to(device)
         for e in self.entities:
             e.to(device)
+
+    ##################
+    # Legacy functions
+    ##################
+
+    # def _apply_environment_force(self, entity_a: Entity, a: int):
+    #     def apply_env_forces(f_a, t_a, f_b, t_b):
+    #         if entity_a.movable:
+    #             self.force[:, a] += f_a
+    #         if entity_a.rotatable:
+    #             self.torque[:, a] += t_a
+    #         if entity_b.movable:
+    #             self.force[:, b] += f_b
+    #         if entity_b.rotatable:
+    #             self.torque[:, b] += t_b
+    #
+    #     for b, entity_b in enumerate(self.entities):
+    #         if b <= a:
+    #             continue
+    #         # Joints
+    #         if frozenset({entity_a.name, entity_b.name}) in self._joints:
+    #             joint = self._joints[frozenset({entity_a.name, entity_b.name})]
+    #             apply_env_forces(*self._get_joint_forces(entity_a, entity_b, joint))
+    #             if joint.dist == 0:
+    #                 continue
+    #         # Collisions
+    #         if self.collides(entity_a, entity_b):
+    #             apply_env_forces(*self._get_collision_force(entity_a, entity_b))
+    #
+    # def _get_joint_forces(
+    #     self, entity_a: Entity, entity_b: Entity, joint: JointConstraint
+    # ):
+    #     pos_point_a = joint.pos_point(entity_a)
+    #     pos_point_b = joint.pos_point(entity_b)
+    #     force_a_attractive, force_b_attractive = self._get_constraint_forces(
+    #         pos_point_a,
+    #         pos_point_b,
+    #         dist_min=joint.dist,
+    #         attractive=True,
+    #         force_multiplier=self._joint_force,
+    #     )
+    #     force_a_repulsive, force_b_repulsive = self._get_constraint_forces(
+    #         pos_point_a,
+    #         pos_point_b,
+    #         dist_min=joint.dist,
+    #         attractive=False,
+    #         force_multiplier=self._joint_force,
+    #     )
+    #     force_a = force_a_attractive + force_a_repulsive
+    #     force_b = force_b_attractive + force_b_repulsive
+    #     r_a = pos_point_a - entity_a.state.pos
+    #     r_b = pos_point_b - entity_b.state.pos
+    #     if joint.rotate:
+    #         torque_a = TorchUtils.compute_torque(force_a, r_a)
+    #         torque_b = TorchUtils.compute_torque(force_b, r_b)
+    #     else:
+    #         torque_a = torque_b = 0
+    #     return force_a, torque_a, force_b, torque_b
+    #
+    #     # get collision forces for any contact between two entities
+    #     # collisions among lines and boxes or these objects among themselves will be ignored
+    #
+    # def _get_collision_force(self, entity_a, entity_b):
+    #     # Sphere and sphere
+    #     if isinstance(entity_a.shape, Sphere) and isinstance(entity_b.shape, Sphere):
+    #         force_a, force_b = self._get_constraint_forces(
+    #             entity_a.state.pos,
+    #             entity_b.state.pos,
+    #             dist_min=entity_a.shape.radius + entity_b.shape.radius,
+    #             force_multiplier=self._collision_force,
+    #         )
+    #         torque_a = 0
+    #         torque_b = 0
+    #     # Sphere and line
+    #     elif (
+    #         isinstance(entity_a.shape, Line)
+    #         and isinstance(entity_b.shape, Sphere)
+    #         or isinstance(entity_b.shape, Line)
+    #         and isinstance(entity_a.shape, Sphere)
+    #     ):
+    #         line, sphere = (
+    #             (entity_a, entity_b)
+    #             if isinstance(entity_b.shape, Sphere)
+    #             else (entity_b, entity_a)
+    #         )
+    #         closest_point = _get_closest_point_line(
+    #             line.state.pos, line.state.rot, line.shape.length, sphere.state.pos
+    #         )
+    #         force_sphere, force_line = self._get_constraint_forces(
+    #             sphere.state.pos,
+    #             closest_point,
+    #             dist_min=sphere.shape.radius + LINE_MIN_DIST,
+    #             force_multiplier=self._collision_force,
+    #         )
+    #         r = closest_point - line.state.pos
+    #         torque_line = TorchUtils.compute_torque(force_line, r)
+    #
+    #         force_a, torque_a, force_b, torque_b = (
+    #             (force_sphere, 0, force_line, torque_line)
+    #             if isinstance(entity_a.shape, Sphere)
+    #             else (force_line, torque_line, force_sphere, 0)
+    #         )
+    #     # Sphere and box
+    #     elif (
+    #         isinstance(entity_a.shape, Box)
+    #         and isinstance(entity_b.shape, Sphere)
+    #         or isinstance(entity_b.shape, Box)
+    #         and isinstance(entity_a.shape, Sphere)
+    #     ):
+    #         box, sphere = (
+    #             (entity_a, entity_b)
+    #             if isinstance(entity_b.shape, Sphere)
+    #             else (entity_b, entity_a)
+    #         )
+    #         closest_point_box = _get_closest_point_box(
+    #             box.state.pos,
+    #             box.state.rot,
+    #             box.shape.width,
+    #             box.shape.length,
+    #             sphere.state.pos,
+    #         )
+    #         if not box.shape.hollow:
+    #             inner_point_box, d = _get_inner_point_box(
+    #                 sphere.state.pos, closest_point_box, box.state.pos
+    #             )
+    #         else:
+    #             inner_point_box = closest_point_box
+    #             d = 0
+    #         force_sphere, force_box = self._get_constraint_forces(
+    #             sphere.state.pos,
+    #             inner_point_box,
+    #             dist_min=sphere.shape.radius + LINE_MIN_DIST + d,
+    #             force_multiplier=self._collision_force,
+    #         )
+    #         r = closest_point_box - box.state.pos
+    #         torque_box = TorchUtils.compute_torque(force_box, r)
+    #
+    #         force_a, torque_a, force_b, torque_b = (
+    #             (force_sphere, 0, force_box, torque_box)
+    #             if isinstance(entity_a.shape, Sphere)
+    #             else (force_box, torque_box, force_sphere, 0)
+    #         )
+    #     # Line and line
+    #     elif isinstance(entity_a.shape, Line) and isinstance(entity_b.shape, Line):
+    #         point_a, point_b = _get_closest_points_line_line(
+    #             entity_a.state.pos,
+    #             entity_a.state.rot,
+    #             entity_a.shape.length,
+    #             entity_b.state.pos,
+    #             entity_b.state.rot,
+    #             entity_b.shape.length,
+    #         )
+    #         force_a, force_b = self._get_constraint_forces(
+    #             point_a,
+    #             point_b,
+    #             dist_min=LINE_MIN_DIST,
+    #             force_multiplier=self._collision_force,
+    #         )
+    #         r_a = point_a - entity_a.state.pos
+    #         r_b = point_b - entity_b.state.pos
+    #
+    #         torque_a = TorchUtils.compute_torque(force_a, r_a)
+    #         torque_b = TorchUtils.compute_torque(force_b, r_b)
+    #     # Line and box
+    #     elif (
+    #         isinstance(entity_a.shape, Box)
+    #         and isinstance(entity_b.shape, Line)
+    #         or isinstance(entity_b.shape, Box)
+    #         and isinstance(entity_a.shape, Line)
+    #     ):
+    #         box, line = (
+    #             (entity_a, entity_b)
+    #             if isinstance(entity_b.shape, Line)
+    #             else (entity_b, entity_a)
+    #         )
+    #         point_box, point_line = _get_closest_line_box(
+    #             box.state.pos,
+    #             box.state.rot,
+    #             box.shape.width,
+    #             box.shape.length,
+    #             line.state.pos,
+    #             line.state.rot,
+    #             line.shape.length,
+    #         )
+    #         if not box.shape.hollow:
+    #             inner_point_box, d = _get_inner_point_box(
+    #                 point_line, point_box, box.state.pos
+    #             )
+    #         else:
+    #             inner_point_box = point_box
+    #             d = 0
+    #
+    #         force_box, force_line = self._get_constraint_forces(
+    #             inner_point_box,
+    #             point_line,
+    #             dist_min=LINE_MIN_DIST + d,
+    #             force_multiplier=self._collision_force,
+    #         )
+    #         r_box = point_box - box.state.pos
+    #         r_line = point_line - line.state.pos
+    #
+    #         torque_box = TorchUtils.compute_torque(force_box, r_box)
+    #         torque_line = TorchUtils.compute_torque(force_line, r_line)
+    #
+    #         force_a, torque_a, force_b, torque_b = (
+    #             (force_line, torque_line, force_box, torque_box)
+    #             if isinstance(entity_a.shape, Line)
+    #             else (force_box, torque_box, force_line, torque_line)
+    #         )
+    #     # Box and box
+    #     elif isinstance(entity_a.shape, Box) and isinstance(entity_b.shape, Box):
+    #         point_a, point_b = _get_closest_box_box(
+    #             entity_a.state.pos,
+    #             entity_a.state.rot,
+    #             entity_a.shape.width,
+    #             entity_a.shape.length,
+    #             entity_b.state.pos,
+    #             entity_b.state.rot,
+    #             entity_b.shape.width,
+    #             entity_b.shape.length,
+    #         )
+    #         if not entity_a.shape.hollow:
+    #             inner_point_a, d_a = _get_inner_point_box(
+    #                 point_b, point_a, entity_a.state.pos
+    #             )
+    #         else:
+    #             inner_point_a = point_a
+    #             d_a = 0
+    #         if not entity_b.shape.hollow:
+    #             inner_point_b, d_b = _get_inner_point_box(
+    #                 point_a, point_b, entity_b.state.pos
+    #             )
+    #         else:
+    #             inner_point_b = point_b
+    #             d_b = 0
+    #         force_a, force_b = self._get_constraint_forces(
+    #             inner_point_a,
+    #             inner_point_b,
+    #             dist_min=d_a + d_b + LINE_MIN_DIST,
+    #             force_multiplier=self._collision_force,
+    #         )
+    #         r_a = point_a - entity_a.state.pos
+    #         r_b = point_b - entity_b.state.pos
+    #         torque_a = TorchUtils.compute_torque(force_a, r_a)
+    #         torque_b = TorchUtils.compute_torque(force_b, r_b)
+    #     else:
+    #         assert False
+    #
+    #     return force_a, torque_a, force_b, torque_b

@@ -1,14 +1,13 @@
 #  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-import pstats
 import random
 import time
 
 import torch
 
 from vmas import make_env
-from vmas.simulator.utils import save_video, Vectorization
+from vmas.simulator.utils import save_video
 
 
 def use_vmas_env(render: bool = False, save_render: bool = False):
@@ -17,12 +16,12 @@ def use_vmas_env(render: bool = False, save_render: bool = False):
     scenario_name = "waterfall"
 
     # Scenario specific variables
-    n_agents = 15
+    n_agents = 5
 
     num_envs = 32  # Number of vectorized environments
-    continuous_actions = True
+    continuous_actions = False
     device = "cpu"  # or cuda or any other torch device
-    n_steps = 20  # Number of steps before returning done
+    n_steps = 200  # Number of steps before returning done
     dict_spaces = True  # Weather to return obs, rewards, and infos as dictionaries with agent names
     # (by default they are lists of len # of agents)
 
@@ -60,18 +59,18 @@ def use_vmas_env(render: bool = False, save_render: bool = False):
 
         actions = {} if dict_actions else []
         for i, agent in enumerate(env.agents):
-            # action = torch.tensor(
-            #     simple_2d_action if agent.u_rot_range == 0 else simple_3d_action,
-            #     device=device,
-            # ).repeat(num_envs, 1)
-            action = torch.zeros(
-                (num_envs, 2),
+            action = torch.tensor(
+                simple_2d_action if agent.u_rot_range == 0 else simple_3d_action,
                 device=device,
-                dtype=torch.float32,
-            ).uniform_(
-                -agent.action.u_range,
-                agent.action.u_range,
-            )
+            ).repeat(num_envs, 1)
+            # action = torch.zeros(
+            #     (num_envs, 2),
+            #     device=device,
+            #     dtype=torch.float32,
+            # ).uniform_(
+            #     -agent.action.u_range,
+            #     agent.action.u_range,
+            # )
             if dict_actions:
                 actions.update({agent.name: action})
             else:
@@ -99,34 +98,5 @@ def use_vmas_env(render: bool = False, save_render: bool = False):
     return env
 
 
-def check_env_same_state(env1, env2):
-    for entity_a, entity_b in zip(env1.world.entities, env2.world.entities):
-        assert torch.allclose(entity_a.state.pos, entity_b.state.pos, atol=1e-3)
-        assert torch.allclose(entity_a.state.rot, entity_b.state.rot, atol=1e-3)
-
-
 if __name__ == "__main__":
-    import cProfile
-
-    profiler = cProfile.Profile()
-
-    print("No vec collisions")
-    profiler.enable()
-    torch.manual_seed(0)
-    Vectorization.VECTORIZED_CONSTRAINTS = False
-    env1 = use_vmas_env(render=True)
-    profiler.disable()
-    stats = pstats.Stats(profiler).sort_stats("tottime")
-    # stats.print_stats()
-
-    profiler = cProfile.Profile()
-    print("Vec collisions")
-    torch.manual_seed(0)
-    profiler.enable()
-    Vectorization.VECTORIZED_CONSTRAINTS = True
-    env2 = use_vmas_env(render=True)
-    profiler.disable()
-    stats = pstats.Stats(profiler).sort_stats("tottime")
-    # stats.print_stats()
-
-    check_env_same_state(env1, env2)
+    use_vmas_env(render=False, save_render=False)
