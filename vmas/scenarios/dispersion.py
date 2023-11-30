@@ -13,16 +13,13 @@ from vmas.simulator.utils import Color
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         n_agents = kwargs.get("n_agents", 4)
-        self.share_reward = kwargs.get("share_reward", True)
+        self.share_reward = kwargs.get("share_reward", False)
         self.penalise_by_time = kwargs.get("penalise_by_time", False)
-        self.food_radius = kwargs.get("food_radius", 0.05)
-        self.pos_range = kwargs.get("pos_range", 1.0)
-        n_food = kwargs.get("n_food", n_agents)
+
+        n_food = n_agents
 
         # Make world
-        world = World(
-            batch_dim, device, x_semidim=self.pos_range, y_semidim=self.pos_range
-        )
+        world = World(batch_dim, device)
         # Add agents
         for i in range(n_agents):
             # Constraint: all agents have same action range and multiplier
@@ -35,9 +32,9 @@ class Scenario(BaseScenario):
         # Add landmarks
         for i in range(n_food):
             food = Landmark(
-                name=f"food_{i}",
+                name=f"food {i}",
                 collide=False,
-                shape=Sphere(radius=self.food_radius),
+                shape=Sphere(radius=0.02),
                 color=Color.GREEN,
             )
             world.add_landmark(food)
@@ -61,8 +58,8 @@ class Scenario(BaseScenario):
                     device=self.world.device,
                     dtype=torch.float32,
                 ).uniform_(
-                    -self.pos_range,
-                    self.pos_range,
+                    -1.0,
+                    1.0,
                 ),
                 batch_index=env_index,
             )
@@ -138,7 +135,7 @@ class Scenario(BaseScenario):
                 )
             )
         return torch.cat(
-            obs,
+            [agent.state.pos, agent.state.vel, *obs],
             dim=-1,
         )
 

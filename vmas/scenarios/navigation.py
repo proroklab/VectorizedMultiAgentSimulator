@@ -6,6 +6,7 @@ from typing import Dict, Callable, List
 
 import torch
 from torch import Tensor
+
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, World, Sphere, Entity
 from vmas.simulator.scenario import BaseScenario
@@ -19,12 +20,12 @@ if typing.TYPE_CHECKING:
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.plot_grid = False
-        self.n_agents = kwargs.get("n_agents", 2)
-        self.collisions = kwargs.get("collisions", False)
+        self.n_agents = kwargs.get("n_agents", 4)
+        self.collisions = kwargs.get("collisions", True)
 
         self.agents_with_same_goal = kwargs.get("agents_with_same_goal", 1)
         self.split_goals = kwargs.get("split_goals", False)
-        self.observe_all_goals = kwargs.get("observe_all_goals", True)
+        self.observe_all_goals = kwargs.get("observe_all_goals", False)
 
         self.lidar_range = kwargs.get("lidar_range", 0.35)
         self.agent_radius = kwargs.get("agent_radius", 0.1)
@@ -214,8 +215,6 @@ class Scenario(BaseScenario):
         return agent.pos_rew
 
     def observation(self, agent: Agent):
-        if self.observe_all_goals and not self.collisions:
-            return self.observation_from_pos(agent.state.pos)
         goal_poses = []
         if self.observe_all_goals:
             for a in self.world.agents:
@@ -223,11 +222,11 @@ class Scenario(BaseScenario):
         else:
             goal_poses.append(agent.state.pos - agent.goal.state.pos)
         return torch.cat(
-            # [
-            # agent.state.pos,
-            #     agent.state.vel,
-            # ]
-            goal_poses
+            [
+                agent.state.pos,
+                agent.state.vel,
+            ]
+            + goal_poses
             + (
                 [agent.sensors[0]._max_range - agent.sensors[0].measure()]
                 if self.collisions
@@ -235,19 +234,6 @@ class Scenario(BaseScenario):
             ),
             dim=-1,
         )
-
-    def observation_from_pos(self, pos: Tensor, env_index: typing.Optional[int] = None):
-        assert self.observe_all_goals and not self.collisions
-        goal_poses = []
-        if self.observe_all_goals:
-            for a in self.world.agents:
-                if env_index is None:
-                    goal_poses.append(pos - a.goal.state.pos)
-                else:
-                    goal_poses.append(
-                        pos - a.goal.state.pos[env_index].unsqueeze(0).expand(pos.shape)
-                    )
-        return torch.cat(goal_poses, dim=-1)
 
     def done(self):
         return torch.stack(
