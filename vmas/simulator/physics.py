@@ -386,6 +386,7 @@ def _get_closest_point_line(
     test_point_pos,
     limit_to_line_length: bool = True,
 ):
+    assert line_rot.shape[-1] == 1
     if not isinstance(line_length, torch.Tensor):
         line_length = torch.tensor(
             line_length, dtype=torch.float32, device=line_pos.device

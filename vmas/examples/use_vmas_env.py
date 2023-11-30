@@ -14,15 +14,15 @@ from vmas.simulator.utils import save_video, VecCollisions
 def use_vmas_env(render: bool = False, save_render: bool = False):
     assert not (save_render and not render), "To save the video you have to render it"
 
-    scenario_name = "waterfall"
+    scenario_name = "pollock"
 
     # Scenario specific variables
-    n_agents = 4
+    n_agents = 15
 
     num_envs = 32  # Number of vectorized environments
-    continuous_actions = False
-    device = "cpu"  # or cuda or any other torch device
-    n_steps = 100  # Number of steps before returning done
+    continuous_actions = True
+    device = "cuda"  # or cuda or any other torch device
+    n_steps = 20  # Number of steps before returning done
     dict_spaces = True  # Weather to return obs, rewards, and infos as dictionaries with agent names
     # (by default they are lists of len # of agents)
 
@@ -60,18 +60,18 @@ def use_vmas_env(render: bool = False, save_render: bool = False):
 
         actions = {} if dict_actions else []
         for i, agent in enumerate(env.agents):
-            action = torch.tensor(
-                simple_2d_action if agent.u_rot_range == 0 else simple_3d_action,
-                device=device,
-            ).repeat(num_envs, 1)
-            # action = torch.zeros(
-            #     (num_envs, 2),
+            # action = torch.tensor(
+            #     simple_2d_action if agent.u_rot_range == 0 else simple_3d_action,
             #     device=device,
-            #     dtype=torch.float32,
-            # ).uniform_(
-            #     -agent.action.u_range,
-            #     agent.action.u_range,
-            # )
+            # ).repeat(num_envs, 1)
+            action = torch.zeros(
+                (num_envs, 2),
+                device=device,
+                dtype=torch.float32,
+            ).uniform_(
+                -agent.action.u_range,
+                agent.action.u_range,
+            )
             if dict_actions:
                 actions.update({agent.name: action})
             else:
@@ -101,8 +101,8 @@ def use_vmas_env(render: bool = False, save_render: bool = False):
 
 def check_env_same_state(env1, env2):
     for entity_a, entity_b in zip(env1.world.entities, env2.world.entities):
-        assert torch.allclose(entity_a.state.pos, entity_b.state.pos, atol=1e-3)
-        assert torch.allclose(entity_a.state.rot, entity_b.state.rot, atol=1e-3)
+        assert torch.allclose(entity_a.state.pos, entity_b.state.pos, atol=1e-4)
+        assert torch.allclose(entity_a.state.rot, entity_b.state.rot, atol=1e-4)
 
 
 if __name__ == "__main__":
@@ -114,7 +114,7 @@ if __name__ == "__main__":
     profiler.enable()
     torch.manual_seed(0)
     VecCollisions.VECTORIZED_COLLISIONS = False
-    env1 = use_vmas_env(render=False, save_render=False)
+    env1 = use_vmas_env(render=False)
     profiler.disable()
     stats = pstats.Stats(profiler).sort_stats("tottime")
     # stats.print_stats()
@@ -124,7 +124,7 @@ if __name__ == "__main__":
     torch.manual_seed(0)
     profiler.enable()
     VecCollisions.VECTORIZED_COLLISIONS = True
-    env2 = use_vmas_env(render=False, save_render=False)
+    env2 = use_vmas_env(render=False)
     profiler.disable()
     stats = pstats.Stats(profiler).sort_stats("tottime")
     # stats.print_stats()

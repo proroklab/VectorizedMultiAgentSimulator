@@ -1193,7 +1193,11 @@ class World(TorchVectorizedObject):
         line_pos = ray_origin + ray_dir_world * (line_length / 2)
 
         closest_point = _get_closest_point_line(
-            line_pos, line_rot, line_length, test_point_pos, limit_to_line_length=False
+            line_pos,
+            line_rot.unsqueeze(-1),
+            line_length,
+            test_point_pos,
+            limit_to_line_length=False,
         )
 
         d = test_point_pos - closest_point
@@ -1205,7 +1209,7 @@ class World(TorchVectorizedObject):
         u1 = closest_point - ray_origin
 
         # Dot product of u and u1
-        u_dot_ray = torch.einsum("bs,bs->b", u, ray_dir_world)
+        u_dot_ray = (u * ray_dir_world).sum(-1)
         sphere_is_in_front = u_dot_ray > 0.0
         dist = torch.linalg.vector_norm(u1, dim=1) - m
         dist[~(ray_intersects & sphere_is_in_front)] = max_range
@@ -1381,7 +1385,13 @@ class World(TorchVectorizedObject):
                 else (entity_b, entity_a)
             )
             point_box, point_line = _get_closest_line_box(
-                box, line.state.pos, line.state.rot, line.shape.length
+                box.state.pos,
+                box.state.rot,
+                box.shape.width,
+                box.shape.length,
+                line.state.pos,
+                line.state.rot,
+                line.shape.length,
             )
             dist = torch.linalg.vector_norm(point_box - point_line, dim=1)
             return_value = dist - LINE_MIN_DIST
@@ -1430,7 +1440,13 @@ class World(TorchVectorizedObject):
                 if isinstance(entity_b.shape, Sphere)
                 else (entity_b, entity_a)
             )
-            closest_point = _get_closest_point_box(box, sphere.state.pos)
+            closest_point = _get_closest_point_box(
+                box.state.pos,
+                box.state.rot,
+                box.shape.width,
+                box.shape.length,
+                sphere.state.pos,
+            )
 
             distance_sphere_closest_point = torch.linalg.vector_norm(
                 sphere.state.pos - closest_point, dim=1
