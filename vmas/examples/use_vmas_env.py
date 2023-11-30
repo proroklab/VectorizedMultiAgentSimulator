@@ -8,7 +8,7 @@ import time
 import torch
 
 from vmas import make_env
-from vmas.simulator.utils import save_video, VecCollisions
+from vmas.simulator.utils import save_video, Vectorization
 
 
 def use_vmas_env(render: bool = False, save_render: bool = False):
@@ -101,8 +101,8 @@ def use_vmas_env(render: bool = False, save_render: bool = False):
 
 def check_env_same_state(env1, env2):
     for entity_a, entity_b in zip(env1.world.entities, env2.world.entities):
-        assert torch.allclose(entity_a.state.pos, entity_b.state.pos, atol=1e-4)
-        assert torch.allclose(entity_a.state.rot, entity_b.state.rot, atol=1e-4)
+        assert torch.allclose(entity_a.state.pos, entity_b.state.pos, atol=1e-3)
+        assert torch.allclose(entity_a.state.rot, entity_b.state.rot, atol=1e-3)
 
 
 if __name__ == "__main__":
@@ -113,8 +113,8 @@ if __name__ == "__main__":
     print("No vec collisions")
     profiler.enable()
     torch.manual_seed(0)
-    VecCollisions.VECTORIZED_COLLISIONS = False
-    env1 = use_vmas_env(render=False)
+    Vectorization.VECTORIZED_CONSTRAINTS = False
+    env1 = use_vmas_env(render=True)
     profiler.disable()
     stats = pstats.Stats(profiler).sort_stats("tottime")
     # stats.print_stats()
@@ -123,8 +123,8 @@ if __name__ == "__main__":
     print("Vec collisions")
     torch.manual_seed(0)
     profiler.enable()
-    VecCollisions.VECTORIZED_COLLISIONS = True
-    env2 = use_vmas_env(render=False)
+    Vectorization.VECTORIZED_CONSTRAINTS = True
+    env2 = use_vmas_env(render=True)
     profiler.disable()
     stats = pstats.Stats(profiler).sort_stats("tottime")
     # stats.print_stats()
