@@ -14,14 +14,14 @@ from vmas.simulator.utils import save_video, VecCollisions
 def use_vmas_env(render: bool = False, save_render: bool = False):
     assert not (save_render and not render), "To save the video you have to render it"
 
-    scenario_name = "pollock"
+    scenario_name = "waterfall"
 
     # Scenario specific variables
     n_agents = 15
 
     num_envs = 32  # Number of vectorized environments
     continuous_actions = True
-    device = "cuda"  # or cuda or any other torch device
+    device = "cpu"  # or cuda or any other torch device
     n_steps = 20  # Number of steps before returning done
     dict_spaces = True  # Weather to return obs, rewards, and infos as dictionaries with agent names
     # (by default they are lists of len # of agents)
