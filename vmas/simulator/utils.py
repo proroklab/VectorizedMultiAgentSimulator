@@ -1,6 +1,7 @@
 #  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
+import importlib
 import os
 from abc import ABC, abstractmethod
 from enum import Enum
@@ -8,8 +9,12 @@ from typing import List, Tuple, Union, Dict, Sequence
 
 import numpy as np
 import torch
-from matplotlib import cm
 from torch import Tensor
+
+_has_matplotlib = importlib.util.find_spec("matplotlib") is not None
+
+if _has_matplotlib:
+    from matplotlib import cm
 
 X = 0
 Y = 1
@@ -49,7 +54,7 @@ class Color(Enum):
 
 
 class VecCollisions:
-    VECTORIZED_COLLISIONS = True
+    VECTORIZED_COLLISIONS = False
 
 
 def override(cls):
