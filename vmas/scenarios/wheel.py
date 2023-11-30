@@ -119,7 +119,10 @@ class HeuristicPolicy(BaseHeuristicPolicy):
         pos_end2 = pos_end2_agent + pos_agent
 
         pos_end2_shifted = TorchUtils.rotate_vector(
-            pos_end2, torch.tensor(torch.pi / 4, device=observation.device)
+            pos_end2,
+            torch.tensor(torch.pi / 4, device=observation.device).expand(
+                pos_end2.shape[0]
+            ),
         )
 
         pos_end2_shifted_agent = pos_end2_shifted - pos_agent
