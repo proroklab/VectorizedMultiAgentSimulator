@@ -49,31 +49,53 @@ def _get_closest_box_box(
             box2_length, dtype=torch.float32, device=box2_pos.device
         ).expand(box2_pos.shape[0])
 
-    lines_a_pos, lines_a_rot, lines_a_length = _get_all_lines_box(
-        box_pos, box_rot, box_width, box_length
+    lines_pos, lines_rot, lines_length = _get_all_lines_box(
+        torch.stack([box_pos, box2_pos], dim=0),
+        torch.stack([box_rot, box2_rot], dim=0),
+        torch.stack([box_width, box2_width], dim=0),
+        torch.stack([box_length, box2_length], dim=0),
     )
-    lines_b_pos, lines_b_rot, lines_b_length = _get_all_lines_box(
-        box2_pos, box2_rot, box2_width, box2_length
-    )
+    # Unbind on 1 since _get_all_lines_box adds a dimension at 0
+    lines_a_pos, lines_b_pos = lines_pos.unbind(1)
+    lines_a_rot, lines_b_rot = lines_rot.unbind(1)
+    lines_a_length, lines_b_length = lines_length.unbind(1)
 
-    points_box2_a, points_box_a = _get_closest_line_box(
-        box2_pos.unsqueeze(0).expand(lines_a_pos.shape),
-        box2_rot.unsqueeze(0).expand(lines_a_rot.shape),
-        box2_width.unsqueeze(0).expand(lines_a_length.shape),
-        box2_length.unsqueeze(0).expand(lines_a_length.shape),
-        lines_a_pos,
-        lines_a_rot,
-        lines_a_length,
+    points_first, points_second = _get_closest_line_box(
+        torch.stack(
+            [
+                box2_pos.unsqueeze(0).expand(lines_a_pos.shape),
+                box_pos.unsqueeze(0).expand(lines_b_pos.shape),
+            ],
+            dim=0,
+        ),
+        torch.stack(
+            [
+                box2_rot.unsqueeze(0).expand(lines_a_rot.shape),
+                box_rot.unsqueeze(0).expand(lines_b_rot.shape),
+            ],
+            dim=0,
+        ),
+        torch.stack(
+            [
+                box2_width.unsqueeze(0).expand(lines_a_length.shape),
+                box_width.unsqueeze(0).expand(lines_b_length.shape),
+            ],
+            dim=0,
+        ),
+        torch.stack(
+            [
+                box2_length.unsqueeze(0).expand(lines_a_length.shape),
+                box_length.unsqueeze(0).expand(lines_b_length.shape),
+            ],
+            dim=0,
+        ),
+        torch.stack([lines_a_pos, lines_b_pos], dim=0),
+        torch.stack([lines_a_rot, lines_b_rot], dim=0),
+        torch.stack([lines_a_length, lines_b_length], dim=0),
     )
-    points_box_b, points_box2_b = _get_closest_line_box(
-        box_pos.unsqueeze(0).expand(lines_b_pos.shape),
-        box_rot.unsqueeze(0).expand(lines_b_rot.shape),
-        box_width.unsqueeze(0).expand(lines_b_length.shape),
-        box_length.unsqueeze(0).expand(lines_b_length.shape),
-        lines_b_pos,
-        lines_b_rot,
-        lines_b_length,
-    )
+    points_box2_a, points_box_b = points_first.unbind(0)
+    points_box_a, points_box2_b = points_second.unbind(0)
+
     p1s = points_box_a.unbind(0) + points_box_b.unbind(0)
     p2s = points_box2_a.unbind(0) + points_box2_b.unbind(0)
 
@@ -126,8 +148,13 @@ def _get_closest_points_line_line(
             line2_length, dtype=torch.float32, device=line_pos.device
         ).expand(line_pos.shape[0])
 
-    point_a1, point_a2 = _get_line_extrema(line_pos, line_rot, line_length)
-    point_b1, point_b2 = _get_line_extrema(line2_pos, line2_rot, line2_length)
+    points_a, points_b = _get_line_extrema(
+        torch.stack([line_pos, line2_pos], dim=0),
+        torch.stack([line_rot, line2_rot], dim=0),
+        torch.stack([line_length, line2_length], dim=0),
+    )
+    point_a1, point_b1 = points_a.unbind(0)
+    point_a2, point_b2 = points_b.unbind(0)
 
     point_i, d_i = _get_intersection_point_line_line(
         point_a1, point_a2, point_b1, point_b2

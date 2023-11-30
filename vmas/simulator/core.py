@@ -1899,7 +1899,7 @@ class World(TorchVectorizedObject):
             rot_box = []
             length_box = []
             width_box = []
-            hollow_box = []
+            not_hollow_box = []
             radius_sphere = []
             for box, sphere in b_s:
                 pos_box.append(box.state.pos)
@@ -1907,7 +1907,9 @@ class World(TorchVectorizedObject):
                 rot_box.append(box.state.rot)
                 length_box.append(torch.tensor(box.shape.length, device=self.device))
                 width_box.append(torch.tensor(box.shape.width, device=self.device))
-                hollow_box.append(torch.tensor(box.shape.hollow, device=self.device))
+                not_hollow_box.append(
+                    torch.tensor(not box.shape.hollow, device=self.device)
+                )
                 radius_sphere.append(
                     torch.tensor(sphere.shape.radius, device=self.device)
                 )
@@ -1930,11 +1932,13 @@ class World(TorchVectorizedObject):
                 .unsqueeze(0)
                 .expand(self.batch_dim, -1)
             )
-            hollow_box_prior = torch.stack(
-                hollow_box,
+            not_hollow_box_prior = torch.stack(
+                not_hollow_box,
                 dim=-1,
             )
-            hollow_box = hollow_box_prior.unsqueeze(0).expand(self.batch_dim, -1)
+            not_hollow_box = not_hollow_box_prior.unsqueeze(0).expand(
+                self.batch_dim, -1
+            )
             radius_sphere = (
                 torch.stack(
                     radius_sphere,
@@ -1954,13 +1958,13 @@ class World(TorchVectorizedObject):
 
             inner_point_box = closest_point_box
             d = torch.zeros_like(radius_sphere, device=self.device)
-            if hollow_box_prior.any():
+            if not_hollow_box_prior.any():
                 inner_point_box_hollow, d_hollow = _get_inner_point_box(
                     pos_sphere, closest_point_box, pos_box
                 )
-                cond = hollow_box.unsqueeze(-1).expand(inner_point_box.shape)
+                cond = not_hollow_box.unsqueeze(-1).expand(inner_point_box.shape)
                 inner_point_box[cond] = inner_point_box_hollow[cond]
-                d[hollow_box] = d_hollow[hollow_box]
+                d[not_hollow_box] = d_hollow[not_hollow_box]
 
             force_sphere, force_box = self._get_constraint_forces(
                 pos_sphere,
@@ -1989,7 +1993,7 @@ class World(TorchVectorizedObject):
             rot_line = []
             length_box = []
             width_box = []
-            hollow_box = []
+            not_hollow_box = []
             length_line = []
             for box, line in b_l:
                 pos_box.append(box.state.pos)
@@ -1998,7 +2002,9 @@ class World(TorchVectorizedObject):
                 rot_line.append(line.state.rot)
                 length_box.append(torch.tensor(box.shape.length, device=self.device))
                 width_box.append(torch.tensor(box.shape.width, device=self.device))
-                hollow_box.append(torch.tensor(box.shape.hollow, device=self.device))
+                not_hollow_box.append(
+                    torch.tensor(not box.shape.hollow, device=self.device)
+                )
                 length_line.append(torch.tensor(line.shape.length, device=self.device))
             pos_box = torch.stack(pos_box, dim=-2)
             pos_line = torch.stack(pos_line, dim=-2)
@@ -2020,11 +2026,13 @@ class World(TorchVectorizedObject):
                 .unsqueeze(0)
                 .expand(self.batch_dim, -1)
             )
-            hollow_box_prior = torch.stack(
-                hollow_box,
+            not_hollow_box_prior = torch.stack(
+                not_hollow_box,
                 dim=-1,
             )
-            hollow_box = hollow_box_prior.unsqueeze(0).expand(self.batch_dim, -1)
+            not_hollow_box = not_hollow_box_prior.unsqueeze(0).expand(
+                self.batch_dim, -1
+            )
             length_line = (
                 torch.stack(
                     length_line,
@@ -2046,13 +2054,13 @@ class World(TorchVectorizedObject):
 
             inner_point_box = point_box
             d = torch.zeros_like(length_line, device=self.device)
-            if hollow_box_prior.any():
+            if not_hollow_box_prior.any():
                 inner_point_box_hollow, d_hollow = _get_inner_point_box(
                     point_line, point_box, pos_box
                 )
-                cond = hollow_box.unsqueeze(-1).expand(inner_point_box.shape)
+                cond = not_hollow_box.unsqueeze(-1).expand(inner_point_box.shape)
                 inner_point_box[cond] = inner_point_box_hollow[cond]
-                d[hollow_box] = d_hollow[hollow_box]
+                d[not_hollow_box] = d_hollow[not_hollow_box]
 
             force_box, force_line = self._get_constraint_forces(
                 inner_point_box,
@@ -2060,7 +2068,7 @@ class World(TorchVectorizedObject):
                 dist_min=LINE_MIN_DIST + d,
                 force_multiplier=self._collision_force,
             )
-            r_box = point_box - pos_line
+            r_box = point_box - pos_box
             r_line = point_line - pos_line
 
             torque_box = TorchUtils.compute_torque(force_box, r_box)
@@ -2084,21 +2092,25 @@ class World(TorchVectorizedObject):
             rot_box2 = []
             length_box = []
             width_box = []
-            hollow_box = []
+            not_hollow_box = []
             length_box2 = []
             width_box2 = []
-            hollow_box2 = []
+            not_hollow_box2 = []
             for box, box2 in b_b:
                 pos_box.append(box.state.pos)
                 rot_box.append(box.state.rot)
                 length_box.append(torch.tensor(box.shape.length, device=self.device))
                 width_box.append(torch.tensor(box.shape.width, device=self.device))
-                hollow_box.append(torch.tensor(box.shape.hollow, device=self.device))
+                not_hollow_box.append(
+                    torch.tensor(not box.shape.hollow, device=self.device)
+                )
                 pos_box2.append(box2.state.pos)
                 rot_box2.append(box2.state.rot)
                 length_box2.append(torch.tensor(box2.shape.length, device=self.device))
                 width_box2.append(torch.tensor(box2.shape.width, device=self.device))
-                hollow_box2.append(torch.tensor(box2.shape.hollow, device=self.device))
+                not_hollow_box2.append(
+                    torch.tensor(not box2.shape.hollow, device=self.device)
+                )
 
             pos_box = torch.stack(pos_box, dim=-2)
             rot_box = torch.stack(rot_box, dim=-2)
@@ -2118,11 +2130,13 @@ class World(TorchVectorizedObject):
                 .unsqueeze(0)
                 .expand(self.batch_dim, -1)
             )
-            hollow_box_prior = torch.stack(
-                hollow_box,
+            not_hollow_box_prior = torch.stack(
+                not_hollow_box,
                 dim=-1,
             )
-            hollow_box = hollow_box_prior.unsqueeze(0).expand(self.batch_dim, -1)
+            not_hollow_box = not_hollow_box_prior.unsqueeze(0).expand(
+                self.batch_dim, -1
+            )
             pos_box2 = torch.stack(pos_box2, dim=-2)
             rot_box2 = torch.stack(rot_box2, dim=-2)
             length_box2 = (
@@ -2141,11 +2155,13 @@ class World(TorchVectorizedObject):
                 .unsqueeze(0)
                 .expand(self.batch_dim, -1)
             )
-            hollow_box2_prior = torch.stack(
-                hollow_box2,
+            not_hollow_box2_prior = torch.stack(
+                not_hollow_box2,
                 dim=-1,
             )
-            hollow_box2 = hollow_box2_prior.unsqueeze(0).expand(self.batch_dim, -1)
+            not_hollow_box2 = not_hollow_box2_prior.unsqueeze(0).expand(
+                self.batch_dim, -1
+            )
 
             point_a, point_b = _get_closest_box_box(
                 pos_box,
@@ -2160,23 +2176,23 @@ class World(TorchVectorizedObject):
 
             inner_point_a = point_a
             d_a = torch.zeros_like(length_box, device=self.device)
-            if hollow_box_prior.any():
+            if not_hollow_box_prior.any():
                 inner_point_box_hollow, d_hollow = _get_inner_point_box(
                     point_b, point_a, pos_box
                 )
-                cond = hollow_box.unsqueeze(-1).expand(inner_point_a.shape)
+                cond = not_hollow_box.unsqueeze(-1).expand(inner_point_a.shape)
                 inner_point_a[cond] = inner_point_box_hollow[cond]
-                d_a[hollow_box] = d_hollow[hollow_box]
+                d_a[not_hollow_box] = d_hollow[not_hollow_box]
 
             inner_point_b = point_b
             d_b = torch.zeros_like(length_box2, device=self.device)
-            if hollow_box2_prior.any():
-                inner_point_box_hollow, d_hollow = _get_inner_point_box(
+            if not_hollow_box2_prior.any():
+                inner_point_box2_hollow, d_hollow2 = _get_inner_point_box(
                     point_a, point_b, pos_box2
                 )
-                cond = hollow_box2.unsqueeze(-1).expand(inner_point_b.shape)
-                inner_point_a[cond] = inner_point_box_hollow[cond]
-                d_b[hollow_box2] = d_hollow[hollow_box2]
+                cond = not_hollow_box2.unsqueeze(-1).expand(inner_point_b.shape)
+                inner_point_b[cond] = inner_point_box2_hollow[cond]
+                d_b[not_hollow_box2] = d_hollow2[not_hollow_box2]
 
             force_a, force_b = self._get_constraint_forces(
                 inner_point_a,
