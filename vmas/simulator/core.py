@@ -1629,6 +1629,8 @@ class World(TorchVectorizedObject):
                 if joint.dist == 0:
                     continue
             # Collisions
+            if VecCollisions.VECTORIZED_COLLISIONS:
+                continue
             if self.collides(entity_a, entity_b):
                 apply_env_forces(*self._get_collision_force(entity_a, entity_b))
 
@@ -1708,6 +1710,10 @@ class World(TorchVectorizedObject):
         self._line_line_vectorized_collision(l_l)
         # Box and sphere
         self._box_sphere_vectorized_collision(b_s)
+        # Box and line
+        self._box_line_vectorized_collision(b_l)
+        # Box and box
+        self._box_box_vectorized_collision(b_b)
 
     def update_env_forces(self, entity_a, f_a, t_a, entity_b, f_b, t_b):
         a = self.entity_index_map[entity_a]
@@ -1975,6 +1981,224 @@ class World(TorchVectorizedObject):
                     0,
                 )
 
+    def _box_line_vectorized_collision(self, b_l):
+        if len(b_l):
+            pos_box = []
+            pos_line = []
+            rot_box = []
+            rot_line = []
+            length_box = []
+            width_box = []
+            hollow_box = []
+            length_line = []
+            for box, line in b_l:
+                pos_box.append(box.state.pos)
+                pos_line.append(line.state.pos)
+                rot_box.append(box.state.rot)
+                rot_line.append(line.state.rot)
+                length_box.append(torch.tensor(box.shape.length, device=self.device))
+                width_box.append(torch.tensor(box.shape.width, device=self.device))
+                hollow_box.append(torch.tensor(box.shape.hollow, device=self.device))
+                length_line.append(torch.tensor(line.shape.length, device=self.device))
+            pos_box = torch.stack(pos_box, dim=-2)
+            pos_line = torch.stack(pos_line, dim=-2)
+            rot_box = torch.stack(rot_box, dim=-2)
+            rot_line = torch.stack(rot_line, dim=-2)
+            length_box = (
+                torch.stack(
+                    length_box,
+                    dim=-1,
+                )
+                .unsqueeze(0)
+                .expand(self.batch_dim, -1)
+            )
+            width_box = (
+                torch.stack(
+                    width_box,
+                    dim=-1,
+                )
+                .unsqueeze(0)
+                .expand(self.batch_dim, -1)
+            )
+            hollow_box_prior = torch.stack(
+                hollow_box,
+                dim=-1,
+            )
+            hollow_box = hollow_box_prior.unsqueeze(0).expand(self.batch_dim, -1)
+            length_line = (
+                torch.stack(
+                    length_line,
+                    dim=-1,
+                )
+                .unsqueeze(0)
+                .expand(self.batch_dim, -1)
+            )
+
+            point_box, point_line = _get_closest_line_box(
+                pos_box,
+                rot_box,
+                width_box,
+                length_box,
+                pos_line,
+                rot_line,
+                length_line,
+            )
+
+            inner_point_box = point_box
+            d = torch.zeros_like(length_line, device=self.device)
+            if hollow_box_prior.any():
+                inner_point_box_hollow, d_hollow = _get_inner_point_box(
+                    point_line, point_box, pos_box
+                )
+                cond = hollow_box.unsqueeze(-1).expand(inner_point_box.shape)
+                inner_point_box[cond] = inner_point_box_hollow[cond]
+                d[hollow_box] = d_hollow[hollow_box]
+
+            force_box, force_line = self._get_constraint_forces(
+                inner_point_box,
+                point_line,
+                dist_min=LINE_MIN_DIST + d,
+                force_multiplier=self._collision_force,
+            )
+            r_box = point_box - pos_line
+            r_line = point_line - pos_line
+
+            torque_box = TorchUtils.compute_torque(force_box, r_box)
+            torque_line = TorchUtils.compute_torque(force_line, r_line)
+
+            for i, (entity_a, entity_b) in enumerate(b_l):
+                self.update_env_forces(
+                    entity_a,
+                    force_box[:, i],
+                    torque_box[:, i],
+                    entity_b,
+                    force_line[:, i],
+                    torque_line[:, i],
+                )
+
+    def _box_box_vectorized_collision(self, b_b):
+        if len(b_b):
+            pos_box = []
+            pos_box2 = []
+            rot_box = []
+            rot_box2 = []
+            length_box = []
+            width_box = []
+            hollow_box = []
+            length_box2 = []
+            width_box2 = []
+            hollow_box2 = []
+            for box, box2 in b_b:
+                pos_box.append(box.state.pos)
+                rot_box.append(box.state.rot)
+                length_box.append(torch.tensor(box.shape.length, device=self.device))
+                width_box.append(torch.tensor(box.shape.width, device=self.device))
+                hollow_box.append(torch.tensor(box.shape.hollow, device=self.device))
+                pos_box2.append(box2.state.pos)
+                rot_box2.append(box2.state.rot)
+                length_box2.append(torch.tensor(box2.shape.length, device=self.device))
+                width_box2.append(torch.tensor(box2.shape.width, device=self.device))
+                hollow_box2.append(torch.tensor(box2.shape.hollow, device=self.device))
+
+            pos_box = torch.stack(pos_box, dim=-2)
+            rot_box = torch.stack(rot_box, dim=-2)
+            length_box = (
+                torch.stack(
+                    length_box,
+                    dim=-1,
+                )
+                .unsqueeze(0)
+                .expand(self.batch_dim, -1)
+            )
+            width_box = (
+                torch.stack(
+                    width_box,
+                    dim=-1,
+                )
+                .unsqueeze(0)
+                .expand(self.batch_dim, -1)
+            )
+            hollow_box_prior = torch.stack(
+                hollow_box,
+                dim=-1,
+            )
+            hollow_box = hollow_box_prior.unsqueeze(0).expand(self.batch_dim, -1)
+            pos_box2 = torch.stack(pos_box2, dim=-2)
+            rot_box2 = torch.stack(rot_box2, dim=-2)
+            length_box2 = (
+                torch.stack(
+                    length_box2,
+                    dim=-1,
+                )
+                .unsqueeze(0)
+                .expand(self.batch_dim, -1)
+            )
+            width_box2 = (
+                torch.stack(
+                    width_box2,
+                    dim=-1,
+                )
+                .unsqueeze(0)
+                .expand(self.batch_dim, -1)
+            )
+            hollow_box2_prior = torch.stack(
+                hollow_box2,
+                dim=-1,
+            )
+            hollow_box2 = hollow_box2_prior.unsqueeze(0).expand(self.batch_dim, -1)
+
+            point_a, point_b = _get_closest_box_box(
+                pos_box,
+                rot_box,
+                width_box,
+                length_box,
+                pos_box2,
+                rot_box2,
+                width_box2,
+                length_box2,
+            )
+
+            inner_point_a = point_a
+            d_a = torch.zeros_like(length_box, device=self.device)
+            if hollow_box_prior.any():
+                inner_point_box_hollow, d_hollow = _get_inner_point_box(
+                    point_b, point_a, pos_box
+                )
+                cond = hollow_box.unsqueeze(-1).expand(inner_point_a.shape)
+                inner_point_a[cond] = inner_point_box_hollow[cond]
+                d_a[hollow_box] = d_hollow[hollow_box]
+
+            inner_point_b = point_b
+            d_b = torch.zeros_like(length_box2, device=self.device)
+            if hollow_box2_prior.any():
+                inner_point_box_hollow, d_hollow = _get_inner_point_box(
+                    point_a, point_b, pos_box2
+                )
+                cond = hollow_box2.unsqueeze(-1).expand(inner_point_b.shape)
+                inner_point_a[cond] = inner_point_box_hollow[cond]
+                d_b[hollow_box2] = d_hollow[hollow_box2]
+
+            force_a, force_b = self._get_constraint_forces(
+                inner_point_a,
+                inner_point_b,
+                dist_min=d_a + d_b + LINE_MIN_DIST,
+                force_multiplier=self._collision_force,
+            )
+            r_a = point_a - pos_box
+            r_b = point_b - pos_box2
+            torque_a = TorchUtils.compute_torque(force_a, r_a)
+            torque_b = TorchUtils.compute_torque(force_b, r_b)
+
+            for i, (entity_a, entity_b) in enumerate(b_b):
+                self.update_env_forces(
+                    entity_a,
+                    force_a[:, i],
+                    torque_a[:, i],
+                    entity_b,
+                    force_b[:, i],
+                    torque_b[:, i],
+                )
+
     def collides(self, a: Entity, b: Entity) -> bool:
         if (not a.collides(b)) or (not b.collides(a)) or a is b:
             return False
@@ -2026,9 +2250,7 @@ class World(TorchVectorizedObject):
     # collisions among lines and boxes or these objects among themselves will be ignored
     def _get_collision_force(self, entity_a, entity_b):
         # Sphere and sphere
-        if not VecCollisions.VECTORIZED_COLLISIONS and (
-            isinstance(entity_a.shape, Sphere) and isinstance(entity_b.shape, Sphere)
-        ):
+        if isinstance(entity_a.shape, Sphere) and isinstance(entity_b.shape, Sphere):
             force_a, force_b = self._get_constraint_forces(
                 entity_a.state.pos,
                 entity_b.state.pos,
@@ -2038,7 +2260,7 @@ class World(TorchVectorizedObject):
             torque_a = 0
             torque_b = 0
         # Sphere and line
-        elif not VecCollisions.VECTORIZED_COLLISIONS and (
+        elif (
             isinstance(entity_a.shape, Line)
             and isinstance(entity_b.shape, Sphere)
             or isinstance(entity_b.shape, Line)
@@ -2067,7 +2289,7 @@ class World(TorchVectorizedObject):
                 else (force_line, torque_line, force_sphere, 0)
             )
         # Sphere and box
-        elif not VecCollisions.VECTORIZED_COLLISIONS and (
+        elif (
             isinstance(entity_a.shape, Box)
             and isinstance(entity_b.shape, Sphere)
             or isinstance(entity_b.shape, Box)
@@ -2107,9 +2329,7 @@ class World(TorchVectorizedObject):
                 else (force_box, torque_box, force_sphere, 0)
             )
         # Line and line
-        elif not VecCollisions.VECTORIZED_COLLISIONS and (
-            isinstance(entity_a.shape, Line) and isinstance(entity_b.shape, Line)
-        ):
+        elif isinstance(entity_a.shape, Line) and isinstance(entity_b.shape, Line):
             point_a, point_b = _get_closest_points_line_line(
                 entity_a.state.pos,
                 entity_a.state.rot,
@@ -2212,10 +2432,7 @@ class World(TorchVectorizedObject):
             torque_a = TorchUtils.compute_torque(force_a, r_a)
             torque_b = TorchUtils.compute_torque(force_b, r_b)
         else:
-            force_a = 0
-            force_b = 0
-            torque_a = 0
-            torque_b = 0
+            assert False
 
         return force_a, torque_a, force_b, torque_b
 
