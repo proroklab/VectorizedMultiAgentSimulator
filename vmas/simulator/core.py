@@ -1254,18 +1254,18 @@ class World(TorchVectorizedObject):
         )
 
         rxs = TorchUtils.cross(r, s)
-        t = TorchUtils.cross(q - p, s / rxs.unsqueeze(1))
-        u = TorchUtils.cross(q - p, r / rxs.unsqueeze(1))
-        d = torch.linalg.norm(u.unsqueeze(1) * s, dim=1)
+        t = TorchUtils.cross(q - p, s / rxs)
+        u = TorchUtils.cross(q - p, r / rxs)
+        d = torch.linalg.norm(u * s, dim=-1)
 
         perpendicular = rxs == 0.0
         above_line = t > 0.5
         below_line = t < -0.5
         behind_line = u < 0.0
-        d[perpendicular] = max_range
-        d[above_line] = max_range
-        d[below_line] = max_range
-        d[behind_line] = max_range
+        d[perpendicular.squeeze(-1)] = max_range
+        d[above_line.squeeze(-1)] = max_range
+        d[below_line.squeeze(-1)] = max_range
+        d[behind_line.squeeze(-1)] = max_range
         return d
 
     def cast_ray(
@@ -1309,17 +1309,23 @@ class World(TorchVectorizedObject):
 
         if isinstance(entity.shape, Sphere):
             delta_pos = entity.state.pos - test_point_pos
-            dist = torch.linalg.vector_norm(delta_pos, dim=1)
+            dist = torch.linalg.vector_norm(delta_pos, dim=-1)
             return_value = dist - entity.shape.radius
         elif isinstance(entity.shape, Box):
-            closest_point = _get_closest_point_box(entity, test_point_pos)
-            distance = torch.linalg.vector_norm(test_point_pos - closest_point, dim=1)
+            closest_point = _get_closest_point_box(
+                entity.state.pos,
+                entity.state.rot,
+                entity.shape.width,
+                entity.shape.length,
+                test_point_pos,
+            )
+            distance = torch.linalg.vector_norm(test_point_pos - closest_point, dim=-1)
             return_value = distance - LINE_MIN_DIST
         elif isinstance(entity.shape, Line):
             closest_point = _get_closest_point_line(
                 entity.state.pos, entity.state.rot, entity.shape.length, test_point_pos
             )
-            distance = torch.linalg.vector_norm(test_point_pos - closest_point, dim=1)
+            distance = torch.linalg.vector_norm(test_point_pos - closest_point, dim=-1)
             return_value = distance - LINE_MIN_DIST
         else:
             assert False, "Distance not computable for given entity"
@@ -1363,7 +1369,7 @@ class World(TorchVectorizedObject):
             dist = self.get_distance_from_point(line, sphere.state.pos, env_index)
             return_value = dist - sphere.shape.radius
         elif isinstance(entity_a.shape, Line) and isinstance(entity_b.shape, Line):
-            point_a, point_b = self._get_closest_points_line_line(
+            point_a, point_b = _get_closest_points_line_line(
                 entity_a.state.pos,
                 entity_a.state.rot,
                 entity_a.shape.length,
@@ -1396,8 +1402,17 @@ class World(TorchVectorizedObject):
             dist = torch.linalg.vector_norm(point_box - point_line, dim=1)
             return_value = dist - LINE_MIN_DIST
         elif isinstance(entity_a.shape, Box) and isinstance(entity_b.shape, Box):
-            point_a, point_b = _get_closest_box_box(entity_a, entity_b)
-            dist = torch.linalg.vector_norm(point_a - point_b, dim=1)
+            point_a, point_b = _get_closest_box_box(
+                entity_a.state.pos,
+                entity_a.state.rot,
+                entity_a.shape.width,
+                entity_a.shape.length,
+                entity_b.state.pos,
+                entity_b.state.rot,
+                entity_b.shape.width,
+                entity_b.shape.length,
+            )
+            dist = torch.linalg.vector_norm(point_a - point_b, dim=-1)
             return_value = dist - LINE_MIN_DIST
         else:
             assert False, "Distance not computable for given entities"
@@ -1449,13 +1464,13 @@ class World(TorchVectorizedObject):
             )
 
             distance_sphere_closest_point = torch.linalg.vector_norm(
-                sphere.state.pos - closest_point, dim=1
+                sphere.state.pos - closest_point, dim=-1
             )
             distance_sphere_box = torch.linalg.vector_norm(
-                sphere.state.pos - box.state.pos, dim=1
+                sphere.state.pos - box.state.pos, dim=-1
             )
             distance_closest_point_box = torch.linalg.vector_norm(
-                box.state.pos - closest_point, dim=1
+                box.state.pos - closest_point, dim=-1
             )
             dist_min = sphere.shape.radius + LINE_MIN_DIST
             return_value = (distance_sphere_box < distance_closest_point_box) + (
@@ -1973,7 +1988,7 @@ class World(TorchVectorizedObject):
             )
 
             inner_point_box = closest_point_box
-            d = torch.zeros_like(radius_sphere, device=self.device)
+            d = torch.zeros_like(radius_sphere, device=self.device, dtype=torch.float)
             if not_hollow_box_prior.any():
                 inner_point_box_hollow, d_hollow = _get_inner_point_box(
                     pos_sphere, closest_point_box, pos_box
@@ -2069,7 +2084,7 @@ class World(TorchVectorizedObject):
             )
 
             inner_point_box = point_box
-            d = torch.zeros_like(length_line, device=self.device)
+            d = torch.zeros_like(length_line, device=self.device, dtype=torch.float)
             if not_hollow_box_prior.any():
                 inner_point_box_hollow, d_hollow = _get_inner_point_box(
                     point_line, point_box, pos_box
@@ -2191,7 +2206,7 @@ class World(TorchVectorizedObject):
             )
 
             inner_point_a = point_a
-            d_a = torch.zeros_like(length_box, device=self.device)
+            d_a = torch.zeros_like(length_box, device=self.device, dtype=torch.float)
             if not_hollow_box_prior.any():
                 inner_point_box_hollow, d_hollow = _get_inner_point_box(
                     point_b, point_a, pos_box
@@ -2201,7 +2216,7 @@ class World(TorchVectorizedObject):
                 d_a[not_hollow_box] = d_hollow[not_hollow_box]
 
             inner_point_b = point_b
-            d_b = torch.zeros_like(length_box2, device=self.device)
+            d_b = torch.zeros_like(length_box2, device=self.device, dtype=torch.float)
             if not_hollow_box2_prior.any():
                 inner_point_box2_hollow, d_hollow2 = _get_inner_point_box(
                     point_a, point_b, pos_box2
