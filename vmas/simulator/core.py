@@ -1637,7 +1637,7 @@ class World(TorchVectorizedObject):
         l_s = []
         b_s = []
         l_l = []
-        l_b = []
+        b_l = []
         b_b = []
         for a, entity_a in enumerate(self.entities):
             for b, entity_b in enumerate(self.entities):
@@ -1669,6 +1669,36 @@ class World(TorchVectorizedObject):
                     entity_b.shape, Line
                 ):
                     l_l.append((entity_a, entity_b))
+                elif (
+                    isinstance(entity_a.shape, Box)
+                    and isinstance(entity_b.shape, Sphere)
+                    or isinstance(entity_b.shape, Box)
+                    and isinstance(entity_a.shape, Sphere)
+                ):
+                    box, sphere = (
+                        (entity_a, entity_b)
+                        if isinstance(entity_b.shape, Sphere)
+                        else (entity_b, entity_a)
+                    )
+                    b_s.append((box, sphere))
+                elif (
+                    isinstance(entity_a.shape, Box)
+                    and isinstance(entity_b.shape, Line)
+                    or isinstance(entity_b.shape, Box)
+                    and isinstance(entity_a.shape, Line)
+                ):
+                    box, line = (
+                        (entity_a, entity_b)
+                        if isinstance(entity_b.shape, Line)
+                        else (entity_b, entity_a)
+                    )
+                    b_l.append((box, line))
+                elif isinstance(entity_a.shape, Box) and isinstance(
+                    entity_b.shape, Box
+                ):
+                    b_b.append((entity_a, entity_b))
+                else:
+                    assert False
 
         # Sphere and sphere
         self._sphere_sphere_vectorized_collision(s_s)
@@ -1676,6 +1706,8 @@ class World(TorchVectorizedObject):
         self._sphere_line_vectorized_collision(l_s)
         # Line and line
         self._line_line_vectorized_collision(l_l)
+        # Box and sphere
+        self._box_sphere_vectorized_collision(b_s)
 
     def update_env_forces(self, entity_a, f_a, t_a, entity_b, f_b, t_b):
         a = self.entity_index_map[entity_a]
@@ -1854,6 +1886,95 @@ class World(TorchVectorizedObject):
                     torque_b[:, i],
                 )
 
+    def _box_sphere_vectorized_collision(self, b_s):
+        if len(b_s):
+            pos_box = []
+            pos_sphere = []
+            rot_box = []
+            length_box = []
+            width_box = []
+            hollow_box = []
+            radius_sphere = []
+            for box, sphere in b_s:
+                pos_box.append(box.state.pos)
+                pos_sphere.append(sphere.state.pos)
+                rot_box.append(box.state.rot)
+                length_box.append(torch.tensor(box.shape.length, device=self.device))
+                width_box.append(torch.tensor(box.shape.width, device=self.device))
+                hollow_box.append(torch.tensor(box.shape.hollow, device=self.device))
+                radius_sphere.append(
+                    torch.tensor(sphere.shape.radius, device=self.device)
+                )
+            pos_box = torch.stack(pos_box, dim=-2)
+            pos_sphere = torch.stack(pos_sphere, dim=-2)
+            rot_box = torch.stack(rot_box, dim=-2)
+            length_box = (
+                torch.stack(
+                    length_box,
+                    dim=-1,
+                )
+                .unsqueeze(0)
+                .expand(self.batch_dim, -1)
+            )
+            width_box = (
+                torch.stack(
+                    width_box,
+                    dim=-1,
+                )
+                .unsqueeze(0)
+                .expand(self.batch_dim, -1)
+            )
+            hollow_box_prior = torch.stack(
+                hollow_box,
+                dim=-1,
+            )
+            hollow_box = hollow_box_prior.unsqueeze(0).expand(self.batch_dim, -1)
+            radius_sphere = (
+                torch.stack(
+                    radius_sphere,
+                    dim=-1,
+                )
+                .unsqueeze(0)
+                .expand(self.batch_dim, -1)
+            )
+
+            closest_point_box = _get_closest_point_box(
+                pos_box,
+                rot_box,
+                width_box,
+                length_box,
+                pos_sphere,
+            )
+
+            inner_point_box = closest_point_box
+            d = torch.zeros_like(radius_sphere, device=self.device)
+            if hollow_box_prior.any():
+                inner_point_box_hollow, d_hollow = _get_inner_point_box(
+                    pos_sphere, closest_point_box, pos_box
+                )
+                cond = hollow_box.unsqueeze(-1).expand(inner_point_box.shape)
+                inner_point_box[cond] = inner_point_box_hollow[cond]
+                d[hollow_box] = d_hollow[hollow_box]
+
+            force_sphere, force_box = self._get_constraint_forces(
+                pos_sphere,
+                inner_point_box,
+                dist_min=radius_sphere + LINE_MIN_DIST + d,
+                force_multiplier=self._collision_force,
+            )
+            r = closest_point_box - pos_box
+            torque_box = TorchUtils.compute_torque(force_box, r)
+
+            for i, (entity_a, entity_b) in enumerate(b_s):
+                self.update_env_forces(
+                    entity_a,
+                    force_box[:, i],
+                    torque_box[:, i],
+                    entity_b,
+                    force_sphere[:, i],
+                    0,
+                )
+
     def collides(self, a: Entity, b: Entity) -> bool:
         if (not a.collides(b)) or (not b.collides(a)) or a is b:
             return False
@@ -1946,7 +2067,7 @@ class World(TorchVectorizedObject):
                 else (force_line, torque_line, force_sphere, 0)
             )
         # Sphere and box
-        elif (
+        elif not VecCollisions.VECTORIZED_COLLISIONS and (
             isinstance(entity_a.shape, Box)
             and isinstance(entity_b.shape, Sphere)
             or isinstance(entity_b.shape, Box)
@@ -1966,7 +2087,7 @@ class World(TorchVectorizedObject):
             )
             if not box.shape.hollow:
                 inner_point_box, d = _get_inner_point_box(
-                    sphere.state.pos, closest_point_box, box
+                    sphere.state.pos, closest_point_box, box.state.pos
                 )
             else:
                 inner_point_box = closest_point_box
@@ -2030,7 +2151,9 @@ class World(TorchVectorizedObject):
                 line.shape.length,
             )
             if not box.shape.hollow:
-                inner_point_box, d = _get_inner_point_box(point_line, point_box, box)
+                inner_point_box, d = _get_inner_point_box(
+                    point_line, point_box, box.state.pos
+                )
             else:
                 inner_point_box = point_box
                 d = 0
@@ -2065,12 +2188,16 @@ class World(TorchVectorizedObject):
                 entity_b.shape.length,
             )
             if not entity_a.shape.hollow:
-                inner_point_a, d_a = _get_inner_point_box(point_b, point_a, entity_a)
+                inner_point_a, d_a = _get_inner_point_box(
+                    point_b, point_a, entity_a.state.pos
+                )
             else:
                 inner_point_a = point_a
                 d_a = 0
             if not entity_b.shape.hollow:
-                inner_point_b, d_b = _get_inner_point_box(point_a, point_b, entity_b)
+                inner_point_b, d_b = _get_inner_point_box(
+                    point_a, point_b, entity_b.state.pos
+                )
             else:
                 inner_point_b = point_b
                 d_b = 0

@@ -9,14 +9,16 @@ import torch
 from vmas.simulator.utils import TorchUtils
 
 
-def _get_inner_point_box(outside_point, surface_point, box):
+def _get_inner_point_box(outside_point, surface_point, box_pos):
     v = surface_point - outside_point
-    u = box.state.pos - surface_point
-    v_norm = torch.linalg.vector_norm(v, dim=1).unsqueeze(-1)
-    x_magnitude = torch.einsum("bs,bs->b", v, u).unsqueeze(-1) / v_norm
+    u = box_pos - surface_point
+    v_norm = torch.linalg.vector_norm(v, dim=-1).unsqueeze(-1)
+    x_magnitude = (v * u).sum(-1).unsqueeze(-1) / v_norm
     x = (v / v_norm) * x_magnitude
-    x[v_norm.repeat(1, 2) == 0] = surface_point[v_norm.repeat(1, 2) == 0]
-    x_magnitude[v_norm == 0] = 0
+    cond = v_norm == 0
+    cond_exp = cond.expand(x.shape)
+    x[cond_exp] = surface_point[cond_exp]
+    x_magnitude[cond] = 0
     return surface_point + x, torch.abs(x_magnitude.squeeze(-1))
 
 
