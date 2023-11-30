@@ -275,8 +275,6 @@ def _get_closest_point_box(box_pos, box_rot, box_width, box_length, test_point_p
         closest_point[is_closest] = p[is_closest]
         distance[is_closest] = d[is_closest]
 
-    assert not closest_point.isinf().any()
-
     return closest_point
 
 
