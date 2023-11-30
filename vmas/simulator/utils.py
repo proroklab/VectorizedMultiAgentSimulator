@@ -54,7 +54,7 @@ class Color(Enum):
 
 
 class VecCollisions:
-    VECTORIZED_COLLISIONS = False
+    VECTORIZED_COLLISIONS = True
 
 
 def override(cls):
