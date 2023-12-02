@@ -9,7 +9,6 @@ from typing import List, Tuple, Union, Dict, Sequence
 
 import numpy as np
 import torch
-from matplotlib import cm
 from torch import Tensor
 
 _has_matplotlib = importlib.util.find_spec("matplotlib") is not None
@@ -52,10 +51,6 @@ class Color(Enum):
     WHITE = (0.75, 0.75, 0.75)
     GRAY = (0.25, 0.25, 0.25)
     BLACK = (0.15, 0.15, 0.15)
-
-
-class VecCollisions:
-    VECTORIZED_COLLISIONS = True
 
 
 def override(cls):
