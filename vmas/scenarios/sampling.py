@@ -28,7 +28,7 @@ class Scenario(BaseScenario):
 
         self.n_gaussians = kwargs.get("n_gaussians", 3)
         self.cov = kwargs.get("cov", 0.05)
-        self.collisions = kwargs.get("collisions", True)
+        self.collisions = kwargs.get("collisions", False)
 
         assert (self.xdim / self.grid_spacing) % 1 == 0 and (
             self.ydim / self.grid_spacing
@@ -255,11 +255,15 @@ class Scenario(BaseScenario):
         observations = self.observation_from_pos(agent.state.pos)
 
         if self.collisions:
-            observations = torch.cat([observations, agent.sensors[0].measure()], dim=-1)
+            observations += torch.cat(
+                [observations, agent.sensors[0].measure()], dim=-1
+            )
 
         return observations
 
     def observation_from_pos(self, pos: Tensor, env_index: typing.Optional[int] = None):
+        samples = []
+        in_pos = pos
         for delta in [
             [self.grid_spacing, 0],
             [-self.grid_spacing, 0],
@@ -270,21 +274,25 @@ class Scenario(BaseScenario):
             [-self.grid_spacing, self.grid_spacing],
             [self.grid_spacing, self.grid_spacing],
         ]:
-            pos = pos + torch.tensor(
+            pos = in_pos + torch.tensor(
                 delta,
                 device=self.world.device,
                 dtype=torch.float32,
             )
             if env_index is not None:
-                sample = self.sample_single_env(pos, env_index=env_index).unsqueeze(-1)
+                samples.append(
+                    self.sample_single_env(pos, env_index=env_index).unsqueeze(-1)
+                )
             else:
-                sample = self.sample(
-                    pos,
-                    update_sampled_flag=False,
-                ).unsqueeze(-1)
+                samples.append(
+                    self.sample(
+                        pos,
+                        update_sampled_flag=False,
+                    ).unsqueeze(-1)
+                )
 
         return torch.cat(
-            [pos, sample],
+            [pos] + samples,
             dim=-1,
         )
 
