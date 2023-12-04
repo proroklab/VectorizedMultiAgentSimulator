@@ -101,6 +101,7 @@ class Scenario(BaseScenario):
             self._min_dist_between_entities,
             x_bounds=(-self.x_dim, self.x_dim),
             y_bounds=(-self.y_dim, self.y_dim),
+            occupied_positions=target_pos.unsqueeze(1),
         )
 
         for agent in self.world.policy_agents:
