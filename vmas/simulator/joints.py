@@ -158,6 +158,9 @@ class JointConstraint:
                 .expand(entity.state.pos.shape)
             )
             self._delta_anchor_tensor_map[entity] = delta_anchor_tensor
+        self._delta_anchor_tensor_map[entity] = self._delta_anchor_tensor_map[
+            entity
+        ].to(entity.state.pos.device)
         return self._delta_anchor_tensor_map[entity]
 
     def get_delta_anchor(self, entity: vmas.simulator.core.Entity):

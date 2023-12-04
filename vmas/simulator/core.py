@@ -11,7 +11,6 @@ from typing import Callable, List, Tuple
 
 import torch
 from torch import Tensor
-
 from vmas.simulator.joints import Joint
 from vmas.simulator.physics import (
     _get_closest_point_line,
@@ -1047,9 +1046,6 @@ class World(TorchVectorizedObject):
         ]
         # Map to save entity indexes
         self.entity_index_map = {}
-        self._normal_vector = torch.tensor(
-            [1.0, 0.0], dtype=torch.float32, device=self.device
-        ).repeat(self._batch_dim, 1)
 
     def add_agent(self, agent: Agent):
         """Only way to add agents to the world"""

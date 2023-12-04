@@ -5,7 +5,6 @@ from typing import Dict
 
 import torch
 from torch import Tensor
-
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Sphere, World
 from vmas.simulator.scenario import BaseScenario
@@ -127,13 +126,21 @@ class Scenario(BaseScenario):
             torch.linalg.vector_norm(agent.state.pos, dim=1) < self.desired_radius,
         )
 
-        rotated_vector = TorchUtils.rotate_vector(
-            distance_to_circle, torch.tensor(torch.pi / 2, device=self.world.device)
+        angle_90 = torch.tensor(torch.pi / 2, device=self.world.device).expand(
+            self.world.batch_dim
         )
-        rotated_vector[inside_circle] = TorchUtils.rotate_vector(
-            distance_to_circle[inside_circle],
-            torch.tensor(-torch.pi / 2, device=self.world.device),
+
+        rotated_vector_90 = TorchUtils.rotate_vector(
+            distance_to_circle,
+            angle_90,
         )
+        rotated_vector_neg_90 = TorchUtils.rotate_vector(
+            distance_to_circle,
+            -angle_90,
+        )
+        rotated_vector = rotated_vector_90
+        rotated_vector[inside_circle] = rotated_vector_neg_90[inside_circle]
+
         angle = rotated_vector / torch.linalg.vector_norm(
             rotated_vector, dim=1
         ).unsqueeze(-1)
