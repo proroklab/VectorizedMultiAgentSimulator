@@ -42,6 +42,11 @@ class Scenario(BaseScenario):
         self.max_pdf = torch.zeros((batch_dim,), device=device, dtype=torch.float32)
         self.alpha_plot: float = 0.5
 
+        self.agent_xspawn_range = 0 if self.spawn_same_pos else self.xdim
+        self.agent_yspawn_range = 0 if self.spawn_same_pos else self.ydim
+        self.x_semidim = self.xdim - self.agent_radius
+        self.y_semidim = self.ydim - self.agent_radius
+
         # Make world
         world = World(
             batch_dim,
