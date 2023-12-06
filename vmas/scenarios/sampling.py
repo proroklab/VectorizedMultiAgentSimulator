@@ -29,7 +29,9 @@ class Scenario(BaseScenario):
         self.n_gaussians = kwargs.get("n_gaussians", 3)
         self.cov = kwargs.get("cov", 0.05)
         self.collisions = kwargs.get("collisions", False)
+        self.spawn_same_pos = kwargs.get("spawn_same_pos", False)
 
+        assert not (self.spawn_same_pos and self.collisions)
         assert (self.xdim / self.grid_spacing) % 1 == 0 and (
             self.ydim / self.grid_spacing
         ) % 1 == 0
@@ -44,8 +46,8 @@ class Scenario(BaseScenario):
         world = World(
             batch_dim,
             device,
-            x_semidim=self.xdim - self.agent_radius,
-            y_semidim=self.ydim - self.agent_radius,
+            x_semidim=self.x_semidim,
+            y_semidim=self.y_semidim,
         )
         entity_filter_agents: Callable[[Entity], bool] = lambda e: isinstance(e, Agent)
         for i in range(self.n_agents):
@@ -130,14 +132,14 @@ class Scenario(BaseScenario):
                             else (self.world.batch_dim, 1),
                             device=self.world.device,
                             dtype=torch.float32,
-                        ).uniform_(-self.xdim, self.xdim),
+                        ).uniform_(-self.agent_xspawn_range, self.agent_xspawn_range),
                         torch.zeros(
                             (1, 1)
                             if env_index is not None
                             else (self.world.batch_dim, 1),
                             device=self.world.device,
                             dtype=torch.float32,
-                        ).uniform_(-self.ydim, self.ydim),
+                        ).uniform_(-self.agent_yspawn_range, self.agent_yspawn_range),
                     ],
                     dim=-1,
                 ),
@@ -196,8 +198,8 @@ class Scenario(BaseScenario):
             + (pos[:, Y] < -self.ydim)
             + (pos[:, Y] > self.ydim)
         )
-        pos[:, X].clamp_(-self.world.x_semidim, self.world.x_semidim)
-        pos[:, Y].clamp_(-self.world.y_semidim, self.world.y_semidim)
+        pos[:, X].clamp_(-self.x_semidim, self.x_semidim)
+        pos[:, Y].clamp_(-self.y_semidim, self.y_semidim)
 
         index = pos / self.grid_spacing
         index[:, X] += self.n_x_cells / 2
@@ -357,16 +359,16 @@ class Scenario(BaseScenario):
                 0.0
                 if i % 2
                 else (
-                    self.world.x_semidim + self.agent_radius
+                    self.x_semidim + self.agent_radius
                     if i == 0
-                    else -self.world.x_semidim - self.agent_radius
+                    else -self.x_semidim - self.agent_radius
                 ),
                 0.0
                 if not i % 2
                 else (
-                    self.world.y_semidim + self.agent_radius
+                    self.y_semidim + self.agent_radius
                     if i == 1
-                    else -self.world.y_semidim - self.agent_radius
+                    else -self.y_semidim - self.agent_radius
                 ),
             )
             xform.set_rotation(torch.pi / 2 if not i % 2 else 0.0)
