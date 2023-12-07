@@ -30,11 +30,16 @@ class Scenario(BaseScenario):
         self.cov = kwargs.get("cov", 0.05)
         self.collisions = kwargs.get("collisions", False)
         self.spawn_same_pos = kwargs.get("spawn_same_pos", False)
+        self.norm = kwargs.get("norm", True)
 
         assert not (self.spawn_same_pos and self.collisions)
         assert (self.xdim / self.grid_spacing) % 1 == 0 and (
             self.ydim / self.grid_spacing
         ) % 1 == 0
+        self.covs = (
+            [self.cov] * self.n_gaussians if isinstance(self.cov, float) else self.cov
+        )
+        assert len(self.covs) == self.n_gaussians
 
         self.plot_grid = False
         self.n_x_cells = int((2 * self.xdim) / self.grid_spacing)
@@ -87,9 +92,12 @@ class Scenario(BaseScenario):
             torch.zeros((batch_dim, world.dim_p), device=device, dtype=torch.float32)
             for _ in range(self.n_gaussians)
         ]
-        self.cov_matrix = torch.tensor(
-            [[self.cov, 0], [0, self.cov]], dtype=torch.float32, device=device
-        ).expand(batch_dim, world.dim_p, world.dim_p)
+        self.cov_matrices = [
+            torch.tensor(
+                [[cov, 0], [0, cov]], dtype=torch.float32, device=device
+            ).expand(batch_dim, world.dim_p, world.dim_p)
+            for cov in self.covs
+        ]
 
         return world
 
@@ -114,9 +122,9 @@ class Scenario(BaseScenario):
         self.gaussians = [
             MultivariateNormal(
                 loc=loc,
-                covariance_matrix=self.cov_matrix,
+                covariance_matrix=cov_matrix,
             )
-            for loc in self.locs
+            for loc, cov_matrix in zip(self.locs, self.cov_matrices)
         ]
 
         if env_index is None:
@@ -150,7 +158,7 @@ class Scenario(BaseScenario):
                 ),
                 batch_index=env_index,
             )
-            agent.sample = self.sample(agent.state.pos)
+            agent.sample = self.sample(agent.state.pos, norm=self.norm)
 
     def sample(
         self,
@@ -250,7 +258,9 @@ class Scenario(BaseScenario):
         is_first = self.world.agents.index(agent) == 0
         if is_first:
             for a in self.world.agents:
-                a.sample = self.sample(a.state.pos, update_sampled_flag=True)
+                a.sample = self.sample(
+                    a.state.pos, update_sampled_flag=True, norm=self.norm
+                )
             self.sampling_rew = torch.stack(
                 [a.sample for a in self.world.agents], dim=-1
             ).sum(-1)
@@ -293,8 +303,7 @@ class Scenario(BaseScenario):
             else:
                 samples.append(
                     self.sample(
-                        pos,
-                        update_sampled_flag=False,
+                        pos, update_sampled_flag=False, norm=self.norm
                     ).unsqueeze(-1)
                 )
 
