@@ -19,6 +19,8 @@ class Scenario(BaseScenario):
         self.shape_adversary_rew = kwargs.get("shape_adversary_rew", False)
         self.agents_share_rew = kwargs.get("agents_share_rew", False)
         self.adversaries_share_rew = kwargs.get("adversaries_share_rew", True)
+        self.observe_same_team = kwargs.get("observe_same_team", True)
+        self.observe_pos = kwargs.get("observe_pos", True)
 
         world = World(
             batch_dim=batch_dim,
@@ -189,11 +191,22 @@ class Scenario(BaseScenario):
             if agent.adversary and not other.adversary:
                 other_pos.append(other.state.pos - agent.state.pos)
                 other_vel.append(other.state.vel)
+            elif not agent.adversary and not other.adversary and self.observe_same_team:
+                other_pos.append(other.state.pos - agent.state.pos)
+                other_vel.append(other.state.vel)
             elif not agent.adversary and other.adversary:
+                other_pos.append(other.state.pos - agent.state.pos)
+            elif agent.adversary and other.adversary and self.observe_same_team:
                 other_pos.append(other.state.pos - agent.state.pos)
 
         return torch.cat(
-            [agent.state.vel, *entity_pos, *other_pos, *other_vel],
+            [
+                agent.state.vel,
+                *([agent.state.pos] if self.observe_pos else []),
+                *entity_pos,
+                *other_pos,
+                *other_vel,
+            ],
             dim=-1,
         )
 
