@@ -12,12 +12,24 @@ from vmas.simulator.utils import Color
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        world = World(batch_dim=batch_dim, device=device, x_semidim=1, y_semidim=1)
+        num_good_agents = kwargs.get("num_good_agents", 1)
+        num_adversaries = kwargs.get("num_adversaries", 3)
+        num_landmarks = kwargs.get("num_landmarks", 2)
+        self.shape_agent_rew = kwargs.get("shape_agent_rew", False)
+        self.shape_adversary_rew = kwargs.get("shape_adversary_rew", False)
+        self.agents_share_rew = kwargs.get("agents_share_rew", False)
+        self.adversaries_share_rew = kwargs.get("adversaries_share_rew", True)
+
+        world = World(
+            batch_dim=batch_dim,
+            device=device,
+            x_semidim=1,
+            y_semidim=1,
+            substeps=10,
+            collision_force=500,
+        )
         # set any world properties first
-        num_good_agents = 1
-        num_adversaries = 3
         num_agents = num_adversaries + num_good_agents
-        num_landmarks = 2
 
         # Add agents
         for i in range(num_agents):
@@ -78,7 +90,7 @@ class Scenario(BaseScenario):
 
     def is_collision(self, agent1: Agent, agent2: Agent):
         delta_pos = agent1.state.pos - agent2.state.pos
-        dist = torch.sqrt(torch.sum(torch.square(delta_pos), dim=-1))
+        dist = torch.linalg.vector_norm(delta_pos, dim=-1)
         dist_min = agent1.shape.radius + agent2.shape.radius
         return dist < dist_min
 
@@ -91,27 +103,41 @@ class Scenario(BaseScenario):
         return [agent for agent in self.world.agents if agent.adversary]
 
     def reward(self, agent: Agent):
-        # Agents are rewarded based on minimum agent distance to each landmark
-        main_reward = (
-            self.adversary_reward(agent)
-            if agent.adversary
-            else self.agent_reward(agent)
-        )
-        return main_reward
+        is_first = agent == self.world.agents[0]
+
+        if is_first:
+            for a in self.world.agents:
+                a.rew = (
+                    self.adversary_reward(a) if a.adversary else self.agent_reward(a)
+                )
+            self.agents_rew = torch.stack(
+                [a.rew for a in self.good_agents()], dim=-1
+            ).sum(-1)
+            self.adverary_rew = torch.stack(
+                [a.rew for a in self.adversaries()], dim=-1
+            ).sum(-1)
+        if agent.adversary:
+            if self.adversaries_share_rew:
+                return self.adverary_rew
+            else:
+                return agent.rew
+        else:
+            if self.agents_share_rew:
+                return self.agents_rew
+            else:
+                return agent.rew
 
     def agent_reward(self, agent: Agent):
         # Agents are negatively rewarded if caught by adversaries
         rew = torch.zeros(
             self.world.batch_dim, device=self.world.device, dtype=torch.float32
         )
-        shape = False
         adversaries = self.adversaries()
-        if (
-            shape
-        ):  # reward can optionally be shaped (increased reward for increased distance from adversary)
+        if self.shape_agent_rew:
+            # reward can optionally be shaped (increased reward for increased distance from adversary)
             for adv in adversaries:
-                rew += 0.1 * torch.sqrt(
-                    torch.sum(torch.square(agent.state.pos - adv.state.pos), dim=-1)
+                rew += 0.1 * torch.linalg.vector_norm(
+                    agent.state.pos - adv.state.pos, dim=-1
                 )
         if agent.collide:
             for a in adversaries:
@@ -124,35 +150,29 @@ class Scenario(BaseScenario):
         rew = torch.zeros(
             self.world.batch_dim, device=self.world.device, dtype=torch.float32
         )
-        shape = False
         agents = self.good_agents()
-        adversaries = self.adversaries()
         if (
-            shape
+            self.shape_adversary_rew
         ):  # reward can optionally be shaped (decreased reward for increased distance from agents)
-            for adv in adversaries:
-                rew -= (
-                    0.1
-                    * torch.min(
-                        torch.stack(
-                            [
-                                torch.sqrt(
-                                    torch.sum(
-                                        torch.square(a.state.pos - adv.state.pos),
-                                        dim=-1,
-                                    )
-                                )
-                                for a in agents
-                            ],
-                            dim=1,
-                        ),
+            rew -= (
+                0.1
+                * torch.min(
+                    torch.stack(
+                        [
+                            torch.linalg.vector_norm(
+                                a.state.pos - agent.state.pos,
+                                dim=-1,
+                            )
+                            for a in agents
+                        ],
                         dim=-1,
-                    )[0]
-                )
+                    ),
+                    dim=-1,
+                )[0]
+            )
         if agent.collide:
             for ag in agents:
-                for adv in adversaries:
-                    rew[self.is_collision(ag, adv)] += 10
+                rew[self.is_collision(ag, agent)] += 10
         return rew
 
     def observation(self, agent: Agent):
@@ -166,11 +186,14 @@ class Scenario(BaseScenario):
         for other in self.world.agents:
             if other is agent:
                 continue
-            other_pos.append(other.state.pos - agent.state.pos)
-            if not other.adversary:
+            if agent.adversary and not other.adversary:
+                other_pos.append(other.state.pos - agent.state.pos)
                 other_vel.append(other.state.vel)
+            elif not agent.adversary and other.adversary:
+                other_pos.append(other.state.pos - agent.state.pos)
+
         return torch.cat(
-            [agent.state.vel, agent.state.pos, *entity_pos, *other_pos, *other_vel],
+            [agent.state.vel, *entity_pos, *other_pos, *other_vel],
             dim=-1,
         )
 
