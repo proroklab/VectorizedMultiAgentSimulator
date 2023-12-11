@@ -5,7 +5,7 @@
 import torch
 
 from vmas import render_interactively
-from vmas.simulator.core import World, Agent, Landmark, Sphere
+from vmas.simulator.core import World, Agent, Landmark, Sphere, Line
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color
 
@@ -21,17 +21,19 @@ class Scenario(BaseScenario):
         self.adversaries_share_rew = kwargs.get("adversaries_share_rew", True)
         self.observe_same_team = kwargs.get("observe_same_team", True)
         self.observe_pos = kwargs.get("observe_pos", True)
+        self.bound = kwargs.get("bound", 1.0)
 
         world = World(
             batch_dim=batch_dim,
             device=device,
-            x_semidim=1,
-            y_semidim=1,
+            x_semidim=self.bound,
+            y_semidim=self.bound,
             substeps=10,
             collision_force=500,
         )
         # set any world properties first
         num_agents = num_adversaries + num_good_agents
+        self.adversary_radius = 0.075
 
         # Add agents
         for i in range(num_agents):
@@ -40,7 +42,7 @@ class Scenario(BaseScenario):
             agent = Agent(
                 name=name,
                 collide=True,
-                shape=Sphere(radius=0.075 if adversary else 0.05),
+                shape=Sphere(radius=self.adversary_radius if adversary else 0.05),
                 u_multiplier=3.0 if adversary else 4.0,
                 max_speed=1.0 if adversary else 1.3,
                 color=Color.RED if adversary else Color.GREEN,
@@ -69,8 +71,8 @@ class Scenario(BaseScenario):
                     device=self.world.device,
                     dtype=torch.float32,
                 ).uniform_(
-                    -1.0,
-                    1.0,
+                    -self.bound,
+                    self.bound,
                 ),
                 batch_index=env_index,
             )
@@ -84,8 +86,8 @@ class Scenario(BaseScenario):
                     device=self.world.device,
                     dtype=torch.float32,
                 ).uniform_(
-                    -0.9,
-                    0.9,
+                    -(self.bound - 0.1),
+                    self.bound - 0.1,
                 ),
                 batch_index=env_index,
             )
@@ -209,6 +211,44 @@ class Scenario(BaseScenario):
             ],
             dim=-1,
         )
+
+    def extra_render(self, env_index: int = 0):
+        from vmas.simulator import rendering
+
+        geoms = []
+
+        # Perimeter
+        for i in range(4):
+            geom = Line(
+                length=2
+                * ((self.bound - self.adversary_radius) + self.adversary_radius * 2)
+            ).get_geometry()
+            xform = rendering.Transform()
+            geom.add_attr(xform)
+
+            xform.set_translation(
+                0.0
+                if i % 2
+                else (
+                    self.bound + self.adversary_radius
+                    if i == 0
+                    else -self.bound - self.adversary_radius
+                ),
+                0.0
+                if not i % 2
+                else (
+                    self.bound + self.adversary_radius
+                    if i == 1
+                    else -self.bound - self.adversary_radius
+                ),
+            )
+            xform.set_rotation(torch.pi / 2 if not i % 2 else 0.0)
+            color = Color.BLACK.value
+            if isinstance(color, torch.Tensor) and len(color.shape) > 1:
+                color = color[env_index]
+            geom.set_color(*color)
+            geoms.append(geom)
+        return geoms
 
 
 if __name__ == "__main__":
