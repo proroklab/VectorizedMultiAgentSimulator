@@ -2321,8 +2321,13 @@ class World(TorchVectorizedObject):
 
         # softmax penetration
         k = self._contact_margin
-        penetration = (((dist_min - dist) * sign / k).exp() + 1.0).log() * k
-
+        penetration = (
+            torch.logaddexp(
+                torch.tensor(0.0, dtype=torch.float32, device=self.device),
+                (dist_min - dist) * sign / k,
+            )
+            * k
+        )
         force = (
             sign
             * force_multiplier
