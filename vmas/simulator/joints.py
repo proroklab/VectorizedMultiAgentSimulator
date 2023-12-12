@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2023.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -7,7 +7,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Tuple, List
 
 import torch
-
 import vmas.simulator.core
 import vmas.simulator.utils
 
@@ -139,21 +138,36 @@ class JointConstraint:
         self.anchor_b = anchor_b
         self.dist = dist
         self.rotate = rotate
+        self._delta_anchor_tensor_map = {}
+
+    def _delta_anchor_tensor(self, entity):
+        if entity not in self._delta_anchor_tensor_map:
+            if entity == self.entity_a:
+                anchor = self.anchor_a
+            elif entity == self.entity_b:
+                anchor = self.anchor_b
+            else:
+                assert False
+
+            delta_anchor_tensor = (
+                torch.tensor(
+                    entity.shape.get_delta_from_anchor(anchor),
+                    device=entity.state.pos.device,
+                )
+                .unsqueeze(0)
+                .expand(entity.state.pos.shape)
+            )
+            self._delta_anchor_tensor_map[entity] = delta_anchor_tensor
+        self._delta_anchor_tensor_map[entity] = self._delta_anchor_tensor_map[
+            entity
+        ].to(entity.state.pos.device)
+        return self._delta_anchor_tensor_map[entity]
 
     def get_delta_anchor(self, entity: vmas.simulator.core.Entity):
-        if entity == self.entity_a:
-            anchor = self.anchor_a
-        elif entity == self.entity_b:
-            anchor = self.anchor_b
-        else:
-            assert False
         return vmas.simulator.utils.TorchUtils.rotate_vector(
-            torch.tensor(
-                entity.shape.get_delta_from_anchor(anchor),
-                device=entity.state.pos.device,
-            ),
+            self._delta_anchor_tensor(entity),
             entity.state.rot,
-        ).squeeze(-1)
+        )
 
     def pos_point(self, entity: vmas.simulator.core.Entity):
         return entity.state.pos + self.get_delta_anchor(entity)

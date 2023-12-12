@@ -9,7 +9,6 @@ import numpy as np
 import torch
 from gym import spaces
 from torch import Tensor
-
 from vmas.simulator.core import Agent, TorchVectorizedObject
 from vmas.simulator.scenario import BaseScenario
 import vmas.simulator.utils
@@ -364,6 +363,7 @@ class Environment(TorchVectorizedObject):
     # set env action for a particular agent
     def _set_action(self, action, agent):
         action = action.clone().detach().to(self.device)
+        assert not action.isnan().any()
         agent.action.u = torch.zeros(
             self.batch_dim, self.world.dim_p, device=self.device, dtype=torch.float32
         )
@@ -480,6 +480,7 @@ class Environment(TorchVectorizedObject):
         ] = None,
         plot_position_function_cmap_range: Optional[Tuple[float, float]] = None,
         plot_position_function_cmap_alpha: Optional[float] = 1.0,
+        plot_position_function_cmap_name: Optional[str] = "viridis",
     ):
         """
         Render function for environment using pyglet
@@ -612,6 +613,7 @@ class Environment(TorchVectorizedObject):
                     plot_range=plot_position_function_range,
                     cmap_range=plot_position_function_cmap_range,
                     cmap_alpha=plot_position_function_cmap_alpha,
+                    cmap_name=plot_position_function_cmap_name,
                 )
             )
 
@@ -630,7 +632,9 @@ class Environment(TorchVectorizedObject):
         # render to display or array
         return self.viewer.render(return_rgb_array=mode == "rgb_array")
 
-    def plot_function(self, f, precision, plot_range, cmap_range, cmap_alpha):
+    def plot_function(
+        self, f, precision, plot_range, cmap_range, cmap_alpha, cmap_name
+    ):
         from vmas.simulator.rendering import render_function_util
 
         if plot_range is None:
@@ -647,6 +651,7 @@ class Environment(TorchVectorizedObject):
             plot_range=plot_range,
             cmap_range=cmap_range,
             cmap_alpha=cmap_alpha,
+            cmap_name=cmap_name,
         )
         return geom
 

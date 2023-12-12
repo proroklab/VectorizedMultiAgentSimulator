@@ -17,7 +17,6 @@ import numpy as np
 import pyglet
 import six
 import torch
-
 from vmas.simulator.utils import x_to_rgb_colormap, TorchUtils
 
 try:
@@ -455,6 +454,7 @@ def render_function_util(
     precision: float = 0.01,
     cmap_range: Optional[Tuple[float, float]] = None,
     cmap_alpha: float = 1.0,
+    cmap_name: str = "viridis",
 ):
     if isinstance(plot_range, int) or isinstance(plot_range, float):
         x_min = -plot_range
@@ -499,7 +499,11 @@ def render_function_util(
         if cmap_range is None:
             cmap_range = [None, None]
         outputs = x_to_rgb_colormap(
-            outputs, low=cmap_range[0], high=cmap_range[1], alpha=cmap_alpha
+            outputs,
+            low=cmap_range[0],
+            high=cmap_range[1],
+            alpha=cmap_alpha,
+            cmap_name=cmap_name,
         )
 
     img = outputs.reshape(xgrid.shape[0], xgrid.shape[1], outputs.shape[-1])
