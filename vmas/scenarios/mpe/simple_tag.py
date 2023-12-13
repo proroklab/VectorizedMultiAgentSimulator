@@ -21,7 +21,9 @@ class Scenario(BaseScenario):
         self.adversaries_share_rew = kwargs.get("adversaries_share_rew", True)
         self.observe_same_team = kwargs.get("observe_same_team", True)
         self.observe_pos = kwargs.get("observe_pos", True)
+        self.observe_vel = kwargs.get("observe_vel", True)
         self.bound = kwargs.get("bound", 1.0)
+        self.respawn_at_catch = kwargs.get("respawn_at_catch", False)
 
         world = World(
             batch_dim=batch_dim,
@@ -120,6 +122,17 @@ class Scenario(BaseScenario):
             self.adverary_rew = torch.stack(
                 [a.rew for a in self.adversaries()], dim=-1
             ).sum(-1)
+            if self.respawn_at_catch:
+                for a in self.good_agents():
+                    for adv in self.adversaries():
+                        coll = self.is_collision(a, adv)
+                        a.state.pos[coll] = torch.zeros(
+                            (self.world.batch_dim, self.world.dim_p),
+                            device=self.world.device,
+                            dtype=torch.float32,
+                        ).uniform_(-self.bound, self.bound,)[coll]
+                        a.state.vel[coll] = 0.0
+
         if agent.adversary:
             if self.adversaries_share_rew:
                 return self.adverary_rew
@@ -203,7 +216,7 @@ class Scenario(BaseScenario):
 
         return torch.cat(
             [
-                agent.state.vel,
+                *([agent.state.vel] if self.observe_vel else []),
                 *([agent.state.pos] if self.observe_pos else []),
                 *entity_pos,
                 *other_pos,

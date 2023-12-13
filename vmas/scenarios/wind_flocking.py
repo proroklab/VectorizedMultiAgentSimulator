@@ -6,7 +6,6 @@ from typing import Dict, List
 
 import torch
 from torch import Tensor
-
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World, Sphere
 from vmas.simulator.scenario import BaseScenario
@@ -63,6 +62,10 @@ class Scenario(BaseScenario):
         self.rot_shaping_factor = kwargs.get("rot_shaping_factor", 0)
         self.energy_shaping_factor = kwargs.get("energy_shaping_factor", 0)
 
+        self.observe_rel_pos = kwargs.get("observe_rel_pos", False)
+        self.observe_rel_vel = kwargs.get("observe_rel_vel", False)
+        self.observe_pos = kwargs.get("observe_pos", True)
+
         # Controller
         self.use_controller = kwargs.get("use_controller", True)
         self.wind = torch.tensor(
@@ -76,7 +79,7 @@ class Scenario(BaseScenario):
 
         # Other
         self.cover_angle_tolerance = kwargs.get("cover_angle_tolerance", 1)
-        self.horizon = kwargs.get("horizon", 200)
+        self.horizon = kwargs.get("horizon", 100)
 
         self.desired_distance = 1
         self.grid_spacing = self.desired_distance
@@ -358,10 +361,18 @@ class Scenario(BaseScenario):
         self.big_agent.gravity = self.wind * dist_to_goal_angle
 
     def observation(self, agent: Agent):
-        observations = [
-            agent.state.pos,
-            agent.state.vel,
-        ]
+        observations = [agent.state.vel]
+        if self.observe_pos:
+            observations.append(agent.state.pos)
+        if self.observe_rel_pos:
+            for a in self.world.agents:
+                if a != agent:
+                    observations.append(a.state.pos - agent.state.pos)
+        if self.observe_rel_vel:
+            for a in self.world.agents:
+                if a != agent:
+                    observations.append(a.state.vel - agent.state.vel)
+
         return torch.cat(
             observations,
             dim=-1,
