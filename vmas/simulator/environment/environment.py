@@ -41,6 +41,7 @@ class Environment(TorchVectorizedObject):
         continuous_actions: bool = True,
         seed: Optional[int] = None,
         dict_spaces: bool = False,
+        clamp_actions: bool = False,
         **kwargs,
     ):
         self.scenario = scenario
@@ -53,6 +54,7 @@ class Environment(TorchVectorizedObject):
         self.max_steps = max_steps
         self.continuous_actions = continuous_actions
         self.dict_spaces = dict_spaces
+        self.clamp_action = clamp_actions
 
         self.reset(seed=seed)
 
@@ -372,6 +374,9 @@ class Environment(TorchVectorizedObject):
             f"Agent {agent.name} has wrong action size, got {action.shape[1]}, "
             f"expected {self.get_agent_action_size(agent)}"
         )
+        if self.clamp_action and self.continuous_actions:
+            action = action.clamp(-agent.action.u_range, agent.action.u_range)
+
         action_index = 0
 
         if self.continuous_actions:

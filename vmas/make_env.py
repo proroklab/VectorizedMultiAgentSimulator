@@ -22,6 +22,7 @@ def make_env(
     max_steps: Optional[int] = None,
     seed: Optional[int] = None,
     dict_spaces: bool = False,
+    clamp_actions: bool = False,
     **kwargs,
 ):
     """
@@ -36,6 +37,8 @@ def make_env(
         seed: seed
         dict_spaces:  Weather to use dictionary i/o spaces with format {agent_name: tensor}
         for obs, rewards, and info instead of tuples.
+        clamp_actions: Weather to clamp input actions to the range instead of throwing
+            an error when continuous_actions is True and actions are out of bounds
         **kwargs ():
 
     Returns:
@@ -55,6 +58,7 @@ def make_env(
         max_steps=max_steps,
         seed=seed,
         dict_spaces=dict_spaces,
+        clamp_actions=clamp_actions,
         **kwargs,
     )
 
