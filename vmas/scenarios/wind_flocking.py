@@ -72,6 +72,7 @@ class Scenario(BaseScenario):
             [0, -kwargs.get("wind", 2)], device=device, dtype=torch.float32
         ).expand(batch_dim, 2)
         self.v_range = kwargs.get("v_range", 0.5)
+        self.desired_vel = kwargs.get("desired_vel", self.v_range)
         self.f_range = kwargs.get("f_range", 100)
 
         controller_params = [1.5, 0.6, 0.002]
@@ -88,7 +89,7 @@ class Scenario(BaseScenario):
         world = World(batch_dim, device, drag=0, linear_friction=0.1)
 
         self.desired_vel = torch.tensor(
-            [0.0, self.v_range], device=device, dtype=torch.float32
+            [0.0, self.desired_vel], device=device, dtype=torch.float32
         )
         self.max_pos = (self.horizon * world.dt) * self.desired_vel[Y]
         self.desired_pos = 10.0
