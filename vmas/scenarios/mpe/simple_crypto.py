@@ -181,10 +181,10 @@ class Scenario(BaseScenario):
                     key,
                 ],
                 dim=-1,
-            )
+            ).to(torch.float)
         # listener
         if not agent.speaker and not agent.adversary:
-            return torch.cat([key, *comm], dim=-1)
+            return torch.cat([key, *comm], dim=-1).to(torch.float)
         # adv
         if not agent.speaker and agent.adversary:
-            return torch.cat([*comm], dim=-1)
+            return torch.cat([*comm], dim=-1).to(torch.float)
