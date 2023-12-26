@@ -20,6 +20,7 @@ class Scenario(BaseScenario):
         self.energy_coeff = kwargs.get(
             "energy_coeff", DEFAULT_ENERGY_COEFF
         )  # Weight of team energy penalty
+        self.start_same_point = kwargs.get("start_same_point", False)
         self.agent_radius = 0.05
         self.goal_radius = 0.03
 
@@ -48,14 +49,40 @@ class Scenario(BaseScenario):
         return world
 
     def reset_world_at(self, env_index: int = None):
-        ScenarioUtils.spawn_entities_randomly(
-            self.world.policy_agents + self.world.landmarks,
-            self.world,
-            env_index,
-            self.goal_radius + self.agent_radius + 0.01,
-            x_bounds=(-1, 1),
-            y_bounds=(-1, 1),
-        )
+        if self.start_same_point:
+            for agent in self.world.agents:
+                agent.set_pos(
+                    torch.zeros(
+                        (1, 2) if env_index is not None else (self.world.batch_dim, 2),
+                        device=self.world.device,
+                        dtype=torch.float,
+                    ),
+                    batch_index=env_index,
+                )
+            ScenarioUtils.spawn_entities_randomly(
+                self.world.landmarks,
+                self.world,
+                env_index,
+                self.goal_radius + self.agent_radius + 0.01,
+                x_bounds=(-1, 1),
+                y_bounds=(-1, 1),
+                occupied_positions=torch.zeros(
+                    1 if env_index is not None else self.world.batch_dim,
+                    1,
+                    2,
+                    device=self.world.device,
+                    dtype=torch.float,
+                ),
+            )
+        else:
+            ScenarioUtils.spawn_entities_randomly(
+                self.world.policy_agents + self.world.landmarks,
+                self.world,
+                env_index,
+                self.goal_radius + self.agent_radius + 0.01,
+                x_bounds=(-1, 1),
+                y_bounds=(-1, 1),
+            )
 
         for landmark in self.world.landmarks:
             if env_index is None:
