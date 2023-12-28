@@ -14,7 +14,6 @@ from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.sensors import Lidar
 from vmas.simulator.utils import Color, ScenarioUtils
 
-from cvxpylayers.torch import CvxpyLayer
 
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
