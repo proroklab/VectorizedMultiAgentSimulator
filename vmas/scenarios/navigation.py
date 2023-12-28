@@ -310,6 +310,8 @@ class HeuristicPolicy(BaseHeuristicPolicy):
         u: action
         CLF_slack: CLF constraint slack variable, 0 if CLF constraint is satisfied
         """
+        import cvxpy as cp
+        from cvxpylayers.torch import CvxpyLayer
         self.n_env = observation.shape[0]
         self.device = observation.device
         agent_pos = observation[:, :2]
