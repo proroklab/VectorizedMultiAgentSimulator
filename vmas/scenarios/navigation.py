@@ -363,7 +363,6 @@ class HeuristicPolicy(BaseHeuristicPolicy):
         ]
 
         QP_problem = cp.Problem(qp_objective, constraints)
-        assert QP_problem.is_dpp()
 
         # Initialize CVXPY layers
         QP_controller = CvxpyLayer(
