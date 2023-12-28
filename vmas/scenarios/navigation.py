@@ -217,9 +217,6 @@ class Scenario(BaseScenario):
         return agent.pos_rew
 
     def observation(self, agent: Agent):
-        """
-        obs: [agent_pos, agent_vel, relative_to_goal_pos, lidar_readings]
-        """
         goal_poses = []
         if self.observe_all_goals:
             for a in self.world.agents:
