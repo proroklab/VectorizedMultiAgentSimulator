@@ -5,7 +5,6 @@ import typing
 from typing import Dict, Callable, List
 
 import torch
-import cvxpy as cp
 from torch import Tensor
 
 from vmas import render_interactively
