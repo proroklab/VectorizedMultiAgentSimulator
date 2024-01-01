@@ -286,12 +286,12 @@ class Scenario(BaseScenario):
 
 
 class HeuristicPolicy(BaseHeuristicPolicy):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, ctrl_params=[0.2, 1.0, 1.0, 100.0], *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.clf_epsilon = 0.2  # Exponential CLF convergence rate
-        self.cbf_eta = 1  # CBF class-K parameter
-        self.cbf_zeta = 1  # CBF class-K parameter
-        self.clf_slack = 100.0  # weights on CLF-QP slack variable
+        self.clf_epsilon = ctrl_params[0]  # Exponential CLF convergence rate
+        self.cbf_eta = ctrl_params[1]  # CBF class-K parameter
+        self.cbf_zeta = ctrl_params[2]  # CBF class-K parameter
+        self.clf_slack = ctrl_params[3]  # weights on CLF-QP slack variable
 
     def compute_action(self, observation: Tensor, u_range: Tensor) -> Tensor:
         """
