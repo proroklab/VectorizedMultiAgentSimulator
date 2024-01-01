@@ -12,7 +12,7 @@ from vmas.simulator.core import Agent, Landmark, World, Sphere, Entity
 from vmas.simulator.heuristic_policy import BaseHeuristicPolicy
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.sensors import Lidar
-from vmas.simulator.utils import Color, ScenarioUtils
+from vmas.simulator.utils import Color, ScenarioUtils, X, Y
 
 
 if typing.TYPE_CHECKING:
@@ -320,23 +320,23 @@ class HeuristicPolicy(BaseHeuristicPolicy):
 
         # Laypunov function
         V_value = (
-            (agent_pos[:, 0] - goal_pos[:, 0]) ** 2
-            + 0.5 * (agent_pos[:, 0] - goal_pos[:, 0]) * agent_vel[:, 0]
-            + agent_vel[:, 0] ** 2
-            + (agent_pos[:, 1] - goal_pos[:, 1]) ** 2
-            + 0.5 * (agent_pos[:, 1] - goal_pos[:, 1]) * agent_vel[:, 1]
-            + agent_vel[:, 1] ** 2
+            (agent_pos[:, X] - goal_pos[:, X]) ** 2
+            + 0.5 * (agent_pos[:, X] - goal_pos[:, X]) * agent_vel[:, X]
+            + agent_vel[:, X] ** 2
+            + (agent_pos[:,Y] - goal_pos[:, Y]) ** 2
+            + 0.5 * (agent_pos[:, Y] - goal_pos[:, Y]) * agent_vel[:, Y]
+            + agent_vel[:, Y] ** 2
         )
 
-        LfV_val = (2 * (agent_pos[:, 0] - goal_pos[:, 0]) + agent_vel[:, 0]) * (
-            agent_vel[:, 0]
-        ) + (2 * (agent_pos[:, 1] - goal_pos[:, 1]) + agent_vel[:, 1]) * (
-            agent_vel[:, 1]
+        LfV_val = (2 * (agent_pos[:, X] - goal_pos[:, X]) + agent_vel[:, X]) * (
+            agent_vel[:, X]
+        ) + (2 * (agent_pos[:, Y] - goal_pos[:, Y]) + agent_vel[:, Y]) * (
+            agent_vel[:, Y]
         )
         LgV_vals = torch.stack(
             [
-                0.5 * (agent_pos[:, 0] - goal_pos[:, 0]) + 2 * agent_vel[:, 0],
-                0.5 * (agent_pos[:, 1] - goal_pos[:, 1]) + 2 * agent_vel[:, 1],
+                0.5 * (agent_pos[:, X] - goal_pos[:, X]) + 2 * agent_vel[:, X],
+                0.5 * (agent_pos[:, Y] - goal_pos[:, Y]) + 2 * agent_vel[:, Y],
             ],
             dim=1,
         )
