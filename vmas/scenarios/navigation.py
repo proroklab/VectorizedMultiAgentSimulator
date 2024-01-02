@@ -308,6 +308,7 @@ class HeuristicPolicy(BaseHeuristicPolicy):
         # Install it with: pip install cvxpylayers
         import cvxpy as cp
         from cvxpylayers.torch import CvxpyLayer
+
         self.n_env = observation.shape[0]
         self.device = observation.device
         agent_pos = observation[:, :2]
@@ -322,7 +323,7 @@ class HeuristicPolicy(BaseHeuristicPolicy):
             (agent_pos[:, X] - goal_pos[:, X]) ** 2
             + 0.5 * (agent_pos[:, X] - goal_pos[:, X]) * agent_vel[:, X]
             + agent_vel[:, X] ** 2
-            + (agent_pos[:,Y] - goal_pos[:, Y]) ** 2
+            + (agent_pos[:, Y] - goal_pos[:, Y]) ** 2
             + 0.5 * (agent_pos[:, Y] - goal_pos[:, Y]) * agent_vel[:, Y]
             + agent_vel[:, Y] ** 2
         )
