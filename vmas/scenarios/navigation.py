@@ -9,9 +9,11 @@ from torch import Tensor
 
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, World, Sphere, Entity
+from vmas.simulator.heuristic_policy import BaseHeuristicPolicy
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.sensors import Lidar
-from vmas.simulator.utils import Color, ScenarioUtils
+from vmas.simulator.utils import Color, ScenarioUtils, X, Y
+
 
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
@@ -281,6 +283,99 @@ class Scenario(BaseScenario):
                     geoms.append(line)
 
         return geoms
+
+
+class HeuristicPolicy(BaseHeuristicPolicy):
+    def __init__(self, clf_epsilon = 0.2, clf_slack = 100.0, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.clf_epsilon = clf_epsilon  # Exponential CLF convergence rate
+        self.clf_slack = clf_slack  # weights on CLF-QP slack variable
+
+    def compute_action(self, observation: Tensor, u_range: Tensor) -> Tensor:
+        """
+        QP inputs:
+        These values need to computed apriri based on observation before passing into QP
+
+        V: Lyapunov function value
+        lfV: Lie derivative of Lyapunov function
+        lgV: Lie derivative of Lyapunov function
+        CLF_slack: CLF constraint slack variable
+
+        QP outputs:
+        u: action
+        CLF_slack: CLF constraint slack variable, 0 if CLF constraint is satisfied
+        """
+        # Install it with: pip install cvxpylayers
+        import cvxpy as cp
+        from cvxpylayers.torch import CvxpyLayer
+
+        self.n_env = observation.shape[0]
+        self.device = observation.device
+        agent_pos = observation[:, :2]
+        agent_vel = observation[:, 2:4]
+        goal_pos = (-1.0) * (observation[:, 4:6] - agent_pos)
+
+        # Pre-compute tensors for the CLF and CBF constraints,
+        # Lyapunov Function from: https://arxiv.org/pdf/1903.03692.pdf
+
+        # Laypunov function
+        V_value = (
+            (agent_pos[:, X] - goal_pos[:, X]) ** 2
+            + 0.5 * (agent_pos[:, X] - goal_pos[:, X]) * agent_vel[:, X]
+            + agent_vel[:, X] ** 2
+            + (agent_pos[:, Y] - goal_pos[:, Y]) ** 2
+            + 0.5 * (agent_pos[:, Y] - goal_pos[:, Y]) * agent_vel[:, Y]
+            + agent_vel[:, Y] ** 2
+        )
+
+        LfV_val = (2 * (agent_pos[:, X] - goal_pos[:, X]) + agent_vel[:, X]) * (
+            agent_vel[:, X]
+        ) + (2 * (agent_pos[:, Y] - goal_pos[:, Y]) + agent_vel[:, Y]) * (
+            agent_vel[:, Y]
+        )
+        LgV_vals = torch.stack(
+            [
+                0.5 * (agent_pos[:, X] - goal_pos[:, X]) + 2 * agent_vel[:, X],
+                0.5 * (agent_pos[:, Y] - goal_pos[:, Y]) + 2 * agent_vel[:, Y],
+            ],
+            dim=1,
+        )
+        # Define Quadratic Program (QP) based controller
+        u = cp.Variable(2)
+        V_param = cp.Parameter(1)  # Lyapunov Function: V(x): x -> R, dim: (1,1)
+        lfV_param = cp.Parameter(1)
+        lgV_params = cp.Parameter(
+            2
+        )  # Lie derivative of Lyapunov Function, dim: (1, action_dim)
+        clf_slack = cp.Variable(1)  # CLF constraint slack variable, dim: (1,1)
+
+        constraints = []
+
+        # QP Cost F = u^T @ u + clf_slack**2
+        qp_objective = cp.Minimize(cp.sum_squares(u) + self.clf_slack * clf_slack**2)
+
+        # control bounds between u_range
+        constraints += [u <= u_range]
+        constraints += [u >= -u_range]
+        # CLF constraint
+        constraints += [
+            lfV_param + lgV_params @ u + self.clf_epsilon * V_param + clf_slack <= 0
+        ]
+
+        QP_problem = cp.Problem(qp_objective, constraints)
+
+        # Initialize CVXPY layers
+        QP_controller = CvxpyLayer(
+            QP_problem, parameters=[V_param, lfV_param, lgV_params], variables=[u]
+        )
+
+        # Solve QP
+        CVXpylayer_parameters = [V_value.unsqueeze(1), LfV_val.unsqueeze(1), LgV_vals]
+        action = QP_controller(*CVXpylayer_parameters, solver_args={"max_iters": 500})[
+            0
+        ]
+
+        return action
 
 
 if __name__ == "__main__":
