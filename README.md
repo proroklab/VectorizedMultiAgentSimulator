@@ -402,15 +402,15 @@ To create a fake screen you need to have `Xvfb` installed.
 
 ## TODOS
 
-- [ ] Improve VMAS performance
-- [X] Dict obs support in torchrl
-- [X] Make TextLine a Geom usable in a scenario
-- [ ] Implement 2D birds eye view camera sensor
-- [X] Notebook on how to use torch rl with vmas
 - [ ] Reset any number of dimensions
 - [ ] Improve test efficiency and add new tests
 - [ ] Implement 1D camera sensor
 - [ ] Allow any number of actions
+- [ ] Implement 2D birds eye view camera sensor
+- [X] Improve VMAS performance
+- [X] Dict obs support in torchrl
+- [X] Make TextLine a Geom usable in a scenario
+- [X] Notebook on how to use torch rl with vmas
 - [X] Allow dict obs spaces and multidim obs
 - [X] Talk about action preprocessing and velocity controller
 - [X] New envs from joint project with their descriptions
