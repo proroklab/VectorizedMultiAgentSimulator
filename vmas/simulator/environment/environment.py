@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import random
@@ -9,6 +9,7 @@ import numpy as np
 import torch
 from gym import spaces
 from torch import Tensor
+
 from vmas.simulator.core import Agent, TorchVectorizedObject
 from vmas.simulator.scenario import BaseScenario
 import vmas.simulator.utils
@@ -57,6 +58,7 @@ class Environment(TorchVectorizedObject):
         self.reset(seed=seed)
 
         # configure spaces
+        self.multidiscrete = False
         self.action_space = self.get_action_space()
         self.observation_space = self.get_observation_space()
 
@@ -291,48 +293,55 @@ class Environment(TorchVectorizedObject):
             )
 
     def get_agent_action_size(self, agent: Agent):
-        return (
-            self.world.dim_p
-            + (1 if agent.action.u_rot_range != 0 else 0)
-            + (self.world.dim_c if not agent.silent else 0)
-            if self.continuous_actions
-            else 1
-            + (1 if agent.action.u_rot_range != 0 else 0)
-            + (1 if not agent.silent else 0)
-        )
+        if self.continuous_actions:
+            return agent.action.action_size + (
+                self.world.dim_c if not agent.silent else 0
+            )
+        elif self.multidiscrete:
+            return agent.action_size + (1 if not agent.silent else 0)
+        else:
+            return 1
 
     def get_agent_action_space(self, agent: Agent):
         if self.continuous_actions:
             return spaces.Box(
                 low=np.array(
-                    [-agent.u_range] * self.world.dim_p
-                    + [-agent.u_rot_range] * (1 if agent.u_rot_range != 0 else 0)
-                    + [0] * (self.world.dim_c if not agent.silent else 0),
+                    (-agent.action.u_range_tensor).tolist()
+                    + [0]
+                    * (
+                        self.world.dim_c
+                        if not agent.silent and self.world.dim_c != 0
+                        else 0
+                    ),
                     dtype=np.float32,
                 ),
                 high=np.array(
-                    [agent.u_range] * self.world.dim_p
-                    + [agent.u_rot_range] * (1 if agent.u_rot_range != 0 else 0)
-                    + [1] * (self.world.dim_c if not agent.silent else 0),
+                    agent.action.u_range_tensor.tolist()
+                    + [1]
+                    * (
+                        self.world.dim_c
+                        if not agent.silent and self.world.dim_c != 0
+                        else 0
+                    ),
                     dtype=np.float32,
                 ),
                 shape=(self.get_agent_action_size(agent),),
                 dtype=np.float32,
             )
+        elif self.multidiscrete:
+            actions = [3] * agent.action_size + (
+                [self.world.dim_c] if not agent.silent and self.world.dim_c != 0 else []
+            )
+            return spaces.MultiDiscrete(actions)
         else:
-            if (self.world.dim_c == 0 or agent.silent) and agent.u_rot_range == 0.0:
-                return spaces.Discrete(self.world.dim_p * 2 + 1)
-            else:
-                actions = (
-                    [self.world.dim_p * 2 + 1]
-                    + ([3] if agent.u_rot_range != 0 else [])
-                    + (
-                        [self.world.dim_c]
-                        if not agent.silent and self.world.dim_c != 0
-                        else []
-                    )
+            return spaces.Discrete(
+                3**agent.action_size
+                * (
+                    self.world.dim_c
+                    if not agent.silent and self.world.dim_c != 0
+                    else 1
                 )
-                return spaces.MultiDiscrete(actions)
+            )
 
     def get_agent_observation_space(self, agent: Agent, obs: AGENT_OBS_TYPE):
         if isinstance(obs, Tensor):
@@ -365,7 +374,7 @@ class Environment(TorchVectorizedObject):
         action = action.clone().detach().to(self.device)
         assert not action.isnan().any()
         agent.action.u = torch.zeros(
-            self.batch_dim, self.world.dim_p, device=self.device, dtype=torch.float32
+            self.batch_dim, agent.action_size, device=self.device, dtype=torch.float32
         )
 
         assert action.shape[1] == self.get_agent_action_size(agent), (
@@ -375,67 +384,58 @@ class Environment(TorchVectorizedObject):
         action_index = 0
 
         if self.continuous_actions:
-            physical_action = action[:, action_index : action_index + self.world.dim_p]
+            physical_action = action[:, action_index : action_index + agent.action_size]
             action_index += self.world.dim_p
             assert not torch.any(
-                torch.abs(physical_action) > agent.u_range
+                torch.abs(physical_action) > agent.action.u_range_tensor
             ), f"Physical actions of agent {agent.name} are out of its range {agent.u_range}"
 
             agent.action.u = physical_action.to(torch.float32)
+
         else:
-            physical_action = action[:, action_index].unsqueeze(-1)
-            action_index += 1
-            self._check_discrete_action(
-                physical_action,
-                low=0,
-                high=self.world.dim_p * 2 + 1,
-                type="physical",
-            )
-
-            arr1 = physical_action == 1
-            arr2 = physical_action == 2
-            arr3 = physical_action == 3
-            arr4 = physical_action == 4
-
-            disc_action_value = agent.u_range
-
-            agent.action.u[:, X] -= disc_action_value * arr1.squeeze(-1)
-            agent.action.u[:, X] += disc_action_value * arr2.squeeze(-1)
-            agent.action.u[:, Y] -= disc_action_value * arr3.squeeze(-1)
-            agent.action.u[:, Y] += disc_action_value * arr4.squeeze(-1)
-
-        agent.action.u *= agent.u_multiplier
-        if agent.u_rot_range != 0:
-            if self.continuous_actions:
-                physical_action = action[:, action_index].unsqueeze(-1)
-                action_index += 1
-                assert not torch.any(
-                    torch.abs(physical_action) > agent.u_rot_range
-                ), f"Physical rotation actions of agent {agent.name} are out of its range {agent.u_rot_range}"
-                agent.action.u_rot = physical_action.to(torch.float32)
-
-            else:
-                agent.action.u_rot = torch.zeros(
-                    self.batch_dim, 1, device=self.device, dtype=torch.float32
+            if not self.multidiscrete:
+                n_actions = self.get_agent_action_space(agent).n
+                action_range = torch.arange(n_actions, device=self.device).expand(
+                    self.world.batch_dim, n_actions
                 )
                 physical_action = action[:, action_index].unsqueeze(-1)
-                action_index += 1
+                action_range = torch.where(action_range == physical_action, 1.0, 0.0)
+                action_range = action_range.view(
+                    (self.world.batch_dim,)
+                    + (3,) * agent.action_size
+                    + (self.world.dim_c,)
+                    * (1 if not agent.silent and self.world.dim_c != 0 else 0)
+                )
+                action = action_range.nonzero()[:, 1:]
+
+            for _ in range(agent.action_size):
+                physical_action = action[:, action_index].unsqueeze(-1)
                 self._check_discrete_action(
                     physical_action,
                     low=0,
                     high=3,
-                    type="rotation",
+                    type="physical",
                 )
 
                 arr1 = physical_action == 1
                 arr2 = physical_action == 2
 
-                disc_action_value = agent.u_rot_range
+                disc_action_value = agent.action.u_range_tensor[action_index]
+                agent.action.u[:, action_index] -= disc_action_value * arr1.squeeze(-1)
+                agent.action.u[:, action_index] += disc_action_value * arr2.squeeze(-1)
 
-                agent.action.u_rot[:, 0] -= disc_action_value * arr1.squeeze(-1)
-                agent.action.u_rot[:, 0] += disc_action_value * arr2.squeeze(-1)
+                action_index += 1
 
-            agent.action.u_rot *= agent.u_rot_multiplier
+        agent.action.u *= agent.action.u_multiplier_tensor
+
+        if agent.action.u_noise > 0:
+            noise = (
+                torch.randn(
+                    *agent.action.u.shape, device=self.device, dtype=torch.float32
+                )
+                * agent.u_noise
+            )
+            agent.action.u += noise
         if self.world.dim_c > 0 and not agent.silent:
             if not self.continuous_actions:
                 comm_action = action[:, action_index:]
@@ -457,6 +457,14 @@ class Environment(TorchVectorizedObject):
                     comm_action < 0
                 ), "Comm actions are out of range [0,1]"
                 agent.action.c = comm_action
+            if agent.c_noise > 0:
+                noise = (
+                    torch.randn(
+                        *agent.action.c.shape, device=self.device, dtype=torch.float32
+                    )
+                    * agent.c_noise
+                )
+                agent.action.c += noise
 
     def render(
         self,

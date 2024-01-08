@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import random
@@ -13,43 +13,26 @@ from vmas.simulator.utils import save_video
 
 def _get_random_action(agent: Agent, continuous: bool):
     if continuous:
-        action = torch.zeros(
-            (agent.batch_dim, 2),
-            device=agent.device,
-            dtype=torch.float32,
-        ).uniform_(
-            -agent.action.u_range,
-            agent.action.u_range,
-        )
-        if agent.u_rot_range > 0:
-            action = torch.cat(
-                [
-                    action,
-                    torch.zeros(
-                        (agent.batch_dim, 1),
-                        device=agent.device,
-                        dtype=torch.float32,
-                    ).uniform_(
-                        -agent.action.u_rot_range,
-                        agent.action.u_rot_range,
-                    ),
-                ],
-                dim=-1,
+        actions = []
+        for action_index in range(agent.action_size):
+            actions.append(
+                torch.zeros(
+                    agent.batch_dim,
+                    device=agent.device,
+                    dtype=torch.float32,
+                ).uniform_(
+                    -agent.action.u_range_tensor[action_index],
+                    agent.action.u_range_tensor[action_index],
+                )
             )
+        action = torch.stack(actions, dim=-1)
     else:
         action = torch.randint(
-            low=0, high=5, size=(agent.batch_dim,), device=agent.device
+            low=0,
+            high=3**agent.action_size,
+            size=(agent.batch_dim,),
+            device=agent.device,
         )
-        if agent.u_rot_range > 0:
-            action = torch.stack(
-                [
-                    action,
-                    torch.randint(
-                        low=0, high=3, size=(agent.batch_dim,), device=agent.device
-                    ),
-                ],
-                dim=-1,
-            )
     return action
 
 
@@ -121,7 +104,7 @@ def use_vmas_env(
         for i, agent in enumerate(env.agents):
             if not random_action:
                 action = torch.tensor(
-                    simple_2d_action if agent.u_rot_range == 0 else simple_3d_action,
+                    simple_2d_action if agent.action_size == 2 else simple_3d_action,
                     device=device,
                 ).repeat(num_envs, 1)
             else:
@@ -154,9 +137,9 @@ def use_vmas_env(
 
 if __name__ == "__main__":
     use_vmas_env(
-        scenario_name="waterfall",
+        scenario_name="football",
         render=True,
         save_render=False,
-        random_action=False,
+        random_action=True,
         continuous_actions=True,
     )
