@@ -298,7 +298,9 @@ class Environment(TorchVectorizedObject):
                 self.world.dim_c if not agent.silent else 0
             )
         elif self.multidiscrete:
-            return agent.action_size + (1 if not agent.silent else 0)
+            return agent.action_size + (
+                1 if not agent.silent and self.world.dim_c != 0 else 0
+            )
         else:
             return 1
 
@@ -384,11 +386,18 @@ class Environment(TorchVectorizedObject):
 
         else:
             if not self.multidiscrete:
+                # This bit of code translates the discrete action (taken from a space that
+                # is the cross product of all action spaces) into a multi discrete action.
+                # For example, if agent.action_size=4, it will mean that the agent will have
+                # 4 actions each with 3 possibilities (stay, decrement, increment).
+                # The env will have a space Discrete(3**4).
+                # This code will translate the action (with shape [n_envs,1] and range [0,3**4)) to an
+                # action with shape [n_envs,4] and range [0,3).
                 n_actions = self.get_agent_action_space(agent).n
                 action_range = torch.arange(n_actions, device=self.device).expand(
                     self.world.batch_dim, n_actions
                 )
-                physical_action = action[:, action_index].unsqueeze(-1)
+                physical_action = action
                 action_range = torch.where(action_range == physical_action, 1.0, 0.0)
                 action_range = action_range.view(
                     (self.world.batch_dim,)
@@ -398,6 +407,7 @@ class Environment(TorchVectorizedObject):
                 )
                 action = action_range.nonzero()[:, 1:]
 
+            # Now we have an action with shape [n_envs, action_size+comms_actions]
             for _ in range(agent.action_size):
                 physical_action = action[:, action_index].unsqueeze(-1)
                 self._check_discrete_action(
