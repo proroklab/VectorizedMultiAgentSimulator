@@ -307,22 +307,12 @@ class Environment(TorchVectorizedObject):
             return spaces.Box(
                 low=np.array(
                     (-agent.action.u_range_tensor).tolist()
-                    + [0]
-                    * (
-                        self.world.dim_c
-                        if not agent.silent and self.world.dim_c != 0
-                        else 0
-                    ),
+                    + [0] * (self.world.dim_c if not agent.silent else 0),
                     dtype=np.float32,
                 ),
                 high=np.array(
                     agent.action.u_range_tensor.tolist()
-                    + [1]
-                    * (
-                        self.world.dim_c
-                        if not agent.silent and self.world.dim_c != 0
-                        else 0
-                    ),
+                    + [1] * (self.world.dim_c if not agent.silent else 0),
                     dtype=np.float32,
                 ),
                 shape=(self.get_agent_action_size(agent),),
