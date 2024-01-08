@@ -11,7 +11,7 @@ import vmas.simulator.utils
 from vmas.simulator.dynamics.common import Dynamics
 
 
-class KinematicBicycleDynamics(Dynamics):
+class KinematicBicycle(Dynamics):
     # For the implementation of the kinematic bicycle model, see the equation (2) of the paper Polack, Philip, et al. "The kinematic bicycle model: A consistent model for planning feasible trajectories for autonomous vehicles?." 2017 IEEE intelligent vehicles symposium (IV). IEEE, 2017.
     def __init__(
         self,

@@ -5,7 +5,7 @@
 from vmas.simulator.dynamics.common import Dynamics
 
 
-class HolonomicDynamics(Dynamics):
+class Holonomic(Dynamics):
     @property
     def needed_action_size(self) -> int:
         return 2

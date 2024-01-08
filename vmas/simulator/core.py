@@ -13,7 +13,7 @@ import torch
 from torch import Tensor
 
 from vmas.simulator.dynamics.common import Dynamics
-from vmas.simulator.dynamics.holonomic import HolonomicDynamics
+from vmas.simulator.dynamics.holonomic import Holonomic
 from vmas.simulator.joints import Joint
 from vmas.simulator.physics import (
     _get_closest_point_line,
@@ -872,7 +872,7 @@ class Agent(Entity):
         self._alpha = alpha
 
         # Dynamics
-        self.dynamics = dynamics if dynamics is not None else HolonomicDynamics()
+        self.dynamics = dynamics if dynamics is not None else Holonomic()
         # Action
         self.action_size = (
             action_size if action_size is not None else self.dynamics.needed_action_size

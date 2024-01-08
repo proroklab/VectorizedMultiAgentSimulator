@@ -10,7 +10,7 @@ import vmas.simulator.utils
 from vmas.simulator.dynamics.common import Dynamics
 
 
-class DiffDriveDynamics(Dynamics):
+class DiffDrive(Dynamics):
     def __init__(
         self,
         world: vmas.simulator.core.World,

@@ -9,8 +9,8 @@ import torch
 
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World, Box
-from vmas.simulator.dynamics.holonomic_with_rot import HolonomicWithRotationDynamics
-from vmas.simulator.dynamics.kinematic_bicycle import KinematicBicycleDynamics
+from vmas.simulator.dynamics.holonomic_with_rot import HolonomicWithRotation
+from vmas.simulator.dynamics.kinematic_bicycle import KinematicBicycle
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color, ScenarioUtils
 
@@ -48,7 +48,7 @@ class Scenario(BaseScenario):
                     render_action=True,
                     u_range=[1, max_steering_angle],
                     u_multiplier=[1, 1],
-                    dynamics=KinematicBicycleDynamics(
+                    dynamics=KinematicBicycle(
                         world,
                         width=width,
                         l_f=l_f,
@@ -65,7 +65,7 @@ class Scenario(BaseScenario):
                     render_action=True,
                     u_range=[1, 1, 1],
                     u_multiplier=[1, 1, 0.001],
-                    dynamics=HolonomicWithRotationDynamics(),
+                    dynamics=HolonomicWithRotation(),
                 )
 
             world.add_agent(agent)
