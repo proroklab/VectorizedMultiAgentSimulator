@@ -82,13 +82,6 @@ class Scenario(BaseScenario):
             y_bounds=(-1, 1),
         )
 
-    def process_action(self, agent: Agent):
-        if hasattr(agent, "dynamics") and hasattr(agent.dynamics, "process_force"):
-            agent.dynamics.process_force()
-        else:
-            # The agent does not have a dynamics property, or it does not have a process_force method
-            pass
-
     def reward(self, agent: Agent):
         return torch.zeros(self.world.batch_dim)
 
