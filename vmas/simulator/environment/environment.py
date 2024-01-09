@@ -42,6 +42,7 @@ class Environment(TorchVectorizedObject):
         continuous_actions: bool = True,
         seed: Optional[int] = None,
         dict_spaces: bool = False,
+        multidiscrete: bool = False,
         **kwargs,
     ):
         self.scenario = scenario
@@ -58,7 +59,7 @@ class Environment(TorchVectorizedObject):
         self.reset(seed=seed)
 
         # configure spaces
-        self.multidiscrete = False
+        self.multidiscrete = multidiscrete
         self.action_space = self.get_action_space()
         self.observation_space = self.get_observation_space()
 
@@ -387,7 +388,7 @@ class Environment(TorchVectorizedObject):
         else:
             if not self.multidiscrete:
                 # This bit of code translates the discrete action (taken from a space that
-                # is the cross product of all action spaces) into a multi discrete action.
+                # is the cartesian product of all action spaces) into a multi discrete action.
                 # For example, if agent.action_size=4, it will mean that the agent will have
                 # 4 actions each with 3 possibilities (stay, decrement, increment).
                 # The env will have a space Discrete(3**4).

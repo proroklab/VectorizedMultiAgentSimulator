@@ -49,6 +49,18 @@ def _get_random_action(agent: Agent, continuous: bool, env):
     return action
 
 
+def _get_deterministic_action(agent: Agent, continuous: bool, env):
+    if continuous:
+        action = -agent.action.u_range_tensor.expand(env.batch_dim, agent.action_size)
+    else:
+        action = (
+            torch.tensor([1], device=env.device, dtype=torch.long)
+            .unsqueeze(-1)
+            .expand(env.batch_dim, 1)
+        )
+    return action
+
+
 def use_vmas_env(
     render: bool = False,
     save_render: bool = False,
@@ -81,13 +93,6 @@ def use_vmas_env(
     dict_spaces = True  # Weather to return obs, rewards, and infos as dictionaries with agent names
     # (by default they are lists of len # of agents)
 
-    simple_2d_action = (
-        [0, -1.0] if continuous_actions else [3]
-    )  # Simple action for an agent with 2d actions
-    simple_3d_action = (
-        [0, -1.0, 0.1] if continuous_actions else [3, 1]
-    )  # Simple action for an agent with 3d actions (2d forces and torque)
-
     env = make_env(
         scenario=scenario_name,
         num_envs=num_envs,
@@ -116,10 +121,7 @@ def use_vmas_env(
         actions = {} if dict_actions else []
         for i, agent in enumerate(env.agents):
             if not random_action:
-                action = torch.tensor(
-                    simple_2d_action if agent.action_size == 2 else simple_3d_action,
-                    device=device,
-                ).repeat(num_envs, 1)
+                action = _get_deterministic_action(agent, continuous_actions, env)
             else:
                 action = _get_random_action(agent, continuous_actions, env)
             if dict_actions:
@@ -154,5 +156,5 @@ if __name__ == "__main__":
         render=True,
         save_render=False,
         random_action=False,
-        continuous_actions=True,
+        continuous_actions=False,
     )

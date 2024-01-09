@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -22,6 +22,7 @@ def make_env(
     max_steps: Optional[int] = None,
     seed: Optional[int] = None,
     dict_spaces: bool = False,
+    multidiscrete: bool = False,
     **kwargs,
 ):
     """
@@ -35,7 +36,10 @@ def make_env(
         max_steps: Maximum number of steps in each vectorized environment after which done is returned
         seed: seed
         dict_spaces:  Weather to use dictionary i/o spaces with format {agent_name: tensor}
-        for obs, rewards, and info instead of tuples.
+            for obs, rewards, and info instead of tuples.
+        multidiscrete (bool): Whether to use multidiscrete action spaces when continuous_actions=False.
+            Otherwise, (default) the action space will be Discrete, and it will be the cartesian product of the
+            action spaces of an agent.
         **kwargs ():
 
     Returns:
@@ -55,6 +59,7 @@ def make_env(
         max_steps=max_steps,
         seed=seed,
         dict_spaces=dict_spaces,
+        multidiscrete=multidiscrete,
         **kwargs,
     )
 
