@@ -42,7 +42,7 @@ class Environment(TorchVectorizedObject):
         continuous_actions: bool = True,
         seed: Optional[int] = None,
         dict_spaces: bool = False,
-        multidiscrete: bool = False,
+        multidiscrete_actions: bool = False,
         **kwargs,
     ):
         self.scenario = scenario
@@ -59,7 +59,7 @@ class Environment(TorchVectorizedObject):
         self.reset(seed=seed)
 
         # configure spaces
-        self.multidiscrete = multidiscrete
+        self.multidiscrete_actions = multidiscrete_actions
         self.action_space = self.get_action_space()
         self.observation_space = self.get_observation_space()
 
@@ -298,7 +298,7 @@ class Environment(TorchVectorizedObject):
             return agent.action.action_size + (
                 self.world.dim_c if not agent.silent else 0
             )
-        elif self.multidiscrete:
+        elif self.multidiscrete_actions:
             return agent.action_size + (
                 1 if not agent.silent and self.world.dim_c != 0 else 0
             )
@@ -321,7 +321,7 @@ class Environment(TorchVectorizedObject):
                 shape=(self.get_agent_action_size(agent),),
                 dtype=np.float32,
             )
-        elif self.multidiscrete:
+        elif self.multidiscrete_actions:
             actions = [3] * agent.action_size + (
                 [self.world.dim_c] if not agent.silent and self.world.dim_c != 0 else []
             )
@@ -386,7 +386,7 @@ class Environment(TorchVectorizedObject):
             agent.action.u = physical_action.to(torch.float32)
 
         else:
-            if not self.multidiscrete:
+            if not self.multidiscrete_actions:
                 # This bit of code translates the discrete action (taken from a space that
                 # is the cartesian product of all action spaces) into a multi discrete action.
                 # For example, if agent.action_size=4, it will mean that the agent will have

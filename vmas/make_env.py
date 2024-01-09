@@ -22,7 +22,7 @@ def make_env(
     max_steps: Optional[int] = None,
     seed: Optional[int] = None,
     dict_spaces: bool = False,
-    multidiscrete: bool = False,
+    multidiscrete_actions: bool = False,
     **kwargs,
 ):
     """
@@ -37,7 +37,7 @@ def make_env(
         seed: seed
         dict_spaces:  Weather to use dictionary i/o spaces with format {agent_name: tensor}
             for obs, rewards, and info instead of tuples.
-        multidiscrete (bool): Whether to use multidiscrete action spaces when continuous_actions=False.
+        multidiscrete_actions (bool): Whether to use multidiscrete_actions action spaces when continuous_actions=False.
             Otherwise, (default) the action space will be Discrete, and it will be the cartesian product of the
             action spaces of an agent.
         **kwargs ():
@@ -59,7 +59,7 @@ def make_env(
         max_steps=max_steps,
         seed=seed,
         dict_spaces=dict_spaces,
-        multidiscrete=multidiscrete,
+        multidiscrete_actions=multidiscrete_actions,
         **kwargs,
     )
 
