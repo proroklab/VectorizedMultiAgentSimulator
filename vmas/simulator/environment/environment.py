@@ -45,6 +45,11 @@ class Environment(TorchVectorizedObject):
         multidiscrete_actions: bool = False,
         **kwargs,
     ):
+        if multidiscrete_actions:
+            assert (
+                not continuous_actions
+            ), "When asking for multidiscrete_actions, make sure continuous_actions=False"
+
         self.scenario = scenario
         self.num_envs = num_envs
         TorchVectorizedObject.__init__(self, num_envs, torch.device(device))
