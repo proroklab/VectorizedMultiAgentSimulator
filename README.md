@@ -405,8 +405,9 @@ To create a fake screen you need to have `Xvfb` installed.
 - [ ] Reset any number of dimensions
 - [ ] Improve test efficiency and add new tests
 - [ ] Implement 1D camera sensor
-- [ ] Allow any number of actions
 - [ ] Implement 2D birds eye view camera sensor
+- [ ] Implement 2D drone dynamics
+- [X] Allow any number of actions
 - [X] Improve VMAS performance
 - [X] Dict obs support in torchrl
 - [X] Make TextLine a Geom usable in a scenario
