@@ -1,21 +1,20 @@
-#  Copyright (c) 2023.
+#  Copyright (c) 2023-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
 from typing import Union
 
 import torch
-from torch import Tensor
 
 import vmas.simulator.core
 import vmas.simulator.utils
+from vmas.simulator.dynamics.common import Dynamics
 
 
-class KinematicBicycleDynamics:
+class KinematicBicycle(Dynamics):
     # For the implementation of the kinematic bicycle model, see the equation (2) of the paper Polack, Philip, et al. "The kinematic bicycle model: A consistent model for planning feasible trajectories for autonomous vehicles?." 2017 IEEE intelligent vehicles symposium (IV). IEEE, 2017.
     def __init__(
         self,
-        agent: vmas.simulator.core.Agent,
         world: vmas.simulator.core.World,
         width: float,
         l_f: float,
@@ -23,21 +22,18 @@ class KinematicBicycleDynamics:
         max_steering_angle: float,
         integration: str = "euler",  # one of "euler", "rk4"
     ):
+        super().__init__()
         assert integration in (
             "rk4",
             "euler",
         ), "Integration method must be 'euler' or 'rk4'."
-        self.agent = agent
-        self.world = world
         self.width = width
         self.l_f = l_f  # Distance between the front axle and the center of gravity
         self.l_r = l_r  # Distance between the rear axle and the center of gravity
         self.max_steering_angle = max_steering_angle
         self.dt = world.dt
         self.integration = integration
-
-    def reset(self, index: Union[Tensor, int] = None):
-        pass
+        self.world = world
 
     def euler(self, f, state):
         # Update the state using Euler's method
@@ -53,10 +49,15 @@ class KinematicBicycleDynamics:
         k4 = f(state + self.dt * k3)
         return state + (self.dt / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
 
-    def process_force(self):
+    @property
+    def needed_action_size(self) -> int:
+        return 2
+
+    def process_action(self):
         # Extracts the velocity and steering angle from the agent's actions and convert them to physical force and torque
-        velocity = self.agent.action.u[:, vmas.simulator.utils.X]
-        steering_angle = self.agent.action.u_rot.squeeze(-1)
+        velocity = self.agent.action.u[:, 0]
+        steering_angle = self.agent.action.u[:, 1]
+
         # Ensure steering angle is within bounds
         steering_angle = torch.clamp(
             steering_angle, -self.max_steering_angle, self.max_steering_angle
@@ -99,6 +100,6 @@ class KinematicBicycleDynamics:
         torque = self.agent.moment_of_inertia * angular_acceleration
 
         # Update the physical force and torque required for the user inputs
-        self.agent.action.u[:, vmas.simulator.utils.X] = force_x
-        self.agent.action.u[:, vmas.simulator.utils.Y] = force_y
-        self.agent.action.u_rot[:, 0] = torque
+        self.agent.state.force[:, vmas.simulator.utils.X] = force_x
+        self.agent.state.force[:, vmas.simulator.utils.Y] = force_y
+        self.agent.state.torque = torque.unsqueeze(-1)

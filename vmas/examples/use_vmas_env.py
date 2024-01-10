@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import random
@@ -11,45 +11,53 @@ from vmas.simulator.core import Agent
 from vmas.simulator.utils import save_video
 
 
-def _get_random_action(agent: Agent, continuous: bool):
+def _get_random_action(agent: Agent, continuous: bool, env):
     if continuous:
-        action = torch.zeros(
-            (agent.batch_dim, 2),
-            device=agent.device,
-            dtype=torch.float32,
-        ).uniform_(
-            -agent.action.u_range,
-            agent.action.u_range,
-        )
-        if agent.u_rot_range > 0:
-            action = torch.cat(
-                [
-                    action,
+        actions = []
+        for action_index in range(agent.action_size):
+            actions.append(
+                torch.zeros(
+                    agent.batch_dim,
+                    device=agent.device,
+                    dtype=torch.float32,
+                ).uniform_(
+                    -agent.action.u_range_tensor[action_index],
+                    agent.action.u_range_tensor[action_index],
+                )
+            )
+        if env.world.dim_c != 0 and not agent.silent:
+            # If the agent needs to communicate
+            for _ in range(env.world.dim_c):
+                actions.append(
                     torch.zeros(
-                        (agent.batch_dim, 1),
+                        agent.batch_dim,
                         device=agent.device,
                         dtype=torch.float32,
                     ).uniform_(
-                        -agent.action.u_rot_range,
-                        agent.action.u_rot_range,
-                    ),
-                ],
-                dim=-1,
-            )
+                        0,
+                        1,
+                    )
+                )
+        action = torch.stack(actions, dim=-1)
     else:
         action = torch.randint(
-            low=0, high=5, size=(agent.batch_dim,), device=agent.device
+            low=0,
+            high=env.get_agent_action_space(agent).n,
+            size=(agent.batch_dim,),
+            device=agent.device,
         )
-        if agent.u_rot_range > 0:
-            action = torch.stack(
-                [
-                    action,
-                    torch.randint(
-                        low=0, high=3, size=(agent.batch_dim,), device=agent.device
-                    ),
-                ],
-                dim=-1,
-            )
+    return action
+
+
+def _get_deterministic_action(agent: Agent, continuous: bool, env):
+    if continuous:
+        action = -agent.action.u_range_tensor.expand(env.batch_dim, agent.action_size)
+    else:
+        action = (
+            torch.tensor([1], device=env.device, dtype=torch.long)
+            .unsqueeze(-1)
+            .expand(env.batch_dim, 1)
+        )
     return action
 
 
@@ -85,13 +93,6 @@ def use_vmas_env(
     dict_spaces = True  # Weather to return obs, rewards, and infos as dictionaries with agent names
     # (by default they are lists of len # of agents)
 
-    simple_2d_action = (
-        [0, -1.0] if continuous_actions else [3]
-    )  # Simple action for an agent with 2d actions
-    simple_3d_action = (
-        [0, -1.0, 0.1] if continuous_actions else [3, 1]
-    )  # Simple action for an agent with 3d actions (2d forces and torque)
-
     env = make_env(
         scenario=scenario_name,
         num_envs=num_envs,
@@ -120,12 +121,9 @@ def use_vmas_env(
         actions = {} if dict_actions else []
         for i, agent in enumerate(env.agents):
             if not random_action:
-                action = torch.tensor(
-                    simple_2d_action if agent.u_rot_range == 0 else simple_3d_action,
-                    device=device,
-                ).repeat(num_envs, 1)
+                action = _get_deterministic_action(agent, continuous_actions, env)
             else:
-                action = _get_random_action(agent, continuous_actions)
+                action = _get_random_action(agent, continuous_actions, env)
             if dict_actions:
                 actions.update({agent.name: action})
             else:
@@ -158,5 +156,5 @@ if __name__ == "__main__":
         render=True,
         save_render=False,
         random_action=False,
-        continuous_actions=True,
+        continuous_actions=False,
     )

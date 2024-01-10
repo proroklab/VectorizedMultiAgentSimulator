@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import typing
@@ -63,7 +63,9 @@ class BaseScenario(ABC):
         """Do not override"""
         if agent.action_script is not None:
             agent.action_callback(self.world)
+        # Customizable action processor
         self.process_action(agent)
+        agent.dynamics.process_action()
 
     @abstractmethod
     def make_world(self, batch_dim: int, device: torch.device, **kwargs) -> World:

@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import typing
@@ -8,7 +8,8 @@ import torch
 
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World
-from vmas.simulator.dynamics.diff_drive import DiffDriveDynamics
+from vmas.simulator.dynamics.diff_drive import DiffDrive
+from vmas.simulator.dynamics.holonomic_with_rot import HolonomicWithRotation
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color, ScenarioUtils
 
@@ -39,16 +40,24 @@ class Scenario(BaseScenario):
         world = World(batch_dim, device, substeps=10)
 
         for i in range(self.n_agents):
-            agent = Agent(
-                name=f"agent_{i}",
-                collide=True,
-                render_action=True,
-                u_range=1,
-                u_rot_range=1,
-                u_rot_multiplier=0.001,
-            )
             if i == 0:
-                agent.dynamics = DiffDriveDynamics(agent, world, integration="rk4")
+                agent = Agent(
+                    name=f"diff_drive_{i}",
+                    collide=True,
+                    render_action=True,
+                    u_range=[1, 1],
+                    u_multiplier=[1, 0.001],
+                    dynamics=DiffDrive(world, integration="rk4"),
+                )
+            else:
+                agent = Agent(
+                    name=f"holo_rot_{i}",
+                    collide=True,
+                    render_action=True,
+                    u_range=[1, 1, 1],
+                    u_multiplier=[1, 1, 0.001],
+                    dynamics=HolonomicWithRotation(),
+                )
 
             world.add_agent(agent)
 
@@ -63,12 +72,6 @@ class Scenario(BaseScenario):
             x_bounds=(-1, 1),
             y_bounds=(-1, 1),
         )
-
-    def process_action(self, agent: Agent):
-        try:
-            agent.dynamics.process_force()
-        except AttributeError:
-            pass
 
     def reward(self, agent: Agent):
         return torch.zeros(self.world.batch_dim)
