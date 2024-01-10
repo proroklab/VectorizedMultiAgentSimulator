@@ -1,34 +1,27 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import math
-from typing import Union
 
 import torch
-from torch import Tensor
+
 import vmas.simulator.core
 import vmas.simulator.utils
+from vmas.simulator.dynamics.common import Dynamics
 
 
-class DiffDriveDynamics:
+class DiffDrive(Dynamics):
     def __init__(
         self,
-        agent: vmas.simulator.core.Agent,
         world: vmas.simulator.core.World,
         integration: str = "rk4",  # one of "euler", "rk4"
     ):
+        super().__init__()
         assert integration == "rk4" or integration == "euler"
-        assert (
-            agent.action.u_rot_range != 0
-        ), "Agent with diff drive dynamics needs non zero u_rot_range"
 
-        self.agent = agent
-        self.world = world
         self.dt = world.dt
         self.integration = integration
-
-    def reset(self, index: Union[Tensor, int] = None):
-        pass
+        self.world = world
 
     def euler(self, f, rot):
         return f(rot)
@@ -41,9 +34,13 @@ class DiffDriveDynamics:
 
         return (1 / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
 
-    def process_force(self):
-        u_forward = self.agent.action.u[:, vmas.simulator.utils.X]
-        u_rot = self.agent.action.u_rot.squeeze(-1)
+    @property
+    def needed_action_size(self) -> int:
+        return 2
+
+    def process_action(self):
+        u_forward = self.agent.action.u[:, 0]
+        u_rot = self.agent.action.u[:, 1]
 
         def f(rot):
             return torch.stack(
@@ -55,5 +52,6 @@ class DiffDriveDynamics:
         else:
             u = self.runge_kutta(f, self.agent.state.rot.squeeze(-1))
 
-        self.agent.action.u[:, vmas.simulator.utils.X] = u[vmas.simulator.utils.X]
-        self.agent.action.u[:, vmas.simulator.utils.Y] = u[vmas.simulator.utils.Y]
+        self.agent.state.force[:, vmas.simulator.utils.X] = u[vmas.simulator.utils.X]
+        self.agent.state.force[:, vmas.simulator.utils.Y] = u[vmas.simulator.utils.Y]
+        self.agent.state.torque = u_rot.unsqueeze(-1)

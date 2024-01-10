@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 """
@@ -101,21 +101,14 @@ class InteractiveEnv:
                 self.reset = False
                 total_rew = [0] * self.n_agents
 
-            action_list = [
-                [0.0] * self.env.unwrapped().get_agent_action_size(agent)
-                for agent in self.agents
-            ]
+            action_list = [[0.0] * agent.action_size for agent in self.agents]
             action_list[self.current_agent_index] = self.u[
-                : self.env.unwrapped().get_agent_action_size(
-                    self.agents[self.current_agent_index]
-                )
+                : self.agents[self.current_agent_index].action_size
             ]
 
             if self.n_agents > 1 and self.control_two_agents:
                 action_list[self.current_agent_index2] = self.u2[
-                    : self.env.unwrapped().get_agent_action_size(
-                        self.agents[self.current_agent_index2]
-                    )
+                    : self.agents[self.current_agent_index2].action_size
                 ]
             obs, rew, done, info = self.env.step(action_list)
 
@@ -167,56 +160,60 @@ class InteractiveEnv:
     def _key_press(self, k, mod):
         from pyglet.window import key
 
-        agent_range = self.agents[self.current_agent_index].u_range
-        agent_rot_range = self.agents[self.current_agent_index].u_rot_range
-
-        if k == key.LEFT:
-            self.keys[0] = agent_range
-        elif k == key.RIGHT:
-            self.keys[1] = agent_range
-        elif k == key.DOWN:
-            self.keys[2] = agent_range
-        elif k == key.UP:
-            self.keys[3] = agent_range
-        elif k == key.M:
-            self.keys[4] = agent_rot_range
-        elif k == key.N:
-            self.keys[5] = agent_rot_range
-        elif k == key.TAB:
-            self.current_agent_index = self._increment_selected_agent_index(
-                self.current_agent_index
-            )
-            if self.control_two_agents:
-                while self.current_agent_index == self.current_agent_index2:
-                    self.current_agent_index = self._increment_selected_agent_index(
-                        self.current_agent_index
-                    )
-
-        if self.control_two_agents:
-            agent2_range = self.agents[self.current_agent_index2].u_range
-            agent2_rot_range = self.agents[self.current_agent_index2].u_rot_range
-
-            if k == key.A:
-                self.keys2[0] = agent2_range
-            elif k == key.D:
-                self.keys2[1] = agent2_range
-            elif k == key.S:
-                self.keys2[2] = agent2_range
-            elif k == key.W:
-                self.keys2[3] = agent2_range
-            elif k == key.E:
-                self.keys2[4] = agent2_rot_range
-            elif k == key.Q:
-                self.keys2[5] = agent2_rot_range
-
-            elif k == key.LSHIFT:
-                self.current_agent_index2 = self._increment_selected_agent_index(
-                    self.current_agent_index2
+        agent_range = self.agents[self.current_agent_index].action.u_range_tensor
+        try:
+            if k == key.LEFT:
+                self.keys[0] = agent_range[0]
+            elif k == key.RIGHT:
+                self.keys[1] = agent_range[0]
+            elif k == key.DOWN:
+                self.keys[2] = agent_range[1]
+            elif k == key.UP:
+                self.keys[3] = agent_range[1]
+            elif k == key.M:
+                self.keys[4] = agent_range[2]
+            elif k == key.N:
+                self.keys[5] = agent_range[2]
+            elif k == key.TAB:
+                self.current_agent_index = self._increment_selected_agent_index(
+                    self.current_agent_index
                 )
-                while self.current_agent_index == self.current_agent_index2:
+                if self.control_two_agents:
+                    while self.current_agent_index == self.current_agent_index2:
+                        self.current_agent_index = self._increment_selected_agent_index(
+                            self.current_agent_index
+                        )
+
+            if self.control_two_agents:
+                agent2_range = self.agents[
+                    self.current_agent_index2
+                ].action.u_range_tensor
+
+                if k == key.A:
+                    self.keys2[0] = agent2_range[0]
+                elif k == key.D:
+                    self.keys2[1] = agent2_range[0]
+                elif k == key.S:
+                    self.keys2[2] = agent2_range[1]
+                elif k == key.W:
+                    self.keys2[3] = agent2_range[1]
+                elif k == key.E:
+                    self.keys2[4] = agent2_range[2]
+                elif k == key.Q:
+                    self.keys2[5] = agent2_range[2]
+
+                elif k == key.LSHIFT:
                     self.current_agent_index2 = self._increment_selected_agent_index(
                         self.current_agent_index2
                     )
+                    while self.current_agent_index == self.current_agent_index2:
+                        self.current_agent_index2 = (
+                            self._increment_selected_agent_index(
+                                self.current_agent_index2
+                            )
+                        )
+        except IndexError:
+            print("Action not available")
 
         if k == key.R:
             self.reset = True
