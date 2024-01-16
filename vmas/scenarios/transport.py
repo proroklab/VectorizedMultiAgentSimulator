@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -8,7 +8,7 @@ from vmas import render_interactively
 from vmas.simulator.core import Agent, Box, Landmark, Sphere, World
 from vmas.simulator.heuristic_policy import BaseHeuristicPolicy
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color
+from vmas.simulator.utils import Color, ScenarioUtils
 
 
 class Scenario(BaseScenario):
@@ -20,12 +20,25 @@ class Scenario(BaseScenario):
         self.package_mass = kwargs.get("package_mass", 50)
 
         self.shaping_factor = 100
+        self.world_semidim = 1
+        self.agent_radius = 0.03
 
         # Make world
-        world = World(batch_dim, device)
+        world = World(
+            batch_dim,
+            device,
+            x_semidim=self.world_semidim
+            + 2 * self.agent_radius
+            + max(self.package_length, self.package_width),
+            y_semidim=self.world_semidim
+            + 2 * self.agent_radius
+            + max(self.package_length, self.package_width),
+        )
         # Add agents
         for i in range(n_agents):
-            agent = Agent(name=f"agent_{i}", shape=Sphere(0.03), u_multiplier=0.6)
+            agent = Agent(
+                name=f"agent_{i}", shape=Sphere(self.agent_radius), u_multiplier=0.6
+            )
             world.add_agent(agent)
         # Add landmarks
         goal = Landmark(
@@ -52,35 +65,50 @@ class Scenario(BaseScenario):
         return world
 
     def reset_world_at(self, env_index: int = None):
-        goal = self.world.landmarks[0]
-        goal.set_pos(
-            torch.zeros(
-                (1, self.world.dim_p)
-                if env_index is not None
-                else (self.world.batch_dim, self.world.dim_p),
-                device=self.world.device,
-                dtype=torch.float32,
-            ).uniform_(
-                -1.0,
-                1.0,
+        # Random pos between -1 and 1
+        ScenarioUtils.spawn_entities_randomly(
+            self.world.agents,
+            self.world,
+            env_index,
+            min_dist_between_entities=self.agent_radius * 2,
+            x_bounds=(
+                -self.world_semidim,
+                self.world_semidim,
             ),
-            batch_index=env_index,
+            y_bounds=(
+                -self.world_semidim,
+                self.world_semidim,
+            ),
         )
+        agent_occupied_positions = torch.stack(
+            [agent.state.pos for agent in self.world.agents], dim=1
+        )
+        if env_index is not None:
+            agent_occupied_positions = agent_occupied_positions[env_index].unsqueeze(0)
+
+        goal = self.world.landmarks[0]
+        ScenarioUtils.spawn_entities_randomly(
+            [goal] + self.packages,
+            self.world,
+            env_index,
+            min_dist_between_entities=max(
+                package.shape.circumscribed_radius() + goal.shape.radius + 0.01
+                for package in self.packages
+            ),
+            x_bounds=(
+                -self.world_semidim,
+                self.world_semidim,
+            ),
+            y_bounds=(
+                -self.world_semidim,
+                self.world_semidim,
+            ),
+            occupied_positions=agent_occupied_positions,
+        )
+
         for i, package in enumerate(self.packages):
-            package.set_pos(
-                torch.zeros(
-                    (1, self.world.dim_p)
-                    if env_index is not None
-                    else (self.world.batch_dim, self.world.dim_p),
-                    device=self.world.device,
-                    dtype=torch.float32,
-                ).uniform_(
-                    -1.0,
-                    1.0,
-                ),
-                batch_index=env_index,
-            )
             package.on_goal = self.world.is_overlapping(package, package.goal)
+
             if env_index is None:
                 package.global_shaping = (
                     torch.linalg.vector_norm(
@@ -95,38 +123,6 @@ class Scenario(BaseScenario):
                     )
                     * self.shaping_factor
                 )
-        for i, agent in enumerate(self.world.agents):
-            # Random pos between -1 and 1
-            agent.set_pos(
-                torch.zeros(
-                    (1, self.world.dim_p)
-                    if env_index is not None
-                    else (self.world.batch_dim, self.world.dim_p),
-                    device=self.world.device,
-                    dtype=torch.float32,
-                ).uniform_(
-                    -1.0,
-                    1.0,
-                ),
-                batch_index=env_index,
-            )
-            for package in self.packages:
-                while self.world.is_overlapping(
-                    agent, package, env_index=env_index
-                ).any():
-                    agent.set_pos(
-                        torch.zeros(
-                            (1, self.world.dim_p)
-                            if env_index is not None
-                            else (self.world.batch_dim, self.world.dim_p),
-                            device=self.world.device,
-                            dtype=torch.float32,
-                        ).uniform_(
-                            -1.0,
-                            1.0,
-                        ),
-                        batch_index=env_index,
-                    )
 
     def reward(self, agent: Agent):
         is_first = agent == self.world.agents[0]
@@ -343,12 +339,4 @@ class HeuristicPolicy(BaseHeuristicPolicy):
 
 
 if __name__ == "__main__":
-    render_interactively(
-        __file__,
-        control_two_agents=True,
-        n_agents=4,
-        n_packages=1,
-        package_width=0.15,
-        package_length=0.15,
-        package_mass=50,
-    )
+    render_interactively(__file__, control_two_agents=True)
