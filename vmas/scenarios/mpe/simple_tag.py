@@ -1,23 +1,41 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
 import torch
 
 from vmas import render_interactively
-from vmas.simulator.core import World, Agent, Landmark, Sphere
+from vmas.simulator.core import World, Agent, Landmark, Sphere, Line
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color
 
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        world = World(batch_dim=batch_dim, device=device, x_semidim=1, y_semidim=1)
+        num_good_agents = kwargs.get("num_good_agents", 1)
+        num_adversaries = kwargs.get("num_adversaries", 3)
+        num_landmarks = kwargs.get("num_landmarks", 2)
+        self.shape_agent_rew = kwargs.get("shape_agent_rew", False)
+        self.shape_adversary_rew = kwargs.get("shape_adversary_rew", False)
+        self.agents_share_rew = kwargs.get("agents_share_rew", False)
+        self.adversaries_share_rew = kwargs.get("adversaries_share_rew", True)
+        self.observe_same_team = kwargs.get("observe_same_team", True)
+        self.observe_pos = kwargs.get("observe_pos", True)
+        self.observe_vel = kwargs.get("observe_vel", True)
+        self.bound = kwargs.get("bound", 1.0)
+        self.respawn_at_catch = kwargs.get("respawn_at_catch", False)
+
+        world = World(
+            batch_dim=batch_dim,
+            device=device,
+            x_semidim=self.bound,
+            y_semidim=self.bound,
+            substeps=10,
+            collision_force=500,
+        )
         # set any world properties first
-        num_good_agents = 1
-        num_adversaries = 3
         num_agents = num_adversaries + num_good_agents
-        num_landmarks = 2
+        self.adversary_radius = 0.075
 
         # Add agents
         for i in range(num_agents):
@@ -26,7 +44,7 @@ class Scenario(BaseScenario):
             agent = Agent(
                 name=name,
                 collide=True,
-                shape=Sphere(radius=0.075 if adversary else 0.05),
+                shape=Sphere(radius=self.adversary_radius if adversary else 0.05),
                 u_multiplier=3.0 if adversary else 4.0,
                 max_speed=1.0 if adversary else 1.3,
                 color=Color.RED if adversary else Color.GREEN,
@@ -55,8 +73,8 @@ class Scenario(BaseScenario):
                     device=self.world.device,
                     dtype=torch.float32,
                 ).uniform_(
-                    -1.0,
-                    1.0,
+                    -self.bound,
+                    self.bound,
                 ),
                 batch_index=env_index,
             )
@@ -70,15 +88,15 @@ class Scenario(BaseScenario):
                     device=self.world.device,
                     dtype=torch.float32,
                 ).uniform_(
-                    -0.9,
-                    0.9,
+                    -(self.bound - 0.1),
+                    self.bound - 0.1,
                 ),
                 batch_index=env_index,
             )
 
     def is_collision(self, agent1: Agent, agent2: Agent):
         delta_pos = agent1.state.pos - agent2.state.pos
-        dist = torch.sqrt(torch.sum(torch.square(delta_pos), dim=-1))
+        dist = torch.linalg.vector_norm(delta_pos, dim=-1)
         dist_min = agent1.shape.radius + agent2.shape.radius
         return dist < dist_min
 
@@ -91,27 +109,52 @@ class Scenario(BaseScenario):
         return [agent for agent in self.world.agents if agent.adversary]
 
     def reward(self, agent: Agent):
-        # Agents are rewarded based on minimum agent distance to each landmark
-        main_reward = (
-            self.adversary_reward(agent)
-            if agent.adversary
-            else self.agent_reward(agent)
-        )
-        return main_reward
+        is_first = agent == self.world.agents[0]
+
+        if is_first:
+            for a in self.world.agents:
+                a.rew = (
+                    self.adversary_reward(a) if a.adversary else self.agent_reward(a)
+                )
+            self.agents_rew = torch.stack(
+                [a.rew for a in self.good_agents()], dim=-1
+            ).sum(-1)
+            self.adverary_rew = torch.stack(
+                [a.rew for a in self.adversaries()], dim=-1
+            ).sum(-1)
+            if self.respawn_at_catch:
+                for a in self.good_agents():
+                    for adv in self.adversaries():
+                        coll = self.is_collision(a, adv)
+                        a.state.pos[coll] = torch.zeros(
+                            (self.world.batch_dim, self.world.dim_p),
+                            device=self.world.device,
+                            dtype=torch.float32,
+                        ).uniform_(-self.bound, self.bound,)[coll]
+                        a.state.vel[coll] = 0.0
+
+        if agent.adversary:
+            if self.adversaries_share_rew:
+                return self.adverary_rew
+            else:
+                return agent.rew
+        else:
+            if self.agents_share_rew:
+                return self.agents_rew
+            else:
+                return agent.rew
 
     def agent_reward(self, agent: Agent):
         # Agents are negatively rewarded if caught by adversaries
         rew = torch.zeros(
             self.world.batch_dim, device=self.world.device, dtype=torch.float32
         )
-        shape = False
         adversaries = self.adversaries()
-        if (
-            shape
-        ):  # reward can optionally be shaped (increased reward for increased distance from adversary)
+        if self.shape_agent_rew:
+            # reward can optionally be shaped (increased reward for increased distance from adversary)
             for adv in adversaries:
-                rew += 0.1 * torch.sqrt(
-                    torch.sum(torch.square(agent.state.pos - adv.state.pos), dim=-1)
+                rew += 0.1 * torch.linalg.vector_norm(
+                    agent.state.pos - adv.state.pos, dim=-1
                 )
         if agent.collide:
             for a in adversaries:
@@ -124,35 +167,29 @@ class Scenario(BaseScenario):
         rew = torch.zeros(
             self.world.batch_dim, device=self.world.device, dtype=torch.float32
         )
-        shape = False
         agents = self.good_agents()
-        adversaries = self.adversaries()
         if (
-            shape
+            self.shape_adversary_rew
         ):  # reward can optionally be shaped (decreased reward for increased distance from agents)
-            for adv in adversaries:
-                rew -= (
-                    0.1
-                    * torch.min(
-                        torch.stack(
-                            [
-                                torch.sqrt(
-                                    torch.sum(
-                                        torch.square(a.state.pos - adv.state.pos),
-                                        dim=-1,
-                                    )
-                                )
-                                for a in agents
-                            ],
-                            dim=1,
-                        ),
+            rew -= (
+                0.1
+                * torch.min(
+                    torch.stack(
+                        [
+                            torch.linalg.vector_norm(
+                                a.state.pos - agent.state.pos,
+                                dim=-1,
+                            )
+                            for a in agents
+                        ],
                         dim=-1,
-                    )[0]
-                )
+                    ),
+                    dim=-1,
+                )[0]
+            )
         if agent.collide:
             for ag in agents:
-                for adv in adversaries:
-                    rew[self.is_collision(ag, adv)] += 10
+                rew[self.is_collision(ag, agent)] += 10
         return rew
 
     def observation(self, agent: Agent):
@@ -166,13 +203,65 @@ class Scenario(BaseScenario):
         for other in self.world.agents:
             if other is agent:
                 continue
-            other_pos.append(other.state.pos - agent.state.pos)
-            if not other.adversary:
+            if agent.adversary and not other.adversary:
+                other_pos.append(other.state.pos - agent.state.pos)
                 other_vel.append(other.state.vel)
+            elif not agent.adversary and not other.adversary and self.observe_same_team:
+                other_pos.append(other.state.pos - agent.state.pos)
+                other_vel.append(other.state.vel)
+            elif not agent.adversary and other.adversary:
+                other_pos.append(other.state.pos - agent.state.pos)
+            elif agent.adversary and other.adversary and self.observe_same_team:
+                other_pos.append(other.state.pos - agent.state.pos)
+
         return torch.cat(
-            [agent.state.vel, agent.state.pos, *entity_pos, *other_pos, *other_vel],
+            [
+                *([agent.state.vel] if self.observe_vel else []),
+                *([agent.state.pos] if self.observe_pos else []),
+                *entity_pos,
+                *other_pos,
+                *other_vel,
+            ],
             dim=-1,
         )
+
+    def extra_render(self, env_index: int = 0):
+        from vmas.simulator import rendering
+
+        geoms = []
+
+        # Perimeter
+        for i in range(4):
+            geom = Line(
+                length=2
+                * ((self.bound - self.adversary_radius) + self.adversary_radius * 2)
+            ).get_geometry()
+            xform = rendering.Transform()
+            geom.add_attr(xform)
+
+            xform.set_translation(
+                0.0
+                if i % 2
+                else (
+                    self.bound + self.adversary_radius
+                    if i == 0
+                    else -self.bound - self.adversary_radius
+                ),
+                0.0
+                if not i % 2
+                else (
+                    self.bound + self.adversary_radius
+                    if i == 1
+                    else -self.bound - self.adversary_radius
+                ),
+            )
+            xform.set_rotation(torch.pi / 2 if not i % 2 else 0.0)
+            color = Color.BLACK.value
+            if isinstance(color, torch.Tensor) and len(color.shape) > 1:
+                color = color[env_index]
+            geom.set_color(*color)
+            geoms.append(geom)
+        return geoms
 
 
 if __name__ == "__main__":

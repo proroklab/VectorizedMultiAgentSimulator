@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -15,11 +15,14 @@ class Scenario(BaseScenario):
         n_agents = kwargs.get("n_agents", 4)
         self.share_reward = kwargs.get("share_reward", False)
         self.penalise_by_time = kwargs.get("penalise_by_time", False)
-
-        n_food = n_agents
+        self.food_radius = kwargs.get("food_radius", 0.05)
+        self.pos_range = kwargs.get("pos_range", 1.0)
+        n_food = kwargs.get("n_food", n_agents)
 
         # Make world
-        world = World(batch_dim, device)
+        world = World(
+            batch_dim, device, x_semidim=self.pos_range, y_semidim=self.pos_range
+        )
         # Add agents
         for i in range(n_agents):
             # Constraint: all agents have same action range and multiplier
@@ -32,9 +35,9 @@ class Scenario(BaseScenario):
         # Add landmarks
         for i in range(n_food):
             food = Landmark(
-                name=f"food {i}",
+                name=f"food_{i}",
                 collide=False,
-                shape=Sphere(radius=0.02),
+                shape=Sphere(radius=self.food_radius),
                 color=Color.GREEN,
             )
             world.add_landmark(food)
@@ -58,8 +61,8 @@ class Scenario(BaseScenario):
                     device=self.world.device,
                     dtype=torch.float32,
                 ).uniform_(
-                    -1.0,
-                    1.0,
+                    -self.pos_range,
+                    self.pos_range,
                 ),
                 batch_index=env_index,
             )

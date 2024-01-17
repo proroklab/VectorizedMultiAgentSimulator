@@ -1,4 +1,4 @@
-#  Copyright (c) 2023.
+#  Copyright (c) 2023-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 from typing import Dict, Callable
@@ -6,7 +6,6 @@ from typing import Dict, Callable
 import torch
 from torch import Tensor
 from torch.distributions import MultivariateNormal
-
 from vmas import render_interactively
 from vmas.simulator.core import World, Line, Agent, Sphere, Entity
 from vmas.simulator.scenario import BaseScenario
@@ -27,11 +26,19 @@ class Scenario(BaseScenario):
         self.grid_spacing = kwargs.get("grid_spacing", 0.05)
 
         self.n_gaussians = kwargs.get("n_gaussians", 3)
-        self.cov = 0.05
+        self.cov = kwargs.get("cov", 0.05)
+        self.collisions = kwargs.get("collisions", True)
+        self.spawn_same_pos = kwargs.get("spawn_same_pos", False)
+        self.norm = kwargs.get("norm", True)
 
+        assert not (self.spawn_same_pos and self.collisions)
         assert (self.xdim / self.grid_spacing) % 1 == 0 and (
             self.ydim / self.grid_spacing
         ) % 1 == 0
+        self.covs = (
+            [self.cov] * self.n_gaussians if isinstance(self.cov, float) else self.cov
+        )
+        assert len(self.covs) == self.n_gaussians
 
         self.plot_grid = False
         self.n_x_cells = int((2 * self.xdim) / self.grid_spacing)
@@ -39,19 +46,24 @@ class Scenario(BaseScenario):
         self.max_pdf = torch.zeros((batch_dim,), device=device, dtype=torch.float32)
         self.alpha_plot: float = 0.5
 
+        self.agent_xspawn_range = 0 if self.spawn_same_pos else self.xdim
+        self.agent_yspawn_range = 0 if self.spawn_same_pos else self.ydim
+        self.x_semidim = self.xdim - self.agent_radius
+        self.y_semidim = self.ydim - self.agent_radius
+
         # Make world
         world = World(
             batch_dim,
             device,
-            x_semidim=self.xdim - self.agent_radius,
-            y_semidim=self.ydim - self.agent_radius,
+            x_semidim=self.x_semidim,
+            y_semidim=self.y_semidim,
         )
         entity_filter_agents: Callable[[Entity], bool] = lambda e: isinstance(e, Agent)
         for i in range(self.n_agents):
             agent = Agent(
                 name=f"agent_{i}",
                 render_action=True,
-                collide=True,
+                collide=self.collisions,
                 shape=Sphere(radius=self.agent_radius),
                 sensors=[
                     Lidar(
@@ -62,7 +74,9 @@ class Scenario(BaseScenario):
                         max_range=self.lidar_range,
                         entity_filter=entity_filter_agents,
                     ),
-                ],
+                ]
+                if self.collisions
+                else None,
             )
 
             world.add_agent(agent)
@@ -77,9 +91,12 @@ class Scenario(BaseScenario):
             torch.zeros((batch_dim, world.dim_p), device=device, dtype=torch.float32)
             for _ in range(self.n_gaussians)
         ]
-        self.cov_matrix = torch.tensor(
-            [[self.cov, 0], [0, self.cov]], dtype=torch.float32, device=device
-        ).expand(batch_dim, world.dim_p, world.dim_p)
+        self.cov_matrices = [
+            torch.tensor(
+                [[cov, 0], [0, cov]], dtype=torch.float32, device=device
+            ).expand(batch_dim, world.dim_p, world.dim_p)
+            for cov in self.covs
+        ]
 
         return world
 
@@ -104,9 +121,9 @@ class Scenario(BaseScenario):
         self.gaussians = [
             MultivariateNormal(
                 loc=loc,
-                covariance_matrix=self.cov_matrix,
+                covariance_matrix=cov_matrix,
             )
-            for loc in self.locs
+            for loc, cov_matrix in zip(self.locs, self.cov_matrices)
         ]
 
         if env_index is None:
@@ -127,20 +144,20 @@ class Scenario(BaseScenario):
                             else (self.world.batch_dim, 1),
                             device=self.world.device,
                             dtype=torch.float32,
-                        ).uniform_(-self.xdim, self.xdim),
+                        ).uniform_(-self.agent_xspawn_range, self.agent_xspawn_range),
                         torch.zeros(
                             (1, 1)
                             if env_index is not None
                             else (self.world.batch_dim, 1),
                             device=self.world.device,
                             dtype=torch.float32,
-                        ).uniform_(-self.ydim, self.ydim),
+                        ).uniform_(-self.agent_yspawn_range, self.agent_yspawn_range),
                     ],
                     dim=-1,
                 ),
                 batch_index=env_index,
             )
-            agent.sample = self.sample(agent.state.pos)
+            agent.sample = self.sample(agent.state.pos, norm=self.norm)
 
     def sample(
         self,
@@ -193,8 +210,8 @@ class Scenario(BaseScenario):
             + (pos[:, Y] < -self.ydim)
             + (pos[:, Y] > self.ydim)
         )
-        pos[:, X].clamp_(-self.world.x_semidim, self.world.x_semidim)
-        pos[:, Y].clamp_(-self.world.y_semidim, self.world.y_semidim)
+        pos[:, X].clamp_(-self.x_semidim, self.x_semidim)
+        pos[:, Y].clamp_(-self.y_semidim, self.y_semidim)
 
         index = pos / self.grid_spacing
         index[:, X] += self.n_x_cells / 2
@@ -240,7 +257,9 @@ class Scenario(BaseScenario):
         is_first = self.world.agents.index(agent) == 0
         if is_first:
             for a in self.world.agents:
-                a.sample = self.sample(a.state.pos, update_sampled_flag=True)
+                a.sample = self.sample(
+                    a.state.pos, update_sampled_flag=True, norm=self.norm
+                )
             self.sampling_rew = torch.stack(
                 [a.sample for a in self.world.agents], dim=-1
             ).sum(-1)
@@ -337,16 +356,16 @@ class Scenario(BaseScenario):
                 0.0
                 if i % 2
                 else (
-                    self.world.x_semidim + self.agent_radius
+                    self.x_semidim + self.agent_radius
                     if i == 0
-                    else -self.world.x_semidim - self.agent_radius
+                    else -self.x_semidim - self.agent_radius
                 ),
                 0.0
                 if not i % 2
                 else (
-                    self.world.y_semidim + self.agent_radius
+                    self.y_semidim + self.agent_radius
                     if i == 1
-                    else -self.world.y_semidim - self.agent_radius
+                    else -self.y_semidim - self.agent_radius
                 ),
             )
             xform.set_rotation(torch.pi / 2 if not i % 2 else 0.0)

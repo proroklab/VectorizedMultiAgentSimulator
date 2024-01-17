@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import math
@@ -6,11 +6,10 @@ from typing import Dict
 
 import torch
 from torch import Tensor
-
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, Sphere, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color
+from vmas.simulator.utils import Color, ScenarioUtils
 
 DEFAULT_ENERGY_COEFF = 0.02
 
@@ -21,19 +20,24 @@ class Scenario(BaseScenario):
         self.energy_coeff = kwargs.get(
             "energy_coeff", DEFAULT_ENERGY_COEFF
         )  # Weight of team energy penalty
+        self.start_same_point = kwargs.get("start_same_point", False)
+        self.agent_radius = 0.05
+        self.goal_radius = 0.03
 
         # Make world
         world = World(batch_dim, device)
         # Add agents
         for i in range(n_agents):
             # Constraint: all agents have same action range and multiplier
-            agent = Agent(name=f"agent_{i}", collide=False)
+            agent = Agent(
+                name=f"agent_{i}", collide=False, shape=Sphere(radius=self.agent_radius)
+            )
             world.add_agent(agent)
         # Add landmarks
         goal = Landmark(
             name="goal",
             collide=False,
-            shape=Sphere(radius=0.03),
+            shape=Sphere(radius=self.goal_radius),
             color=Color.GREEN,
         )
         world.add_landmark(goal)
@@ -45,36 +49,42 @@ class Scenario(BaseScenario):
         return world
 
     def reset_world_at(self, env_index: int = None):
-        for agent in self.world.agents:
-            # Random pos between -1 and 1
-            agent.set_pos(
-                torch.zeros(
-                    (1, self.world.dim_p)
-                    if env_index is not None
-                    else (self.world.batch_dim, self.world.dim_p),
+        if self.start_same_point:
+            for agent in self.world.agents:
+                agent.set_pos(
+                    torch.zeros(
+                        (1, 2) if env_index is not None else (self.world.batch_dim, 2),
+                        device=self.world.device,
+                        dtype=torch.float,
+                    ),
+                    batch_index=env_index,
+                )
+            ScenarioUtils.spawn_entities_randomly(
+                self.world.landmarks,
+                self.world,
+                env_index,
+                self.goal_radius + self.agent_radius + 0.01,
+                x_bounds=(-1, 1),
+                y_bounds=(-1, 1),
+                occupied_positions=torch.zeros(
+                    1 if env_index is not None else self.world.batch_dim,
+                    1,
+                    2,
                     device=self.world.device,
-                    dtype=torch.float32,
-                ).uniform_(
-                    -1.0,
-                    1.0,
+                    dtype=torch.float,
                 ),
-                batch_index=env_index,
             )
+        else:
+            ScenarioUtils.spawn_entities_randomly(
+                self.world.policy_agents + self.world.landmarks,
+                self.world,
+                env_index,
+                self.goal_radius + self.agent_radius + 0.01,
+                x_bounds=(-1, 1),
+                y_bounds=(-1, 1),
+            )
+
         for landmark in self.world.landmarks:
-            # Random pos between -1 and 1
-            landmark.set_pos(
-                torch.zeros(
-                    (1, self.world.dim_p)
-                    if env_index is not None
-                    else (self.world.batch_dim, self.world.dim_p),
-                    device=self.world.device,
-                    dtype=torch.float32,
-                ).uniform_(
-                    -1.0,
-                    1.0,
-                ),
-                batch_index=env_index,
-            )
             if env_index is None:
                 landmark.eaten = torch.full(
                     (self.world.batch_dim,), False, device=self.world.device

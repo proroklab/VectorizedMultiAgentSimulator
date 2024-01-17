@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -21,7 +21,9 @@ class Scenario(BaseScenario):
         self.shaping_factor = 100
 
         # Make world
-        world = World(batch_dim, device, contact_margin=6e-3)
+        world = World(
+            batch_dim, device, contact_margin=6e-3, substeps=5, collision_force=500
+        )
         # Add agents
         for i in range(n_agents):
             agent = Agent(name=f"agent_{i}", shape=Sphere(0.03), u_multiplier=0.5)

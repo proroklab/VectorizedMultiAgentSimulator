@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import typing
@@ -6,7 +6,6 @@ from typing import Dict, List
 
 import torch
 from torch import Tensor
-
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World, Sphere
 from vmas.simulator.scenario import BaseScenario
@@ -63,12 +62,17 @@ class Scenario(BaseScenario):
         self.rot_shaping_factor = kwargs.get("rot_shaping_factor", 0)
         self.energy_shaping_factor = kwargs.get("energy_shaping_factor", 0)
 
+        self.observe_rel_pos = kwargs.get("observe_rel_pos", False)
+        self.observe_rel_vel = kwargs.get("observe_rel_vel", False)
+        self.observe_pos = kwargs.get("observe_pos", True)
+
         # Controller
         self.use_controller = kwargs.get("use_controller", True)
         self.wind = torch.tensor(
             [0, -kwargs.get("wind", 2)], device=device, dtype=torch.float32
         ).expand(batch_dim, 2)
         self.v_range = kwargs.get("v_range", 0.5)
+        self.desired_vel = kwargs.get("desired_vel", self.v_range)
         self.f_range = kwargs.get("f_range", 100)
 
         controller_params = [1.5, 0.6, 0.002]
@@ -85,7 +89,7 @@ class Scenario(BaseScenario):
         world = World(batch_dim, device, drag=0, linear_friction=0.1)
 
         self.desired_vel = torch.tensor(
-            [0.0, self.v_range], device=device, dtype=torch.float32
+            [0.0, self.desired_vel], device=device, dtype=torch.float32
         )
         self.max_pos = (self.horizon * world.dt) * self.desired_vel[Y]
         self.desired_pos = 10.0
@@ -358,10 +362,19 @@ class Scenario(BaseScenario):
         self.big_agent.gravity = self.wind * dist_to_goal_angle
 
     def observation(self, agent: Agent):
-        observations = [
-            agent.state.pos,
-            agent.state.vel,
-        ]
+        observations = []
+        if self.observe_pos:
+            observations.append(agent.state.pos)
+        observations.append(agent.state.vel)
+        if self.observe_rel_pos:
+            for a in self.world.agents:
+                if a != agent:
+                    observations.append(a.state.pos - agent.state.pos)
+        if self.observe_rel_vel:
+            for a in self.world.agents:
+                if a != agent:
+                    observations.append(a.state.vel - agent.state.vel)
+
         return torch.cat(
             observations,
             dim=-1,

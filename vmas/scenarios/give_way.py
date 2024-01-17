@@ -1,10 +1,9 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import math
 
 import torch
-
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World, Landmark, Sphere, Line, Box
 from vmas.simulator.scenario import BaseScenario
@@ -21,6 +20,7 @@ class Scenario(BaseScenario):
         self.linear_friction = kwargs.get("linear_friction", 0.1)
         self.mirror_passage = kwargs.get("mirror_passage", False)
         self.done_on_completion = kwargs.get("done_on_completion", False)
+        self.observe_rel_pos = kwargs.get("observe_rel_pos", False)
 
         # Reward params
         self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 1.0)
@@ -63,7 +63,7 @@ class Scenario(BaseScenario):
 
         # Add agents
         blue_agent = Agent(
-            name="blue_agent_0",
+            name="agent_0",
             rotatable=False,
             linear_friction=self.linear_friction,
             shape=Sphere(radius=self.agent_radius)
@@ -79,7 +79,7 @@ class Scenario(BaseScenario):
                 blue_agent, world, controller_params, "standard"
             )
         blue_goal = Landmark(
-            name="blue goal",
+            name="goal_0",
             collide=False,
             shape=Sphere(radius=self.agent_radius / 2),
             color=Color.BLUE,
@@ -89,7 +89,7 @@ class Scenario(BaseScenario):
         world.add_landmark(blue_goal)
 
         green_agent = Agent(
-            name="green_agent_0",
+            name="agent_1",
             color=Color.GREEN,
             linear_friction=self.linear_friction,
             shape=Sphere(radius=self.agent_radius)
@@ -106,7 +106,7 @@ class Scenario(BaseScenario):
                 green_agent, world, controller_params, "standard"
             )
         green_goal = Landmark(
-            name="green goal",
+            name="goal_1",
             collide=False,
             shape=Sphere(radius=self.agent_radius / 2),
             color=Color.GREEN,
@@ -302,11 +302,17 @@ class Scenario(BaseScenario):
         )
 
     def observation(self, agent: Agent):
+        rel = []
+        for a in self.world.agents:
+            if a != agent:
+                rel.append(agent.state.pos - a.state.pos)
+
         observations = [
             agent.state.pos,
             agent.state.vel,
-            agent.state.pos,
         ]
+        if self.observe_rel_pos:
+            observations += rel
 
         if self.obs_noise > 0:
             for i, obs in enumerate(observations):
