@@ -362,9 +362,10 @@ class Scenario(BaseScenario):
         self.big_agent.gravity = self.wind * dist_to_goal_angle
 
     def observation(self, agent: Agent):
-        observations = [agent.state.vel]
+        observations = []
         if self.observe_pos:
             observations.append(agent.state.pos)
+        observations.append(agent.state.vel)
         if self.observe_rel_pos:
             for a in self.world.agents:
                 if a != agent:
