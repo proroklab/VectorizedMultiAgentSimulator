@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import typing
@@ -13,7 +13,6 @@ from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.sensors import Lidar
 from vmas.simulator.utils import Color, ScenarioUtils, X, Y
 
-
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
 
@@ -21,12 +20,12 @@ if typing.TYPE_CHECKING:
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.plot_grid = False
-        self.n_agents = kwargs.get("n_agents", 2)
-        self.collisions = kwargs.get("collisions", False)
+        self.n_agents = kwargs.get("n_agents", 4)
+        self.collisions = kwargs.get("collisions", True)
 
         self.agents_with_same_goal = kwargs.get("agents_with_same_goal", 1)
         self.split_goals = kwargs.get("split_goals", False)
-        self.observe_all_goals = kwargs.get("observe_all_goals", True)
+        self.observe_all_goals = kwargs.get("observe_all_goals", False)
 
         self.lidar_range = kwargs.get("lidar_range", 0.35)
         self.agent_radius = kwargs.get("agent_radius", 0.1)
@@ -300,7 +299,7 @@ class Scenario(BaseScenario):
 
 
 class HeuristicPolicy(BaseHeuristicPolicy):
-    def __init__(self, clf_epsilon = 0.2, clf_slack = 100.0, *args, **kwargs):
+    def __init__(self, clf_epsilon=0.2, clf_slack=100.0, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.clf_epsilon = clf_epsilon  # Exponential CLF convergence rate
         self.clf_slack = clf_slack  # weights on CLF-QP slack variable

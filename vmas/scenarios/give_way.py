@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import math
@@ -310,7 +310,6 @@ class Scenario(BaseScenario):
         observations = [
             agent.state.pos,
             agent.state.vel,
-            # agent.state.pos,
         ]
         if self.observe_rel_pos:
             observations += rel

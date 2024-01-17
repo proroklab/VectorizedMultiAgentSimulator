@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import typing
@@ -80,7 +80,7 @@ class Scenario(BaseScenario):
 
         # Other
         self.cover_angle_tolerance = kwargs.get("cover_angle_tolerance", 1)
-        self.horizon = kwargs.get("horizon", 100)
+        self.horizon = kwargs.get("horizon", 200)
 
         self.desired_distance = 1
         self.grid_spacing = self.desired_distance
