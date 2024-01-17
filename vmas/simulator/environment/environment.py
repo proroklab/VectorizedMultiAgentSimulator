@@ -9,7 +9,6 @@ import numpy as np
 import torch
 from gym import spaces
 from torch import Tensor
-
 from vmas.simulator.core import Agent, TorchVectorizedObject
 from vmas.simulator.scenario import BaseScenario
 import vmas.simulator.utils
@@ -43,6 +42,7 @@ class Environment(TorchVectorizedObject):
         seed: Optional[int] = None,
         dict_spaces: bool = False,
         multidiscrete_actions: bool = False,
+        clamp_actions: bool = False,
         **kwargs,
     ):
         if multidiscrete_actions:
@@ -60,6 +60,7 @@ class Environment(TorchVectorizedObject):
         self.max_steps = max_steps
         self.continuous_actions = continuous_actions
         self.dict_spaces = dict_spaces
+        self.clamp_action = clamp_actions
 
         self.reset(seed=seed)
 
@@ -379,6 +380,9 @@ class Environment(TorchVectorizedObject):
             f"Agent {agent.name} has wrong action size, got {action.shape[1]}, "
             f"expected {self.get_agent_action_size(agent)}"
         )
+        if self.clamp_action and self.continuous_actions:
+            action = action.clamp(-agent.action.u_range, agent.action.u_range)
+
         action_index = 0
 
         if self.continuous_actions:

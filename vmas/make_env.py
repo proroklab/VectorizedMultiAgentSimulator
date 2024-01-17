@@ -23,6 +23,7 @@ def make_env(
     seed: Optional[int] = None,
     dict_spaces: bool = False,
     multidiscrete_actions: bool = False,
+    clamp_actions: bool = False,
     **kwargs,
 ):
     """
@@ -40,6 +41,8 @@ def make_env(
         multidiscrete_actions (bool): Whether to use multidiscrete_actions action spaces when continuous_actions=False.
             Otherwise, (default) the action space will be Discrete, and it will be the cartesian product of the
             action spaces of an agent.
+        clamp_actions: Weather to clamp input actions to the range instead of throwing
+            an error when continuous_actions is True and actions are out of bounds
         **kwargs ():
 
     Returns:
@@ -60,6 +63,7 @@ def make_env(
         seed=seed,
         dict_spaces=dict_spaces,
         multidiscrete_actions=multidiscrete_actions,
+        clamp_actions=clamp_actions,
         **kwargs,
     )
 
