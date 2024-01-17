@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -70,7 +70,7 @@ class Scenario(BaseScenario):
             self.world.agents,
             self.world,
             env_index,
-            self.agent_radius * 2,
+            min_dist_between_entities=self.agent_radius * 2,
             x_bounds=(
                 -self.world_semidim,
                 self.world_semidim,
@@ -91,7 +91,7 @@ class Scenario(BaseScenario):
             [goal] + self.packages,
             self.world,
             env_index,
-            max(
+            min_dist_between_entities=max(
                 package.shape.circumscribed_radius() + goal.shape.radius + 0.01
                 for package in self.packages
             ),

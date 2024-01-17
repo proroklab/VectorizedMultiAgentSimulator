@@ -9,7 +9,6 @@ import numpy as np
 import torch
 from gym import spaces
 from torch import Tensor
-
 from vmas.simulator.core import Agent, TorchVectorizedObject
 from vmas.simulator.scenario import BaseScenario
 import vmas.simulator.utils
