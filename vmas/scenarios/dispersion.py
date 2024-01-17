@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -13,7 +13,7 @@ from vmas.simulator.utils import Color
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         n_agents = kwargs.get("n_agents", 4)
-        self.share_reward = kwargs.get("share_reward", True)
+        self.share_reward = kwargs.get("share_reward", False)
         self.penalise_by_time = kwargs.get("penalise_by_time", False)
         self.food_radius = kwargs.get("food_radius", 0.05)
         self.pos_range = kwargs.get("pos_range", 1.0)
