@@ -164,7 +164,7 @@ class Scenario(BaseScenario):
 
         return torch.cat(
             [
-                # agent.state.pos,
+                agent.state.pos,
                 agent.state.vel,
                 *package_obs,
             ],
