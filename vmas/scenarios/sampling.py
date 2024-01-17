@@ -1,4 +1,4 @@
-#  Copyright (c) 2023.
+#  Copyright (c) 2023-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import typing
@@ -28,7 +28,7 @@ class Scenario(BaseScenario):
 
         self.n_gaussians = kwargs.get("n_gaussians", 3)
         self.cov = kwargs.get("cov", 0.05)
-        self.collisions = kwargs.get("collisions", False)
+        self.collisions = kwargs.get("collisions", True)
         self.spawn_same_pos = kwargs.get("spawn_same_pos", False)
         self.norm = kwargs.get("norm", True)
 
