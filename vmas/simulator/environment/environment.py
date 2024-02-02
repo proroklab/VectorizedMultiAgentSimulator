@@ -381,7 +381,17 @@ class Environment(TorchVectorizedObject):
             f"expected {self.get_agent_action_size(agent)}"
         )
         if self.clamp_action and self.continuous_actions:
-            action = action.clamp(-agent.action.u_range, agent.action.u_range)
+            physical_action = action[..., : agent.action_size]
+            a_range = agent.action.u_range_tensor.unsqueeze(0).expand(
+                physical_action.shape
+            )
+            physical_action = physical_action.clamp(-a_range, a_range)
+
+            if self.world.dim_c > 0 and not agent.silent:  # If comms
+                comm_action = action[..., agent.action_size :]
+                action = torch.cat([physical_action, comm_action.clamp(0, 1)], dim=-1)
+            else:
+                action = physical_action
 
         action_index = 0
 
