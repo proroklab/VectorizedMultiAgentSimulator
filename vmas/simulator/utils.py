@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import importlib
@@ -205,6 +205,17 @@ class TorchUtils:
             return value.clone()
         else:
             return {key: TorchUtils.recursive_clone(val) for key, val in value.items()}
+
+    @staticmethod
+    def recursive_require_grad_(value: Union[Dict[str, Tensor], Tensor, List[Tensor]]):
+        if isinstance(value, Tensor) and torch.is_floating_point(value):
+            value.requires_grad_(True)
+        elif isinstance(value, Dict):
+            for val in value.values():
+                TorchUtils.recursive_require_grad_(val)
+        else:
+            for val in value:
+                TorchUtils.recursive_require_grad_(val)
 
 
 class ScenarioUtils:

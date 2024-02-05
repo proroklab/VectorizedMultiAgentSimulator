@@ -9,6 +9,7 @@ import numpy as np
 import torch
 from gym import spaces
 from torch import Tensor
+
 from vmas.simulator.core import Agent, TorchVectorizedObject
 from vmas.simulator.scenario import BaseScenario
 import vmas.simulator.utils
@@ -43,6 +44,7 @@ class Environment(TorchVectorizedObject):
         dict_spaces: bool = False,
         multidiscrete_actions: bool = False,
         clamp_actions: bool = False,
+        grad_enabled: bool = False,
         **kwargs,
     ):
         if multidiscrete_actions:
@@ -61,6 +63,7 @@ class Environment(TorchVectorizedObject):
         self.continuous_actions = continuous_actions
         self.dict_spaces = dict_spaces
         self.clamp_action = clamp_actions
+        self.grad_enabled = grad_enabled
 
         self.reset(seed=seed)
 
@@ -241,6 +244,9 @@ class Environment(TorchVectorizedObject):
         obs, rewards, dones, infos = self.get_from_scenario(
             get_observations=True, get_infos=True, get_rewards=True, get_dones=True
         )
+        if self.grad_enabled:
+            for output in obs, rewards, infos:
+                TorchUtils.recursive_require_grad_(output)
 
         # print("\nStep results in unwrapped environment")
         # print(
@@ -370,7 +376,10 @@ class Environment(TorchVectorizedObject):
 
     # set env action for a particular agent
     def _set_action(self, action, agent):
-        action = action.clone().detach().to(self.device)
+        action = action.clone()
+        if not self.grad_enabled:
+            action = action.detach()
+        action = action.to(self.device)
         assert not action.isnan().any()
         agent.action.u = torch.zeros(
             self.batch_dim, agent.action_size, device=self.device, dtype=torch.float32
