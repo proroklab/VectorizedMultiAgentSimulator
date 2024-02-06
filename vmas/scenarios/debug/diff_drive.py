@@ -24,11 +24,11 @@ class Scenario(BaseScenario):
 
         The first agent has differential drive dynamics.
         You can control its forward input with the LEFT and RIGHT arrows.
-        You can control its rotation with N and M.
+        You can control its rotation with UP and DOWN.
 
         The second agent has standard vmas holonomic dynamics.
         You can control it with WASD
-        You can control its rotation withQ and E.
+        You can control its rotation with Q and E.
 
         """
         # T
