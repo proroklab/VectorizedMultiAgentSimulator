@@ -5,7 +5,6 @@
 from typing import Union
 
 import torch
-
 import vmas.simulator.core
 import vmas.simulator.utils
 from vmas.simulator.dynamics.common import Dynamics
@@ -75,7 +74,7 @@ class KinematicBicycle(Dynamics):
             dy = velocity * torch.sin(theta + beta)
             dtheta = velocity / (self.l_f + self.l_r) * torch.sin(beta)
             return torch.stack(
-                (dx, dy, dtheta), dim=1
+                (dx, dy, dtheta), dim=-1
             )  # Should return torch.Size([batch_size,3])
 
         # Select the integration method

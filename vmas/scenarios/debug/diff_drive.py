@@ -5,7 +5,6 @@ import typing
 from typing import List
 
 import torch
-
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World
 from vmas.simulator.dynamics.diff_drive import DiffDrive
@@ -46,7 +45,7 @@ class Scenario(BaseScenario):
                     collide=True,
                     render_action=True,
                     u_range=[1, 1],
-                    u_multiplier=[1, 0.001],
+                    u_multiplier=[1, 1],
                     dynamics=DiffDrive(world, integration="rk4"),
                 )
             else:
