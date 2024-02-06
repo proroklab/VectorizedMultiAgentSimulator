@@ -1599,8 +1599,8 @@ class World(TorchVectorizedObject):
     def _apply_friction_force(self, entity: Entity):
         def get_friction_force(vel, coeff, force, mass):
             speed = torch.linalg.vector_norm(vel, dim=-1)
-            speed_non_zero = speed + 1e-8
-            static = (speed == 0).unsqueeze(-1).expand(vel.shape)
+            static = speed == 0
+            static_exp = static.unsqueeze(-1).expand(vel.shape)
 
             if not isinstance(coeff, Tensor):
                 coeff = torch.full_like(force, coeff, device=self.device)
@@ -1608,10 +1608,12 @@ class World(TorchVectorizedObject):
 
             friction_force_constant = coeff * mass
 
-            friction_force = -(vel / speed_non_zero.unsqueeze(-1)) * torch.minimum(
+            friction_force = -(
+                vel / torch.where(static, 1e-8, speed).unsqueeze(-1)
+            ) * torch.minimum(
                 friction_force_constant, (vel.abs() / self._sub_dt) * mass
             )
-            friction_force = torch.where(static, 0.0, friction_force)
+            friction_force = torch.where(static_exp, 0.0, friction_force)
 
             return friction_force
 
@@ -2333,7 +2335,6 @@ class World(TorchVectorizedObject):
         min_dist = 1e-6
         delta_pos = pos_a - pos_b
         dist = torch.linalg.vector_norm(delta_pos, dim=-1)
-        dist_non_zero = dist + 1e-8
         sign = -1 if attractive else 1
 
         # softmax penetration
@@ -2349,7 +2350,7 @@ class World(TorchVectorizedObject):
             sign
             * force_multiplier
             * delta_pos
-            / dist_non_zero.unsqueeze(-1)
+            / torch.where(dist > 0, dist, 1e-8).unsqueeze(-1)
             * penetration.unsqueeze(-1)
         )
         force = torch.where((dist < min_dist).unsqueeze(-1), 0.0, force)
