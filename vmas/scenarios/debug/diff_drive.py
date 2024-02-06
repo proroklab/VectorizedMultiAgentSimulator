@@ -5,7 +5,6 @@ import typing
 from typing import List
 
 import torch
-
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World
 from vmas.simulator.dynamics.diff_drive import DiffDrive
@@ -25,11 +24,11 @@ class Scenario(BaseScenario):
 
         The first agent has differential drive dynamics.
         You can control its forward input with the LEFT and RIGHT arrows.
-        You can control its rotation with N and M.
+        You can control its rotation with UP and DOWN.
 
         The second agent has standard vmas holonomic dynamics.
         You can control it with WASD
-        You can control its rotation withQ and E.
+        You can control its rotation with Q and E.
 
         """
         # T
@@ -46,7 +45,7 @@ class Scenario(BaseScenario):
                     collide=True,
                     render_action=True,
                     u_range=[1, 1],
-                    u_multiplier=[1, 0.001],
+                    u_multiplier=[1, 1],
                     dynamics=DiffDrive(world, integration="rk4"),
                 )
             else:
