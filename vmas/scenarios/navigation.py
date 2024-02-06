@@ -98,6 +98,7 @@ class Scenario(BaseScenario):
                 ]
                 if self.collisions
                 else None,
+                mass=torch.ones(batch_dim, 1, device=device, dtype=torch.float),
             )
             agent.pos_rew = torch.zeros(batch_dim, device=device)
             agent.agent_collision_rew = agent.pos_rew.clone()
