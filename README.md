@@ -99,17 +99,17 @@ Watch the talk at DARS 2022 about VMAS.
 ### Install
 
 To install the simulator, you can use pip to get the latest release:
-```
+```bash
 pip install vmas
 ```
 If you want to install the current master version (more up to date than latest release), you can do:
-```
+```bash
 git clone https://github.com/proroklab/VectorizedMultiAgentSimulator.git
 cd VectorizedMultiAgentSimulator
 pip install -e .
 ```
 By default, vmas has only the core requirements. Here are some optional packages you may want to install:
-```
+```bash
 # Training
 pip install "ray[rllib]"==2.1.0 # We support versions "ray[rllib]<=2.2,>=1.13"
 pip install torchrl
