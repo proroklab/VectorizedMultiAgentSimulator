@@ -1,11 +1,10 @@
-#  Copyright (c) 2023.
+#  Copyright (c) 2023-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
 from __future__ import annotations
 
 import torch
-
 from vmas.simulator.utils import TorchUtils
 
 
@@ -17,8 +16,8 @@ def _get_inner_point_box(outside_point, surface_point, box_pos):
     x = (v / v_norm) * x_magnitude
     cond = v_norm == 0
     cond_exp = cond.expand(x.shape)
-    x[cond_exp] = surface_point[cond_exp]
-    x_magnitude[cond] = 0
+    x = torch.where(cond_exp, surface_point, x)
+    x_magnitude = torch.where(cond, 0, x_magnitude)
     return surface_point + x, torch.abs(x_magnitude.squeeze(-1))
 
 
@@ -117,9 +116,10 @@ def _get_closest_box_box(
     for p1, p2 in zip(p1s, p2s):
         d = torch.linalg.vector_norm(p1 - p2, dim=-1)
         is_closest = d < distance
-        closest_point_1[is_closest] = p1[is_closest]
-        closest_point_2[is_closest] = p2[is_closest]
-        distance[is_closest] = d[is_closest]
+        is_closest_exp = is_closest.unsqueeze(-1).expand(p1.shape)
+        closest_point_1 = torch.where(is_closest_exp, p1, closest_point_1)
+        closest_point_2 = torch.where(is_closest_exp, p2, closest_point_2)
+        distance = torch.where(is_closest, d, distance)
 
     return closest_point_1, closest_point_2
 
@@ -199,12 +199,14 @@ def _get_closest_points_line_line(
     for p1, p2 in point_pairs:
         d = torch.linalg.vector_norm(p1 - p2, dim=-1)
         is_closest = d < min_distance
-        closest_point_1[is_closest] = p1[is_closest]
-        closest_point_2[is_closest] = p2[is_closest]
-        min_distance[is_closest] = d[is_closest]
+        is_closest_exp = is_closest.unsqueeze(-1).expand(p1.shape)
+        closest_point_1 = torch.where(is_closest_exp, p1, closest_point_1)
+        closest_point_2 = torch.where(is_closest_exp, p2, closest_point_2)
+        min_distance = torch.where(is_closest, d, min_distance)
 
-    closest_point_1[d_i == 0] = point_i[d_i == 0]
-    closest_point_2[d_i == 0] = point_i[d_i == 0]
+    cond = (d_i == 0).unsqueeze(-1).expand(point_i.shape)
+    closest_point_1 = torch.where(cond, point_i, closest_point_1)
+    closest_point_2 = torch.where(cond, point_i, closest_point_2)
 
     return closest_point_1, closest_point_2
 
@@ -241,8 +243,8 @@ def _get_intersection_point_line_line(point_a1, point_a2, point_b1, point_b2):
     condition = ~cross_r_s_is_zero * u_in_range * t_in_range
     condition_exp = condition.expand(point.shape)
 
-    point[condition_exp] = (p + t * r)[condition_exp]
-    distance[condition.squeeze(-1)] = 0.0
+    point = torch.where(condition_exp, p + t * r, point)
+    distance = torch.where(condition.squeeze(-1), 0.0, distance)
 
     return point, distance
 
@@ -272,8 +274,9 @@ def _get_closest_point_box(box_pos, box_rot, box_width, box_length, test_point_p
     for p in closest_points:
         d = torch.linalg.vector_norm(test_point_pos - p, dim=-1)
         is_closest = d < distance
-        closest_point[is_closest] = p[is_closest]
-        distance[is_closest] = d[is_closest]
+        is_closest_exp = is_closest.unsqueeze(-1).expand(p.shape)
+        closest_point = torch.where(is_closest_exp, p, closest_point)
+        distance = torch.where(is_closest, d, distance)
 
     return closest_point
 
@@ -351,9 +354,10 @@ def _get_closest_line_box(
     for p_box, p_line in zip(ps_box.unbind(0), ps_line.unbind(0)):
         d = torch.linalg.vector_norm(p_box - p_line, dim=-1)
         is_closest = d < distance
-        closest_point_1[is_closest] = p_box[is_closest]
-        closest_point_2[is_closest] = p_line[is_closest]
-        distance[is_closest] = d[is_closest]
+        is_closest_exp = is_closest.unsqueeze(-1).expand(closest_point_1.shape)
+        closest_point_1 = torch.where(is_closest_exp, p_box, closest_point_1)
+        closest_point_2 = torch.where(is_closest_exp, p_line, closest_point_2)
+        distance = torch.where(is_closest, d, distance)
     return closest_point_1, closest_point_2
 
 

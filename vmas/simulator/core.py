@@ -1796,8 +1796,8 @@ class World(TorchVectorizedObject):
             if rotate_prior.any():
                 torque_a_rotate = TorchUtils.compute_torque(force_a, r_a)
                 torque_b_rotate = TorchUtils.compute_torque(force_b, r_b)
-                torque_a[rotate] = torque_a_rotate[rotate]
-                torque_b[rotate] = torque_b_rotate[rotate]
+                torque_a = torch.where(rotate, torque_a_rotate, torque_a)
+                torque_b = torch.where(rotate, torque_b_rotate, torque_b)
 
             for i, (entity_a, entity_b, _) in enumerate(joints):
                 self.update_env_forces(
@@ -2045,8 +2045,10 @@ class World(TorchVectorizedObject):
                     pos_sphere, closest_point_box, pos_box
                 )
                 cond = not_hollow_box.unsqueeze(-1).expand(inner_point_box.shape)
-                inner_point_box[cond] = inner_point_box_hollow[cond]
-                d[not_hollow_box] = d_hollow[not_hollow_box]
+                inner_point_box = torch.where(
+                    cond, inner_point_box_hollow, inner_point_box
+                )
+                d = torch.where(not_hollow_box, d_hollow, d)
 
             force_sphere, force_box = self._get_constraint_forces(
                 pos_sphere,
@@ -2141,8 +2143,10 @@ class World(TorchVectorizedObject):
                     point_line, point_box, pos_box
                 )
                 cond = not_hollow_box.unsqueeze(-1).expand(inner_point_box.shape)
-                inner_point_box[cond] = inner_point_box_hollow[cond]
-                d[not_hollow_box] = d_hollow[not_hollow_box]
+                inner_point_box = torch.where(
+                    cond, inner_point_box_hollow, inner_point_box
+                )
+                d = torch.where(not_hollow_box, d_hollow, d)
 
             force_box, force_line = self._get_constraint_forces(
                 inner_point_box,
@@ -2263,8 +2267,8 @@ class World(TorchVectorizedObject):
                     point_b, point_a, pos_box
                 )
                 cond = not_hollow_box.unsqueeze(-1).expand(inner_point_a.shape)
-                inner_point_a[cond] = inner_point_box_hollow[cond]
-                d_a[not_hollow_box] = d_hollow[not_hollow_box]
+                inner_point_a = torch.where(cond, inner_point_box_hollow, inner_point_a)
+                d_a = torch.where(not_hollow_box, d_hollow, d_a)
 
             inner_point_b = point_b
             d_b = torch.zeros_like(length_box2, device=self.device, dtype=torch.float)
@@ -2273,8 +2277,10 @@ class World(TorchVectorizedObject):
                     point_a, point_b, pos_box2
                 )
                 cond = not_hollow_box2.unsqueeze(-1).expand(inner_point_b.shape)
-                inner_point_b[cond] = inner_point_box2_hollow[cond]
-                d_b[not_hollow_box2] = d_hollow2[not_hollow_box2]
+                inner_point_b = torch.where(
+                    cond, inner_point_box2_hollow, inner_point_b
+                )
+                d_b = torch.where(not_hollow_box2, d_hollow2, d_b)
 
             force_a, force_b = self._get_constraint_forces(
                 inner_point_a,
@@ -2371,15 +2377,18 @@ class World(TorchVectorizedObject):
                     -entity.v_range, entity.v_range
                 )
             new_pos = entity.state.pos + entity.state.vel * self._sub_dt
-            if self._x_semidim is not None:
-                new_pos[:, X] = torch.clamp(
-                    new_pos[:, X], -self._x_semidim, self._x_semidim
-                )
-            if self._y_semidim is not None:
-                new_pos[:, Y] = torch.clamp(
-                    new_pos[:, Y], -self._y_semidim, self._y_semidim
-                )
-            entity.state.pos = new_pos
+            entity.state.pos = torch.stack(
+                [
+                    new_pos[..., X].clamp(-self._x_semidim, self._x_semidim)
+                    if self._x_semidim is not None
+                    else new_pos[..., X],
+                    new_pos[..., Y].clamp(-self._y_semidim, self._y_semidim)
+                    if self._y_semidim is not None
+                    else new_pos[..., Y],
+                ],
+                dim=-1,
+            )
+
         if entity.rotatable:
             # Compute rotation
             if substep == 0:

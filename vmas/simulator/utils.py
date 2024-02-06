@@ -157,7 +157,8 @@ class TorchUtils:
     def clamp_with_norm(tensor: Tensor, max_norm: float):
         norm = torch.linalg.vector_norm(tensor, dim=-1)
         new_tensor = (tensor / norm.unsqueeze(-1)) * max_norm
-        tensor[norm > max_norm] = new_tensor[norm > max_norm]
+        cond = (norm > max_norm).unsqueeze(-1).expand(tensor.shape)
+        tensor = torch.where(cond, new_tensor, tensor)
         return tensor
 
     @staticmethod
