@@ -9,7 +9,6 @@ import numpy as np
 import torch
 from gym import spaces
 from torch import Tensor
-
 from vmas.simulator.core import Agent, TorchVectorizedObject
 from vmas.simulator.scenario import BaseScenario
 import vmas.simulator.utils
@@ -244,9 +243,6 @@ class Environment(TorchVectorizedObject):
         obs, rewards, dones, infos = self.get_from_scenario(
             get_observations=True, get_infos=True, get_rewards=True, get_dones=True
         )
-        if self.grad_enabled:
-            for output in obs, rewards, infos:
-                TorchUtils.recursive_require_grad_(output)
 
         # print("\nStep results in unwrapped environment")
         # print(
