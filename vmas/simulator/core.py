@@ -822,7 +822,7 @@ class Agent(Entity):
         collision_filter: Callable[[Entity], bool] = lambda _: True,
         render_action: bool = False,
         dynamics: Dynamics = None,  # Defaults to holonomic
-        action_size: int = None,  # Defaults to what required by the dynamics
+        action_size: int = None,
     ):
         super().__init__(
             name,
