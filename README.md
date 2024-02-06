@@ -18,8 +18,8 @@
 
 This repository contains the code for the Vectorized Multi-Agent Simulator (VMAS).
 
-VMAS is a vectorized framework designed for efficient MARL benchmarking.
-It is comprised of a vectorized 2D physics engine written in PyTorch and a set of challenging multi-robot scenarios.
+VMAS is a vectorized differentiable simulator designed for efficient MARL benchmarking.
+It is comprised of a fully-differentiable vectorized 2D physics engine written in PyTorch and a set of challenging multi-robot scenarios.
 Scenario creation is made simple and modular to incentivize contributions.
 VMAS simulates agents and landmarks of different shapes and supports rotations, elastic collisions, joints, and custom gravity.
 Holonomic motion models are used for the agents to simplify simulation. Custom sensors such as LIDARs are available and the simulator supports inter-agent communication.
@@ -99,17 +99,17 @@ Watch the talk at DARS 2022 about VMAS.
 ### Install
 
 To install the simulator, you can use pip to get the latest release:
-```
+```bash
 pip install vmas
 ```
 If you want to install the current master version (more up to date than latest release), you can do:
-```
+```bash
 git clone https://github.com/proroklab/VectorizedMultiAgentSimulator.git
 cd VectorizedMultiAgentSimulator
 pip install -e .
 ```
 By default, vmas has only the core requirements. Here are some optional packages you may want to install:
-```
+```bash
 # Training
 pip install "ray[rllib]"==2.1.0 # We support versions "ray[rllib]<=2.2,>=1.13"
 pip install torchrl
@@ -132,7 +132,7 @@ The function arguments are explained in the documentation. The function returns 
 object with the OpenAI gym interface:
 
 Here is an example:
-```
+```python
  env = vmas.make_env(
         scenario="waterfall", # can be scenario name or BaseScenario class
         num_envs=32,
@@ -143,6 +143,7 @@ Here is an example:
         seed=None, # Seed of the environment
         dict_spaces=False, # By default tuple spaces are used with each element in the tuple being an agent.
         # If dict_spaces=True, the spaces will become Dict with each key being the agent's name
+        grad_enabled=False, # If grad_enabled the simulator is differentiable and gradients can flow from output to input
         **kwargs # Additional arguments you want to pass to the scenario initialization
     )
 ```
@@ -245,7 +246,8 @@ customizable. Examples are: drag, friction, gravity, simulation timestep, non-di
 - **Agent actions**: Agents' physical actions are 2D forces for holonomic motion. Agent rotation can also be controlled through a torque action (activated by setting `agent.action.u_rot_range` at agent creation time). Agents can also be equipped with continuous or discrete communication actions.
 - **Action preprocessing**: By implementing the `process_action` function of a scenario, you can modify the agents' actions before they are passed to the simulator. This is used in `controllers` (where we provide different types of controllers to use) and `dynamics` (where we provide custom robot dynamic models).
 - **Controllers**: Controllers are components that can be appended to the neural network policy or replace it completely.  We provide a `VelocityController` which can be used to treat input actions as velocities (instead of default vmas input forces). This PID controller takes velocities and outputs the forces which are fed to the simulator. See the `vel_control` debug scenario for an example.
-- **Dynamic models**: VMAS simulates holonomic dynamics models by default. Custom dynamic constraints can be enforced in an action preprocessing step. Implementations now include `DiffDriveDynamics` for differential drive robots and `KinematicBicycleDynamics` for kinematic bicycle model. See `diff_drive` and `kinematic_bicycle` debug scenarios for examples.
+- **Dynamic models**: VMAS simulates holonomic dynamics models by default. Custom dynamics can be chosen at agent creation time. Implementations now include `DiffDriveDynamics` for differential drive robots and `KinematicBicycleDynamics` for kinematic bicycle model. See `diff_drive` and `kinematic_bicycle` debug scenarios for examples.
+- **Differentiable**: By setting `grad_enabled=True` when creating an environment, the simulator will be differentiable, allowing gradients flowing through any of its function.
 
 ## Creating a new scenario
 

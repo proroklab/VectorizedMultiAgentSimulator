@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import importlib
@@ -157,7 +157,8 @@ class TorchUtils:
     def clamp_with_norm(tensor: Tensor, max_norm: float):
         norm = torch.linalg.vector_norm(tensor, dim=-1)
         new_tensor = (tensor / norm.unsqueeze(-1)) * max_norm
-        tensor[norm > max_norm] = new_tensor[norm > max_norm]
+        cond = (norm > max_norm).unsqueeze(-1).expand(tensor.shape)
+        tensor = torch.where(cond, new_tensor, tensor)
         return tensor
 
     @staticmethod
@@ -205,6 +206,17 @@ class TorchUtils:
             return value.clone()
         else:
             return {key: TorchUtils.recursive_clone(val) for key, val in value.items()}
+
+    @staticmethod
+    def recursive_require_grad_(value: Union[Dict[str, Tensor], Tensor, List[Tensor]]):
+        if isinstance(value, Tensor) and torch.is_floating_point(value):
+            value.requires_grad_(True)
+        elif isinstance(value, Dict):
+            for val in value.values():
+                TorchUtils.recursive_require_grad_(val)
+        else:
+            for val in value:
+                TorchUtils.recursive_require_grad_(val)
 
 
 class ScenarioUtils:

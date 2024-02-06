@@ -24,6 +24,7 @@ def make_env(
     dict_spaces: bool = False,
     multidiscrete_actions: bool = False,
     clamp_actions: bool = False,
+    grad_enabled: bool = False,
     **kwargs,
 ):
     """
@@ -43,6 +44,7 @@ def make_env(
             action spaces of an agent.
         clamp_actions: Weather to clamp input actions to the range instead of throwing
             an error when continuous_actions is True and actions are out of bounds
+        grad_enabled: (bool): Whether the simulator will keep track of gradients in the output. Default is ``False``.
         **kwargs ():
 
     Returns:
@@ -64,6 +66,7 @@ def make_env(
         dict_spaces=dict_spaces,
         multidiscrete_actions=multidiscrete_actions,
         clamp_actions=clamp_actions,
+        grad_enabled=grad_enabled,
         **kwargs,
     )
 

@@ -43,6 +43,7 @@ class Environment(TorchVectorizedObject):
         dict_spaces: bool = False,
         multidiscrete_actions: bool = False,
         clamp_actions: bool = False,
+        grad_enabled: bool = False,
         **kwargs,
     ):
         if multidiscrete_actions:
@@ -61,6 +62,7 @@ class Environment(TorchVectorizedObject):
         self.continuous_actions = continuous_actions
         self.dict_spaces = dict_spaces
         self.clamp_action = clamp_actions
+        self.grad_enabled = grad_enabled
 
         self.reset(seed=seed)
 
@@ -370,7 +372,10 @@ class Environment(TorchVectorizedObject):
 
     # set env action for a particular agent
     def _set_action(self, action, agent):
-        action = action.clone().detach().to(self.device)
+        action = action.clone()
+        if not self.grad_enabled:
+            action = action.detach()
+        action = action.to(self.device)
         assert not action.isnan().any()
         agent.action.u = torch.zeros(
             self.batch_dim, agent.action_size, device=self.device, dtype=torch.float32

@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import typing
@@ -13,7 +13,6 @@ from vmas.simulator.heuristic_policy import BaseHeuristicPolicy
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.sensors import Lidar
 from vmas.simulator.utils import Color, ScenarioUtils, X, Y
-
 
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
@@ -286,7 +285,7 @@ class Scenario(BaseScenario):
 
 
 class HeuristicPolicy(BaseHeuristicPolicy):
-    def __init__(self, clf_epsilon = 0.2, clf_slack = 100.0, *args, **kwargs):
+    def __init__(self, clf_epsilon=0.2, clf_slack=100.0, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.clf_epsilon = clf_epsilon  # Exponential CLF convergence rate
         self.clf_slack = clf_slack  # weights on CLF-QP slack variable
