@@ -11,6 +11,7 @@ from typing import Callable, List, Tuple, Union, Sequence
 
 import torch
 from torch import Tensor
+
 from vmas.simulator.dynamics.common import Dynamics
 from vmas.simulator.dynamics.holonomic import Holonomic
 from vmas.simulator.joints import Joint
@@ -508,7 +509,7 @@ class Entity(TorchVectorizedObject, Observable, ABC):
         rotatable: bool = False,
         collide: bool = True,
         density: float = 25.0,  # Unused for now
-        mass: float = 1.0,
+        mass: Union[float, Tensor] = 1.0,
         shape: Shape = Sphere(),
         v_range: float = None,
         max_speed: float = None,
@@ -754,7 +755,7 @@ class Landmark(Entity):
         rotatable: bool = False,
         collide: bool = True,
         density: float = 25.0,  # Unused for now
-        mass: float = 1.0,
+        mass: Union[float, Tensor] = 1.0,
         v_range: float = None,
         max_speed: float = None,
         color=Color.GRAY,
@@ -795,7 +796,7 @@ class Agent(Entity):
         rotatable: bool = True,
         collide: bool = True,
         density: float = 25.0,  # Unused for now
-        mass: float = 1.0,
+        mass: Union[float, Tensor] = 1.0,
         f_range: float = None,
         max_f: float = None,
         t_range: float = None,
@@ -821,7 +822,7 @@ class Agent(Entity):
         collision_filter: Callable[[Entity], bool] = lambda _: True,
         render_action: bool = False,
         dynamics: Dynamics = None,  # Defaults to holonomic
-        action_size: int = None,
+        action_size: int = None,  # Defaults to what required by the dynamics
     ):
         super().__init__(
             name,
