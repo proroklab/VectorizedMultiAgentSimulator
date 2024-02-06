@@ -1231,7 +1231,8 @@ class World(TorchVectorizedObject):
         d = test_point_pos - closest_point
         d_norm = torch.linalg.vector_norm(d, dim=1)
         ray_intersects = d_norm < sphere.shape.radius
-        m = torch.sqrt(sphere.shape.radius**2 - d_norm**2)
+        a = sphere.shape.radius**2 - d_norm**2
+        m = torch.sqrt(torch.where(a > 0, a, 1e-8))
 
         u = test_point_pos - ray_origin
         u1 = closest_point - ray_origin
