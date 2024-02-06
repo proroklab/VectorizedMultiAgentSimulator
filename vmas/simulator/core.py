@@ -11,6 +11,7 @@ from typing import Callable, List, Tuple, Union, Sequence
 
 import torch
 from torch import Tensor
+
 from vmas.simulator.dynamics.common import Dynamics
 from vmas.simulator.dynamics.holonomic import Holonomic
 from vmas.simulator.joints import Joint
@@ -821,7 +822,7 @@ class Agent(Entity):
         collision_filter: Callable[[Entity], bool] = lambda _: True,
         render_action: bool = False,
         dynamics: Dynamics = None,  # Defaults to holonomic
-        action_size: int = None,
+        action_size: int = None,  # Defaults to what required by the dynamics
     ):
         super().__init__(
             name,
