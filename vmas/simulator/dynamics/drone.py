@@ -10,7 +10,6 @@ class Drone(Dynamics):
     def __init__(
         self,
         world: vmas.simulator.core.World,
-        mass: float = 0.2,
         I_xx: float = 8.1e-3,
         I_yy: float = 8.1e-3,
         I_zz: float = 14.2e-3,
@@ -23,7 +22,6 @@ class Drone(Dynamics):
             "euler",
         )
 
-        self.mass = mass
         self.I_xx = I_xx
         self.I_yy = I_yy
         self.I_zz = I_zz
@@ -34,8 +32,8 @@ class Drone(Dynamics):
         #              x_dot (vel_x), y_dot (vel_y), z_dot (vel_z),
         #              x (pos_x), y (pos_y), z (pos_z)
         self.drone_state = torch.tensor(
-            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
-        )
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], device=world.device
+        ).unsqueeze(0).expand(world.batch_dim, 12)
 
     def euler(self, f, state):
         return state + self.dt * f(state)
@@ -51,12 +49,11 @@ class Drone(Dynamics):
         return 4
 
     def process_action(self):
-      
         u = self.agent.action.u
         thrust = u[:, 0]  # Thrust, sum of all propeller thrusts
         torque = u[:, 1:4]  # Torque in x, y, z direction
 
-        thrust += self.mass * self.g  # Ensure the drone is not falling
+        thrust += self.agent.mass * self.g  # Ensure the drone is not falling
 
         vmas_state = torch.cat(
             (self.agent.state.pos, self.agent.state.rot), dim=1
@@ -76,9 +73,9 @@ class Drone(Dynamics):
             s_psi = torch.sin(psi)
 
             # Postion Dynamics
-            x_ddot = (c_phi * s_theta * c_psi + s_phi * s_psi) * thrust / self.mass
-            y_ddot = (c_phi * s_theta * s_psi - s_phi * c_psi) * thrust / self.mass
-            z_ddot = (c_phi * c_theta) * thrust / self.mass - self.g
+            x_ddot = (c_phi * s_theta * c_psi + s_phi * s_psi) * thrust / self.agent.mass
+            y_ddot = (c_phi * s_theta * s_psi - s_phi * c_psi) * thrust / self.agent.mass
+            z_ddot = (c_phi * c_theta) * thrust / self.agent.mass - self.g
             # Angular velocity dynamics
             p_dot = (torque[0] - (self.Iyy - self.Izz) * q * r) / self.Ixx
             q_dot = (torque[1] - (self.Izz - self.Ixx) * p * r) / self.Iyy
