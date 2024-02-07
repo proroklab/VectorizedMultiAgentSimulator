@@ -77,9 +77,9 @@ class Drone(Dynamics):
             y_ddot = (c_phi * s_theta * s_psi - s_phi * c_psi) * thrust / self.agent.mass
             z_ddot = (c_phi * c_theta) * thrust / self.agent.mass - self.g
             # Angular velocity dynamics
-            p_dot = (torque[0] - (self.Iyy - self.Izz) * q * r) / self.Ixx
-            q_dot = (torque[1] - (self.Izz - self.Ixx) * p * r) / self.Iyy
-            r_dot = (torque[2] - (self.Ixx - self.Iyy) * p * q) / self.Izz
+            p_dot = (torque[:, 0] - (self.Iyy - self.Izz) * q * r) / self.Ixx
+            q_dot = (torque[:, 1] - (self.Izz - self.Ixx) * p * r) / self.Iyy
+            r_dot = (torque[:, 2] - (self.Ixx - self.Iyy) * p * q) / self.Izz
 
             return torch.stack(
                 (
