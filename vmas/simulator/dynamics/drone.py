@@ -51,7 +51,7 @@ class Drone(Dynamics):
         return 4
 
     def process_action(self):
-        # Extracts the velocity and steering angle from the agent's actions and convert them to physical force and torque
+      
         u = self.agent.action.u
         thrust = u[:, 0]  # Thrust, sum of all propeller thrusts
         torque = u[:, 1:4]  # Torque in x, y, z direction
