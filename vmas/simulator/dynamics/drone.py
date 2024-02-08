@@ -27,13 +27,19 @@ class Drone(Dynamics):
         self.I_zz = I_zz
         self.world = world
         self.g = 9.81
-        # Drone state: phi(roll), theta (pitch), psi (yaw),
-        #              p (roll_rate), q (pitch_rate), r (yaw_rate),
-        #              x_dot (vel_x), y_dot (vel_y), z_dot (vel_z),
-        #              x (pos_x), y (pos_y), z (pos_z)
-        self.drone_state = torch.tensor(
-            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], device=world.device
-        ).unsqueeze(0).expand(world.batch_dim, 12)
+        self.reset()
+        
+    def reset(self, index: Union[Tensor, int] = None):
+        if index is None:
+            # Drone state: phi(roll), theta (pitch), psi (yaw),
+            #              p (roll_rate), q (pitch_rate), r (yaw_rate),
+            #              x_dot (vel_x), y_dot (vel_y), z_dot (vel_z),
+            #              x (pos_x), y (pos_y), z (pos_z)
+            self.drone_state = torch.tensor(
+                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], device=self.world.device
+            ).unsqueeze(0).repeat(self.world.batch_dim, 1)
+        else:
+            self.drone_state[index] = 0.0
 
     def euler(self, f, state):
         return state + self.dt * f(state)
