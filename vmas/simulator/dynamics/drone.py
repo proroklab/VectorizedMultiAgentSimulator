@@ -1,6 +1,7 @@
 from typing import Union
 
 import torch
+from torch import Tensor
 import vmas.simulator.core
 import vmas.simulator.utils
 from vmas.simulator.dynamics.common import Dynamics
@@ -64,9 +65,9 @@ class Drone(Dynamics):
         vmas_state = torch.cat(
             (self.agent.state.pos, self.agent.state.rot), dim=1
         )  # (x,y,rotation)
-        self.drone_state[9] = vmas_state[:, 0]  # x
-        self.drone_state[10] = vmas_state[:, 1]  # y
-        self.drone_state[2] = vmas_state[:, 2]  # psi (yaw)
+        self.drone_state[:, 9] = vmas_state[:, 0]  # x
+        self.drone_state[:, 10] = vmas_state[:, 1]  # y
+        self.drone_state[:, 2] = vmas_state[:, 2]  # psi (yaw)
 
         def f(state):
             phi, theta, psi, p, q, r, x_dot, y_dot, z_dot, x, y, z = state
