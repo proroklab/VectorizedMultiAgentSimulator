@@ -62,12 +62,9 @@ class Drone(Dynamics):
 
         thrust += self.agent.mass * self.g  # Ensure the drone is not falling
 
-        vmas_state = torch.cat(
-            (self.agent.state.pos, self.agent.state.rot), dim=1
-        )  # (x,y,rotation)
-        self.drone_state[:, 9] = vmas_state[:, 0]  # x
-        self.drone_state[:, 10] = vmas_state[:, 1]  # y
-        self.drone_state[:, 2] = vmas_state[:, 2]  # psi (yaw)
+        self.drone_state[:, 9] = self.agent.state.pos[:, 0]  # x
+        self.drone_state[:, 10] = self.agent.state.pos[:, 1]  # y
+        self.drone_state[:, 2] = self.agent.state.rot[:, 0]  # psi (yaw)
 
         def f(state):
             phi, theta, psi, p, q, r, x_dot, y_dot, z_dot, x, y, z = state
