@@ -43,7 +43,7 @@ class Scenario(BaseScenario):
         self.min_collision_distance = 0.005
 
         self.distance_between_goals = torch.nn.Parameter(
-            torch.tensor([1.0], device=device)
+            torch.tensor([0.0], device=device)
         )
 
         assert 1 <= self.agents_with_same_goal <= self.n_agents
@@ -152,8 +152,8 @@ class Scenario(BaseScenario):
         mid_position = torch.stack(goal_poses, dim=-1).mean(-1)
         for i in range(len(self.world.agents)):
             goal_poses[i] = (
-                1 - self.distance_between_goals
-            ) * mid_position + self.distance_between_goals * goal_poses[i]
+                1 - self.distance_between_goals.sigmoid()
+            ) * mid_position + self.distance_between_goals.sigmoid() * goal_poses[i]
 
         for i, agent in enumerate(self.world.agents):
             if self.split_goals:
@@ -213,11 +213,8 @@ class Scenario(BaseScenario):
         return pos_reward + self.final_rew + agent.agent_collision_rew
 
     def agent_reward(self, agent: Agent):
-        midpoint = torch.stack(
-            [agent.goal.state.pos for agent in self.world.agents], dim=-1
-        ).mean(-1)
         agent.distance_to_goal = torch.linalg.vector_norm(
-            agent.state.pos - midpoint,
+            agent.state.pos - agent.goal.state.pos,
             dim=-1,
         )
         agent.on_goal = agent.distance_to_goal < agent.goal.shape.radius

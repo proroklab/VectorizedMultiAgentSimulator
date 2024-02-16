@@ -60,6 +60,7 @@ if __name__ == "__main__":
         collisions=False,
         shared_rew=True,
         grad_enabled=True,
+        observe_all_goals=True,
     )
 
     init_time = time.time()
@@ -68,9 +69,9 @@ if __name__ == "__main__":
 
     optim = torch.optim.Adam([env.scenario.distance_between_goals], 0.1)
 
-    while (env.scenario.distance_between_goals > 0.0001).any():
+    while (env.scenario.distance_between_goals < 0.99).any():
         rew_sum = torch.zeros(num_envs, device=device)
-        print(env.scenario.distance_between_goals)
+        print(env.scenario.distance_between_goals.sigmoid())
         obs = env.reset()
         for s in range(n_steps):
             step += 1
