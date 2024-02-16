@@ -31,8 +31,8 @@ class InteractiveEnv:
 
     You can change agent by pressing TAB
     You can reset the environment by pressing R
-    You can move agents with the arrow keys and if the agent has a rotational action you can control it with M, N
-    If you have more than 1 agent, you can control another one with W,A,S,D and Q,E for eventual rotational actions
+    You can control agent actions with the arrow keys and M/N (left/right control the first action, up/down control the second, M/N controls the third)
+    If you have more than 1 agent, you can control another one with W,A,S,D and Q,E in the same way.
     and switch the agent with these controls using LSHIFT
     """
 
@@ -305,8 +305,8 @@ def render_interactively(
 
     You can change agent by pressing TAB
     You can reset the environment by pressing R
-    You can move agents with the arrow keys and if the agent has a rotational action you can control it with M, N
-    If you have more than 1 agent, you can control another one with W,A,S,D and Q,E for eventual rotational actions
+    You can control agent actions with the arrow keys and M/N (left/right control the first action, up/down control the second, M/N controls the third)
+    If you have more than 1 agent, you can control another one with W,A,S,D and Q,E in the same way.
     and switch the agent with these controls using LSHIFT
     """
 
@@ -333,8 +333,8 @@ if __name__ == "__main__":
     #
     # You can change agent by pressing TAB
     # You can reset the environment by pressing R
-    # You can move agents with the arrow keys and if the agent has a rotational action you can control it with M, N
-    # If you have more than 1 agent, you can control another one with W,A,S,D and Q,E for eventual rotational actions
+    # You can control agent actions with the arrow keys and M/N (left/right control the first action, up/down control the second, M/N controls the third)
+    # If you have more than 1 agent, you can control another one with W,A,S,D and Q,E in the same way.
     # and switch the agent with these controls using LSHIFT
 
     scenario_name = "waterfall"

@@ -21,7 +21,9 @@ class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         """
         Drone example scenario
-        Run this file to try it out
+        Run this file to try it out.
+
+        You can control the three input torques using left/right arrows, up/down arrows, and m/n.
         """
         self.plot_grid = True
         self.n_agents = kwargs.get("n_agents", 2)
