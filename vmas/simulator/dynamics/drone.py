@@ -22,12 +22,14 @@ class Drone(Dynamics):
             "rk4",
             "euler",
         )
-
+        
+        self.integration = integration
         self.I_xx = I_xx
         self.I_yy = I_yy
         self.I_zz = I_zz
         self.world = world
         self.g = 9.81
+        self.dt = world.dt
         self.reset()
         
     def reset(self, index: Union[Tensor, int] = None):
@@ -67,7 +69,7 @@ class Drone(Dynamics):
         self.drone_state[:, 2] = self.agent.state.rot[:, 0]  # psi (yaw)
 
         def f(state):
-            phi, theta, psi, p, q, r, x_dot, y_dot, z_dot, x, y, z = state
+            phi, theta, psi, p, q, r, x_dot, y_dot, z_dot, x, y, z = state[0, :]
 
             c_phi = torch.cos(phi)
             s_phi = torch.sin(phi)
@@ -81,27 +83,30 @@ class Drone(Dynamics):
             y_ddot = (c_phi * s_theta * s_psi - s_phi * c_psi) * thrust / self.agent.mass
             z_ddot = (c_phi * c_theta) * thrust / self.agent.mass - self.g
             # Angular velocity dynamics
-            p_dot = (torque[:, 0] - (self.Iyy - self.Izz) * q * r) / self.Ixx
-            q_dot = (torque[:, 1] - (self.Izz - self.Ixx) * p * r) / self.Iyy
-            r_dot = (torque[:, 2] - (self.Ixx - self.Iyy) * p * q) / self.Izz
+            p_dot = (torque[:, 0] - (self.I_yy - self.I_zz) * q * r) / self.I_xx
+            q_dot = (torque[:, 1] - (self.I_zz - self.I_xx) * p * r) / self.I_yy
+            r_dot = (torque[:, 2] - (self.I_xx - self.I_yy) * p * q) / self.I_zz
+
+            variables_to_unsqueeze = [
+                p,
+                q,
+                r,
+                x_ddot,
+                y_ddot,
+                z_ddot,
+                x_dot,
+                y_dot,
+                z_dot,
+            ]
+            unsqueezed_variables = [var.unsqueeze(0) for var in variables_to_unsqueeze]
 
             return torch.stack(
-                (
-                    p,
-                    q,
-                    r,
-                    p_dot,
-                    q_dot,
-                    r_dot,
-                    x_ddot,
-                    y_ddot,
-                    z_ddot,
-                    x_dot,
-                    y_dot,
-                    z_dot,
-                ),
+                unsqueezed_variables[:3]
+                + [p_dot, q_dot, r_dot]
+                + unsqueezed_variables[3:],
                 dim=-1,
             )
+            
 
         if self.integration == "euler":
             new_drone_state = self.euler(f, self.drone_state)
@@ -110,20 +115,21 @@ class Drone(Dynamics):
 
         # Calculate the change in state
         delta_state = new_drone_state - self.drone_state
+        self.drone_state[: ,] = new_drone_state
 
         # Calculate the accelerations required to achieve the change in state
-        acceleration_x = delta_state[:, 9] / self.dt
-        acceleration_y = delta_state[:, 10] / self.dt
-        angular_acceleration = delta_state[:, 2] / self.dt
+        acceleration_x = delta_state[:, 6] / self.dt
+        acceleration_y = delta_state[:, 7] / self.dt
+        angular_acceleration = delta_state[:, 5] / self.dt
 
         # Calculate the forces required for the linear accelerations
         force_x = self.agent.mass * acceleration_x
         force_y = self.agent.mass * acceleration_y
 
         # Calculate the torque required for the angular acceleration
-        torque = self.agent.moment_of_inertia * angular_acceleration
+        torque_yaw = self.agent.moment_of_inertia * angular_acceleration
 
         # Update the physical force and torque required for the user inputs
         self.agent.state.force[:, vmas.simulator.utils.X] = force_x
         self.agent.state.force[:, vmas.simulator.utils.Y] = force_y
-        self.agent.state.torque = torque.unsqueeze(-1)
+        self.agent.state.torque = torque_yaw.unsqueeze(-1)
