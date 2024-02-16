@@ -218,6 +218,12 @@ class TorchUtils:
             for val in value:
                 TorchUtils.recursive_require_grad_(val)
 
+    @staticmethod
+    def where_from_index(env_index, new_value, old_value):
+        mask = torch.zeros_like(old_value, dtype=torch.bool, device=old_value.device)
+        mask[env_index] = True
+        return torch.where(mask, new_value, old_value)
+
 
 class ScenarioUtils:
     @staticmethod

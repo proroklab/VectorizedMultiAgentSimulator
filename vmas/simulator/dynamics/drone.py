@@ -49,7 +49,12 @@ class Drone(Dynamics):
                 device=self.world.device,
             )
         else:
-            self.drone_state[index] = 0.0
+            self.drone_state = vmas.TorchUtils.where_from_index(
+                index, 0.0, self.drone_state
+            )
+
+    def zero_grad(self):
+        self.drone_state = self.drone_state.detach()
 
     def needs_reset(self) -> Tensor:
         # Constraint roll and pitch within +-30 degrees

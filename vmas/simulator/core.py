@@ -282,12 +282,21 @@ class EntityState(TorchVectorizedObject):
         self._rot = rot.to(self._device)
 
     def _reset(self, env_index: typing.Optional[int]):
-        for attr in [self.pos, self.rot, self.vel, self.ang_vel]:
+        for attr_name in ["pos", "rot", "vel", "ang_vel"]:
+            attr = self.__getattribute__(attr_name)
             if attr is not None:
                 if env_index is None:
-                    attr[:] = 0.0
+                    self.__setattr__(attr_name, torch.zeros_like(attr))
                 else:
-                    attr[env_index] = 0.0
+                    self.__setattr__(
+                        attr_name, TorchUtils.where_from_index(env_index, 0, attr)
+                    )
+
+    def zero_grad(self):
+        for attr_name in ["pos", "rot", "vel", "ang_vel"]:
+            attr = self.__getattribute__(attr_name)
+            if attr is not None:
+                self.__setattr__(attr_name, attr.detach())
 
     def _spawn(self, dim_c: int, dim_p: int):
         self.pos = torch.zeros(
@@ -363,13 +372,24 @@ class AgentState(EntityState):
 
     @override(EntityState)
     def _reset(self, env_index: typing.Optional[int]):
-        for attr in [self.c, self.force, self.torque]:
+        for attr_name in ["c", "force", "torque"]:
+            attr = self.__getattribute__(attr_name)
             if attr is not None:
                 if env_index is None:
-                    attr[:] = 0.0
+                    self.__setattr__(attr_name, torch.zeros_like(attr))
                 else:
-                    attr[env_index] = 0.0
+                    self.__setattr__(
+                        attr_name, TorchUtils.where_from_index(env_index, 0, attr)
+                    )
         super()._reset(env_index)
+
+    @override(EntityState)
+    def zero_grad(self):
+        for attr_name in ["c", "force", "torque"]:
+            attr = self.__getattribute__(attr_name)
+            if attr is not None:
+                self.__setattr__(attr_name, attr.detach())
+        super().zero_grad()
 
     @override(EntityState)
     def _spawn(self, dim_c: int, dim_p: int):
@@ -492,12 +512,21 @@ class Action(TorchVectorizedObject):
         )
 
     def _reset(self, env_index: typing.Optional[int]):
-        for attr in [self.u, self.c]:
+        for attr_name in ["u", "c"]:
+            attr = self.__getattribute__(attr_name)
             if attr is not None:
                 if env_index is None:
-                    attr[:] = 0.0
+                    self.__setattr__(attr_name, torch.zeros_like(attr))
                 else:
-                    attr[env_index] = 0.0
+                    self.__setattr__(
+                        attr_name, TorchUtils.where_from_index(env_index, 0, attr)
+                    )
+
+    def zero_grad(self):
+        for attr_name in ["u", "c"]:
+            attr = self.__getattribute__(attr_name)
+            if attr is not None:
+                self.__setattr__(attr_name, attr.detach())
 
 
 # properties and state of physical world entity
@@ -689,6 +718,9 @@ class Entity(TorchVectorizedObject, Observable, ABC):
 
     def _reset(self, env_index: int):
         self.state._reset(env_index)
+
+    def zero_grad(self):
+        self.state.zero_grad()
 
     def set_pos(self, pos: Tensor, batch_index: int):
         self._set_state_property(EntityState.pos, self.state, pos, batch_index)
@@ -988,6 +1020,11 @@ class Agent(Entity):
         self.dynamics.reset(env_index)
         super()._reset(env_index)
 
+    def zero_grad(self):
+        self.action.zero_grad()
+        self.dynamics.zero_grad()
+        super().zero_grad()
+
     @override(Entity)
     def to(self, device: torch.device):
         super().to(device)
@@ -1111,6 +1148,10 @@ class World(TorchVectorizedObject):
     def reset(self, env_index: int):
         for e in self.entities:
             e._reset(env_index)
+
+    def zero_grad(self):
+        for e in self.entities:
+            e.zero_grad()
 
     @property
     def agents(self) -> List[Agent]:
