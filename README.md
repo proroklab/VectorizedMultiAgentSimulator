@@ -246,7 +246,7 @@ customizable. Examples are: drag, friction, gravity, simulation timestep, non-di
 - **Agent actions**: Agents' physical actions are 2D forces for holonomic motion. Agent rotation can also be controlled through a torque action (activated by setting `agent.action.u_rot_range` at agent creation time). Agents can also be equipped with continuous or discrete communication actions.
 - **Action preprocessing**: By implementing the `process_action` function of a scenario, you can modify the agents' actions before they are passed to the simulator. This is used in `controllers` (where we provide different types of controllers to use) and `dynamics` (where we provide custom robot dynamic models).
 - **Controllers**: Controllers are components that can be appended to the neural network policy or replace it completely.  We provide a `VelocityController` which can be used to treat input actions as velocities (instead of default vmas input forces). This PID controller takes velocities and outputs the forces which are fed to the simulator. See the `vel_control` debug scenario for an example.
-- **Dynamic models**: VMAS simulates holonomic dynamics models by default. Custom dynamics can be chosen at agent creation time. Implementations now include `DiffDriveDynamics` for differential drive robots and `KinematicBicycleDynamics` for kinematic bicycle model. See `diff_drive` and `kinematic_bicycle` debug scenarios for examples.
+- **Dynamic models**: VMAS simulates holonomic dynamics models by default. Custom dynamics can be chosen at agent creation time. Implementations now include `DiffDriveDynamics` for differential drive robots, `KinematicBicycleDynamics` for kinematic bicycle model, and `Drone` for quadcopter dynamics. See `diff_drive`, `kinematic_bicycle` and `drone` debug scenarios for examples.
 - **Differentiable**: By setting `grad_enabled=True` when creating an environment, the simulator will be differentiable, allowing gradients flowing through any of its function.
 
 ## Creating a new scenario
@@ -380,6 +380,7 @@ To create a fake screen you need to have `Xvfb` installed.
 | `circle_trajectory.py` | One agent is rewarded to move in a circle trajectory at the `desired_radius`.                                                                                                                                                                                                                                                                                                           | <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/circle_trajectory.gif?raw=true" alt="drawing" width="300"/> |
 | `diff_drive.py`        | An example of the `diff_drive` dynamic model constraint. Both agents have rotational actions which can be controlled interactively.  The first agent has differential drive dynamics. The second agent has standard vmas holonomic dynamics.                                                                                                                                            | <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/diff_drive.gif?raw=true" alt="drawing" width="300"/>        |
 | `kinematic_bicycle.py` | An example of `kinematic_bicycle` dynamic model constraint. Both agents have rotational actions which can be controlled interactively.  The first agent has kinematic bicycle model dynamics. The second agent has standard vmas holonomic dynamics.                                                                                                                                    | <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/kinematic_bicycle.gif?raw=true" alt="drawing" width="300"/> |
+| `drone.py`             | An example of the `drone` dynamic model.                                                                                                                                                                                                                                                                                                                                                | <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/drone.gif?raw=true" alt="drawing" width="300"/>             |
 
 ### [MPE](https://github.com/openai/multiagent-particle-envs)
 
@@ -408,7 +409,7 @@ To create a fake screen you need to have `Xvfb` installed.
 - [ ] Improve test efficiency and add new tests
 - [ ] Implement 1D camera sensor
 - [ ] Implement 2D birds eye view camera sensor
-- [ ] Implement 2D drone dynamics
+- [X] Implement 2D drone dynamics
 - [X] Allow any number of actions
 - [X] Improve VMAS performance
 - [X] Dict obs support in torchrl
