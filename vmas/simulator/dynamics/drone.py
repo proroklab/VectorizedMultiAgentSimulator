@@ -1,7 +1,12 @@
+#  Copyright (c) 2024.
+#  ProrokLab (https://www.proroklab.org/)
+#  All rights reserved.
+
 from typing import Union
 
 import torch
 from torch import Tensor
+
 import vmas.simulator.core
 import vmas.simulator.utils
 from vmas.simulator.dynamics.common import Dynamics
@@ -22,7 +27,7 @@ class Drone(Dynamics):
             "rk4",
             "euler",
         )
-        
+
         self.integration = integration
         self.I_xx = I_xx
         self.I_yy = I_yy
@@ -31,25 +36,24 @@ class Drone(Dynamics):
         self.g = 9.81
         self.dt = world.dt
         self.reset()
-        
+
     def reset(self, index: Union[Tensor, int] = None):
         if index is None:
             # Drone state: phi(roll), theta (pitch), psi (yaw),
             #              p (roll_rate), q (pitch_rate), r (yaw_rate),
             #              x_dot (vel_x), y_dot (vel_y), z_dot (vel_z),
             #              x (pos_x), y (pos_y), z (pos_z)
-            self.drone_state = torch.tensor(
-                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], device=self.world.device
-            ).unsqueeze(0).repeat(self.world.batch_dim, 1)
+            self.drone_state = torch.zeros(
+                self.world.batch_dim,
+                12,
+                device=self.world.device,
+            )
         else:
             self.drone_state[index] = 0.0
-            
-    def need_reset(self) -> bool:
-        # Constraint roll and pitch within +-30 degrees
-        if torch.any(torch.abs(self.drone_state[:, 0:2]) > 30 * (torch.pi / 180)):
-            return True
 
-        return False
+    def needs_reset(self) -> Tensor:
+        # Constraint roll and pitch within +-30 degrees
+        return torch.any(self.drone_state[:, :2].abs() > 30 * (torch.pi / 180), dim=-1)
 
     def euler(self, f, state):
         return state + self.dt * f(state)
@@ -61,6 +65,7 @@ class Drone(Dynamics):
         k4 = f(state + self.dt * k3)
         return state + (self.dt / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
 
+    @property
     def needed_action_size(self) -> int:
         return 4
 
@@ -94,8 +99,12 @@ class Drone(Dynamics):
             s_psi = torch.sin(psi)
 
             # Postion Dynamics
-            x_ddot = (c_phi * s_theta * c_psi + s_phi * s_psi) * thrust / self.agent.mass
-            y_ddot = (c_phi * s_theta * s_psi - s_phi * c_psi) * thrust / self.agent.mass
+            x_ddot = (
+                (c_phi * s_theta * c_psi + s_phi * s_psi) * thrust / self.agent.mass
+            )
+            y_ddot = (
+                (c_phi * s_theta * s_psi - s_phi * c_psi) * thrust / self.agent.mass
+            )
             z_ddot = (c_phi * c_theta) * thrust / self.agent.mass - self.g
             # Angular velocity dynamics
             p_dot = (torque[:, 0] - (self.I_yy - self.I_zz) * q * r) / self.I_xx
@@ -119,7 +128,6 @@ class Drone(Dynamics):
                 ],
                 dim=-1,
             )
-            
 
         if self.integration == "euler":
             new_drone_state = self.euler(f, self.drone_state)
@@ -128,7 +136,7 @@ class Drone(Dynamics):
 
         # Calculate the change in state
         delta_state = new_drone_state - self.drone_state
-        self.drone_state[: ,] = new_drone_state
+        self.drone_state = new_drone_state
 
         # Calculate the accelerations required to achieve the change in state
         acceleration_x = delta_state[:, 6] / self.dt

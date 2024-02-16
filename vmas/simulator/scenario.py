@@ -65,7 +65,7 @@ class BaseScenario(ABC):
             agent.action_callback(self.world)
         # Customizable action processor
         self.process_action(agent)
-        agent.dynamics.process_action()
+        agent.dynamics.check_and_process_action()
 
     @abstractmethod
     def make_world(self, batch_dim: int, device: torch.device, **kwargs) -> World:
