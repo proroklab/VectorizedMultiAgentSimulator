@@ -76,7 +76,15 @@ class Drone(Dynamics):
         self.drone_state[:, 2] = self.agent.state.rot[:, 0]  # psi (yaw)
 
         def f(state):
-            phi, theta, psi, p, q, r, x_dot, y_dot, z_dot, x, y, z = state[0, :]
+            phi = state[:, 0]
+            theta = state[:, 1]
+            psi = state[:, 2]
+            p = state[:, 3]
+            q = state[:, 4]
+            r = state[:, 5]
+            x_dot = state[:, 6]
+            y_dot = state[:, 7]
+            z_dot = state[:, 8]
 
             c_phi = torch.cos(phi)
             s_phi = torch.sin(phi)
@@ -94,23 +102,21 @@ class Drone(Dynamics):
             q_dot = (torque[:, 1] - (self.I_zz - self.I_xx) * p * r) / self.I_yy
             r_dot = (torque[:, 2] - (self.I_xx - self.I_yy) * p * q) / self.I_zz
 
-            variables_to_unsqueeze = [
-                p,
-                q,
-                r,
-                x_ddot,
-                y_ddot,
-                z_ddot,
-                x_dot,
-                y_dot,
-                z_dot,
-            ]
-            unsqueezed_variables = [var.unsqueeze(0) for var in variables_to_unsqueeze]
-
             return torch.stack(
-                unsqueezed_variables[:3]
-                + [p_dot, q_dot, r_dot]
-                + unsqueezed_variables[3:],
+                [
+                    p,
+                    q,
+                    r,
+                    p_dot,
+                    q_dot,
+                    r_dot,
+                    x_ddot,
+                    y_ddot,
+                    z_ddot,
+                    x_dot,
+                    y_dot,
+                    z_dot,
+                ],
                 dim=-1,
             )
             
