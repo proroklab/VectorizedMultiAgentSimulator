@@ -43,6 +43,13 @@ class Drone(Dynamics):
             ).unsqueeze(0).repeat(self.world.batch_dim, 1)
         else:
             self.drone_state[index] = 0.0
+            
+    def need_reset(self) -> bool:
+        # Constraint roll and pitch within +-30 degrees
+        if torch.any(torch.abs(self.drone_state[:, 0:2]) > 30 * (torch.pi / 180)):
+            return True
+
+        return False
 
     def euler(self, f, state):
         return state + self.dt * f(state)
