@@ -43,7 +43,7 @@ class Scenario(BaseScenario):
         self.min_collision_distance = 0.005
 
         self.distance_between_goals = torch.nn.Parameter(
-            torch.tensor([0.0], device=device)
+            torch.tensor([-1_000_000.0], device=device)
         )
 
         assert 1 <= self.agents_with_same_goal <= self.n_agents
@@ -245,18 +245,18 @@ class Scenario(BaseScenario):
             dim=-1,
         )
 
-    def done(self):
-        return torch.stack(
-            [
-                torch.linalg.vector_norm(
-                    agent.state.pos - agent.goal.state.pos,
-                    dim=-1,
-                )
-                < agent.shape.radius
-                for agent in self.world.agents
-            ],
-            dim=-1,
-        ).all(-1)
+    # def done(self):
+    #     return torch.stack(
+    #         [
+    #             torch.linalg.vector_norm(
+    #                 agent.state.pos - agent.goal.state.pos,
+    #                 dim=-1,
+    #             )
+    #             < agent.shape.radius
+    #             for agent in self.world.agents
+    #         ],
+    #         dim=-1,
+    #     ).all(-1)
 
     def info(self, agent: Agent) -> Dict[str, Tensor]:
         return {
