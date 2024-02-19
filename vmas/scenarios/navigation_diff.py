@@ -6,7 +6,6 @@ from typing import Dict, Callable, List
 
 import torch
 from torch import Tensor
-
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, World, Sphere, Entity
 from vmas.simulator.heuristic_policy import BaseHeuristicPolicy
