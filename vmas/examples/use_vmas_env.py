@@ -152,7 +152,7 @@ def use_vmas_env(
 
 if __name__ == "__main__":
     use_vmas_env(
-        scenario_name="waterfall",
+        scenario_name="navigation",
         render=True,
         save_render=False,
         random_action=False,

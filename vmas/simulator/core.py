@@ -538,7 +538,7 @@ class Entity(TorchVectorizedObject, Observable, ABC):
         rotatable: bool = False,
         collide: bool = True,
         density: float = 25.0,  # Unused for now
-        mass: float = 1.0,
+        mass: Union[float, Tensor] = 1.0,
         shape: Shape = Sphere(),
         v_range: float = None,
         max_speed: float = None,
@@ -787,7 +787,7 @@ class Landmark(Entity):
         rotatable: bool = False,
         collide: bool = True,
         density: float = 25.0,  # Unused for now
-        mass: float = 1.0,
+        mass: Union[float, Tensor] = 1.0,
         v_range: float = None,
         max_speed: float = None,
         color=Color.GRAY,
@@ -828,7 +828,7 @@ class Agent(Entity):
         rotatable: bool = True,
         collide: bool = True,
         density: float = 25.0,  # Unused for now
-        mass: float = 1.0,
+        mass: Union[float, Tensor] = 1.0,
         f_range: float = None,
         max_f: float = None,
         t_range: float = None,
