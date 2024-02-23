@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -18,6 +18,8 @@ __all__ = [
     "debug_scenarios",
     "mpe_scenarios",
 ]
+
+__version__ = "1.4.0"
 
 scenarios = sorted(
     [

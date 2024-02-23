@@ -15,6 +15,7 @@ import vmas
 project = "VMAS"
 copyright = "ProrokLab"
 author = "Matteo Bettini"
+version = vmas.__version__
 
 
 # -- General configuration
