@@ -6,9 +6,8 @@ from typing import Dict, List
 
 import torch
 from torch.nn import Sequential, Tanh, Linear
-
 from vmas import render_interactively
-from vmas.simulator.core import Agent, World, Sphere
+from vmas.simulator.core import Agent, World, Sphere, Landmark
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.sensors import Lidar
 from vmas.simulator.utils import ScenarioUtils
@@ -20,7 +19,7 @@ if typing.TYPE_CHECKING:
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.plot_grid = True
-        self.n_agents = kwargs.get("n_agents", 4)
+        self.n_agents = kwargs.get("n_agents", 2)
         self.collisions = kwargs.get("collisions", False)
 
         self.lidar_range = kwargs.get("lidar_range", 0.35)
@@ -30,12 +29,12 @@ class Scenario(BaseScenario):
         self.world_semidim = 1
         self.n_lidar_rays = 12
 
-        self.obs_size = (
-            4 + (self.n_lidar_rays if self.collisions else 0) + 4 * (self.n_agents - 1)
-        )
-
         self.reward_function = Sequential(
-            Linear(self.obs_size, 256), Tanh(), Linear(256, 256), Tanh(), Linear(256, 1)
+            Linear(6, 256),
+            Tanh(),
+            Linear(256, 256),
+            Tanh(),
+            Linear(256, 1),
         ).to(device)
 
         # Make world
@@ -81,6 +80,13 @@ class Scenario(BaseScenario):
             )
             world.add_agent(agent)
 
+            # Add goals
+            goal = Landmark(
+                name=f"goal_{i}",
+                collide=False,
+            )
+            world.add_landmark(goal)
+
         return world
 
     def parameters(self) -> List:
@@ -91,7 +97,7 @@ class Scenario(BaseScenario):
 
     def reset_world_at(self, env_index: int = None):
         ScenarioUtils.spawn_entities_randomly(
-            self.world.agents,
+            self.world.agents + self.world.landmarks,
             self.world,
             env_index,
             self.min_distance_between_entities,
@@ -103,25 +109,17 @@ class Scenario(BaseScenario):
         return self.reward_function(self.observation(agent))
 
     def observation(self, agent: Agent):
-        rel_positions = [
-            agent.state.pos - a.state.pos for a in self.world.agents if a != agent
-        ]
-        rel_velocities = [
-            agent.state.vel - a.state.vel for a in self.world.agents if a != agent
-        ]
+        obs = self.obs_from_pos(agent.state.pos)
+
+        return obs
+
+    def obs_from_pos(self, pos, env_index=None):
+        rel_pos_to_landmarks = []
+        for l in self.world.landmarks:
+            rel_pos_to_landmarks.append(pos - l.state.pos)
 
         return torch.cat(
-            [
-                agent.state.pos,
-                agent.state.vel,
-            ]
-            + rel_positions
-            + rel_velocities
-            + (
-                [agent.sensors[0]._max_range - agent.sensors[0].measure()]
-                if self.collisions
-                else []
-            ),
+            [pos] + rel_pos_to_landmarks,
             dim=-1,
         )
 
