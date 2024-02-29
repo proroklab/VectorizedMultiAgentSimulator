@@ -74,14 +74,18 @@ class BaseScenario(ABC):
     @abstractmethod
     def make_world(self, batch_dim: int, device: torch.device, **kwargs) -> World:
         """
-        This function needs to be implemented when creating a scenario
-        In this function the user should instantiate the world and insert agents and landmarks in it
+        This function needs to be implemented when creating a scenario.
+        In this function the user should instantiate the world and insert agents and landmarks in it.
 
         Args:
-        :param batch_dim: the number of environments to step parallely
-        :param device: the torch device to use
-        :param kwargs: named arguments passed during environment creation
-        :return world: returns the instantiated world which is automatically set in 'self.world'
+            batch_dim (int): the number of vecotrized environments.
+            device (Union[str, int, torch.device], optional): the device of the environmemnt.
+            kwargs (dict, optional): named arguments passed from environment creation
+
+        Returns:
+            :class:`~vmas.simulator.core.World` : the :class:`~vmas.simulator.core.World`
+            instance which is automatically set in :class:'~world'.
+
         Examples:
             >>> from vmas.simulator.core import Agent, World, Landmark, Sphere, Box
             >>> from vmas.simulator.scenario import BaseScenario

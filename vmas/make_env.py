@@ -34,24 +34,36 @@ def make_env(
         num_envs (int): Number of vectorized simulation environments. VMAS performs vectorized simulations using PyTorch.
             This argument indicates the number of vectorized environments that should be simulated in a batch. It will also
             determine the batch size of the environment.
-        device (Union[str, int, torch.device]): Device for simulation. All the tensors created by VMAS
-            will be placed on this device. Default is ``"cpu""``,
-        continuous_actions (bool): Whether to use continuous actions. Defaults to ``True``. If ``False``, actions
+        device (Union[str, int, torch.device], optional): Device for simulation. All the tensors created by VMAS
+            will be placed on this device. Default is ``"cpu"``,
+        continuous_actions (bool, optional): Whether to use continuous actions. If ``False``, actions
             will be discrete. The number of actions and their size will depend on the chosen scenario. Default is ``True``,
-        wrapper (:class:`~vmas.simulator.environment.Wrapper`, optional): Wrapper class to use. For example can be Wrapper.RLLIB. Default is ``None``.
+        wrapper (:class:`~vmas.simulator.environment.Wrapper`, optional): Wrapper class to use. For example can be Wrapper.RLLIB.
+            Default is ``None``,
         max_steps (int, optional): Horizon of the task. Defaults to ``None`` (infinite horizon). Each VMAS scenario can
             be terminating or not. If ``max_steps`` is specified,
-            the scenario is also terminated whenever this horizon is reached.
-        seed: seed
-        dict_spaces:  Weather to use dictionary i/o spaces with format {agent_name: tensor}
-            for obs, rewards, and info instead of tuples.
-        multidiscrete_actions (bool): Whether to use multidiscrete_actions action spaces when continuous_actions=False.
-            Otherwise, (default) the action space will be Discrete, and it will be the cartesian product of the
-            action spaces of an agent.
-        clamp_actions: Weather to clamp input actions to the range instead of throwing
-            an error when continuous_actions is True and actions are out of bounds
-        grad_enabled: (bool): Whether the simulator will keep track of gradients in the output. Default is ``False``.
-        **kwargs ()
+            the scenario is also terminated whenever this horizon is reached,
+        seed (int, optional): Seed for the environment. Defaults to ``None``,
+        dict_spaces (bool, optional):  Weather to use dictionaries spaces with format ``{"agent_name": tensor, ...}``
+            for obs, rewards, and info instead of tuples. Defaults to ``False``: obs, rewards, info are tuples with length number of agents,
+        multidiscrete_actions (bool, optional): Whether to use multidiscrete action spaces when ``continuous_actions=False``.
+            Default is ``False``: the action space will be ``Discrete``, and it will be the cartesian product of the
+            discrete action spaces available to an agent,
+        clamp_actions (bool, optional): Weather to clamp input actions to their range instead of throwing
+            an error when ``continuous_actions==True`` and actions are out of bounds,
+        grad_enabled (bool, optional): If ``True`` the simulator will not call ``detach()`` on input actions and gradients can
+            be taken from the simulator output. Default is ``False``.
+        **kwargs (dict, optional): Keyword arguments to pass to the :class:`~vmas.simulator.scenario.BaseScenario` class.
+
+    Examples:
+        >>> from vmas import make_env
+        >>> env = make_env(
+        ...     "waterfall",
+        ...     num_envs=3,
+        ...     num_agents=2,
+        ... )
+        >>> print(env.reset())
+
 
     """
 
