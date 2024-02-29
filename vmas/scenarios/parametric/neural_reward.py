@@ -106,17 +106,17 @@ class Scenario(BaseScenario):
         )
 
     def reward(self, agent: Agent):
-        return self.reward_function(self.observation(agent))
+        return self.reward_function(self.observation(agent)).tanh()
 
     def observation(self, agent: Agent):
         obs = self.obs_from_pos(agent.state.pos)
 
         return obs
 
-    def obs_from_pos(self, pos, env_index=None):
+    def obs_from_pos(self, pos, env_index=Ellipsis):
         rel_pos_to_landmarks = []
         for l in self.world.landmarks:
-            rel_pos_to_landmarks.append(pos - l.state.pos)
+            rel_pos_to_landmarks.append(pos - l.state.pos[env_index])
 
         return torch.cat(
             [pos] + rel_pos_to_landmarks,
