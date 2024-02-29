@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import typing
@@ -7,10 +7,10 @@ from typing import List
 import torch
 
 from vmas import render_interactively
-from vmas.simulator.core import Agent, World, Landmark, Sphere, Line, Box
+from vmas.simulator.controllers.velocity_controller import VelocityController
+from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color, TorchUtils
-from vmas.simulator.controllers.velocity_controller import VelocityController
 
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
@@ -68,9 +68,11 @@ class Scenario(BaseScenario):
                 name=f"agent_{i}",
                 rotatable=False,
                 linear_friction=self.linear_friction,
-                shape=Sphere(radius=self.agent_radius)
-                if not self.box_agents
-                else Box(length=self.agent_box_length, width=self.agent_box_width),
+                shape=(
+                    Sphere(radius=self.agent_radius)
+                    if not self.box_agents
+                    else Box(length=self.agent_box_length, width=self.agent_box_width)
+                ),
                 u_range=self.u_range,
                 f_range=self.f_range,
                 render_action=True,
@@ -153,7 +155,7 @@ class Scenario(BaseScenario):
                     batch_index=env_index,
                 )
 
-        for i, agent in enumerate(self.world.agents):
+        for agent in self.world.agents:
             if env_index is None:
                 agent.shaping = (
                     torch.linalg.vector_norm(
@@ -220,7 +222,8 @@ class Scenario(BaseScenario):
                 self.pos_rew += a.pos_rew
 
             self.all_goal_reached = torch.all(
-                torch.stack([a.on_goal for a in self.world.agents], dim=-1), dim=-1
+                torch.stack([a.on_goal for a in self.world.agents], dim=-1),
+                dim=-1,
             )
 
             self.final_rew[self.all_goal_reached] = self.final_reward
@@ -273,10 +276,7 @@ class Scenario(BaseScenario):
 
         if self.obs_noise > 0:
             for i, obs in enumerate(observations):
-                noise = torch.zeros(
-                    *obs.shape,
-                    device=self.world.device,
-                ).uniform_(
+                noise = torch.zeros(*obs.shape, device=self.world.device,).uniform_(
                     -self.obs_noise,
                     self.obs_noise,
                 )
@@ -358,9 +358,11 @@ class Scenario(BaseScenario):
                 landmark.set_pos(
                     torch.tensor(
                         [
-                            -self.scenario_length / 2
-                            if i % 2 == 0
-                            else self.scenario_length / 2,
+                            (
+                                -self.scenario_length / 2
+                                if i % 2 == 0
+                                else self.scenario_length / 2
+                            ),
                             0.0,
                         ],
                         dtype=torch.float32,
@@ -381,9 +383,11 @@ class Scenario(BaseScenario):
                     torch.tensor(
                         [
                             0.0,
-                            -self.scenario_length / 2
-                            if i % 2 == 0
-                            else self.scenario_length / 2,
+                            (
+                                -self.scenario_length / 2
+                                if i % 2 == 0
+                                else self.scenario_length / 2
+                            ),
                         ],
                         dtype=torch.float32,
                         device=self.world.device,

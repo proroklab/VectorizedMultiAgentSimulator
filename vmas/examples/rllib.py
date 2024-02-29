@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -16,6 +16,7 @@ from ray.rllib.evaluation import Episode, MultiAgentEpisode
 from ray.rllib.utils.typing import PolicyID
 from ray.tune import register_env
 from ray.tune.integration.wandb import WandbLoggerCallback
+
 from vmas import make_env, Wrapper
 
 scenario_name = "balance"
@@ -118,7 +119,6 @@ class RenderingCallbacks(DefaultCallbacks):
 
 
 def train():
-
     RLLIB_NUM_GPUS = int(os.environ.get("RLLIB_NUM_GPUS", "0"))
     num_gpus = 0.001 if RLLIB_NUM_GPUS > 0 else 0  # Driver GPU
     num_gpus_per_worker = (

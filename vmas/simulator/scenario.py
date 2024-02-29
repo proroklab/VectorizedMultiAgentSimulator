@@ -8,13 +8,13 @@ from typing import List
 import torch
 from torch import Tensor
 
-from vmas.simulator.core import World, Agent
+from vmas.simulator.core import Agent, World
 from vmas.simulator.utils import (
-    INITIAL_VIEWER_SIZE,
-    VIEWER_MIN_ZOOM,
+    AGENT_INFO_TYPE,
     AGENT_OBS_TYPE,
     AGENT_REWARD_TYPE,
-    AGENT_INFO_TYPE,
+    INITIAL_VIEWER_SIZE,
+    VIEWER_MIN_ZOOM,
 )
 
 if typing.TYPE_CHECKING:
@@ -273,4 +273,4 @@ class BaseScenario(ABC):
 
         :param agent: the agent whose actions have to be processed.
         """
-        pass
+        return

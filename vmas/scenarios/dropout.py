@@ -6,6 +6,7 @@ from typing import Dict
 
 import torch
 from torch import Tensor
+
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, Sphere, World
 from vmas.simulator.scenario import BaseScenario
@@ -30,7 +31,9 @@ class Scenario(BaseScenario):
         for i in range(n_agents):
             # Constraint: all agents have same action range and multiplier
             agent = Agent(
-                name=f"agent_{i}", collide=False, shape=Sphere(radius=self.agent_radius)
+                name=f"agent_{i}",
+                collide=False,
+                shape=Sphere(radius=self.agent_radius),
             )
             world.add_agent(agent)
         # Add landmarks
@@ -105,7 +108,8 @@ class Scenario(BaseScenario):
                 torch.stack(
                     [
                         torch.linalg.vector_norm(
-                            a.state.pos - self.world.landmarks[0].state.pos, dim=1
+                            a.state.pos - self.world.landmarks[0].state.pos,
+                            dim=1,
                         )
                         < a.shape.radius + self.world.landmarks[0].shape.radius
                         for a in self.world.agents
@@ -158,5 +162,8 @@ class Scenario(BaseScenario):
 
 if __name__ == "__main__":
     render_interactively(
-        __file__, control_two_agents=True, n_agents=4, energy_coeff=DEFAULT_ENERGY_COEFF
+        __file__,
+        control_two_agents=True,
+        n_agents=4,
+        energy_coeff=DEFAULT_ENERGY_COEFF,
     )

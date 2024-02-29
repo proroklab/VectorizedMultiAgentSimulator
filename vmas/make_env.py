@@ -5,8 +5,7 @@
 from typing import Optional, Union
 
 from vmas import scenarios
-from vmas.simulator.environment import Environment
-from vmas.simulator.environment import Wrapper
+from vmas.simulator.environment import Environment, Wrapper
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import DEVICE_TYPING
 

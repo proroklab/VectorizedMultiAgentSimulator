@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 from typing import Dict
@@ -7,10 +7,10 @@ import torch
 from torch import Tensor
 
 from vmas import render_interactively
+from vmas.simulator.controllers.velocity_controller import VelocityController
 from vmas.simulator.core import Agent, Sphere, World
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color, X, Y
-from vmas.simulator.controllers.velocity_controller import VelocityController
 
 
 class Scenario(BaseScenario):
@@ -104,10 +104,7 @@ class Scenario(BaseScenario):
     def observation(self, agent: Agent):
         observations = [agent.state.pos, agent.state.vel, agent.state.pos]
         for i, obs in enumerate(observations):
-            noise = torch.zeros(
-                *obs.shape,
-                device=self.world.device,
-            ).uniform_(
+            noise = torch.zeros(*obs.shape, device=self.world.device,).uniform_(
                 -self.obs_noise,
                 self.obs_noise,
             )

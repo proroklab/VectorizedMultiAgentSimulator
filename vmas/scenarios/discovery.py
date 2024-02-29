@@ -1,19 +1,19 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
 import typing
-from typing import Dict, Callable, List
+from typing import Callable, Dict, List
 
 import torch
 from torch import Tensor
 
 from vmas import render_interactively
-from vmas.simulator.core import Agent, Landmark, Sphere, World, Entity
+from vmas.simulator.core import Agent, Entity, Landmark, Sphere, World
 from vmas.simulator.heuristic_policy import BaseHeuristicPolicy
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.sensors import Lidar
-from vmas.simulator.utils import Color, X, Y, ScenarioUtils
+from vmas.simulator.utils import Color, ScenarioUtils, X, Y
 
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
@@ -54,9 +54,9 @@ class Scenario(BaseScenario):
         )
 
         # Add agents
-        entity_filter_agents: Callable[[Entity], bool] = lambda e: e.name.startswith(
-            "agent"
-        )
+        # entity_filter_agents: Callable[[Entity], bool] = lambda e: e.name.startswith(
+        #     "agent"
+        # )
         entity_filter_targets: Callable[[Entity], bool] = lambda e: e.name.startswith(
             "target"
         )
@@ -110,7 +110,9 @@ class Scenario(BaseScenario):
         placable_entities = self._targets[: self.n_targets] + self.world.agents
         if env_index is None:
             self.all_time_covered_targets = torch.full(
-                (self.world.batch_dim, self.n_targets), False, device=self.world.device
+                (self.world.batch_dim, self.n_targets),
+                False,
+                device=self.world.device,
             )
         else:
             self.all_time_covered_targets[env_index] = False
@@ -131,7 +133,9 @@ class Scenario(BaseScenario):
 
         if is_first:
             self.time_rew = torch.full(
-                (self.world.batch_dim,), self.time_penalty, device=self.world.device
+                (self.world.batch_dim,),
+                self.time_penalty,
+                device=self.world.device,
             )
             self.agents_pos = torch.stack(
                 [a.state.pos for a in self.world.agents], dim=1
@@ -167,7 +171,8 @@ class Scenario(BaseScenario):
                         if o is not target
                     ]
                     occupied_positions = torch.cat(
-                        occupied_positions_agents + occupied_positions_targets, dim=1
+                        occupied_positions_agents + occupied_positions_targets,
+                        dim=1,
                     )
                     pos = ScenarioUtils.find_random_pos_for_entity(
                         occupied_positions,
@@ -197,9 +202,11 @@ class Scenario(BaseScenario):
 
     def get_outside_pos(self, env_index):
         return torch.empty(
-            (1, self.world.dim_p)
-            if env_index is not None
-            else (self.world.batch_dim, self.world.dim_p),
+            (
+                (1, self.world.dim_p)
+                if env_index is not None
+                else (self.world.batch_dim, self.world.dim_p)
+            ),
             device=self.world.device,
         ).uniform_(-1000 * self.world.x_semidim, -10 * self.world.x_semidim)
 
@@ -234,9 +241,11 @@ class Scenario(BaseScenario):
 
     def info(self, agent: Agent) -> Dict[str, Tensor]:
         info = {
-            "covering_reward": agent.covering_reward
-            if not self.shared_reward
-            else self.shared_covering_rew,
+            "covering_reward": (
+                agent.covering_reward
+                if not self.shared_reward
+                else self.shared_covering_rew
+            ),
             "collision_rew": agent.collision_rew,
             "targets_covered": self.covered_targets.sum(-1),
         }
@@ -250,7 +259,7 @@ class Scenario(BaseScenario):
 
         geoms: List[Geom] = []
         # Target ranges
-        for i, target in enumerate(self._targets):
+        for target in self._targets:
             range_circle = rendering.make_circle(self._covering_range, filled=False)
             xform = rendering.Transform()
             xform.set_translation(*target.state.pos[env_index])

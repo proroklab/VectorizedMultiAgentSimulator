@@ -1,10 +1,11 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import unittest
 
 import torch
 from tqdm import tqdm
+
 from vmas import make_env
 
 
@@ -40,7 +41,7 @@ class TestFootball(unittest.TestCase):
             while not all_done.all():
                 pbar.update(all_done.sum().item() - pbar.n)
                 actions = []
-                for i in range(n_agents):
+                for _ in range(n_agents):
                     actions.append(torch.rand(self.n_envs, 2))
 
                 obs, rews, dones, _ = self.env.step(actions)
