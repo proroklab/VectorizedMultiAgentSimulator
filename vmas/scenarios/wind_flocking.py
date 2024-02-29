@@ -6,11 +6,12 @@ from typing import Dict, List
 
 import torch
 from torch import Tensor
+
 from vmas import render_interactively
-from vmas.simulator.core import Agent, World, Sphere
-from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Y, Color, X
 from vmas.simulator.controllers.velocity_controller import VelocityController
+from vmas.simulator.core import Agent, Sphere, World
+from vmas.simulator.scenario import BaseScenario
+from vmas.simulator.utils import Color, X, Y
 
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
@@ -43,7 +44,8 @@ def get_line_angle_dist_0_180(angle, goal):
     return torch.minimum(
         (angle - goal).abs(),
         torch.minimum(
-            (angle - (goal - torch.pi)).abs(), ((angle - torch.pi) - goal).abs()
+            (angle - (goal - torch.pi)).abs(),
+            ((angle - torch.pi) - goal).abs(),
         ),
     ).squeeze(-1)
 
@@ -178,7 +180,9 @@ class Scenario(BaseScenario):
                     * self.vel_shaping_factor
                 )
                 agent.energy_shaping = torch.zeros(
-                    self.world.batch_dim, device=self.world.device, dtype=torch.float32
+                    self.world.batch_dim,
+                    device=self.world.device,
+                    dtype=torch.float32,
                 )
                 agent.wind_shaping = (
                     torch.linalg.vector_norm(agent.gravity, dim=-1)
@@ -204,7 +208,8 @@ class Scenario(BaseScenario):
             )
             self.distance_shaping = (
                 torch.linalg.vector_norm(
-                    self.small_agent.state.pos - self.big_agent.state.pos, dim=-1
+                    self.small_agent.state.pos - self.big_agent.state.pos,
+                    dim=-1,
                 )
                 - self.desired_distance
             ).abs() * self.dist_shaping_factor
@@ -212,7 +217,8 @@ class Scenario(BaseScenario):
             self.pos_shaping = (
                 (
                     torch.maximum(
-                        self.big_agent.state.pos[:, Y], self.small_agent.state.pos[:, Y]
+                        self.big_agent.state.pos[:, Y],
+                        self.small_agent.state.pos[:, Y],
                     )
                     - self.desired_pos
                 ).abs()
@@ -262,7 +268,8 @@ class Scenario(BaseScenario):
             # Dist reward
             distance_shaping = (
                 torch.linalg.vector_norm(
-                    self.small_agent.state.pos - self.big_agent.state.pos, dim=-1
+                    self.small_agent.state.pos - self.big_agent.state.pos,
+                    dim=-1,
                 )
                 - self.desired_distance
             ).abs() * self.dist_shaping_factor
@@ -284,7 +291,8 @@ class Scenario(BaseScenario):
             pos_shaping = (
                 (
                     torch.maximum(
-                        self.big_agent.state.pos[:, Y], self.small_agent.state.pos[:, Y]
+                        self.big_agent.state.pos[:, Y],
+                        self.small_agent.state.pos[:, Y],
                     )
                     - self.desired_pos
                 ).abs()

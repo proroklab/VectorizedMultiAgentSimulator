@@ -5,6 +5,7 @@ import typing
 from typing import List
 
 import torch
+
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World
 from vmas.simulator.dynamics.diff_drive import DiffDrive

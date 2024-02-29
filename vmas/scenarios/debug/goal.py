@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import math
@@ -8,10 +8,10 @@ import torch
 from torch import Tensor
 
 from vmas import render_interactively
-from vmas.simulator.core import Agent, World, Landmark, Sphere
+from vmas.simulator.controllers.velocity_controller import VelocityController
+from vmas.simulator.core import Agent, Landmark, Sphere, World
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color, TorchUtils
-from vmas.simulator.controllers.velocity_controller import VelocityController
 
 
 class Scenario(BaseScenario):
@@ -92,9 +92,11 @@ class Scenario(BaseScenario):
                 torch.cat(
                     [
                         torch.zeros(
-                            (1, 1)
-                            if env_index is not None
-                            else (self.world.batch_dim, 1),
+                            (
+                                (1, 1)
+                                if env_index is not None
+                                else (self.world.batch_dim, 1)
+                            ),
                             device=self.world.device,
                             dtype=torch.float32,
                         ).uniform_(
@@ -102,9 +104,11 @@ class Scenario(BaseScenario):
                             self.lab_length / 2,
                         ),
                         torch.zeros(
-                            (1, 1)
-                            if env_index is not None
-                            else (self.world.batch_dim, 1),
+                            (
+                                (1, 1)
+                                if env_index is not None
+                                else (self.world.batch_dim, 1)
+                            ),
                             device=self.world.device,
                             dtype=torch.float32,
                         ).uniform_(
@@ -123,9 +127,11 @@ class Scenario(BaseScenario):
                 torch.cat(
                     [
                         torch.zeros(
-                            (1, 1)
-                            if env_index is not None
-                            else (self.world.batch_dim, 1),
+                            (
+                                (1, 1)
+                                if env_index is not None
+                                else (self.world.batch_dim, 1)
+                            ),
                             device=self.world.device,
                             dtype=torch.float32,
                         ).uniform_(
@@ -133,9 +139,11 @@ class Scenario(BaseScenario):
                             self.lab_length / 2,
                         ),
                         torch.zeros(
-                            (1, 1)
-                            if env_index is not None
-                            else (self.world.batch_dim, 1),
+                            (
+                                (1, 1)
+                                if env_index is not None
+                                else (self.world.batch_dim, 1)
+                            ),
                             device=self.world.device,
                             dtype=torch.float32,
                         ).uniform_(
@@ -236,10 +244,7 @@ class Scenario(BaseScenario):
 
         if self.obs_noise > 0:
             for i, obs in enumerate(observations):
-                noise = torch.zeros(
-                    *obs.shape,
-                    device=self.world.device,
-                ).uniform_(
+                noise = torch.zeros(*obs.shape, device=self.world.device,).uniform_(
                     -self.obs_noise,
                     self.obs_noise,
                 )

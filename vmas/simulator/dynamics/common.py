@@ -15,10 +15,10 @@ class Dynamics(ABC):
         self._agent = None
 
     def reset(self, index: Union[Tensor, int] = None):
-        pass
+        return
 
     def zero_grad(self):
-        pass
+        return
 
     @property
     def agent(self):

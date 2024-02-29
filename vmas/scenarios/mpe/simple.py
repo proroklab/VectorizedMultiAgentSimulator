@@ -1,11 +1,11 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
 import torch
 
 from vmas import render_interactively
-from vmas.simulator.core import Agent, World, Landmark
+from vmas.simulator.core import Agent, Landmark, World
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color
 
@@ -33,9 +33,11 @@ class Scenario(BaseScenario):
         for agent in self.world.agents:
             agent.set_pos(
                 torch.zeros(
-                    (1, self.world.dim_p)
-                    if env_index is not None
-                    else (self.world.batch_dim, self.world.dim_p),
+                    (
+                        (1, self.world.dim_p)
+                        if env_index is not None
+                        else (self.world.batch_dim, self.world.dim_p)
+                    ),
                     device=self.world.device,
                     dtype=torch.float32,
                 ).uniform_(
@@ -47,9 +49,11 @@ class Scenario(BaseScenario):
         for landmark in self.world.landmarks:
             landmark.set_pos(
                 torch.zeros(
-                    (1, self.world.dim_p)
-                    if env_index is not None
-                    else (self.world.batch_dim, self.world.dim_p),
+                    (
+                        (1, self.world.dim_p)
+                        if env_index is not None
+                        else (self.world.batch_dim, self.world.dim_p)
+                    ),
                     device=self.world.device,
                     dtype=torch.float32,
                 ).uniform_(
@@ -61,7 +65,8 @@ class Scenario(BaseScenario):
 
     def reward(self, agent: Agent):
         dist2 = torch.sum(
-            torch.square(agent.state.pos - self.world.landmarks[0].state.pos), dim=-1
+            torch.square(agent.state.pos - self.world.landmarks[0].state.pos),
+            dim=-1,
         )
         return -dist2
 

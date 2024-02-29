@@ -1,10 +1,10 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
 import torch
 
-from vmas.simulator.core import World, Agent, Landmark, Sphere
+from vmas.simulator.core import Agent, Landmark, Sphere, World
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color
 
@@ -12,7 +12,11 @@ from vmas.simulator.utils import Color
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         world = World(
-            batch_dim=batch_dim, device=device, x_semidim=1, y_semidim=1, dim_c=4
+            batch_dim=batch_dim,
+            device=device,
+            x_semidim=1,
+            y_semidim=1,
+            dim_c=4,
         )
         num_good_agents = kwargs.get("num_good_agents", 2)
         num_adversaries = kwargs.get("num_adversaries", 4)
@@ -77,7 +81,7 @@ class Scenario(BaseScenario):
     def reset_world_at(self, env_index: int = None):
         if env_index is None:
             # random properties for agents
-            for i, agent in enumerate(self.world.agents):
+            for agent in self.world.agents:
                 agent.color = (
                     torch.tensor(
                         [0.45, 0.95, 0.45],
@@ -93,33 +97,45 @@ class Scenario(BaseScenario):
                 )
                 agent.color -= (
                     torch.tensor(
-                        [0.3, 0.3, 0.3], device=self.world.device, dtype=torch.float32
+                        [0.3, 0.3, 0.3],
+                        device=self.world.device,
+                        dtype=torch.float32,
                     )
                     if agent.leader
                     else torch.tensor(
-                        [0, 0, 0], device=self.world.device, dtype=torch.float32
+                        [0, 0, 0],
+                        device=self.world.device,
+                        dtype=torch.float32,
                     )
                 )
                 # random properties for landmarks
-            for i, landmark in enumerate(self.world.landmarks):
+            for landmark in self.world.landmarks:
                 landmark.color = torch.tensor(
-                    [0.25, 0.25, 0.25], device=self.world.device, dtype=torch.float32
+                    [0.25, 0.25, 0.25],
+                    device=self.world.device,
+                    dtype=torch.float32,
                 )
-            for i, landmark in enumerate(self.world.food):
+            for landmark in self.world.food:
                 landmark.color = torch.tensor(
-                    [0.15, 0.15, 0.65], device=self.world.device, dtype=torch.float32
+                    [0.15, 0.15, 0.65],
+                    device=self.world.device,
+                    dtype=torch.float32,
                 )
-            for i, landmark in enumerate(self.world.forests):
+            for landmark in self.world.forests:
                 landmark.color = torch.tensor(
-                    [0.6, 0.9, 0.6], device=self.world.device, dtype=torch.float32
+                    [0.6, 0.9, 0.6],
+                    device=self.world.device,
+                    dtype=torch.float32,
                 )
 
         for agent in self.world.agents:
             agent.set_pos(
                 torch.zeros(
-                    (1, self.world.dim_p)
-                    if env_index is not None
-                    else (self.world.batch_dim, self.world.dim_p),
+                    (
+                        (1, self.world.dim_p)
+                        if env_index is not None
+                        else (self.world.batch_dim, self.world.dim_p)
+                    ),
                     device=self.world.device,
                     dtype=torch.float32,
                 ).uniform_(
@@ -132,9 +148,11 @@ class Scenario(BaseScenario):
         for landmark in self.world.landmarks:
             landmark.set_pos(
                 torch.zeros(
-                    (1, self.world.dim_p)
-                    if env_index is not None
-                    else (self.world.batch_dim, self.world.dim_p),
+                    (
+                        (1, self.world.dim_p)
+                        if env_index is not None
+                        else (self.world.batch_dim, self.world.dim_p)
+                    ),
                     device=self.world.device,
                     dtype=torch.float32,
                 ).uniform_(
@@ -195,7 +213,8 @@ class Scenario(BaseScenario):
                     [
                         torch.sqrt(
                             torch.sum(
-                                torch.square(food.state.pos - agent.state.pos), dim=-1
+                                torch.square(food.state.pos - agent.state.pos),
+                                dim=-1,
                             )
                         )
                         for food in self.world.food
@@ -313,7 +332,8 @@ class Scenario(BaseScenario):
         for i, a in enumerate(ga):
             index = torch.any(
                 torch.stack(
-                    [self.is_collision(a, f) for f in self.world.forests], dim=1
+                    [self.is_collision(a, f) for f in self.world.forests],
+                    dim=1,
                 ),
                 dim=-1,
             )
@@ -327,7 +347,8 @@ class Scenario(BaseScenario):
         )
         for i, f in enumerate(self.world.forests):
             index = torch.any(
-                torch.stack([self.is_collision(a, f) for a in ga], dim=1), dim=-1
+                torch.stack([self.is_collision(a, f) for a in ga], dim=1),
+                dim=-1,
             )
             prey_forest[index, i] = 1
 

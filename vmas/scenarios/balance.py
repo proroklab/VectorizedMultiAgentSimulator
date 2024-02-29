@@ -1,11 +1,11 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
 import torch
 
 from vmas import render_interactively
-from vmas.simulator.core import Agent, Landmark, Sphere, World, Line, Box
+from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
 from vmas.simulator.heuristic_policy import BaseHeuristicPolicy
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color, Y
@@ -30,7 +30,9 @@ class Scenario(BaseScenario):
         # Add agents
         for i in range(self.n_agents):
             agent = Agent(
-                name=f"agent_{i}", shape=Sphere(self.agent_radius), u_multiplier=0.7
+                name=f"agent_{i}",
+                shape=Sphere(self.agent_radius),
+                u_multiplier=0.7,
             )
             world.add_agent(agent)
 
@@ -125,12 +127,16 @@ class Scenario(BaseScenario):
                     device=self.world.device,
                     dtype=torch.float32,
                 ).uniform_(
-                    -self.line_length / 2 + self.package.shape.radius
-                    if self.random_package_pos_on_line
-                    else 0.0,
-                    self.line_length / 2 - self.package.shape.radius
-                    if self.random_package_pos_on_line
-                    else 0.0,
+                    (
+                        -self.line_length / 2 + self.package.shape.radius
+                        if self.random_package_pos_on_line
+                        else 0.0
+                    ),
+                    (
+                        self.line_length / 2 - self.package.shape.radius
+                        if self.random_package_pos_on_line
+                        else 0.0
+                    ),
                 ),
                 torch.full(
                     (1, 1) if env_index is not None else (self.world.batch_dim, 1),

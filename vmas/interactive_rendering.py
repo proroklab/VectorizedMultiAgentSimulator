@@ -11,7 +11,7 @@ If you have more than 1 agent, you can control another one with W,A,S,D
 and switch the agent with these controls using LSHIFT
 """
 from operator import add
-from typing import Union, Dict
+from typing import Dict, Union
 
 import numpy as np
 from torch import Tensor
@@ -342,5 +342,8 @@ if __name__ == "__main__":
     # Scenario specific variables
 
     render_interactively(
-        scenario_name, control_two_agents=True, save_render=False, display_info=True
+        scenario_name,
+        control_two_agents=True,
+        save_render=False,
+        display_info=True,
     )

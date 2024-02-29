@@ -109,7 +109,7 @@ def use_vmas_env(
     init_time = time.time()
     step = 0
 
-    for s in range(n_steps):
+    for _ in range(n_steps):
         step += 1
         print(f"Step {step}")
 
@@ -119,7 +119,7 @@ def use_vmas_env(
         dict_actions = random.choice([True, False])
 
         actions = {} if dict_actions else []
-        for i, agent in enumerate(env.agents):
+        for agent in env.agents:
             if not random_action:
                 action = _get_deterministic_action(agent, continuous_actions, env)
             else:

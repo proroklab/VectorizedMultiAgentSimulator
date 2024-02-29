@@ -2,13 +2,13 @@
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import typing
-from typing import Dict, Callable, List
+from typing import Callable, Dict, List
 
 import torch
 from torch import Tensor
 
 from vmas import render_interactively
-from vmas.simulator.core import Agent, Landmark, World, Sphere, Entity
+from vmas.simulator.core import Agent, Entity, Landmark, Sphere, World
 from vmas.simulator.heuristic_policy import BaseHeuristicPolicy
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.sensors import Lidar
@@ -88,16 +88,18 @@ class Scenario(BaseScenario):
                 color=color,
                 shape=Sphere(radius=self.agent_radius),
                 render_action=True,
-                sensors=[
-                    Lidar(
-                        world,
-                        n_rays=12,
-                        max_range=self.lidar_range,
-                        entity_filter=entity_filter_agents,
-                    ),
-                ]
-                if self.collisions
-                else None,
+                sensors=(
+                    [
+                        Lidar(
+                            world,
+                            n_rays=12,
+                            max_range=self.lidar_range,
+                            entity_filter=entity_filter_agents,
+                        ),
+                    ]
+                    if self.collisions
+                    else None
+                ),
             )
             agent.pos_rew = torch.zeros(batch_dim, device=device)
             agent.agent_collision_rew = agent.pos_rew.clone()
@@ -182,7 +184,8 @@ class Scenario(BaseScenario):
                 a.agent_collision_rew[:] = 0
 
             self.all_goal_reached = torch.all(
-                torch.stack([a.on_goal for a in self.world.agents], dim=-1), dim=-1
+                torch.stack([a.on_goal for a in self.world.agents], dim=-1),
+                dim=-1,
             )
 
             self.final_rew[self.all_goal_reached] = self.final_reward
@@ -365,11 +368,17 @@ class HeuristicPolicy(BaseHeuristicPolicy):
 
         # Initialize CVXPY layers
         QP_controller = CvxpyLayer(
-            QP_problem, parameters=[V_param, lfV_param, lgV_params], variables=[u]
+            QP_problem,
+            parameters=[V_param, lfV_param, lgV_params],
+            variables=[u],
         )
 
         # Solve QP
-        CVXpylayer_parameters = [V_value.unsqueeze(1), LfV_val.unsqueeze(1), LgV_vals]
+        CVXpylayer_parameters = [
+            V_value.unsqueeze(1),
+            LfV_val.unsqueeze(1),
+            LgV_vals,
+        ]
         action = QP_controller(*CVXpylayer_parameters, solver_args={"max_iters": 500})[
             0
         ]

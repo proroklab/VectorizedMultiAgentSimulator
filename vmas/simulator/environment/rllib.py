@@ -1,7 +1,7 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-from typing import List, Optional, Tuple, Dict
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -9,13 +9,9 @@ from numpy import ndarray
 from ray import rllib
 from ray.rllib.utils.typing import EnvActionType, EnvInfoDict, EnvObsType
 from torch import Tensor
+
 from vmas.simulator.environment.environment import Environment
-from vmas.simulator.utils import (
-    OBS_TYPE,
-    REWARD_TYPE,
-    INFO_TYPE,
-    TorchUtils,
-)
+from vmas.simulator.utils import INFO_TYPE, OBS_TYPE, REWARD_TYPE, TorchUtils
 
 
 class VectorEnvWrapper(rllib.VectorEnv):
@@ -132,7 +128,9 @@ class VectorEnvWrapper(rllib.VectorEnv):
                 ), f"Expecting actions for {self._env.n_agents} agents, got {len(list_in[j])} actions"
                 for i in range(self._env.n_agents):
                     act = torch.tensor(
-                        list_in[j][i], dtype=torch.float32, device=self._env.device
+                        list_in[j][i],
+                        dtype=torch.float32,
+                        device=self._env.device,
                     )
                     if len(act.shape) == 0:
                         assert (
@@ -148,7 +146,7 @@ class VectorEnvWrapper(rllib.VectorEnv):
                     actions[i][j] = act
             return actions
         else:
-            assert False, "Input action is not in correct format"
+            raise TypeError("Input action is not in correct format")
 
     def _read_data(
         self,
@@ -176,7 +174,11 @@ class VectorEnvWrapper(rllib.VectorEnv):
                 if reward:
                     rew_list.append(reward_processed)
 
-            return obs_list, info_list if info else None, rew_list if reward else None
+            return (
+                obs_list,
+                info_list if info else None,
+                rew_list if reward else None,
+            )
         else:
             return self._get_data_at_env_index(env_index, obs, info, reward)
 

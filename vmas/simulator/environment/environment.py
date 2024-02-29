@@ -3,24 +3,25 @@
 #  All rights reserved.
 import random
 from ctypes import byref
-from typing import List, Tuple, Callable, Optional, Union, Dict
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 from gym import spaces
 from torch import Tensor
+
+import vmas.simulator.utils
 from vmas.simulator.core import Agent, TorchVectorizedObject
 from vmas.simulator.scenario import BaseScenario
-import vmas.simulator.utils
 from vmas.simulator.utils import (
-    VIEWER_MIN_ZOOM,
     AGENT_OBS_TYPE,
-    X,
-    Y,
     ALPHABET,
     DEVICE_TYPING,
     override,
     TorchUtils,
+    VIEWER_MIN_ZOOM,
+    X,
+    Y,
 )
 
 
@@ -241,7 +242,10 @@ class Environment(TorchVectorizedObject):
 
         self.steps += 1
         obs, rewards, dones, infos = self.get_from_scenario(
-            get_observations=True, get_infos=True, get_rewards=True, get_dones=True
+            get_observations=True,
+            get_infos=True,
+            get_rewards=True,
+            get_dones=True,
         )
 
         # print("\nStep results in unwrapped environment")
@@ -378,7 +382,10 @@ class Environment(TorchVectorizedObject):
         action = action.to(self.device)
         assert not action.isnan().any()
         agent.action.u = torch.zeros(
-            self.batch_dim, agent.action_size, device=self.device, dtype=torch.float32
+            self.batch_dim,
+            agent.action_size,
+            device=self.device,
+            dtype=torch.float32,
         )
 
         assert action.shape[1] == self.get_agent_action_size(agent), (
@@ -456,7 +463,9 @@ class Environment(TorchVectorizedObject):
         if agent.action.u_noise > 0:
             noise = (
                 torch.randn(
-                    *agent.action.u.shape, device=self.device, dtype=torch.float32
+                    *agent.action.u.shape,
+                    device=self.device,
+                    dtype=torch.float32,
                 )
                 * agent.u_noise
             )
@@ -485,7 +494,9 @@ class Environment(TorchVectorizedObject):
             if agent.c_noise > 0:
                 noise = (
                     torch.randn(
-                        *agent.action.c.shape, device=self.device, dtype=torch.float32
+                        *agent.action.c.shape,
+                        device=self.device,
+                        dtype=torch.float32,
                     )
                     * agent.c_noise
                 )
@@ -572,8 +583,7 @@ class Environment(TorchVectorizedObject):
                 pyglet.lib.load_library("EGL")
 
                 # Only if we have GPUs
-                from pyglet.libs.egl import egl
-                from pyglet.libs.egl import eglext
+                from pyglet.libs.egl import egl, eglext
 
                 num_devices = egl.EGLint()
                 eglext.eglQueryDevicesEXT(0, None, byref(num_devices))
@@ -595,7 +605,8 @@ class Environment(TorchVectorizedObject):
         if shared_viewer:
             # zoom out to fit everyone
             all_poses = torch.stack(
-                [agent.state.pos[env_index] for agent in self.world.agents], dim=0
+                [agent.state.pos[env_index] for agent in self.world.agents],
+                dim=0,
             )
             max_agent_radius = max(
                 [agent.shape.circumscribed_radius() for agent in self.world.agents]
@@ -611,7 +622,8 @@ class Environment(TorchVectorizedObject):
             )
 
             viewer_size = torch.maximum(
-                viewer_size_fit / cam_range, torch.tensor(zoom, device=self.device)
+                viewer_size_fit / cam_range,
+                torch.tensor(zoom, device=self.device),
             )
             cam_range *= torch.max(viewer_size)
             self.viewer.set_bounds(

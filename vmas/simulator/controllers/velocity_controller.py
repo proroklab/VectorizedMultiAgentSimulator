@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import math
@@ -30,7 +30,7 @@ class VelocityController:
         self,
         agent: vmas.simulator.core.Agent,
         world: vmas.simulator.core.World,
-        ctrl_params=[1, 0, 0],
+        ctrl_params=(1, 0, 0),
         pid_form="standard",
     ):
         self.agent = agent
@@ -80,10 +80,12 @@ class VelocityController:
     def reset(self, index: Union[Tensor, int] = None):
         if index is None:
             self.accum_errs = torch.zeros(
-                (self.world.batch_dim, self.world.dim_p), device=self.world.device
+                (self.world.batch_dim, self.world.dim_p),
+                device=self.world.device,
             )
             self.prev_err = torch.zeros(
-                (self.world.batch_dim, self.world.dim_p), device=self.world.device
+                (self.world.batch_dim, self.world.dim_p),
+                device=self.world.device,
             )
         else:
             self.accum_errs[index] = 0.0
