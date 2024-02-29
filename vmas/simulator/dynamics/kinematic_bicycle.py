@@ -2,9 +2,9 @@
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
-from typing import Union
 
 import torch
+
 import vmas.simulator.core
 import vmas.simulator.utils
 from vmas.simulator.dynamics.common import Dynamics

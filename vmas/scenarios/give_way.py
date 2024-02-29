@@ -4,11 +4,12 @@
 import math
 
 import torch
+
 from vmas import render_interactively
-from vmas.simulator.core import Agent, World, Landmark, Sphere, Line, Box
+from vmas.simulator.controllers.velocity_controller import VelocityController
+from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color, TorchUtils
-from vmas.simulator.controllers.velocity_controller import VelocityController
 
 
 class Scenario(BaseScenario):
@@ -66,9 +67,11 @@ class Scenario(BaseScenario):
             name="agent_0",
             rotatable=False,
             linear_friction=self.linear_friction,
-            shape=Sphere(radius=self.agent_radius)
-            if not self.box_agents
-            else Box(length=self.agent_box_length, width=self.agent_box_width),
+            shape=(
+                Sphere(radius=self.agent_radius)
+                if not self.box_agents
+                else Box(length=self.agent_box_length, width=self.agent_box_width)
+            ),
             u_range=self.u_range,
             f_range=self.f_range,
             v_range=self.v_range,
@@ -92,9 +95,11 @@ class Scenario(BaseScenario):
             name="agent_1",
             color=Color.GREEN,
             linear_friction=self.linear_friction,
-            shape=Sphere(radius=self.agent_radius)
-            if not self.box_agents
-            else Box(length=self.agent_box_length, width=self.agent_box_width),
+            shape=(
+                Sphere(radius=self.agent_radius)
+                if not self.box_agents
+                else Box(length=self.agent_box_length, width=self.agent_box_width)
+            ),
             rotatable=False,
             u_range=self.u_range,
             f_range=self.f_range,
@@ -139,10 +144,7 @@ class Scenario(BaseScenario):
                 dtype=torch.float32,
                 device=self.world.device,
             )
-            + torch.zeros(
-                self.world.dim_p,
-                device=self.world.device,
-            ).uniform_(
+            + torch.zeros(self.world.dim_p, device=self.world.device,).uniform_(
                 -self.spawn_pos_noise,
                 self.spawn_pos_noise,
             ),
@@ -164,10 +166,7 @@ class Scenario(BaseScenario):
                 dtype=torch.float32,
                 device=self.world.device,
             )
-            + torch.zeros(
-                self.world.dim_p,
-                device=self.world.device,
-            ).uniform_(
+            + torch.zeros(self.world.dim_p, device=self.world.device,).uniform_(
                 -self.spawn_pos_noise,
                 self.spawn_pos_noise,
             ),
@@ -272,9 +271,9 @@ class Scenario(BaseScenario):
                 agent.agent_collision_rew[
                     self.world.get_distance(agent, a) <= self.min_collision_distance
                 ] += self.agent_collision_penalty
-        for l in self.world.landmarks:
-            if self.world.collides(agent, l):
-                if l in (
+        for landmark in self.world.landmarks:
+            if self.world.collides(agent, landmark):
+                if landmark in (
                     [*self.passage_1, *self.passage_2]
                     if self.mirror_passage is True
                     else [*self.passage_1]
@@ -283,7 +282,8 @@ class Scenario(BaseScenario):
                 else:
                     penalty = self.obstacle_collision_penalty
                 agent.obstacle_collision_rew[
-                    self.world.get_distance(agent, l) <= self.min_collision_distance
+                    self.world.get_distance(agent, landmark)
+                    <= self.min_collision_distance
                 ] += penalty
 
         # Energy reward
@@ -316,10 +316,7 @@ class Scenario(BaseScenario):
 
         if self.obs_noise > 0:
             for i, obs in enumerate(observations):
-                noise = torch.zeros(
-                    *obs.shape,
-                    device=self.world.device,
-                ).uniform_(
+                noise = torch.zeros(*obs.shape, device=self.world.device,).uniform_(
                     -self.obs_noise,
                     self.obs_noise,
                 )
@@ -422,9 +419,11 @@ class Scenario(BaseScenario):
             landmark.set_pos(
                 torch.tensor(
                     [
-                        -self.scenario_length / 2
-                        if i == 0
-                        else self.scenario_length / 2,
+                        (
+                            -self.scenario_length / 2
+                            if i == 0
+                            else self.scenario_length / 2
+                        ),
                         0.0,
                     ],
                     dtype=torch.float32,
@@ -506,9 +505,11 @@ class Scenario(BaseScenario):
                 landmark.set_pos(
                     torch.tensor(
                         [
-                            -self.passage_length / 2
-                            if i == 0
-                            else self.passage_length / 2,
+                            (
+                                -self.passage_length / 2
+                                if i == 0
+                                else self.passage_length / 2
+                            ),
                             -self.passage_length / 2 - self.passage_width / 2,
                         ],
                         dtype=torch.float32,

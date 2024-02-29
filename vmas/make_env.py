@@ -5,15 +5,14 @@
 from typing import Optional, Union
 
 from vmas import scenarios
-from vmas.simulator.environment import Environment
-from vmas.simulator.environment import Wrapper
+from vmas.simulator.environment import Environment, Wrapper
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import DEVICE_TYPING
 
 
 def make_env(
     scenario: Union[str, BaseScenario],
-    num_envs: int = 32,
+    num_envs: int,
     device: DEVICE_TYPING = "cpu",
     continuous_actions: bool = True,
     wrapper: Optional[
@@ -27,15 +26,22 @@ def make_env(
     grad_enabled: bool = False,
     **kwargs,
 ):
-    """
-    Create a vmas environment
+    """Create a vmas environment.
+
     Args:
-        scenario: Scenario to load. Can be the name of a file in the "scenarios" folder or a `BaseScenario` class.
-        num_envs: Number of vectorized simulation environments.
-        device: Device for simulation
-        continuous_actions: Weather to use continuous actions.
-        wrapper: Wrapper class to use. For example can be Wrapper.RLLIB.
-        max_steps: Maximum number of steps in each vectorized environment after which done is returned
+        scenario (Union[str, BaseScenario]): Scenario to load.
+            Can be the name of a file in `vmas.scenarios` folder or a :class:`~vmas.simulator.scenario.BaseScenario` class,
+        num_envs (int): Number of vectorized simulation environments. VMAS performs vectorized simulations using PyTorch.
+            This argument indicates the number of vectorized environments that should be simulated in a batch. It will also
+            determine the batch size of the environment.
+        device (Union[str, int, torch.device]): Device for simulation. All the tensors created by VMAS
+            will be placed on this device. Default is ``"cpu""``,
+        continuous_actions (bool): Whether to use continuous actions. Defaults to ``True``. If ``False``, actions
+            will be discrete. The number of actions and their size will depend on the chosen scenario. Default is ``True``,
+        wrapper (:class:`~vmas.simulator.environment.Wrapper`, optional): Wrapper class to use. For example can be Wrapper.RLLIB. Default is ``None``.
+        max_steps (int, optional): Horizon of the task. Defaults to ``None`` (infinite horizon). Each VMAS scenario can
+            be terminating or not. If ``max_steps`` is specified,
+            the scenario is also terminated whenever this horizon is reached.
         seed: seed
         dict_spaces:  Weather to use dictionary i/o spaces with format {agent_name: tensor}
             for obs, rewards, and info instead of tuples.
@@ -45,9 +51,7 @@ def make_env(
         clamp_actions: Weather to clamp input actions to the range instead of throwing
             an error when continuous_actions is True and actions are out of bounds
         grad_enabled: (bool): Whether the simulator will keep track of gradients in the output. Default is ``False``.
-        **kwargs ():
-
-    Returns:
+        **kwargs ()
 
     """
 

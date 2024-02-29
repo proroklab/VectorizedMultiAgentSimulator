@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import typing
 from abc import ABC, abstractmethod
-from typing import List, Union, Callable
+from typing import Callable, List, Union
 
 import torch
 

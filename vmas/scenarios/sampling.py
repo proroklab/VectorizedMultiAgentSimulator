@@ -1,13 +1,14 @@
 #  Copyright (c) 2023-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-from typing import Dict, Callable
+from typing import Callable, Dict
 
 import torch
 from torch import Tensor
 from torch.distributions import MultivariateNormal
+
 from vmas import render_interactively
-from vmas.simulator.core import World, Line, Agent, Sphere, Entity
+from vmas.simulator.core import Agent, Entity, Line, Sphere, World
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.sensors import Lidar
 from vmas.simulator.utils import Color, X, Y
@@ -65,18 +66,20 @@ class Scenario(BaseScenario):
                 render_action=True,
                 collide=self.collisions,
                 shape=Sphere(radius=self.agent_radius),
-                sensors=[
-                    Lidar(
-                        world,
-                        angle_start=0.05,
-                        angle_end=2 * torch.pi + 0.05,
-                        n_rays=12,
-                        max_range=self.lidar_range,
-                        entity_filter=entity_filter_agents,
-                    ),
-                ]
-                if self.collisions
-                else None,
+                sensors=(
+                    [
+                        Lidar(
+                            world,
+                            angle_start=0.05,
+                            angle_end=2 * torch.pi + 0.05,
+                            n_rays=12,
+                            max_range=self.lidar_range,
+                            entity_filter=entity_filter_agents,
+                        ),
+                    ]
+                    if self.collisions
+                    else None
+                ),
             )
 
             world.add_agent(agent)
@@ -101,7 +104,7 @@ class Scenario(BaseScenario):
         return world
 
     def reset_world_at(self, env_index: int = None):
-        for i, loc in enumerate(self.locs):
+        for i in range(len(self.locs)):
             x = torch.zeros(
                 (1,) if env_index is not None else (self.world.batch_dim, 1),
                 device=self.world.device,
@@ -139,16 +142,20 @@ class Scenario(BaseScenario):
                 torch.cat(
                     [
                         torch.zeros(
-                            (1, 1)
-                            if env_index is not None
-                            else (self.world.batch_dim, 1),
+                            (
+                                (1, 1)
+                                if env_index is not None
+                                else (self.world.batch_dim, 1)
+                            ),
                             device=self.world.device,
                             dtype=torch.float32,
                         ).uniform_(-self.agent_xspawn_range, self.agent_xspawn_range),
                         torch.zeros(
-                            (1, 1)
-                            if env_index is not None
-                            else (self.world.batch_dim, 1),
+                            (
+                                (1, 1)
+                                if env_index is not None
+                                else (self.world.batch_dim, 1)
+                            ),
                             device=self.world.device,
                             dtype=torch.float32,
                         ).uniform_(-self.agent_yspawn_range, self.agent_yspawn_range),
@@ -179,7 +186,8 @@ class Scenario(BaseScenario):
         index[:, Y] += self.n_y_cells / 2
         index = index.to(torch.long)
         v = torch.stack(
-            [gaussian.log_prob(pos).exp() for gaussian in self.gaussians], dim=-1
+            [gaussian.log_prob(pos).exp() for gaussian in self.gaussians],
+            dim=-1,
         ).sum(-1)
         if norm:
             v = v / self.max_pdf
@@ -221,7 +229,8 @@ class Scenario(BaseScenario):
         pos = pos.unsqueeze(1).expand(pos.shape[0], self.world.batch_dim, 2)
 
         v = torch.stack(
-            [gaussian.log_prob(pos).exp() for gaussian in self.gaussians], dim=-1
+            [gaussian.log_prob(pos).exp() for gaussian in self.gaussians],
+            dim=-1,
         ).sum(-1)[:, env_index]
         if norm:
             v = v / self.max_pdf[env_index]
@@ -267,7 +276,11 @@ class Scenario(BaseScenario):
         return self.sampling_rew if self.shared_rew else agent.sample
 
     def observation(self, agent: Agent) -> Tensor:
-        observations = [agent.state.pos, agent.state.vel, agent.sensors[0].measure()]
+        observations = [
+            agent.state.pos,
+            agent.state.vel,
+            agent.sensors[0].measure(),
+        ]
 
         for delta in [
             [self.grid_spacing, 0],
@@ -353,19 +366,23 @@ class Scenario(BaseScenario):
             geom.add_attr(xform)
 
             xform.set_translation(
-                0.0
-                if i % 2
-                else (
-                    self.x_semidim + self.agent_radius
-                    if i == 0
-                    else -self.x_semidim - self.agent_radius
+                (
+                    0.0
+                    if i % 2
+                    else (
+                        self.x_semidim + self.agent_radius
+                        if i == 0
+                        else -self.x_semidim - self.agent_radius
+                    )
                 ),
-                0.0
-                if not i % 2
-                else (
-                    self.y_semidim + self.agent_radius
-                    if i == 1
-                    else -self.y_semidim - self.agent_radius
+                (
+                    0.0
+                    if not i % 2
+                    else (
+                        self.y_semidim + self.agent_radius
+                        if i == 1
+                        else -self.y_semidim - self.agent_radius
+                    )
                 ),
             )
             xform.set_rotation(torch.pi / 2 if not i % 2 else 0.0)

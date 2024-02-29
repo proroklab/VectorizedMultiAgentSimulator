@@ -1,11 +1,11 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
 import torch
 
 from vmas import render_interactively
-from vmas.simulator.core import World, Agent, Landmark, Sphere
+from vmas.simulator.core import Agent, Landmark, Sphere, World
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color
 
@@ -60,9 +60,11 @@ class Scenario(BaseScenario):
         for agent in self.world.agents:
             agent.set_pos(
                 torch.zeros(
-                    (1, self.world.dim_p)
-                    if env_index is not None
-                    else (self.world.batch_dim, self.world.dim_p),
+                    (
+                        (1, self.world.dim_p)
+                        if env_index is not None
+                        else (self.world.batch_dim, self.world.dim_p)
+                    ),
                     device=self.world.device,
                     dtype=torch.float32,
                 ).uniform_(
@@ -75,9 +77,11 @@ class Scenario(BaseScenario):
         for landmark in self.world.landmarks:
             landmark.set_pos(
                 torch.zeros(
-                    (1, self.world.dim_p)
-                    if env_index is not None
-                    else (self.world.batch_dim, self.world.dim_p),
+                    (
+                        (1, self.world.dim_p)
+                        if env_index is not None
+                        else (self.world.batch_dim, self.world.dim_p)
+                    ),
                     device=self.world.device,
                     dtype=torch.float32,
                 ).uniform_(
@@ -116,7 +120,8 @@ class Scenario(BaseScenario):
                     [
                         torch.sqrt(
                             torch.sum(
-                                torch.square(a.state.pos - a.goal.state.pos), dim=-1
+                                torch.square(a.state.pos - a.goal.state.pos),
+                                dim=-1,
                             )
                         )
                         for a in adversary_agents
@@ -127,12 +132,17 @@ class Scenario(BaseScenario):
             )
         else:  # proximity-based adversary reward (binary)
             adv_rew = torch.zeros(
-                self.world.batch_dim, device=self.world.device, dtype=torch.float32
+                self.world.batch_dim,
+                device=self.world.device,
+                dtype=torch.float32,
             )
             for a in adversary_agents:
                 is_too_close = (
                     torch.sqrt(
-                        torch.sum(torch.square(a.state.pos - a.goal.state.pos), dim=-1)
+                        torch.sum(
+                            torch.square(a.state.pos - a.goal.state.pos),
+                            dim=-1,
+                        )
                     )
                     < 2 * a.goal.size
                 )
@@ -146,7 +156,8 @@ class Scenario(BaseScenario):
                     [
                         torch.sqrt(
                             torch.sum(
-                                torch.square(a.state.pos - a.goal.state.pos), dim=-1
+                                torch.square(a.state.pos - a.goal.state.pos),
+                                dim=-1,
                             )
                         )
                         for a in good_agents
@@ -158,7 +169,9 @@ class Scenario(BaseScenario):
 
         else:  # proximity-based agent reward (binary)
             pos_rew = torch.zeros(
-                self.world.batch_dim, device=self.world.device, dtype=torch.float32
+                self.world.batch_dim,
+                device=self.world.device,
+                dtype=torch.float32,
             )
             is_close_enough = (
                 torch.min(
@@ -166,7 +179,8 @@ class Scenario(BaseScenario):
                         [
                             torch.sqrt(
                                 torch.sum(
-                                    torch.square(a.state.pos - a.goal.state.pos), dim=-1
+                                    torch.square(a.state.pos - a.goal.state.pos),
+                                    dim=-1,
                                 )
                             )
                             for a in good_agents
@@ -183,7 +197,8 @@ class Scenario(BaseScenario):
                     [
                         torch.sqrt(
                             torch.sum(
-                                torch.square(a.state.pos - a.goal.state.pos), dim=-1
+                                torch.square(a.state.pos - a.goal.state.pos),
+                                dim=-1,
                             )
                         )
                         for a in good_agents
@@ -199,17 +214,23 @@ class Scenario(BaseScenario):
         shaped_reward = True
         if shaped_reward:  # distance-based reward
             return -torch.sqrt(
-                torch.sum(torch.square(agent.state.pos - agent.goal.state.pos), dim=-1)
+                torch.sum(
+                    torch.square(agent.state.pos - agent.goal.state.pos),
+                    dim=-1,
+                )
             )
 
         else:  # proximity-based reward (binary)
             adv_rew = torch.zeros(
-                self.world.batch_dim, device=self.world.device, dtype=torch.float32
+                self.world.batch_dim,
+                device=self.world.device,
+                dtype=torch.float32,
             )
             close_enough = (
                 torch.sqrt(
                     torch.sum(
-                        torch.square(agent.state.pos - agent.goal.state.pos), dim=-1
+                        torch.square(agent.state.pos - agent.goal.state.pos),
+                        dim=-1,
                     )
                 )
                 < 2 * agent.goal.size
@@ -231,7 +252,11 @@ class Scenario(BaseScenario):
 
         if not agent.adversary:
             return torch.cat(
-                [agent.goal.state.pos - agent.state.pos, *entity_pos, *other_pos],
+                [
+                    agent.goal.state.pos - agent.state.pos,
+                    *entity_pos,
+                    *other_pos,
+                ],
                 dim=-1,
             )
         else:

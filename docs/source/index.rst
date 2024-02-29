@@ -10,3 +10,4 @@ VMAS
    :caption: Package Reference
 
    modules/root
+   modules/simulator

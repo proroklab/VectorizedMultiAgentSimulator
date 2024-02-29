@@ -13,7 +13,6 @@ _init_pyglet_device()
 __all__ = [
     "make_env",
     "render_interactively",
-    "Wrapper",
     "scenarios",
     "debug_scenarios",
     "mpe_scenarios",
@@ -45,6 +44,7 @@ scenarios = sorted(
         "wind_flocking",
     ]
 )
+"""List of the vmas scenarios (excluding MPE and debug)"""
 
 debug_scenarios = sorted(
     [
@@ -60,6 +60,8 @@ debug_scenarios = sorted(
         "pollock",
     ]
 )
+"""List of the vmas debug scenarios """
+
 
 mpe_scenarios = sorted(
     [
@@ -74,3 +76,4 @@ mpe_scenarios = sorted(
         "simple_world_comm",
     ]
 )
+"""List of the vmas MPE scenarios """

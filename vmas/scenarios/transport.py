@@ -37,7 +37,9 @@ class Scenario(BaseScenario):
         # Add agents
         for i in range(n_agents):
             agent = Agent(
-                name=f"agent_{i}", shape=Sphere(self.agent_radius), u_multiplier=0.6
+                name=f"agent_{i}",
+                shape=Sphere(self.agent_radius),
+                u_multiplier=0.6,
             )
             world.add_agent(agent)
         # Add landmarks
@@ -106,7 +108,7 @@ class Scenario(BaseScenario):
             occupied_positions=agent_occupied_positions,
         )
 
-        for i, package in enumerate(self.packages):
+        for package in self.packages:
             package.on_goal = self.world.is_overlapping(package, package.goal)
 
             if env_index is None:
@@ -129,19 +131,25 @@ class Scenario(BaseScenario):
 
         if is_first:
             self.rew = torch.zeros(
-                self.world.batch_dim, device=self.world.device, dtype=torch.float32
+                self.world.batch_dim,
+                device=self.world.device,
+                dtype=torch.float32,
             )
 
-            for i, package in enumerate(self.packages):
+            for package in self.packages:
                 package.dist_to_goal = torch.linalg.vector_norm(
                     package.state.pos - package.goal.state.pos, dim=1
                 )
                 package.on_goal = self.world.is_overlapping(package, package.goal)
                 package.color = torch.tensor(
-                    Color.RED.value, device=self.world.device, dtype=torch.float32
+                    Color.RED.value,
+                    device=self.world.device,
+                    dtype=torch.float32,
                 ).repeat(self.world.batch_dim, 1)
                 package.color[package.on_goal] = torch.tensor(
-                    Color.GREEN.value, device=self.world.device, dtype=torch.float32
+                    Color.GREEN.value,
+                    device=self.world.device,
+                    dtype=torch.float32,
                 )
 
                 package_shaping = package.dist_to_goal * self.shaping_factor
@@ -200,7 +208,7 @@ class HeuristicPolicy(BaseHeuristicPolicy):
         self.n_env = observation.shape[0]
         self.device = observation.device
         agent_pos = observation[:, :2]
-        agent_vel = observation[:, 2:4]
+        # agent_vel = observation[:, 2:4]
         package_pos = observation[:, 6:8] + agent_pos
         goal_pos = -observation[:, 4:6] + package_pos
         # control = self.get_action(goal_pos, curr_pos=agent_pos, curr_vel=agent_vel)

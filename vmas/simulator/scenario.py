@@ -8,13 +8,13 @@ from typing import List
 import torch
 from torch import Tensor
 
-from vmas.simulator.core import World, Agent
+from vmas.simulator.core import Agent, World
 from vmas.simulator.utils import (
-    INITIAL_VIEWER_SIZE,
-    VIEWER_MIN_ZOOM,
+    AGENT_INFO_TYPE,
     AGENT_OBS_TYPE,
     AGENT_REWARD_TYPE,
-    AGENT_INFO_TYPE,
+    INITIAL_VIEWER_SIZE,
+    VIEWER_MIN_ZOOM,
 )
 
 if typing.TYPE_CHECKING:
@@ -23,44 +23,48 @@ if typing.TYPE_CHECKING:
 
 class BaseScenario(ABC):
     def __init__(self):
-        """Do not override"""
+        """Do not override."""
         self._world = None
-        # This is the viewer size and can be set in the `make_world' function
         self.viewer_size = INITIAL_VIEWER_SIZE
-        # This is the zoom level of the rendering
+        """The size of the rendering viewer window. This can be changed in the :class:`~make_world` function. """
         self.viewer_zoom = VIEWER_MIN_ZOOM
-        # Whether to plot a grid in the scenario background
+        """The zoom of the rendering camera. This can be changed in the :class:`~make_world` function. """
         self.plot_grid = False
-        # The distance between lines in the background grid
+        """Whether to plot a grid in the scenario rendering background. This can be changed in the :class:`~make_world` function. """
         self.grid_spacing = 0.1
+        """If :class:`~plot_grid`, the distance between lines in the background grid. This can be changed in the :class:`~make_world` function. """
 
     @property
     def world(self):
-        """Do not override"""
+        """The :class:`~vmas.simulator.core.World` associated toi this scenario."""
         assert (
             self._world is not None
         ), "You first need to set `self._world` in the `make_world` method"
         return self._world
 
     def to(self, device: torch.device):
-        """Do not override"""
+        """Casts the scenario to a different device.
+
+        Args:
+            device (Union[str, int, torch.device]): the device to cast to
+        """
         for attr, value in self.__dict__.items():
             if isinstance(value, Tensor):
                 self.__dict__[attr] = value.to(device)
         self.world.to(device)
 
     def env_make_world(self, batch_dim: int, device: torch.device, **kwargs) -> World:
-        """Do not override"""
+        # Do not override
         self._world = self.make_world(batch_dim, device, **kwargs)
         return self._world
 
     def env_reset_world_at(self, env_index: typing.Optional[int]):
-        """Do not override"""
+        # Do not override
         self.world.reset(env_index)
         self.reset_world_at(env_index)
 
     def env_process_action(self, agent: Agent):
-        """Do not override"""
+        # Do not override
         if agent.action_script is not None:
             agent.action_callback(self.world)
         # Customizable action processor
@@ -128,7 +132,9 @@ class BaseScenario(ABC):
         To increase performance, torch tensors created with the device set, like:
         torch.tensor(..., device=self.world.device)
 
-        :param env_index: index of the environment to reset. If None a vectorized reset should be performed
+        Args:
+            env_index (int, otpional): index of the environment to reset. If None a vectorized reset should be performed.
+
         Examples:
             >>> from vmas.simulator.core import Agent, World, Landmark, Sphere, Box
             >>> from vmas.simulator.scenario import BaseScenario
@@ -273,4 +279,4 @@ class BaseScenario(ABC):
 
         :param agent: the agent whose actions have to be processed.
         """
-        pass
+        return
