@@ -11,44 +11,6 @@ from vmas.simulator.core import Agent
 from vmas.simulator.utils import save_video
 
 
-def _get_random_action(agent: Agent, continuous: bool, env):
-    if continuous:
-        actions = []
-        for action_index in range(agent.action_size):
-            actions.append(
-                torch.zeros(
-                    agent.batch_dim,
-                    device=agent.device,
-                    dtype=torch.float32,
-                ).uniform_(
-                    -agent.action.u_range_tensor[action_index],
-                    agent.action.u_range_tensor[action_index],
-                )
-            )
-        if env.world.dim_c != 0 and not agent.silent:
-            # If the agent needs to communicate
-            for _ in range(env.world.dim_c):
-                actions.append(
-                    torch.zeros(
-                        agent.batch_dim,
-                        device=agent.device,
-                        dtype=torch.float32,
-                    ).uniform_(
-                        0,
-                        1,
-                    )
-                )
-        action = torch.stack(actions, dim=-1)
-    else:
-        action = torch.randint(
-            low=0,
-            high=env.get_agent_action_space(agent).n,
-            size=(agent.batch_dim,),
-            device=agent.device,
-        )
-    return action
-
-
 def _get_deterministic_action(agent: Agent, continuous: bool, env):
     if continuous:
         action = -agent.action.u_range_tensor.expand(env.batch_dim, agent.action_size)
@@ -123,7 +85,7 @@ def use_vmas_env(
             if not random_action:
                 action = _get_deterministic_action(agent, continuous_actions, env)
             else:
-                action = _get_random_action(agent, continuous_actions, env)
+                action = env.get_random_action(agent)
             if dict_actions:
                 actions.update({agent.name: action})
             else:
