@@ -1,7 +1,7 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-from typing import List, Optional, Tuple, Dict
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -9,13 +9,9 @@ from numpy import ndarray
 from ray import rllib
 from ray.rllib.utils.typing import EnvActionType, EnvInfoDict, EnvObsType
 from torch import Tensor
+
 from vmas.simulator.environment.environment import Environment
-from vmas.simulator.utils import (
-    OBS_TYPE,
-    REWARD_TYPE,
-    INFO_TYPE,
-    TorchUtils,
-)
+from vmas.simulator.utils import INFO_TYPE, OBS_TYPE, REWARD_TYPE, TorchUtils
 
 
 class VectorEnvWrapper(rllib.VectorEnv):
@@ -148,7 +144,7 @@ class VectorEnvWrapper(rllib.VectorEnv):
                     actions[i][j] = act
             return actions
         else:
-            assert False, "Input action is not in correct format"
+            raise TypeError("Input action is not in correct format")
 
     def _read_data(
         self,
