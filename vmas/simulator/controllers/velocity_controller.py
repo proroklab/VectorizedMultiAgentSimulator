@@ -3,13 +3,13 @@
 #  All rights reserved.
 import math
 import warnings
-from typing import Union
+from typing import Optional
 
 import torch
-from torch import Tensor
 
 import vmas.simulator.core
 import vmas.simulator.utils
+from vmas.simulator.utils import TorchUtils
 
 
 class VelocityController:
@@ -71,13 +71,9 @@ class VelocityController:
                 self.integrator_windup_cutoff = None
                 warnings.warn("Force limits not specified. Integrator can wind up!")
 
-        # containers for integral & derivative control
-        self.accum_errs = torch.zeros(
-            (world.batch_dim, world.dim_p), device=world.device
-        )
-        self.prev_err = torch.zeros((world.batch_dim, world.dim_p), device=world.device)
+        self.reset()
 
-    def reset(self, index: Union[Tensor, int] = None):
+    def reset(self, index: Optional[int] = None):
         if index is None:
             self.accum_errs = torch.zeros(
                 (self.world.batch_dim, self.world.dim_p),
@@ -88,8 +84,8 @@ class VelocityController:
                 device=self.world.device,
             )
         else:
-            self.accum_errs[index] = 0.0
-            self.prev_err[index] = 0.0
+            self.accum_errs = TorchUtils.where_from_index(index, 0.0, self.accum_errs)
+            self.prev_err = TorchUtils.where_from_index(index, 0.0, self.prev_err)
 
     def integralError(self, err):
         if not self.use_integrator:

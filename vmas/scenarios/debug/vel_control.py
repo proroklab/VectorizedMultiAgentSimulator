@@ -125,10 +125,6 @@ class Scenario(BaseScenario):
             )
 
     def process_action(self, agent: Agent):
-        # Use queue for delay
-        self.input_queue.append(agent.action.u.clone())
-        agent.action.u = self.input_queue.pop(0)
-
         # Clamp square to circle
         agent.action.u = TorchUtils.clamp_with_norm(agent.action.u, agent.u_range)
 

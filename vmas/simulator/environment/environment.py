@@ -248,22 +248,6 @@ class Environment(TorchVectorizedObject):
             get_dones=True,
         )
 
-        # print("\nStep results in unwrapped environment")
-        # print(
-        #     f"Actions len (n_agents): {len(actions)}, "
-        #     f"actions[0] shape (num_envs, agent 0 action shape): {actions[0].shape}, "
-        #     f"actions[0][0] (action agent 0 env 0): {actions[0][0]}"
-        # )
-        # print(
-        #     f"Obs len (n_agents): {len(obs)}, "
-        #     f"obs[0] shape (num_envs, agent 0 obs shape): {obs[0].shape}, obs[0][0] (obs agent 0 env 0): {obs[0][0]}"
-        # )
-        # print(
-        #     f"Rewards len (n_agents): {len(rewards)}, rewards[0] shape (num_envs, 1): {rewards[0].shape}, "
-        #     f"rewards[0][0] (agent 0 env 0): {rewards[0][0]}"
-        # )
-        # print(f"Dones len (n_envs): {len(dones)}, dones[0] (done env 0): {dones[0]}")
-        # print(f"Info len (n_agents): {len(infos)}, info[0] (infos agent 0): {infos[0]}")
         return obs, rewards, dones, infos
 
     def done(self):

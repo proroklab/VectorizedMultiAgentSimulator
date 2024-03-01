@@ -3,7 +3,7 @@
 #  All rights reserved.
 import typing
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, Optional
 
 import torch
 from torch import Tensor
@@ -22,6 +22,25 @@ if typing.TYPE_CHECKING:
 
 
 class BaseScenario(ABC):
+    """Base class for scenarios.
+
+    This is the class that scenarios inherit from.
+
+    The methods that are **compulsory to instantiate** are:
+
+    - :class:`make_world`
+    - :class:`reset_world_at`
+    - :class:`observation`
+    - :class:`reward`
+
+    The methods that are **optional to instantiate** are:
+
+    - :class:`info`
+    - :class:`extra_render`
+    - :class:`process_action`
+
+    """
+
     def __init__(self):
         """Do not override."""
         self._world = None
@@ -84,7 +103,7 @@ class BaseScenario(ABC):
 
         Returns:
             :class:`~vmas.simulator.core.World` : the :class:`~vmas.simulator.core.World`
-            instance which is automatically set in :class:'~world'.
+            instance which is automatically set in :class:`~world`.
 
         Examples:
             >>> from vmas.simulator.core import Agent, World, Landmark, Sphere, Box
@@ -124,27 +143,37 @@ class BaseScenario(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def reset_world_at(self, env_index: int = None):
-        """
-        Resets the world at the specified env_index.
-        When a None index is passed, the world should make a vectorized (batched) reset.
-        The 'entity.set_x()' methodes already have this logic integrated and will perform
-        batched operations when index is None
+    def reset_world_at(self, env_index: Optional[int] = None):
+        """Resets the world at the specified env_index.
 
-        Implementors can access the world at 'self.world'
+        When a ``None`` index is passed, the world should make a vectorized (batched) reset.
+        The ``entity.set_x()`` methods already have this logic integrated and will perform
+        batched operations when index is ``None``.
 
-        To increase performance, torch tensors created with the device set, like:
-        torch.tensor(..., device=self.world.device)
+        When this function is called, all entities have already had their state reset to zeros according to the ``env_index``.
+        In this function you shoud change the values of the reset states according to your task.
+        For example, some functions you might want to use are:
+
+        - ``entity.set_pos()``,
+        - ``entity.set_vel()``,
+        - ``entity.set_rot()``,
+        - ``entity.set_ang_vel()``.
+
+        Implementors can access the world at :class:`world`.
+
+        To increase performance, torch tensors should be created with the device already set, like:
+        ``torch.tensor(..., device=self.world.device)``
 
         Args:
-            env_index (int, otpional): index of the environment to reset. If None a vectorized reset should be performed.
+            env_index (int, otpional): index of the environment to reset. If ``None`` a vectorized reset should be performed.
+
+        Spawning at fixed positions
 
         Examples:
-            >>> from vmas.simulator.core import Agent, World, Landmark, Sphere, Box
             >>> from vmas.simulator.scenario import BaseScenario
-            >>> from vmas.simulator.utils import Color
+            >>> import torch
             >>> class Scenario(BaseScenario):
-            >>>     def reset_world_at(self, env_index: int = None)
+            >>>     def reset_world_at(self, env_index)
             ...        for i, agent in enumerate(self.world.agents):
             ...            agent.set_pos(
             ...                torch.tensor(
@@ -171,116 +200,202 @@ class BaseScenario(ABC):
             ...                ),
             ...                 batch_index=env_index,
             ...            )
+
+        Spawning at random positions
+
+        Examples:
+            >>> from vmas.simulator.scenario import BaseScenario
+            >>> from vmas.simulator.utils import ScenarioUtils
+            >>> class Scenario(BaseScenario):
+            >>>     def reset_world_at(self, env_index)
+            >>>         ScenarioUtils.spawn_entities_randomly(
+            ...             self.world.agents + self.world.landmarks,
+            ...             self.world,
+            ...             env_index,
+            ...             min_dist_between_entities=0.02,
+            ...             x_bounds=(-1.0,1.0),
+            ...             y_bounds=(-1.0,1.0),
+            ...         )
+
         """
         raise NotImplementedError()
 
     @abstractmethod
     def observation(self, agent: Agent) -> AGENT_OBS_TYPE:
-        """
-        This function computes the observations for 'agent' in a vectorized way
-        The returned tensor should contain the observations for 'agent' in all envs and should have
-        shape (n_envs, n_agent_obs)
+        """This function computes the observations for ``agent`` in a vectorized way.
 
-        Implementors can access the world at 'self.world'
+        The returned tensor should contain the observations for ``agent`` in all envs and should have
+        shape ``(self.world.batch_dim, n_agent_obs)``, or be a dict with leaves following that shape.
 
-        To increase performance, tensors created should have the device set, like:
-        torch.tensor(..., device=self.world.device)
+        Implementors can access the world at :class:`world`.
 
-        :param agent: Agent batch to compute observation of
-        :return observation: Tensor of shape (n_envs, n_agent_obs)
+        To increase performance, torch tensors should be created with the device already set, like:
+        ``torch.tensor(..., device=self.world.device)``
+
+        Args:
+            agent (Agent): the agent to compute the observations for
+
+        Returns:
+             Union[torch.Tensor, Dict[str, torch.Tensor]]: the observation
+
         Examples:
-            >>> from vmas.simulator.core import Agent, World, Landmark, Sphere, Box
+            >>> from vmas.simulator.scenario import BaseScenario
+            >>> import torch
+            >>> class Scenario(BaseScenario):
+            >>>     def observation(self, agent):
+            ...         # get positions of all landmarks in this agent's reference frame
+            ...         landmark_rel_poses = []
+            ...         for landmark in self.world.landmarks:
+            ...             landmark_rel_poses.append(landmark.state.pos - agent.state.pos)
+            ...         return torch.cat([agent.state.pos, agent.state.vel, *landmark_rel_poses], dim=-1)
+
+        You can also return observations in a dictionary
+
+        Examples:
             >>> from vmas.simulator.scenario import BaseScenario
             >>> from vmas.simulator.utils import Color
-            >>> def observation(self, agent: Agent):
-            ...      # get positions of all entities in this agent's reference frame
-            ...      entity_pos = []
-            ...      for entity in self.world.landmarks:
-            ...          entity_pos.append(entity.state.pos - agent.state.pos)
-            ...      return torch.cat([agent.state.vel, *entity_pos], dim=-1)
+            >>> class Scenario(BaseScenario):
+            >>>     def observation(self, agent):
+            ...         return {"pos": agent.state.pos, "vel": agent.state.vel}
+
         """
 
         raise NotImplementedError()
 
     @abstractmethod
     def reward(self, agent: Agent) -> AGENT_REWARD_TYPE:
-        """
-        This function computes the reward for 'agent' in a vectorized way
-        The returned tensor should contain the reward for 'agent' in all envs and should have
-        shape (n_envs)
+        """This function computes the reward for ``agent`` in a vectorized way.
 
-        Implementors can access the world at 'self.world'
+        The returned tensor should contain the reward for ``agent`` in all envs and should have
+        shape ``(self.world.batch_dim)`` and dtype ``torch.float``.
 
-        To increase performance, tensors created should have the device set, like:
-        torch.tensor(..., device=self.world.device)
+        Implementors can access the world at :class:`world`.
 
-        :param agent: Agent batch to compute reward of
-        :return observation: Tensor of shape (n_envs)
+        To increase performance, torch tensors should be created with the device already set, like:
+        ``torch.tensor(..., device=self.world.device)``
+
+        Args:
+            agent (Agent): the agent to compute the reward for
+
+        Returns:
+             torch.Tensor: reward tensor of shape ``(self.world.batch_dim)``
+
         Examples:
-            >>> from vmas.simulator.core import Agent, World, Landmark, Sphere, Box
             >>> from vmas.simulator.scenario import BaseScenario
-            >>> from vmas.simulator.utils import Color
-            >>> def observation(self, agent: Agent):
-            ...      # reward every agent proportionally to distance from first landmark
-            ...      dist2 = torch.sum(
-            ...          torch.square(agent.state.pos - self.world.landmarks[0].state.pos), dim=-1
-            ...      )
-            ...      return -dist2
+            >>> import torch
+            >>> class Scenario(BaseScenario):
+            >>>     def reward(self, agent):
+            ...         # reward every agent proportionally to distance from first landmark
+            ...         rew = -torch.linalg.vector_norm(agent.state.pos - self.world.landmarks[0].state.pos, dim=-1)
+            ...         return rew
         """
         raise NotImplementedError()
 
     def done(self):
-        """
-        This function computes the done flag for each env in a vectorized way
-        The returned tensor should contain the 'done' for all envs and should have
-        shape (n_envs)
+        """This function computes the done flag for each env in a vectorized way.
 
-        Implementors can access the world at 'self.world'
+        The returned tensor should contain the ``done`` for all envs and should have
+        shape ``(n_envs)`` and dtype ``torch.bool``.
 
-        To increase performance, tensors created should have the device set, like:
-        torch.tensor(..., device=self.world.device)
+        Implementors can access the world at :class:`world`.
 
-        :return dones: Bool tensor of shape (n_envs)
+        To increase performance, torch tensors should be created with the device already set, like:
+        ``torch.tensor(..., device=self.world.device)``
+
+        By default, this function returns all ``False`` s.
+
+        The scenario can still be done if ``max_steps`` has been set at envirtonment construction.
+
+        Returns:
+            torch.Tensor: done tensor of shape ``(self.world.batch_dim)``
+
+        Examples:
+            >>> from vmas.simulator.scenario import BaseScenario
+            >>> import torch
+            >>> class Scenario(BaseScenario):
+            >>>     def done(self):
+            ...         # retrun done when all agents have battery level lower than a threshold
+            ...         return torch.stack([a.battery_level < threshold for a in self.world.agents], dim=-1).all(-1)
         """
         return torch.tensor([False], device=self.world.device).expand(
             self.world.batch_dim
         )
 
     def info(self, agent: Agent) -> AGENT_INFO_TYPE:
-        """
-        This function computes the info dict for 'agent' in a vectorized way
+        """This function computes the info dict for ``agent`` in a vectorized way.
+
         The returned dict should have a key for each info of interest and the corresponding value should
-        be a tensor of shape (n_envs, info_size)
+        be a tensor of shape ``(n_envs, info_size)``
 
-        Implementors can access the world at 'self.world'
+        By default this function returns an empty dictionary.
 
-        To increase performance, tensors created should have the device set, like:
-        torch.tensor(..., device=self.world.device)
+        Implementors can access the world at :class:`world`.
 
-        :param agent: Agent batch to compute info of
-        :return: info: A dict with a key for each info of interest, and a tensor value  of shape (n_envs, info_size)
+        To increase performance, torch tensors should be created with the device already set, like:
+        ``torch.tensor(..., device=self.world.device)``
+
+        Args:
+            agent (Agent): the agent to compute the info for
+
+        Returns:
+             Union[torch.Tensor, Dict[str, torch.Tensor]]: the info
         """
         return {}
 
     def extra_render(self, env_index: int = 0) -> "List[Geom]":
         """
         This function facilitates additional user/scenario-level rendering for a specific environment index.
+
         The returned list is a list of geometries. It is the user's responsibility to set attributes such as color,
         position and rotation.
 
-        :param env_index: index of the environment to render.
-        :return: A list of geometries to render for the current time step.
+        Args:
+            env_index (int, optional): index of the environment to render. Defaults to ``0``.
+
+        Returns: A list of geometries to render for the current time step.
+
+        Examples:
+            >>> from vmas.simulator.utils import Color
+            >>> from vmas.simulator.scenario import BaseScenario
+            >>> class Scenario(BaseScenario):
+            >>>     def extra_render(self, env_index):
+            >>>         from vmas.simulator import rendering
+            >>>         color = Color.BLACK.value
+            >>>         line = rendering.Line(
+            ...            (self.world.agents[0].state.pos[env_index]),
+            ...            (self.world.agents[1].state.pos[env_index]),
+            ...            width=1,
+            ...         )
+            >>>         xform = rendering.Transform()
+            >>>         line.add_attr(xform)
+            >>>         line.set_color(*color)
+            >>>         return [line]
         """
         return []
 
     def process_action(self, agent: Agent):
-        """
-        This function can be overridden to process the agent actions before the simulation step.
-        It has access to the world through the `self.world` attribute
+        """This function can be overridden to process the agent actions before the simulation step.
+
+        It has access to the world through the :class:`world` attribute
 
         It can also be used for any other type of computation that has to happen after
-         the input actions have been set but before the simulation step
+        the input actions have been set but before the simulation step.
 
-        :param agent: the agent whose actions have to be processed.
+        For example here you can manage additional actions before passing them to the dynamics.
+
+        Args:
+            agent (Agent): the agent process the action of
+
+        Examples:
+            >>> from vmas.simulator.scenario import BaseScenario
+            >>> from vmas.simulator.utils import TorchUtils
+            >>> class Scenario(BaseScenario):
+            >>>     def process_action(self, agent):
+            >>>         # Clamp square to circle
+            >>>         agent.action.u = TorchUtils.clamp_with_norm(agent.action.u, agent.u_range)
+            >>>         # Can use a PID controller
+            >>>         agent.controller.process_force()
+            >>>         return
+
         """
         return

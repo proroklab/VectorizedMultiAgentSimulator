@@ -58,6 +58,7 @@ debug_scenarios = sorted(
         "diff_drive",
         "kinematic_bicycle",
         "pollock",
+        "drone",
     ]
 )
 """List of the vmas debug scenarios """
