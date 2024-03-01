@@ -52,22 +52,6 @@ class VectorEnvWrapper(rllib.VectorEnv):
 
         obs, infos, rews = self._read_data(obs, infos, rews)
 
-        # print("\nStep results in wrapped environment")
-        # print(
-        #     f"Actions len (num_envs): {len(saved_actions)}, len actions[0] (n_agents): {len(saved_actions[0])},"
-        #     f" actions[0][0] (action agent 0 env 0): {saved_actions[0][0]}"
-        # )
-        # print(
-        #     f"Obs len (num_envs): {len(obs_list)}, len obs[0] (n_agents): {len(obs_list[0])},"
-        #     f" obs[0][0] (obs agent 0 env 0): {obs_list[0][0]}"
-        # )
-        # print(
-        #     f"Total rews len (num_envs): {len(total_rews)}, total_rews[0] (total rew env 0): {total_rews[0]}"
-        # )
-        # print(f"Dones len (num_envs): {len(dones)}, dones[0] (done env 0): {dones[0]}")
-        # print(
-        #     f"Total infos len (num_envs): {len(total_infos)}, total_infos[0] (infos env 0): {total_infos[0]}"
-        # )
         return obs, rews, dones, infos
 
     def seed(self, seed=None):
@@ -128,9 +112,7 @@ class VectorEnvWrapper(rllib.VectorEnv):
                 ), f"Expecting actions for {self._env.n_agents} agents, got {len(list_in[j])} actions"
                 for i in range(self._env.n_agents):
                     act = torch.tensor(
-                        list_in[j][i],
-                        dtype=torch.float32,
-                        device=self._env.device,
+                        list_in[j][i], dtype=torch.float32, device=self._env.device
                     )
                     if len(act.shape) == 0:
                         assert (
@@ -174,11 +156,7 @@ class VectorEnvWrapper(rllib.VectorEnv):
                 if reward:
                     rew_list.append(reward_processed)
 
-            return (
-                obs_list,
-                info_list if info else None,
-                rew_list if reward else None,
-            )
+            return obs_list, info_list if info else None, rew_list if reward else None
         else:
             return self._get_data_at_env_index(env_index, obs, info, reward)
 

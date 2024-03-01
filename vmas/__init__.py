@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -13,11 +13,12 @@ _init_pyglet_device()
 __all__ = [
     "make_env",
     "render_interactively",
-    "Wrapper",
     "scenarios",
     "debug_scenarios",
     "mpe_scenarios",
 ]
+
+__version__ = "1.4.0"
 
 scenarios = sorted(
     [
@@ -43,6 +44,7 @@ scenarios = sorted(
         "wind_flocking",
     ]
 )
+"""List of the vmas scenarios (excluding MPE and debug)"""
 
 debug_scenarios = sorted(
     [
@@ -56,8 +58,11 @@ debug_scenarios = sorted(
         "diff_drive",
         "kinematic_bicycle",
         "pollock",
+        "drone",
     ]
 )
+"""List of the vmas debug scenarios """
+
 
 mpe_scenarios = sorted(
     [
@@ -72,3 +77,4 @@ mpe_scenarios = sorted(
         "simple_world_comm",
     ]
 )
+"""List of the vmas MPE scenarios """

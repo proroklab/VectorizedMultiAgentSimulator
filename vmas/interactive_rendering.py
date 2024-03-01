@@ -300,14 +300,34 @@ def render_interactively(
     save_render: bool = False,
     **kwargs,
 ):
-    """
-    Use this script to interactively play with scenarios
+    """Executes a scenario and renders it so that you can debug and control agents interactively.
 
-    You can change agent by pressing TAB
-    You can reset the environment by pressing R
+    You can change the agent to control by pressing TAB.
+    You can reset the environment by pressing R.
     You can control agent actions with the arrow keys and M/N (left/right control the first action, up/down control the second, M/N controls the third)
+
     If you have more than 1 agent, you can control another one with W,A,S,D and Q,E in the same way.
-    and switch the agent with these controls using LSHIFT
+    and switch the agent using LSHIFT.
+
+    Args:
+        scenario (Union[str, BaseScenario]): Scenario to load.
+            Can be the name of a file in `vmas.scenarios` folder or a :class:`~vmas.simulator.scenario.BaseScenario` class
+        control_two_agents (bool, optional): Whether to control two agents or just one. Defaults to ``False``.
+        display_info (bool, optional): Whether to display on the screen the following info from the first controlled agent:
+            name, reward, total reward, done, and observation. Defaults to ``True``.
+        save_render (bool, optional): Whether to save a video of the render up to the first reset.
+            The video will be saved in the directory of this file with the name ``{scenario}_interactive``.
+            Defaults to ``False``.
+
+    Examples:
+        >>> from vmas import render_interactively
+        >>> render_interactively(
+        ...     "waterfall",
+        ...     control_two_agents=True,
+        ...     save_render=False,
+        ...     display_info=True,
+        ... )
+
     """
 
     InteractiveEnv(
@@ -324,7 +344,9 @@ def render_interactively(
         control_two_agents=control_two_agents,
         display_info=display_info,
         save_render=save_render,
-        render_name=f"{scenario}",
+        render_name=f"{scenario}_interactive"
+        if isinstance(scenario, str)
+        else "interactive",
     )
 
 
