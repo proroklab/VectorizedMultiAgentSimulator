@@ -24,7 +24,7 @@ class TestFootball:
         )
         self.env.seed(0)
 
-    @pytest.mark.skipif(not sys.platform.startswith("linux"))
+    @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Test needs linux")
     def test_ai_vs_random(self, n_envs=15, n_agents=3):
         self.setup_env(
             n_red_agents=n_agents,
