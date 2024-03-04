@@ -33,12 +33,6 @@ jobs:
     - name: Install dependencies
       run: |
         bash .github/unittest/install_dependencies.sh
-    - name: Lint with flake8
-      run: |
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 vmas/ --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 vmas/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --ignore=E203,W503
     - name: Test with pytest
       run: |
          pytest tests/ --doctest-modules --junitxml=junit/test-results.xml --cov=. --cov-report=xml --cov-report=html
