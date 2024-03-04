@@ -1,52 +1,52 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-import unittest
+
+import pytest
 
 from vmas import make_env
 from vmas.scenarios import flocking
 
 
-class TestFlocking(unittest.TestCase):
+class TestFlocking:
     def setup_env(
         self,
+        n_envs,
         **kwargs,
     ) -> None:
-        super().setUp()
-
-        self.n_envs = 15
         self.env = make_env(
             scenario="flocking",
-            num_envs=self.n_envs,
+            num_envs=n_envs,
             device="cpu",
             # Environment specific variables
             **kwargs,
         )
         self.env.seed(0)
 
-    def test_heuristic(self):
+    @pytest.mark.parametrize("n_agents", [5, 10])
+    def test_heuristic(self, n_agents, n_steps=100, n_envs=15):
+        self.setup_env(
+            n_agents=n_agents, random_package_pos_on_line=False, n_envs=n_envs
+        )
+        policy = flocking.HeuristicPolicy(True)
 
-        for n_agents in [5, 10]:
-            self.setup_env(n_agents=n_agents, random_package_pos_on_line=False)
-            policy = flocking.HeuristicPolicy(True)
+        obs = self.env.reset()
+        rews = None
 
-            obs = self.env.reset()
-            rews = None
+        for _ in range(n_steps):
+            actions = []
+            for i in range(n_agents):
+                obs_agent = obs[i]
 
-            for _ in range(500):
-                actions = []
+                action_agent = policy.compute_action(
+                    obs_agent, self.env.agents[i].u_range
+                )
+
+                actions.append(action_agent)
+
+            obs, new_rews, dones, _ = self.env.step(actions)
+
+            if rews is not None:
                 for i in range(n_agents):
-                    obs_agent = obs[i]
-
-                    action_agent = policy.compute_action(
-                        obs_agent, self.env.agents[i].u_range
-                    )
-
-                    actions.append(action_agent)
-
-                obs, new_rews, dones, _ = self.env.step(actions)
-
-                if rews is not None:
-                    for i in range(n_agents):
-                        self.assertTrue((new_rews[i] >= rews[i]).all())
-                    rews = new_rews
+                    assert (new_rews[i] >= rews[i]).all()
+                rews = new_rews

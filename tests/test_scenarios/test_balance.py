@@ -1,25 +1,25 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-import unittest
+
+import pytest
 
 from vmas import make_env
 from vmas.scenarios import balance
 
 
-class TestBalance(unittest.TestCase):
+class TestBalance:
     def setup_env(
         self,
+        n_envs,
         **kwargs,
     ) -> None:
-        super().setUp()
         self.n_agents = kwargs.get("n_agents", 4)
 
         self.continuous_actions = True
-        self.n_envs = 15
         self.env = make_env(
             scenario="balance",
-            num_envs=self.n_envs,
+            num_envs=n_envs,
             device="cpu",
             continuous_actions=self.continuous_actions,
             # Environment specific variables
@@ -27,29 +27,30 @@ class TestBalance(unittest.TestCase):
         )
         self.env.seed(0)
 
-    def test_heuristic(self):
+    @pytest.mark.parametrize("n_agents", [2, 5, 6, 10])
+    def test_heuristic(self, n_agents, n_steps=100, n_envs=15):
+        self.setup_env(
+            n_agents=n_agents, random_package_pos_on_line=False, n_envs=n_envs
+        )
+        policy = balance.HeuristicPolicy(self.continuous_actions)
 
-        for n_agents in [2, 5, 6, 10]:
-            self.setup_env(n_agents=n_agents, random_package_pos_on_line=False)
-            policy = balance.HeuristicPolicy(self.continuous_actions)
+        obs = self.env.reset()
+        rews = None
 
-            obs = self.env.reset()
-            rews = None
+        for _ in range(n_steps):
+            actions = []
+            for i in range(n_agents):
+                obs_agent = obs[i]
 
-            for _ in range(100):
-                actions = []
-                for i in range(n_agents):
-                    obs_agent = obs[i]
+                action_agent = policy.compute_action(
+                    obs_agent, self.env.agents[i].u_range
+                )
 
-                    action_agent = policy.compute_action(
-                        obs_agent, self.env.agents[i].u_range
-                    )
+                actions.append(action_agent)
 
-                    actions.append(action_agent)
+            obs, new_rews, dones, _ = self.env.step(actions)
 
-                obs, new_rews, dones, _ = self.env.step(actions)
-
-                if rews is not None:
-                    for i in range(self.n_agents):
-                        self.assertTrue((new_rews[i] >= rews[i]).all())
-                    rews = new_rews
+            if rews is not None:
+                for i in range(self.n_agents):
+                    assert (new_rews[i] >= rews[i]).all()
+                rews = new_rews
