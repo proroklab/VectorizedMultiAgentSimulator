@@ -47,7 +47,7 @@ def test_use_vmas_env(scenario, continuous_actions, num_envs=10, n_steps=10):
 def test_render(scenario="waterfall", continuous_actions=True, num_envs=10, n_steps=10):
     use_vmas_env(
         render=True,
-        save_render=True,
+        save_render=False,
         visualize_when_rgb=False,
         random_action=True,
         device="cpu",
