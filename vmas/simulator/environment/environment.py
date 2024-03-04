@@ -3,7 +3,7 @@
 #  All rights reserved.
 import random
 from ctypes import byref
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
@@ -197,6 +197,21 @@ class Environment(TorchVectorizedObject):
             dones: Tensor of len 'self.num_envs' of which each element is a bool
             infos : List on len 'self.n_agents' of which each element is a dictionary for which each key is a metric
                     and the value is a tensor of shape '(self.num_envs, metric_size_per_agent)'
+
+        Examples:
+            >>> import vmas
+            >>> env = vmas.make_env(
+            ...     scenario="waterfall",  # can be scenario name or BaseScenario class
+            ...     num_envs=32,
+            ...     device="cpu",  # Or "cuda" for GPU
+            ...     continuous_actions=True,
+            ...     max_steps=None,  # Defines the horizon. None is infinite horizon.
+            ...     seed=None,  # Seed of the environment
+            ...     n_agents=3,  # Additional arguments you want to pass to the scenario
+            ... )
+            >>> obs = env.reset()
+            >>> for _ in range(10):
+            ...     obs, rews, dones, info = env.step(env.get_random_actions())
         """
         if isinstance(actions, Dict):
             actions_dict = actions
@@ -351,6 +366,76 @@ class Environment(TorchVectorizedObject):
             raise NotImplementedError(
                 f"Invalid type of observation {obs} for agent {agent.name}"
             )
+
+    def get_random_action(self, agent: Agent) -> torch.Tensor:
+        """Returns a random action for the given agent.
+
+        Args:
+            agent (Agent): The agent to get the action for
+
+        Returns:
+            torch.tensor: the random actions tensor with shape ``(agent.batch_dim, agent.action_size)``
+
+        """
+        if self.continuous_actions:
+            actions = []
+            for action_index in range(agent.action_size):
+                actions.append(
+                    torch.zeros(
+                        agent.batch_dim,
+                        device=agent.device,
+                        dtype=torch.float32,
+                    ).uniform_(
+                        -agent.action.u_range_tensor[action_index],
+                        agent.action.u_range_tensor[action_index],
+                    )
+                )
+            if self.world.dim_c != 0 and not agent.silent:
+                # If the agent needs to communicate
+                for _ in range(self.world.dim_c):
+                    actions.append(
+                        torch.zeros(
+                            agent.batch_dim,
+                            device=agent.device,
+                            dtype=torch.float32,
+                        ).uniform_(
+                            0,
+                            1,
+                        )
+                    )
+            action = torch.stack(actions, dim=-1)
+        else:
+            action = torch.randint(
+                low=0,
+                high=self.get_agent_action_space(agent).n,
+                size=(agent.batch_dim,),
+                device=agent.device,
+            )
+        return action
+
+    def get_random_actions(self) -> Sequence[torch.Tensor]:
+        """Returns random actions for all agents that you can feed to :class:`step`
+
+        Returns:
+            Sequence[torch.tensor]: the random actions for the agents
+
+        Examples:
+            >>> import vmas
+            >>> env = vmas.make_env(
+            ...     scenario="waterfall",  # can be scenario name or BaseScenario class
+            ...     num_envs=32,
+            ...     device="cpu",  # Or "cuda" for GPU
+            ...     continuous_actions=True,
+            ...     max_steps=None,  # Defines the horizon. None is infinite horizon.
+            ...     seed=None,  # Seed of the environment
+            ...     n_agents=3,  # Additional arguments you want to pass to the scenario
+            ... )
+            >>> obs = env.reset()
+            >>> for _ in range(10):
+            ...     obs, rews, dones, info = env.step(env.get_random_actions())
+
+        """
+        return [self.get_random_action(agent) for agent in self.agents]
 
     def _check_discrete_action(self, action: Tensor, low: int, high: int, type: str):
         assert torch.all(

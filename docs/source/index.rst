@@ -2,15 +2,16 @@
 VMAS
 ====
 
+.. figure:: https://raw.githubusercontent.com/matteobettini/vmas-media/master/media/vmas_scenarios_more.gif
+   :align: center
+
+
+:github:`null` `GitHub <https://github.com/proroklab/VectorizedMultiAgentSimulator>`__
+
 Docs are currently being written, please bear with us.
 
 Forthcoming doc sections:
 
-- Usage
-    - Notebooks
-    - Installing
-    - Running
-    - Citing
 
 - Concepts (explanation of all the lib features) (divide in basic, advanced and medium)
     - Input and output spaces
@@ -32,6 +33,19 @@ Forthcoming doc sections:
 - Scenarios description and renderings
 
 - Full package reference with docstrings for all public functions
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Using
+
+   usage/notebooks
+   usage/installation
+   usage/running
+   usage/citing
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Concepts
 
 
 .. toctree::
