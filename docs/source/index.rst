@@ -2,6 +2,10 @@
 VMAS
 ====
 
+.. figure:: https://raw.githubusercontent.com/matteobettini/vmas-media/master/media/vmas_scenarios_more.gif
+   :align: center
+
+
 :github:`null` `GitHub <https://github.com/proroklab/VectorizedMultiAgentSimulator>`__
 
 Docs are currently being written, please bear with us.
