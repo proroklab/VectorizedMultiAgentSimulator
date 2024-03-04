@@ -34,11 +34,3 @@ jobs:
     - name: Test with pytest
       run: |
          xvfb-run -s "-screen 0 1024x768x24" pytest tests/ --doctest-modules --junitxml=junit/test-results.xml --cov=. --cov-report=xml --cov-report=html
-
-    - if: matrix.python-version == '3.10'
-      name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      env:
-        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-      with:
-        fail_ci_if_error: true
