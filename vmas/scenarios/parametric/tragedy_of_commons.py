@@ -1,13 +1,14 @@
 #  Copyright (c) 2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-from typing import List, Dict
+import math
+from typing import Dict, List
 
 import torch
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, Sphere, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, ScenarioUtils, TorchUtils, AGENT_INFO_TYPE
+from vmas.simulator.utils import AGENT_INFO_TYPE, Color, ScenarioUtils, TorchUtils
 
 
 class Scenario(BaseScenario):
@@ -23,7 +24,7 @@ class Scenario(BaseScenario):
         )
         self.reserve_consumption_rate = torch.nn.Parameter(
             torch.tensor(
-                [kwargs.get("reserve_consumption_rate", 0.006)],
+                [kwargs.get("reserve_consumption_rate", 0.02)],
                 device=device,
                 dtype=torch.float,
             )
@@ -44,6 +45,7 @@ class Scenario(BaseScenario):
 
         self.eating_reward = kwargs.get("eating_reward", 1.0)
         self.reserve_empty_reward = kwargs.get("reserve_empty_reward", -1.0)
+        self.energy_rew_coeff = kwargs.get("energy_rew_coeff", 1.0)
 
         self.min_distance_between_entities = (
             max(self.agent_radius, self.resource_radius) * 2 + 0.05
@@ -74,6 +76,10 @@ class Scenario(BaseScenario):
                 color=Color.GREEN,
             )
             world.add_landmark(food)
+
+        self.rew_eating = torch.zeros(world.batch_dim, device=world.device)
+        self.rew_running_out_of_food = torch.zeros(world.batch_dim, device=world.device)
+        self.rew_energy = torch.zeros(world.batch_dim, device=world.device)
         self.t = 0
 
         return world
@@ -139,10 +145,23 @@ class Scenario(BaseScenario):
         is_last = agent == self.world.agents[-1]
 
         if is_first:
-            # self.t += 1
-            # print(self.t)
-            # time.sleep(0.1)
-            self.rew = torch.zeros(self.world.batch_dim, device=self.world.device)
+            if self.world.batch_dim == 1:
+                import time
+
+                self.t += 1
+                print("Time", self.t)
+                time.sleep(0.1)
+
+            self.rew_eating = torch.zeros(
+                self.world.batch_dim, device=self.world.device
+            )
+            self.rew_running_out_of_food = torch.zeros(
+                self.world.batch_dim, device=self.world.device
+            )
+            self.rew_energy = torch.zeros(
+                self.world.batch_dim, device=self.world.device
+            )
+
             self.process_resources_consumption()
 
             for landmark in self.world.landmarks:
@@ -151,21 +170,40 @@ class Scenario(BaseScenario):
 
                 self.current_reserve = self.current_reserve + consumed_float
                 self.current_resources = self.current_resources - consumed_float
-                self.rew = torch.where(
+
+                # Reward for eating
+                self.rew_eating = torch.where(
                     consumed,
-                    self.rew + self.eating_reward,
-                    self.rew,
+                    self.eating_reward,
+                    self.rew_eating,
                 )
-            self.rew = torch.where(
+
+            # Reward for being out of reserve
+            self.rew_running_out_of_food = torch.where(
                 self.current_reserve == 0,
-                self.rew + self.reserve_empty_reward,
-                self.rew,
+                self.reserve_empty_reward,
+                self.rew_running_out_of_food,
             )
+
+            # Reward for minimizing energy
+            self.rew_energy = (
+                (
+                    -torch.stack(
+                        [
+                            torch.linalg.vector_norm(a.action.u, dim=-1)
+                            / math.sqrt(self.world.dim_p * (a.u_range**2))
+                            for a in self.world.agents
+                        ],
+                        dim=1,
+                    ).sum(-1)
+                )
+                + 1
+            ).clamp(max=0) * self.energy_rew_coeff
 
         if is_last:
             self.evolve_state()
 
-        return self.rew
+        return self.rew_eating + self.rew_running_out_of_food + self.rew_energy
 
     def process_resources_consumption(self):
         for landmark in self.world.landmarks:
@@ -195,7 +233,7 @@ class Scenario(BaseScenario):
 
         # Update resources rendering
         rendered_landmarks = torch.stack(
-            [l._render for l in self.world.landmarks], dim=-1
+            [landmark._render for landmark in self.world.landmarks], dim=-1
         )
         n_rendered_landmarks_per_env = rendered_landmarks.to(torch.int).sum(-1)
         n_more_landmarks_to_render = torch.clamp(
@@ -232,16 +270,21 @@ class Scenario(BaseScenario):
         return {
             "current_reserve": self.current_reserve,
             "current_resources": self.current_resources,
+            "rew_eating": self.rew_eating,
+            "rew_running_out_of_food": self.rew_running_out_of_food,
+            "rew_energy": self.rew_energy,
         }
 
     def get_closest_resource(self, agent: Agent):
         landmark_rel_poses = []
         landmark_distances = []
-        for l in self.world.landmarks:
-            landmark_rel_pos = agent.state.pos - l.state.pos
+        for landmark in self.world.landmarks:
+            landmark_rel_pos = agent.state.pos - landmark.state.pos
             landmark_rel_poses.append(landmark_rel_pos)
             landmark_distance = torch.linalg.vector_norm(landmark_rel_pos, dim=-1)
-            landmark_distance = torch.where(~l._render, torch.inf, landmark_distance)
+            landmark_distance = torch.where(
+                ~landmark._render, torch.inf, landmark_distance
+            )
             landmark_distances.append(landmark_distance)
         landmark_rel_poses = torch.stack(landmark_rel_poses, dim=1)
         landmark_distances = torch.stack(landmark_distances, dim=1)
