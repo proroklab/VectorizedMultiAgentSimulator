@@ -1,6 +1,7 @@
 #  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
+import sys
 
 import pytest
 import torch
@@ -23,9 +24,8 @@ class TestFootball:
         )
         self.env.seed(0)
 
+    @pytest.mark.skipif(not sys.platform.startswith("linux"))
     def test_ai_vs_random(self, n_envs=15, n_agents=3):
-        pytest.skip()
-
         self.setup_env(
             n_red_agents=n_agents,
             n_blue_agents=n_agents,

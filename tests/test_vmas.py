@@ -5,7 +5,10 @@ import os
 from pathlib import Path
 
 import pytest
+import torch
 
+import vmas
+from vmas import make_env
 from vmas.examples.use_vmas_env import use_vmas_env
 
 
@@ -56,3 +59,29 @@ def test_render(scenario="waterfall", continuous_actions=True, num_envs=10, n_st
         num_envs=num_envs,
         n_steps=n_steps,
     )
+
+
+@pytest.mark.parametrize("scenario", vmas.scenarios + vmas.mpe_scenarios)
+def test_vmas_differentiable(scenario, n_steps=10, n_envs=10):
+    if scenario == "football" or scenario == "simple_crypto":
+        pytest.skip()
+    env = make_env(
+        scenario=scenario,
+        num_envs=n_envs,
+        continuous_actions=True,
+        seed=0,
+        grad_enabled=True,
+    )
+
+    for step in range(n_steps):
+        actions = []
+        for agent in env.agents:
+            action = env.get_random_action(agent)
+            action.requires_grad_(True)
+            if step == 0:
+                first_action = action
+            actions.append(action)
+        obs, rews, dones, info = env.step(actions)
+
+    loss = obs[-1].mean() + rews[-1].mean()
+    grad = torch.autograd.grad(loss, first_action)
