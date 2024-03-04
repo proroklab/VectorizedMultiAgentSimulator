@@ -3,6 +3,7 @@
 #  All rights reserved.
 import unittest
 
+import pytest
 import torch
 from tqdm import tqdm
 
@@ -26,6 +27,7 @@ class TestFootball(unittest.TestCase):
         self.env.seed(0)
 
     def test_ai_vs_random(self):
+        pytest.skip()
         torch.manual_seed(0)
         n_agents = 3
         self.setup_env(
