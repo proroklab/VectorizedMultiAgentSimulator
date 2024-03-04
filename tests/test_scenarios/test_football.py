@@ -26,6 +26,7 @@ class TestFootball(unittest.TestCase):
         self.env.seed(0)
 
     def test_ai_vs_random(self):
+        torch.manual_seed(0)
         n_agents = 3
         self.setup_env(
             n_red_agents=n_agents,
