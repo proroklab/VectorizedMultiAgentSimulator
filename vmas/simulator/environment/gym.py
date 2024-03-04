@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 from typing import List, Optional
@@ -8,9 +8,7 @@ import numpy as np
 import torch
 
 from vmas.simulator.environment.environment import Environment
-from vmas.simulator.utils import (
-    extract_nested_with_index,
-)
+from vmas.simulator.utils import extract_nested_with_index
 
 
 class GymWrapper(gym.Env):

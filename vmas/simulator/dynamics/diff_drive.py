@@ -1,9 +1,10 @@
 #  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-import math
+
 
 import torch
+
 import vmas.simulator.core
 import vmas.simulator.utils
 from vmas.simulator.dynamics.common import Dynamics

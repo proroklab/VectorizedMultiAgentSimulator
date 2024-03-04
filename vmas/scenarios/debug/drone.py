@@ -36,7 +36,11 @@ class Scenario(BaseScenario):
                 name=f"drone_{i}",
                 collide=True,
                 render_action=True,
-                u_range=[0.00001, 0.00001, 0.00001],  # torque_x, torque_y, torque_z
+                u_range=[
+                    0.00001,
+                    0.00001,
+                    0.00001,
+                ],  # torque_x, torque_y, torque_z
                 u_multiplier=[1, 1, 1],
                 action_size=3,  # We feed only the torque actions to interactively control the drone in the debug scenario
                 # In non-debug cases, remove this line and the `process_action` function in this file
@@ -81,7 +85,8 @@ class Scenario(BaseScenario):
     def done(self):
         return torch.any(
             torch.stack(
-                [agent.dynamics.needs_reset() for agent in self.world.agents], dim=-1
+                [agent.dynamics.needs_reset() for agent in self.world.agents],
+                dim=-1,
             ),
             dim=-1,
         )

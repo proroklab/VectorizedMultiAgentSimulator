@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import torch
+
 from vmas.simulator.utils import TorchUtils
 
 
@@ -111,7 +112,10 @@ def _get_closest_box_box(
         dtype=torch.float32,
     )
     distance = torch.full(
-        box_pos.shape[:-1], float("inf"), device=box_pos.device, dtype=torch.float32
+        box_pos.shape[:-1],
+        float("inf"),
+        device=box_pos.device,
+        dtype=torch.float32,
     )
     for p1, p2 in zip(p1s, p2s):
         d = torch.linalg.vector_norm(p1 - p2, dim=-1)
@@ -194,7 +198,10 @@ def _get_closest_points_line_line(
         dtype=torch.float32,
     )
     min_distance = torch.full(
-        line_pos.shape[:-1], float("inf"), device=line_pos.device, dtype=torch.float32
+        line_pos.shape[:-1],
+        float("inf"),
+        device=line_pos.device,
+        dtype=torch.float32,
     )
     for p1, p2 in point_pairs:
         d = torch.linalg.vector_norm(p1 - p2, dim=-1)
@@ -231,7 +238,10 @@ def _get_intersection_point_line_line(point_a1, point_a2, point_b1, point_b2):
     cross_r_s_is_zero = cross_r_s == 0
 
     distance = torch.full(
-        point_a1.shape[:-1], float("inf"), device=point_a1.device, dtype=torch.float32
+        point_a1.shape[:-1],
+        float("inf"),
+        device=point_a1.device,
+        dtype=torch.float32,
     )
     point = torch.full(
         point_a1.shape,
@@ -269,7 +279,10 @@ def _get_closest_point_box(box_pos, box_rot, box_width, box_length, test_point_p
         dtype=torch.float32,
     )
     distance = torch.full(
-        box_pos.shape[:-1], float("inf"), device=box_pos.device, dtype=torch.float32
+        box_pos.shape[:-1],
+        float("inf"),
+        device=box_pos.device,
+        dtype=torch.float32,
     )
     for p in closest_points:
         d = torch.linalg.vector_norm(test_point_pos - p, dim=-1)
@@ -304,7 +317,11 @@ def _get_all_lines_box(box_pos, box_rot, box_width, box_length):
         rots.append(box_rot + torch.pi / 2 if i <= 1 else box_rot)
         lengths.append(box_width if i <= 1 else box_length)
 
-    return torch.stack(ps, dim=0), torch.stack(rots, dim=0), torch.stack(lengths, dim=0)
+    return (
+        torch.stack(ps, dim=0),
+        torch.stack(rots, dim=0),
+        torch.stack(lengths, dim=0),
+    )
 
 
 def _get_closest_line_box(
@@ -340,7 +357,10 @@ def _get_closest_line_box(
         dtype=torch.float32,
     )
     distance = torch.full(
-        box_pos.shape[:-1], float("inf"), device=box_pos.device, dtype=torch.float32
+        box_pos.shape[:-1],
+        float("inf"),
+        device=box_pos.device,
+        dtype=torch.float32,
     )
     ps_box, ps_line = _get_closest_points_line_line(
         lines_pos,

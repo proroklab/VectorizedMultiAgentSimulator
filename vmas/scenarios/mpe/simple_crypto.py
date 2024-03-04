@@ -4,13 +4,13 @@ Scenario:
 adversary to goal. Adversary is rewarded for its distance to the goal.
 """
 
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
 import torch
 
-from vmas.simulator.core import World, Agent
+from vmas.simulator.core import Agent, World
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color
 
@@ -37,9 +37,9 @@ class Scenario(BaseScenario):
                 name=("eve_0" if adversary else ("alice_0" if speaker else "bob_0")),
                 collide=False,
                 movable=False,
-                color=Color.RED
-                if adversary
-                else (Color.GREEN if speaker else Color.BLUE),
+                color=(
+                    Color.RED if adversary else (Color.GREEN if speaker else Color.BLUE)
+                ),
                 adversary=adversary,
                 silent=False,
             )
@@ -50,10 +50,16 @@ class Scenario(BaseScenario):
 
     def reset_world_at(self, env_index: int = None):
         key = torch.randint(
-            0, 2, (self.world.batch_dim, self.world.dim_c), device=self.world.device
+            0,
+            2,
+            (self.world.batch_dim, self.world.dim_c),
+            device=self.world.device,
         )
         secret = torch.randint(
-            0, 2, (self.world.batch_dim, self.world.dim_c), device=self.world.device
+            0,
+            2,
+            (self.world.batch_dim, self.world.dim_c),
+            device=self.world.device,
         )
 
         if env_index is None:
@@ -62,9 +68,11 @@ class Scenario(BaseScenario):
                 agent.secret = secret
                 agent.set_pos(
                     torch.zeros(
-                        (1, self.world.dim_p)
-                        if env_index is not None
-                        else (self.world.batch_dim, self.world.dim_p),
+                        (
+                            (1, self.world.dim_p)
+                            if env_index is not None
+                            else (self.world.batch_dim, self.world.dim_p)
+                        ),
                         device=self.world.device,
                         dtype=torch.float32,
                     ).uniform_(

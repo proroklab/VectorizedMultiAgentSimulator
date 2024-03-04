@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 from typing import Dict
@@ -7,7 +7,7 @@ import torch
 from torch import Tensor
 
 from vmas import render_interactively
-from vmas.simulator.core import Agent, Landmark, Sphere, World, Line
+from vmas.simulator.core import Agent, Landmark, Line, Sphere, World
 from vmas.simulator.joints import Joint
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color
@@ -181,7 +181,8 @@ class Scenario(BaseScenario):
                 batch_index=env_index,
             )
             joint.landmark.set_rot(
-                start_angle + (torch.pi if i == 1 else 0), batch_index=env_index
+                start_angle + (torch.pi if i == 1 else 0),
+                batch_index=env_index,
             )
 
         self.spawn_path_line(env_index)
@@ -207,7 +208,9 @@ class Scenario(BaseScenario):
 
         if is_first:
             self.rew = torch.zeros(
-                self.world.batch_dim, device=self.world.device, dtype=torch.float32
+                self.world.batch_dim,
+                device=self.world.device,
+                dtype=torch.float32,
             )
             self.pos_rew[:] = 0
             self.collision_rew[:] = 0
@@ -234,7 +237,11 @@ class Scenario(BaseScenario):
 
     def observation(self, agent: Agent):
         return torch.cat(
-            [agent.state.pos, agent.state.vel, agent.state.pos - self.goal.state.pos],
+            [
+                agent.state.pos,
+                agent.state.vel,
+                agent.state.pos - self.goal.state.pos,
+            ],
             dim=-1,
         )
 

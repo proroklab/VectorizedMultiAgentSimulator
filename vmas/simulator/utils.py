@@ -5,7 +5,7 @@ import importlib
 import os
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import List, Tuple, Union, Dict, Sequence
+from typing import Dict, List, Sequence, Tuple, Union
 
 import numpy as np
 import torch
@@ -74,7 +74,7 @@ def _init_pyglet_device():
         )
 
 
-class Observable(ABC):
+class Observable:
     def __init__(self):
         self._observers = []
 

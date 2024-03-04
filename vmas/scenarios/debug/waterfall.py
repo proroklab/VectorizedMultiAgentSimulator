@@ -1,11 +1,11 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
 import torch
 
 from vmas import render_interactively
-from vmas.simulator.core import Agent, World, Sphere, Landmark, Box, Line
+from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
 from vmas.simulator.joints import Joint
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color
@@ -21,7 +21,12 @@ class Scenario(BaseScenario):
 
         # Make world
         world = World(
-            batch_dim, device, dt=0.1, drag=0.25, substeps=5, collision_force=500
+            batch_dim,
+            device,
+            dt=0.1,
+            drag=0.25,
+            substeps=5,
+            collision_force=500,
         )
         # Add agents
         for i in range(self.n_agents):
@@ -102,7 +107,10 @@ class Scenario(BaseScenario):
         ):
             agent.set_pos(
                 torch.tensor(
-                    [-0.2 + (self.agent_dist + 2 * self.agent_radius) * i, 1.0],
+                    [
+                        -0.2 + (self.agent_dist + 2 * self.agent_radius) * i,
+                        1.0,
+                    ],
                     dtype=torch.float32,
                     device=self.world.device,
                 ),

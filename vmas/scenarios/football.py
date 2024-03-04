@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -9,7 +9,7 @@ from functools import reduce
 import torch
 
 from vmas import render_interactively
-from vmas.simulator.core import Agent, World, Landmark, Sphere, Box, Line
+from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color, X, Y
 
@@ -115,13 +115,16 @@ class Scenario(BaseScenario):
         for agent in self.blue_agents:
             agent.set_pos(
                 torch.rand(
-                    (1, self.world.dim_p)
-                    if env_index is not None
-                    else (self.world.batch_dim, self.world.dim_p),
+                    (
+                        (1, self.world.dim_p)
+                        if env_index is not None
+                        else (self.world.batch_dim, self.world.dim_p)
+                    ),
                     device=self.world.device,
                 )
                 * torch.tensor(
-                    [self.pitch_length / 2, self.pitch_width], device=self.world.device
+                    [self.pitch_length / 2, self.pitch_width],
+                    device=self.world.device,
                 )
                 + torch.tensor(
                     [-self.pitch_length / 2, -self.pitch_width / 2],
@@ -136,13 +139,16 @@ class Scenario(BaseScenario):
         for agent in self.red_agents:
             agent.set_pos(
                 torch.rand(
-                    (1, self.world.dim_p)
-                    if env_index is not None
-                    else (self.world.batch_dim, self.world.dim_p),
+                    (
+                        (1, self.world.dim_p)
+                        if env_index is not None
+                        else (self.world.batch_dim, self.world.dim_p)
+                    ),
                     device=self.world.device,
                 )
                 * torch.tensor(
-                    [self.pitch_length / 2, self.pitch_width], device=self.world.device
+                    [self.pitch_length / 2, self.pitch_width],
+                    device=self.world.device,
                 )
                 + torch.tensor([0.0, -self.pitch_width / 2], device=self.world.device),
                 batch_index=env_index,
@@ -265,7 +271,9 @@ class Scenario(BaseScenario):
             if landmark.name == "Centre Line":
                 landmark.set_rot(
                     torch.tensor(
-                        [torch.pi / 2], dtype=torch.float32, device=self.world.device
+                        [torch.pi / 2],
+                        dtype=torch.float32,
+                        device=self.world.device,
                     ),
                     batch_index=env_index,
                 )
@@ -280,7 +288,9 @@ class Scenario(BaseScenario):
                 )
                 landmark.set_rot(
                     torch.tensor(
-                        [torch.pi / 2], dtype=torch.float32, device=self.world.device
+                        [torch.pi / 2],
+                        dtype=torch.float32,
+                        device=self.world.device,
                     ),
                     batch_index=env_index,
                 )
@@ -295,7 +305,9 @@ class Scenario(BaseScenario):
                 )
                 landmark.set_rot(
                     torch.tensor(
-                        [torch.pi / 2], dtype=torch.float32, device=self.world.device
+                        [torch.pi / 2],
+                        dtype=torch.float32,
+                        device=self.world.device,
                     ),
                     batch_index=env_index,
                 )
@@ -379,7 +391,9 @@ class Scenario(BaseScenario):
                 )
                 landmark.set_rot(
                     torch.tensor(
-                        [torch.pi / 2], dtype=torch.float32, device=self.world.device
+                        [torch.pi / 2],
+                        dtype=torch.float32,
+                        device=self.world.device,
                     ),
                     batch_index=env_index,
                 )
@@ -398,7 +412,9 @@ class Scenario(BaseScenario):
                 )
                 landmark.set_rot(
                     torch.tensor(
-                        [torch.pi / 2], dtype=torch.float32, device=self.world.device
+                        [torch.pi / 2],
+                        dtype=torch.float32,
+                        device=self.world.device,
                     ),
                     batch_index=env_index,
                 )
@@ -417,7 +433,9 @@ class Scenario(BaseScenario):
                 )
                 landmark.set_rot(
                     torch.tensor(
-                        [torch.pi / 2], dtype=torch.float32, device=self.world.device
+                        [torch.pi / 2],
+                        dtype=torch.float32,
+                        device=self.world.device,
                     ),
                     batch_index=env_index,
                 )
@@ -435,7 +453,9 @@ class Scenario(BaseScenario):
                 )
                 landmark.set_rot(
                     torch.tensor(
-                        [torch.pi / 2], dtype=torch.float32, device=self.world.device
+                        [torch.pi / 2],
+                        dtype=torch.float32,
+                        device=self.world.device,
                     ),
                     batch_index=env_index,
                 )
@@ -534,7 +554,9 @@ class Scenario(BaseScenario):
                 )
                 landmark.set_rot(
                     torch.tensor(
-                        [torch.pi / 2], dtype=torch.float32, device=self.world.device
+                        [torch.pi / 2],
+                        dtype=torch.float32,
+                        device=self.world.device,
                     ),
                     batch_index=env_index,
                 )
@@ -552,7 +574,9 @@ class Scenario(BaseScenario):
                 )
                 landmark.set_rot(
                     torch.tensor(
-                        [torch.pi / 2], dtype=torch.float32, device=self.world.device
+                        [torch.pi / 2],
+                        dtype=torch.float32,
+                        device=self.world.device,
                     ),
                     batch_index=env_index,
                 )
@@ -715,7 +739,7 @@ class Scenario(BaseScenario):
         return self._done
 
 
-""" Ball Physics """
+# Ball Physics
 
 
 def ball_action_script(ball, world):
@@ -781,7 +805,7 @@ def ball_action_script(ball, world):
     ball.action.u = actions
 
 
-""" Agent Policy """
+# Agent Policy
 
 
 class AgentPolicy:
@@ -899,7 +923,7 @@ class AgentPolicy:
             roles = torch.linspace(0.5, 1, len(self.teammates), device=world.device)
             self.role = {agent: roles[i] for i, agent in enumerate(self.teammates)}
 
-    def reset(self, env_index=slice(None)):
+    def reset(self, env_index=Ellipsis):
         for agent in self.teammates:
             self.actions[agent]["dribbling"][env_index] = False
             self.actions[agent]["shooting"][env_index] = False
@@ -972,7 +996,9 @@ class AgentPolicy:
             agent,
             pos=agent.state.pos[stay_still_mask],
             vel=torch.zeros(
-                stay_still_mask.sum(), self.world.dim_p, device=self.world.device
+                stay_still_mask.sum(),
+                self.world.dim_p,
+                device=self.world.device,
             ),
             env_index=stay_still_mask,
         )
@@ -984,10 +1010,10 @@ class AgentPolicy:
         control = torch.clamp(control, min=-agent.u_range, max=agent.u_range)
         agent.action.u = control * agent.u_multiplier
 
-    def dribble_to_goal(self, agent, env_index=slice(None)):
+    def dribble_to_goal(self, agent, env_index=Ellipsis):
         self.dribble(agent, self.target_net.state.pos[env_index], env_index=env_index)
 
-    def shoot_on_goal(self, agent, env_index=slice(None)):
+    def shoot_on_goal(self, agent, env_index=Ellipsis):
         goal_front = self.target_net.state.pos[env_index].clone()
         left_goal_mask = goal_front[:, X] < 0
         goal_front[:, X] += self.world.goal_depth / 2 * (left_goal_mask.float() * 2 - 1)
@@ -996,12 +1022,12 @@ class AgentPolicy:
         shoot_dir = shoot_dir / shoot_dir.norm(dim=-1)[:, None]
         shoot_pos = goal_front + shoot_dir * self.shoot_on_goal_dist
         self.shoot(agent, shoot_pos, env_index=env_index)
-        # self.shoot(agent, torch.tensor([-0.6, 0.]).unsqueeze(0), env_index=slice(None))
+        # self.shoot(agent, torch.tensor([-0.6, 0.]).unsqueeze(0), env_index=Ellipsis)
 
-    def passto(self, agent, agent_dest, env_index=slice(None)):
+    def passto(self, agent, agent_dest, env_index=Ellipsis):
         self.shoot(agent, agent_dest.state.pos[env_index], env_index=env_index)
 
-    def shoot(self, agent, pos, env_index=slice(None)):
+    def shoot(self, agent, pos, env_index=Ellipsis):
         if isinstance(env_index, int):
             env_index = [env_index]
         self.actions[agent]["dribbling"][env_index] = False
@@ -1108,7 +1134,7 @@ class AgentPolicy:
         self.actions[agent]["shooting"][max_time_mask] = False
         self.actions[agent]["pre-shooting"][max_time_mask] = False
 
-    def dribble(self, agent, pos, env_index=slice(None)):
+    def dribble(self, agent, pos, env_index=Ellipsis):
         if isinstance(env_index, int):
             env_index = [env_index]
         self.actions[agent]["dribbling"][env_index] = True
@@ -1131,7 +1157,7 @@ class AgentPolicy:
             ),
         )
 
-    def update_dribble(self, agent, pos, env_index=slice(None)):
+    def update_dribble(self, agent, pos, env_index=Ellipsis):
         agent_pos = agent.state.pos[env_index]
         ball_pos = self.ball.state.pos[env_index]
         ball_disp = pos - ball_pos
@@ -1149,7 +1175,7 @@ class AgentPolicy:
 
         self.go_to(agent, hit_pos, hit_vel, start_vel=start_vel, env_index=env_index)
 
-    def go_to(self, agent, pos, vel, start_vel=None, env_index=slice(None)):
+    def go_to(self, agent, pos, vel, start_vel=None, env_index=Ellipsis):
         start_pos = agent.state.pos[env_index]
         if start_vel is None:
             start_vel = self.get_start_vel(pos, vel, start_pos, self.start_vel_mag)
@@ -1177,7 +1203,7 @@ class AgentPolicy:
         start_vel = start_vel_aug_dir * start_vel_mag[:, None]
         return start_vel
 
-    def get_action(self, agent, env_index=slice(None)):
+    def get_action(self, agent, env_index=Ellipsis):
         curr_pos = agent.state.pos[env_index, :]
         curr_vel = agent.state.vel[env_index, :]
         u_start = torch.zeros(curr_pos.shape[0], device=self.world.device)
@@ -1250,13 +1276,14 @@ class AgentPolicy:
                 u=torch.tensor([u] * num_envs, device=self.world.device),
                 deriv=0,
             )
-            if env_index == slice(None) or (
+            if env_index == Ellipsis or (
                 isinstance(env_index, torch.Tensor)
                 and env_index.dtype == torch.bool
                 and torch.all(env_index)
             ):
                 pointi.set_pos(
-                    torch.as_tensor(posi, device=self.world.device), batch_index=None
+                    torch.as_tensor(posi, device=self.world.device),
+                    batch_index=None,
                 )
             elif isinstance(env_index, int):
                 pointi.set_pos(
@@ -1317,7 +1344,7 @@ class AgentPolicy:
         )
 
     def combine_mask(self, env_index, mask):
-        if env_index == slice(None):
+        if env_index == Ellipsis:
             return mask
         elif isinstance(env_index, torch.Tensor) and env_index.dtype == torch.bool:
             if isinstance(mask, torch.Tensor) and mask.dtype == torch.bool:
@@ -1331,7 +1358,7 @@ class AgentPolicy:
         elif isinstance(env_index, list):
             return torch.tensor(env_index, device=self.world.device)[mask]
 
-    def check_possession(self, env_index=slice(None)):
+    def check_possession(self, env_index=Ellipsis):
         agents_pos = torch.stack(
             [agent.state.pos[env_index] for agent in self.teammates + self.opposition],
             dim=1,
@@ -1351,7 +1378,7 @@ class AgentPolicy:
             self.agent_possession[agent][env_index] = mindist_agent == i
         self.team_possession[env_index] = mindist_team
 
-    def check_better_positions(self, agent, role, env_index=slice(None)):
+    def check_better_positions(self, agent, role, env_index=Ellipsis):
         curr_pos = agent.state.pos[env_index]
         curr_target = self.objectives[agent]["target_pos"]
         samples = (
@@ -1391,9 +1418,7 @@ class AgentPolicy:
         )
         return best_pos[0, :, :]
 
-    def get_angle_interval(
-        self, pos, obj, objpos=None, beams=128, env_index=slice(None)
-    ):
+    def get_angle_interval(self, pos, obj, objpos=None, beams=128, env_index=Ellipsis):
         # agent_pos = agent.state.pos[env_index]
         if objpos is not None:
             obj_pos = objpos
@@ -1452,7 +1477,7 @@ class AgentPolicy:
         teammate=True,
         wall=True,
         opposition=False,
-        env_index=slice(None),
+        env_index=Ellipsis,
     ):
         disps = []
         if wall:
@@ -1480,7 +1505,7 @@ class AgentPolicy:
                     disps.append(agent_disp)
         return disps
 
-    def get_lane_value(self, pos, agent, opposition=False, env_index=slice(None)):
+    def get_lane_value(self, pos, agent, opposition=False, env_index=Ellipsis):
         if not opposition:
             ball_angles, lidar_angles = self.get_angle_interval(pos, self.ball)
             goal_angles, _ = self.get_angle_interval(
@@ -1508,7 +1533,10 @@ class AgentPolicy:
                 )[0]
                 opp_blocking_angles_list = [
                     self.get_angle_interval(
-                        opp_agent_pos, otheragent, objpos=pos, env_index=env_index
+                        opp_agent_pos,
+                        otheragent,
+                        objpos=pos,
+                        env_index=env_index,
                     )[0]
                     for otheragent in self.teammates
                 ]
@@ -1522,15 +1550,15 @@ class AgentPolicy:
             opp_lane_value /= len(self.opposition)
             return opp_lane_value
 
-    def get_pos_value(self, pos, role=0.5, agent=None, env_index=slice(None)):
+    def get_pos_value(self, pos, role=0.5, agent=None, env_index=Ellipsis):
         # The value of a position for movement
         # Single agent's sight on goal and the ball, blocked by teammates and opposition
         lane_value = self.get_lane_value(
             pos, agent, opposition=False, env_index=env_index
         )
         # Agent Separations
-        disps = self.get_separations(pos, agent, env_index=env_index)
-        dists = torch.stack(list(map(lambda x: x.norm(dim=-1), disps)), dim=-1)
+        dists = self.get_separations(pos, agent, env_index=env_index)
+        dists = torch.stack([dist.norm(dim=-1) for dist in dists], dim=-1)
         inv_sq_dists = dists ** (-2)
         separation_value = -inv_sq_dists.sum(dim=-1)
         # Entire opposition's sight on goal, blocked by all teammates (shared value for all teammates)
@@ -1545,17 +1573,20 @@ class AgentPolicy:
         )
         return values
 
-    def get_attack_value(self, agent, env_index=slice(None)):
+    def get_attack_value(self, agent, env_index=Ellipsis):
         # The value of a position for attacking purposes
         agent_pos = agent.state.pos[env_index]
         lane_value = self.attack_lane_weight * self.get_lane_value(
-            agent.state.pos[env_index], agent, opposition=False, env_index=env_index
+            agent.state.pos[env_index],
+            agent,
+            opposition=False,
+            env_index=env_index,
         )
 
         goal_dist = (agent_pos - self.target_net.state.pos[env_index]).norm(dim=-1)
         goal_dist_value = self.attack_goal_dist_weight * -goal_dist
 
-        opp_disps = self.get_separations(
+        opp_dists = self.get_separations(
             agent_pos,
             agent,
             teammate=False,
@@ -1563,12 +1594,14 @@ class AgentPolicy:
             opposition=True,
             env_index=env_index,
         )
-        opp_dists = torch.stack(list(map(lambda x: x.norm(dim=-1), opp_disps)), dim=-1)
+        opp_dists = torch.stack(
+            [opp_dist.norm(dim=-1) for opp_dist in opp_dists], dim=-1
+        )
         opp_dist = torch.min(opp_dists, dim=-1)[0]
         opp_dist_value = self.attack_defender_dist_weight * opp_dist
         return lane_value + goal_dist_value + opp_dist_value
 
-    def can_shoot(self, agent, env_index=slice(None)):
+    def can_shoot(self, agent, env_index=Ellipsis):
         # Distance
         ball_pos = self.ball.state.pos[env_index]
         goal_dist = (ball_pos - self.target_net.state.pos[env_index]).norm(dim=-1)
@@ -1596,23 +1629,23 @@ class AgentPolicy:
         n = (
             torch.zeros(unblocked_angles.shape[0], device=self.world.device)
             .int()
-            .scatter(
+            .scatter_reduce(
                 index=indicesx,
                 src=(indicesy[:, 1] - indicesy[:, 0]).int(),
                 dim=0,
-                reduce="add",
+                reduce="sum",
             )
         )
         midpt = (
             torch.zeros(unblocked_angles.shape[0], device=self.world.device)
             .float()
-            .scatter(
+            .scatter_reduce(
                 index=indicesx,
                 src=(indicesy[:, 1] + indicesy[:, 0])
                 / 2
                 * (indicesy[:, 1] - indicesy[:, 0]),
                 dim=0,
-                reduce="add",
+                reduce="sum",
             )
             / n
             + 0.5
@@ -1633,7 +1666,7 @@ class AgentPolicy:
         )
         return can_shoot_mask, shoot_pos
 
-    def can_pass(self, agent_dest, env_index=slice(None)):
+    def can_pass(self, agent_dest, env_index=Ellipsis):
         # Distance
         ball_pos = self.ball.state.pos[env_index]
         agent_pos = agent_dest.state.pos[env_index]
@@ -1658,7 +1691,7 @@ class AgentPolicy:
         return can_pass_mask
 
 
-""" Run """
+# Run
 if __name__ == "__main__":
     render_interactively(
         __file__,

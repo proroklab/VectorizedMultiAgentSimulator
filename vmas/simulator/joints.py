@@ -1,12 +1,13 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Tuple, List
+from typing import List, Tuple, TYPE_CHECKING
 
 import torch
+
 import vmas.simulator.core
 import vmas.simulator.utils
 
@@ -68,9 +69,11 @@ class Joint(vmas.simulator.utils.Observer):
                 movable=True,
                 rotatable=rotate_a and rotate_b,
                 mass=mass,
-                shape=vmas.simulator.core.Box(length=dist, width=width)
-                if width != 0
-                else vmas.simulator.core.Line(length=dist),
+                shape=(
+                    vmas.simulator.core.Box(length=dist, width=width)
+                    if width != 0
+                    else vmas.simulator.core.Line(length=dist)
+                ),
                 color=vmas.simulator.utils.Color.BLACK,
                 is_joint=True,
             )
@@ -147,7 +150,7 @@ class JointConstraint:
             elif entity == self.entity_b:
                 anchor = self.anchor_b
             else:
-                assert False
+                raise AssertionError()
 
             delta_anchor_tensor = (
                 torch.tensor(

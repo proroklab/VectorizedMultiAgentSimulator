@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -8,9 +8,9 @@ import torch
 from torch import Tensor
 
 from vmas import render_interactively
-from vmas.simulator.core import Agent, Box, Landmark, Sphere, World, Line
+from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, Y, X
+from vmas.simulator.utils import Color, X, Y
 
 
 class Scenario(BaseScenario):
@@ -213,7 +213,9 @@ class Scenario(BaseScenario):
 
         if is_first:
             self.rew = torch.zeros(
-                self.world.batch_dim, device=self.world.device, dtype=torch.float32
+                self.world.batch_dim,
+                device=self.world.device,
+                dtype=torch.float32,
             )
             self.pos_rew[:] = 0
             self.collision_rew[:] = 0
@@ -254,7 +256,7 @@ class Scenario(BaseScenario):
                         ] += self.collision_reward
 
             # Ball collisions
-            for i, p in enumerate(self.passages):
+            for p in self.passages:
                 if p.collide:
                     self.collision_rew[
                         self.world.is_overlapping(p, self.ball)
@@ -373,19 +375,23 @@ class Scenario(BaseScenario):
             geom.add_attr(xform)
 
             xform.set_translation(
-                0.0
-                if i % 2
-                else (
-                    self.world.x_semidim + self.agent_radius
-                    if i == 0
-                    else -self.world.x_semidim - self.agent_radius
+                (
+                    0.0
+                    if i % 2
+                    else (
+                        self.world.x_semidim + self.agent_radius
+                        if i == 0
+                        else -self.world.x_semidim - self.agent_radius
+                    )
                 ),
-                0.0
-                if not i % 2
-                else (
-                    self.world.x_semidim + self.agent_radius
-                    if i == 1
-                    else -self.world.x_semidim - self.agent_radius
+                (
+                    0.0
+                    if not i % 2
+                    else (
+                        self.world.x_semidim + self.agent_radius
+                        if i == 1
+                        else -self.world.x_semidim - self.agent_radius
+                    )
                 ),
             )
             xform.set_rotation(torch.pi / 2 if not i % 2 else 0.0)

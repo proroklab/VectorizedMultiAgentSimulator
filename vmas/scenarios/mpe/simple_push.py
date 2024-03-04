@@ -1,11 +1,11 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
 import torch
 
 from vmas import render_interactively
-from vmas.simulator.core import World, Agent, Landmark
+from vmas.simulator.core import Agent, Landmark, World
 from vmas.simulator.scenario import BaseScenario
 
 
@@ -45,7 +45,9 @@ class Scenario(BaseScenario):
             # set goal landmark
             for i, landmark in enumerate(self.world.landmarks):
                 landmark.color = torch.tensor(
-                    [0.1, 0.1, 0.1], device=self.world.device, dtype=torch.float32
+                    [0.1, 0.1, 0.1],
+                    device=self.world.device,
+                    dtype=torch.float32,
                 )
                 landmark.color[i + 1] += 0.8
                 landmark.index = i
@@ -53,9 +55,11 @@ class Scenario(BaseScenario):
             goal = self.world.landmarks[
                 torch.randint(0, len(self.world.landmarks), (1,)).item()
             ]
-            for i, agent in enumerate(self.world.agents):
+            for agent in self.world.agents:
                 agent.color = torch.tensor(
-                    [0.25, 0.25, 0.25], device=self.world.device, dtype=torch.float32
+                    [0.25, 0.25, 0.25],
+                    device=self.world.device,
+                    dtype=torch.float32,
                 )
                 if agent.adversary:
                     agent.color = torch.tensor(
@@ -71,9 +75,11 @@ class Scenario(BaseScenario):
         for agent in self.world.agents:
             agent.set_pos(
                 torch.zeros(
-                    (1, self.world.dim_p)
-                    if env_index is not None
-                    else (self.world.batch_dim, self.world.dim_p),
+                    (
+                        (1, self.world.dim_p)
+                        if env_index is not None
+                        else (self.world.batch_dim, self.world.dim_p)
+                    ),
                     device=self.world.device,
                     dtype=torch.float32,
                 ).uniform_(
@@ -85,9 +91,11 @@ class Scenario(BaseScenario):
         for landmark in self.world.landmarks:
             landmark.set_pos(
                 torch.zeros(
-                    (1, self.world.dim_p)
-                    if env_index is not None
-                    else (self.world.batch_dim, self.world.dim_p),
+                    (
+                        (1, self.world.dim_p)
+                        if env_index is not None
+                        else (self.world.batch_dim, self.world.dim_p)
+                    ),
                     device=self.world.device,
                     dtype=torch.float32,
                 ).uniform_(
@@ -117,7 +125,10 @@ class Scenario(BaseScenario):
             torch.stack(
                 [
                     torch.sqrt(
-                        torch.sum(torch.square(a.state.pos - a.goal.state.pos), dim=-1)
+                        torch.sum(
+                            torch.square(a.state.pos - a.goal.state.pos),
+                            dim=-1,
+                        )
                     )
                     for a in self.world.agents
                     if not a.adversary

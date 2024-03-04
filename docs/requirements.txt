@@ -1,0 +1,6 @@
+git+https://github.com/matteobettini/benchmarl_sphinx_theme.git
+numpy
+torch
+pyglet<=1.5.27
+gym
+six

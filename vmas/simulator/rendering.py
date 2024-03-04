@@ -1,7 +1,8 @@
 """
 2D rendering framework
 """
-#  Copyright (c) 2022-2023.
+
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -11,13 +12,14 @@ import math
 import os
 import sys
 from itertools import chain
-from typing import Callable, Tuple, Optional, Union
+from typing import Callable, Optional, Tuple, Union
 
 import numpy as np
 import pyglet
 import six
 import torch
-from vmas.simulator.utils import x_to_rgb_colormap, TorchUtils
+
+from vmas.simulator.utils import TorchUtils, x_to_rgb_colormap
 
 try:
     from pyglet.gl import (
@@ -126,7 +128,8 @@ class Viewer(object):
         scalex = self.width / (right - left)
         scaley = self.height / (top - bottom)
         self.transform = Transform(
-            translation=(-left * scalex, -bottom * scaley), scale=(scalex, scaley)
+            translation=(-left * scalex, -bottom * scaley),
+            scale=(scalex, scaley),
         )
 
     def add_geom(self, geom):
@@ -449,7 +452,9 @@ class Grid(Geom):
 def render_function_util(
     f: Callable,
     plot_range: Union[
-        float, Tuple[float, float], Tuple[Tuple[float, float], Tuple[float, float]]
+        float,
+        Tuple[float, float],
+        Tuple[Tuple[float, float], Tuple[float, float]],
     ],
     precision: float = 0.01,
     cmap_range: Optional[Tuple[float, float]] = None,

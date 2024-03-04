@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 from typing import Dict
@@ -10,7 +10,7 @@ from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, Sphere, World
 from vmas.simulator.joints import Joint
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import X, Color, JOINT_FORCE
+from vmas.simulator.utils import Color, JOINT_FORCE, X
 
 
 class Scenario(BaseScenario):
@@ -80,9 +80,11 @@ class Scenario(BaseScenario):
 
     def reset_world_at(self, env_index: int = None):
         ball_pos = torch.zeros(
-            (1, self.world.dim_p)
-            if env_index is not None
-            else (self.world.batch_dim, self.world.dim_p),
+            (
+                (1, self.world.dim_p)
+                if env_index is not None
+                else (self.world.batch_dim, self.world.dim_p)
+            ),
             device=self.world.device,
             dtype=torch.float32,
         ).uniform_(

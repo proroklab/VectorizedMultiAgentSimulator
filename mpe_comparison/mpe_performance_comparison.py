@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -14,14 +14,14 @@ from pathlib import Path
 import numpy as np
 import tikzplotlib
 import torch
-from matplotlib import pyplot as plt
 
 import vmas
+from matplotlib import pyplot as plt
 
 
 def mpe_make_env(scenario_name):
-    from mpe.multiagent.environment import MultiAgentEnv
     import mpe.multiagent.scenarios as scenarios
+    from mpe.multiagent.environment import MultiAgentEnv
 
     # load scenario from script
     scenario = scenarios.load(scenario_name + ".py").Scenario()
@@ -44,10 +44,10 @@ def run_mpe_simple_spread(n_envs: int, n_steps: int):
     [env.reset() for env in envs]
     init_time = time.time()
 
-    for step in range(n_steps):
+    for _ in range(n_steps):
         for env_idx in range(n_envs):
             actions = []
-            for i in range(n_agents):
+            for _ in range(n_agents):
                 actions.append(simple_shared_action)
             envs[env_idx].step(actions)
 
@@ -72,9 +72,9 @@ def run_vmas_simple_spread(n_envs: int, n_steps: int, device: str):
     env.reset()
     init_time = time.time()
 
-    for step in range(n_steps):
+    for _ in range(n_steps):
         actions = []
-        for i in range(n_agents):
+        for _ in range(n_agents):
             actions.append(
                 torch.tensor(
                     simple_shared_action,
@@ -101,11 +101,11 @@ def get_device_name(torch_device: str):
                     if "model name" in line:
                         return re.sub(".*model name.*:", "", line, 1)
             else:
-                assert False
+                raise AssertionError()
     elif torch_device == "cuda":
         return torch.cuda.get_device_name()
     else:
-        assert False
+        raise AssertionError()
 
 
 def store_pickled_evaluation(name: str, evaluation: list):

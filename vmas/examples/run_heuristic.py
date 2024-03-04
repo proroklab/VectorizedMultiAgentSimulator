@@ -1,10 +1,11 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import time
 from typing import Type
 
 import torch
+
 from vmas import make_env
 from vmas.simulator.heuristic_policy import BaseHeuristicPolicy, RandomPolicy
 from vmas.simulator.utils import save_video
@@ -15,13 +16,14 @@ def run_heuristic(
     heuristic: Type[BaseHeuristicPolicy] = RandomPolicy,
     n_steps: int = 200,
     n_envs: int = 32,
-    env_kwargs: dict = {},
+    env_kwargs: dict = None,
     render: bool = False,
     save_render: bool = False,
     device: str = "cpu",
 ):
-
     assert not (save_render and not render), "To save the video you have to render it"
+    if env_kwargs is None:
+        env_kwargs = {}
 
     # Scenario specific variables
     policy = heuristic(continuous_action=True)
@@ -41,7 +43,7 @@ def run_heuristic(
     step = 0
     obs = env.reset()
     total_reward = 0
-    for s in range(n_steps):
+    for _ in range(n_steps):
         step += 1
         actions = [None] * len(obs)
         for i in range(len(obs)):

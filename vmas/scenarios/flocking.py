@@ -1,16 +1,17 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 from typing import Callable, Dict
 
 import torch
 from torch import Tensor
+
 from vmas import render_interactively
-from vmas.simulator.core import Agent, Landmark, Sphere, World, Entity
+from vmas.simulator.core import Agent, Entity, Landmark, Sphere, World
 from vmas.simulator.heuristic_policy import BaseHeuristicPolicy
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.sensors import Lidar
-from vmas.simulator.utils import Color, X, Y, ScenarioUtils
+from vmas.simulator.utils import Color, ScenarioUtils, X, Y
 
 
 class Scenario(BaseScenario):
@@ -85,9 +86,11 @@ class Scenario(BaseScenario):
 
     def reset_world_at(self, env_index: int = None):
         target_pos = torch.zeros(
-            (1, self.world.dim_p)
-            if env_index is not None
-            else (self.world.batch_dim, self.world.dim_p),
+            (
+                (1, self.world.dim_p)
+                if env_index is not None
+                else (self.world.batch_dim, self.world.dim_p)
+            ),
             device=self.world.device,
             dtype=torch.float32,
         )

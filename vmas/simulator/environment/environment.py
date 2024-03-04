@@ -3,24 +3,25 @@
 #  All rights reserved.
 import random
 from ctypes import byref
-from typing import List, Tuple, Callable, Optional, Union, Dict
+from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
 from gym import spaces
 from torch import Tensor
+
+import vmas.simulator.utils
 from vmas.simulator.core import Agent, TorchVectorizedObject
 from vmas.simulator.scenario import BaseScenario
-import vmas.simulator.utils
 from vmas.simulator.utils import (
-    VIEWER_MIN_ZOOM,
     AGENT_OBS_TYPE,
-    X,
-    Y,
     ALPHABET,
     DEVICE_TYPING,
     override,
     TorchUtils,
+    VIEWER_MIN_ZOOM,
+    X,
+    Y,
 )
 
 
@@ -196,6 +197,21 @@ class Environment(TorchVectorizedObject):
             dones: Tensor of len 'self.num_envs' of which each element is a bool
             infos : List on len 'self.n_agents' of which each element is a dictionary for which each key is a metric
                     and the value is a tensor of shape '(self.num_envs, metric_size_per_agent)'
+
+        Examples:
+            >>> import vmas
+            >>> env = vmas.make_env(
+            ...     scenario="waterfall",  # can be scenario name or BaseScenario class
+            ...     num_envs=32,
+            ...     device="cpu",  # Or "cuda" for GPU
+            ...     continuous_actions=True,
+            ...     max_steps=None,  # Defines the horizon. None is infinite horizon.
+            ...     seed=None,  # Seed of the environment
+            ...     n_agents=3,  # Additional arguments you want to pass to the scenario
+            ... )
+            >>> obs = env.reset()
+            >>> for _ in range(10):
+            ...     obs, rews, dones, info = env.step(env.get_random_actions())
         """
         if isinstance(actions, Dict):
             actions_dict = actions
@@ -241,25 +257,12 @@ class Environment(TorchVectorizedObject):
 
         self.steps += 1
         obs, rewards, dones, infos = self.get_from_scenario(
-            get_observations=True, get_infos=True, get_rewards=True, get_dones=True
+            get_observations=True,
+            get_infos=True,
+            get_rewards=True,
+            get_dones=True,
         )
 
-        # print("\nStep results in unwrapped environment")
-        # print(
-        #     f"Actions len (n_agents): {len(actions)}, "
-        #     f"actions[0] shape (num_envs, agent 0 action shape): {actions[0].shape}, "
-        #     f"actions[0][0] (action agent 0 env 0): {actions[0][0]}"
-        # )
-        # print(
-        #     f"Obs len (n_agents): {len(obs)}, "
-        #     f"obs[0] shape (num_envs, agent 0 obs shape): {obs[0].shape}, obs[0][0] (obs agent 0 env 0): {obs[0][0]}"
-        # )
-        # print(
-        #     f"Rewards len (n_agents): {len(rewards)}, rewards[0] shape (num_envs, 1): {rewards[0].shape}, "
-        #     f"rewards[0][0] (agent 0 env 0): {rewards[0][0]}"
-        # )
-        # print(f"Dones len (n_envs): {len(dones)}, dones[0] (done env 0): {dones[0]}")
-        # print(f"Info len (n_agents): {len(infos)}, info[0] (infos agent 0): {infos[0]}")
         return obs, rewards, dones, infos
 
     def done(self):
@@ -364,6 +367,76 @@ class Environment(TorchVectorizedObject):
                 f"Invalid type of observation {obs} for agent {agent.name}"
             )
 
+    def get_random_action(self, agent: Agent) -> torch.Tensor:
+        """Returns a random action for the given agent.
+
+        Args:
+            agent (Agent): The agent to get the action for
+
+        Returns:
+            torch.tensor: the random actions tensor with shape ``(agent.batch_dim, agent.action_size)``
+
+        """
+        if self.continuous_actions:
+            actions = []
+            for action_index in range(agent.action_size):
+                actions.append(
+                    torch.zeros(
+                        agent.batch_dim,
+                        device=agent.device,
+                        dtype=torch.float32,
+                    ).uniform_(
+                        -agent.action.u_range_tensor[action_index],
+                        agent.action.u_range_tensor[action_index],
+                    )
+                )
+            if self.world.dim_c != 0 and not agent.silent:
+                # If the agent needs to communicate
+                for _ in range(self.world.dim_c):
+                    actions.append(
+                        torch.zeros(
+                            agent.batch_dim,
+                            device=agent.device,
+                            dtype=torch.float32,
+                        ).uniform_(
+                            0,
+                            1,
+                        )
+                    )
+            action = torch.stack(actions, dim=-1)
+        else:
+            action = torch.randint(
+                low=0,
+                high=self.get_agent_action_space(agent).n,
+                size=(agent.batch_dim,),
+                device=agent.device,
+            )
+        return action
+
+    def get_random_actions(self) -> Sequence[torch.Tensor]:
+        """Returns random actions for all agents that you can feed to :class:`step`
+
+        Returns:
+            Sequence[torch.tensor]: the random actions for the agents
+
+        Examples:
+            >>> import vmas
+            >>> env = vmas.make_env(
+            ...     scenario="waterfall",  # can be scenario name or BaseScenario class
+            ...     num_envs=32,
+            ...     device="cpu",  # Or "cuda" for GPU
+            ...     continuous_actions=True,
+            ...     max_steps=None,  # Defines the horizon. None is infinite horizon.
+            ...     seed=None,  # Seed of the environment
+            ...     n_agents=3,  # Additional arguments you want to pass to the scenario
+            ... )
+            >>> obs = env.reset()
+            >>> for _ in range(10):
+            ...     obs, rews, dones, info = env.step(env.get_random_actions())
+
+        """
+        return [self.get_random_action(agent) for agent in self.agents]
+
     def _check_discrete_action(self, action: Tensor, low: int, high: int, type: str):
         assert torch.all(
             (action >= torch.tensor(low, device=self.device))
@@ -378,7 +451,10 @@ class Environment(TorchVectorizedObject):
         action = action.to(self.device)
         assert not action.isnan().any()
         agent.action.u = torch.zeros(
-            self.batch_dim, agent.action_size, device=self.device, dtype=torch.float32
+            self.batch_dim,
+            agent.action_size,
+            device=self.device,
+            dtype=torch.float32,
         )
 
         assert action.shape[1] == self.get_agent_action_size(agent), (
@@ -456,7 +532,9 @@ class Environment(TorchVectorizedObject):
         if agent.action.u_noise > 0:
             noise = (
                 torch.randn(
-                    *agent.action.u.shape, device=self.device, dtype=torch.float32
+                    *agent.action.u.shape,
+                    device=self.device,
+                    dtype=torch.float32,
                 )
                 * agent.u_noise
             )
@@ -485,7 +563,9 @@ class Environment(TorchVectorizedObject):
             if agent.c_noise > 0:
                 noise = (
                     torch.randn(
-                        *agent.action.c.shape, device=self.device, dtype=torch.float32
+                        *agent.action.c.shape,
+                        device=self.device,
+                        dtype=torch.float32,
                     )
                     * agent.c_noise
                 )
@@ -572,8 +652,7 @@ class Environment(TorchVectorizedObject):
                 pyglet.lib.load_library("EGL")
 
                 # Only if we have GPUs
-                from pyglet.libs.egl import egl
-                from pyglet.libs.egl import eglext
+                from pyglet.libs.egl import egl, eglext
 
                 num_devices = egl.EGLint()
                 eglext.eglQueryDevicesEXT(0, None, byref(num_devices))
@@ -595,7 +674,8 @@ class Environment(TorchVectorizedObject):
         if shared_viewer:
             # zoom out to fit everyone
             all_poses = torch.stack(
-                [agent.state.pos[env_index] for agent in self.world.agents], dim=0
+                [agent.state.pos[env_index] for agent in self.world.agents],
+                dim=0,
             )
             max_agent_radius = max(
                 [agent.shape.circumscribed_radius() for agent in self.world.agents]
@@ -611,7 +691,8 @@ class Environment(TorchVectorizedObject):
             )
 
             viewer_size = torch.maximum(
-                viewer_size_fit / cam_range, torch.tensor(zoom, device=self.device)
+                viewer_size_fit / cam_range,
+                torch.tensor(zoom, device=self.device),
             )
             cam_range *= torch.max(viewer_size)
             self.viewer.set_bounds(

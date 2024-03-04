@@ -5,7 +5,7 @@
 import torch
 
 from vmas import render_interactively
-from vmas.simulator.core import World, Agent, Landmark, Sphere, Line
+from vmas.simulator.core import Agent, Landmark, Line, Sphere, World
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color
 
@@ -67,9 +67,11 @@ class Scenario(BaseScenario):
         for agent in self.world.agents:
             agent.set_pos(
                 torch.zeros(
-                    (1, self.world.dim_p)
-                    if env_index is not None
-                    else (self.world.batch_dim, self.world.dim_p),
+                    (
+                        (1, self.world.dim_p)
+                        if env_index is not None
+                        else (self.world.batch_dim, self.world.dim_p)
+                    ),
                     device=self.world.device,
                     dtype=torch.float32,
                 ).uniform_(
@@ -82,9 +84,11 @@ class Scenario(BaseScenario):
         for landmark in self.world.landmarks:
             landmark.set_pos(
                 torch.zeros(
-                    (1, self.world.dim_p)
-                    if env_index is not None
-                    else (self.world.batch_dim, self.world.dim_p),
+                    (
+                        (1, self.world.dim_p)
+                        if env_index is not None
+                        else (self.world.batch_dim, self.world.dim_p)
+                    ),
                     device=self.world.device,
                     dtype=torch.float32,
                 ).uniform_(
@@ -240,19 +244,23 @@ class Scenario(BaseScenario):
             geom.add_attr(xform)
 
             xform.set_translation(
-                0.0
-                if i % 2
-                else (
-                    self.bound + self.adversary_radius
-                    if i == 0
-                    else -self.bound - self.adversary_radius
+                (
+                    0.0
+                    if i % 2
+                    else (
+                        self.bound + self.adversary_radius
+                        if i == 0
+                        else -self.bound - self.adversary_radius
+                    )
                 ),
-                0.0
-                if not i % 2
-                else (
-                    self.bound + self.adversary_radius
-                    if i == 1
-                    else -self.bound - self.adversary_radius
+                (
+                    0.0
+                    if not i % 2
+                    else (
+                        self.bound + self.adversary_radius
+                        if i == 1
+                        else -self.bound - self.adversary_radius
+                    )
                 ),
             )
             xform.set_rotation(torch.pi / 2 if not i % 2 else 0.0)

@@ -2,8 +2,12 @@
 <a href="https://pypi.org/project/vmas"><img src="https://img.shields.io/pypi/v/vmas" alt="pypi version"></a>
 [![Downloads](https://static.pepy.tech/personalized-badge/vmas?period=total&units=international_system&left_color=grey&right_color=blue&left_text=Downloads)](https://pepy.tech/project/vmas)
 ![tests](https://github.com/proroklab/VectorizedMultiAgentSimulator/actions/workflows/python-app.yml/badge.svg)
+[![codecov](https://codecov.io/github/proroklab/VectorizedMultiAgentSimulator/coverage.svg?branch=main)](https://codecov.io/gh/proroklab/VectorizedMultiAgentSimulator)
+[![Documentation Status](https://readthedocs.org/projects/vmas/badge/?version=latest)](https://vmas.readthedocs.io/en/latest/?badge=latest)
 [![Python](https://img.shields.io/badge/python-3.8%20%7C%203.9%20%7C%203.10-blue.svg)](https://www.python.org/downloads/)
 [![GitHub license](https://img.shields.io/badge/license-GPLv3.0-blue.svg)](https://github.com/proroklab/VectorizedMultiAgentSimulator/blob/main/LICENSE)
+[![arXiv](https://img.shields.io/badge/arXiv-2207.03530-b31b1b.svg)](https://arxiv.org/abs/2207.03530)
+
 
 <p align="center">
 <img src="https://github.com/matteobettini/vmas-media/blob/main/media/VMAS_scenarios.gif?raw=true" alt="drawing"/>  

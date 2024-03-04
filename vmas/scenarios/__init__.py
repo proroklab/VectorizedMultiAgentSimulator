@@ -1,4 +1,4 @@
-#  Copyright (c) 2022.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import importlib
@@ -9,7 +9,7 @@ from pathlib import Path
 
 def load(name: str):
     pathname = None
-    for dirpath, dirnames, filenames in os.walk(osp.dirname(__file__)):
+    for dirpath, _, filenames in os.walk(osp.dirname(__file__)):
         if pathname is None:
             for filename in filenames:
                 if name == filename or name == str(Path(dirpath) / Path(filename)):
