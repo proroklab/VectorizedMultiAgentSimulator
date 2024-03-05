@@ -121,8 +121,8 @@ pip install torchrl
 # Logging
 pip installl wandb 
 
-# Save renders
-pip install opencv-python moviepy
+# Rendering
+pip install opencv-python moviepy matplotlib
 
 # Tests
 pip install pytest pyyaml pytest-instafail tqdm
@@ -410,9 +410,9 @@ To create a fake screen you need to have `Xvfb` installed.
 ## TODOS
 
 - [ ] Reset any number of dimensions
-- [ ] Improve test efficiency and add new tests
 - [ ] Implement 1D camera sensor
 - [ ] Implement 2D birds eye view camera sensor
+- [X] Improve test efficiency and add new tests
 - [X] Implement 2D drone dynamics
 - [X] Allow any number of actions
 - [X] Improve VMAS performance

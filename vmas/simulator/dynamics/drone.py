@@ -10,6 +10,7 @@ from torch import Tensor
 import vmas.simulator.core
 import vmas.simulator.utils
 from vmas.simulator.dynamics.common import Dynamics
+from vmas.simulator.utils import TorchUtils
 
 
 class Drone(Dynamics):
@@ -49,9 +50,7 @@ class Drone(Dynamics):
                 device=self.world.device,
             )
         else:
-            self.drone_state = vmas.TorchUtils.where_from_index(
-                index, 0.0, self.drone_state
-            )
+            self.drone_state = TorchUtils.where_from_index(index, 0.0, self.drone_state)
 
     def zero_grad(self):
         self.drone_state = self.drone_state.detach()
