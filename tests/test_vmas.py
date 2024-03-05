@@ -2,6 +2,7 @@
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -36,8 +37,12 @@ def test_all_scenarios_included():
 @pytest.mark.parametrize("scenario", scenario_names())
 @pytest.mark.parametrize("continuous_actions", [True, False])
 def test_use_vmas_env(scenario, continuous_actions, num_envs=10, n_steps=10):
+    render = True
+    if sys.platform.startswith("win32"):
+        # Windows on github servers has issues with pyglet
+        render = False
     use_vmas_env(
-        render=True,
+        render=render,
         save_render=False,
         visualize_render=False,
         random_action=True,
