@@ -256,7 +256,7 @@ class Scenario(BaseScenario):
         )
 
     def observation(self, agent: Agent):
-        rel_pos = self.get_closest_resource(agent)
+        rel_pos = self.get_deterministic_resource(agent)
         return torch.cat(
             [
                 self.current_reserve.unsqueeze(-1),
@@ -290,6 +290,20 @@ class Scenario(BaseScenario):
         landmark_distances = torch.stack(landmark_distances, dim=1)
         min_dist_indices = landmark_distances.min(-1)[1]
         return landmark_rel_poses[torch.arange(self.world.batch_dim), min_dist_indices]
+
+    def get_deterministic_resource(self, agent: Agent):
+        landmark_rel_poses = []
+        index = torch.zeros(
+            self.world.batch_dim, dtype=torch.int, device=self.world.device
+        )
+        for i, landmark in enumerate(self.world.landmarks):
+            landmark_rel_pos = agent.state.pos - landmark.state.pos
+            landmark_rel_poses.append(landmark_rel_pos)
+            index = torch.where(landmark._render, i, index)
+
+        landmark_rel_poses = torch.stack(landmark_rel_poses, dim=1)
+
+        return landmark_rel_poses[torch.arange(self.world.batch_dim), index]
 
 
 if __name__ == "__main__":
