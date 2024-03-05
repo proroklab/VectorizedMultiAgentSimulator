@@ -33,7 +33,7 @@ def use_vmas_env(
     scenario_name: str = "waterfall",
     n_agents: int = 4,
     continuous_actions: bool = True,
-    visualize_when_rgb: bool = True,
+    visualize_render: bool = True,
 ):
     """Example function to use a vmas environment
 
@@ -47,7 +47,7 @@ def use_vmas_env(
         num_envs (int): Number of vectorized environments
         n_steps (int): Number of steps before returning done
         random_action (bool): Use random actions or have all agents perform the down action
-        visualize_when_rgb (bool, optional): Whether to visualize when saving the save_render=True. Defaults to
+        visualize_render (bool, optional): Whether to visualize the render. Defaults to ``True``.
 
     Returns:
 
@@ -97,9 +97,9 @@ def use_vmas_env(
 
         if render:
             frame = env.render(
-                mode="rgb_array" if save_render else "human",
+                mode="rgb_array",
                 agent_index_focus=None,  # Can give the camera an agent index to focus on
-                visualize_when_rgb=visualize_when_rgb,
+                visualize_when_rgb=visualize_render,
             )
             if save_render:
                 frame_list.append(frame)
