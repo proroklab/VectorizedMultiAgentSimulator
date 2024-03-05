@@ -29,14 +29,9 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install python3-opengl xvfb
-        python -m pip install --upgrade pip
-        python -m pip install flake8 pytest
-        pip install -e .
+        bash .github/unittest/install_dependencies.sh
     - name: Test with pytest
       run: |
-        pip install pytest 
-        pip install pytest-cov
-        pip install tqdm
         xvfb-run -s "-screen 0 1024x768x24" pytest tests/ --doctest-modules --junitxml=junit/test-results.xml --cov=. --cov-report=xml --cov-report=html
 
     - if: matrix.python-version == '3.10'
