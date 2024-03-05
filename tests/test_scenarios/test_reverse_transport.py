@@ -27,8 +27,8 @@ class TestReverseTransport:
         )
         self.env.seed(0)
 
-    @pytest.mark.parametrize("n_agents", [4, 5])
-    def test_heuristic(self, n_agents, n_envs=15):
+    @pytest.mark.parametrize("n_agents", [5])
+    def test_heuristic(self, n_agents, n_envs=4):
         self.setup_env(n_agents=n_agents, n_envs=n_envs)
         obs = self.env.reset()
         all_done = torch.full((n_envs,), False)

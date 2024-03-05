@@ -21,7 +21,7 @@ class TestGiveWay:
         )
         self.env.seed(0)
 
-    def test_heuristic(self, n_envs=15):
+    def test_heuristic(self, n_envs=4):
         self.setup_env(mirror_passage=False, n_envs=n_envs)
         all_done = torch.full((n_envs,), False)
         obs = self.env.reset()

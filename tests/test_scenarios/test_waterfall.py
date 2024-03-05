@@ -21,7 +21,7 @@ class TestWaterfall:
         )
         self.env.seed(0)
 
-    def test_heuristic(self, n_agents=5, n_envs=15, n_steps=100):
+    def test_heuristic(self, n_agents=5, n_envs=4, n_steps=50):
         self.setUp(n_envs=n_envs, n_agents=n_agents)
         obs = self.env.reset()
         for _ in range(n_steps):

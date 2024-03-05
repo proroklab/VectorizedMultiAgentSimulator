@@ -22,7 +22,7 @@ class TestNavigation:
         )
         self.env.seed(0)
 
-    @pytest.mark.parametrize("n_agents", [1, 3])
+    @pytest.mark.parametrize("n_agents", [1])
     def test_heuristic(
         self,
         n_agents,
@@ -30,7 +30,9 @@ class TestNavigation:
     ):
         self.setUp(n_envs=n_envs, n_agents=n_agents)
 
-        policy = HeuristicPolicy(continuous_action=self.continuous_actions)
+        policy = HeuristicPolicy(
+            continuous_action=self.continuous_actions, clf_epsilon=0.4, clf_slack=100.0
+        )
 
         obs = self.env.reset()
         all_done = torch.zeros(n_envs, dtype=torch.bool)

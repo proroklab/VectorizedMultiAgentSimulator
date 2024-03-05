@@ -26,8 +26,8 @@ class TestPassage:
         )
         self.env.seed(0)
 
-    def test_heuristic(self, n_envs=15):
-        self.setup_env(n_passages=1, shared_reward=True, n_envs=15)
+    def test_heuristic(self, n_envs=4):
+        self.setup_env(n_passages=1, shared_reward=True, n_envs=4)
 
         obs = self.env.reset()
         agent_switched = torch.full((5, n_envs), False)

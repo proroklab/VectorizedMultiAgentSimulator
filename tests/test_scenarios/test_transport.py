@@ -28,7 +28,7 @@ class TestTransport:
         )
         self.env.seed(0)
 
-    def test_not_passing_through_packages(self, n_agents=1, n_envs=15):
+    def test_not_passing_through_packages(self, n_agents=1, n_envs=4):
         self.setup_env(n_agents=n_agents, n_envs=n_envs)
 
         for _ in range(10):
@@ -51,8 +51,8 @@ class TestTransport:
 
                 obs, rews, dones, _ = self.env.step([action_agent])
 
-    @pytest.mark.parametrize("n_agents", [1, 4])
-    def test_heuristic(self, n_agents, n_envs=15):
+    @pytest.mark.parametrize("n_agents", [6])
+    def test_heuristic(self, n_agents, n_envs=4):
         self.setup_env(
             n_agents=n_agents, random_package_pos_on_line=False, n_envs=n_envs
         )

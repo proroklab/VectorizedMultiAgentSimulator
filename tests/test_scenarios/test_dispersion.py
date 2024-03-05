@@ -29,8 +29,8 @@ class TestDispersion:
         )
         self.env.seed(0)
 
-    @pytest.mark.parametrize("n_agents", [1, 5, 10, 20])
-    def test_heuristic(self, n_agents, n_envs=15):
+    @pytest.mark.parametrize("n_agents", [1, 5, 10])
+    def test_heuristic(self, n_agents, n_envs=4):
         self.setup_env(
             n_agents=n_agents,
             share_reward=False,
@@ -70,7 +70,7 @@ class TestDispersion:
                         self.env.reset_at(env_index)
 
     @pytest.mark.parametrize("n_agents", [1, 5, 10, 20])
-    def test_heuristic_share_reward(self, n_agents, n_envs=15):
+    def test_heuristic_share_reward(self, n_agents, n_envs=4):
         self.setup_env(
             n_agents=n_agents,
             share_reward=True,

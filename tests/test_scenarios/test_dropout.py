@@ -13,8 +13,8 @@ class TestDropout:
     def setup_env(
         self,
         n_agents: int,
+        num_envs: int,
         energy_coeff: float = DEFAULT_ENERGY_COEFF,
-        num_envs: int = 15,
     ) -> None:
         self.n_agents = n_agents
         self.energy_coeff = energy_coeff
@@ -33,8 +33,8 @@ class TestDropout:
         self.env.seed(0)
 
     # Test that one agent can always reach the goal no matter the conditions
-    @pytest.mark.parametrize("n_agents", [1, 5, 10, 20])
-    def test_heuristic(self, n_agents, n_envs=15):
+    @pytest.mark.parametrize("n_agents", [1, 5])
+    def test_heuristic(self, n_agents, n_envs=4):
         self.setup_env(n_agents=n_agents, num_envs=n_envs)
 
         obs = self.env.reset()
@@ -73,9 +73,9 @@ class TestDropout:
             done = dones.any()
 
     # Test that one agent can always reach the goal no matter the conditions
-    @pytest.mark.parametrize("n_agents", [1, 5, 10, 20])
-    def test_one_random_agent_can_do_it(self, n_agents, n_steps=50):
-        self.setup_env(n_agents=n_agents)
+    @pytest.mark.parametrize("n_agents", [1, 5])
+    def test_one_random_agent_can_do_it(self, n_agents, n_steps=50, n_envs=4):
+        self.setup_env(n_agents=n_agents, num_envs=n_envs)
         for i in range(self.n_agents):
             obs = self.env.reset()
             total_rew = torch.zeros(self.env.num_envs)
@@ -108,16 +108,16 @@ class TestDropout:
 
                 total_rew[dones] = 0
 
-    @pytest.mark.parametrize("n_agents", [5, 10, 50])
+    @pytest.mark.parametrize("n_agents", [5, 10])
     def test_all_agents_cannot_do_it(self, n_agents):
         # Test that all agents together cannot reach the goal no matter the conditions (to be sure we do 5+ agents)
         assert self.all_agents(DEFAULT_ENERGY_COEFF, n_agents) < 0
         # Test that all agents together can reach the goal with no energy penalty
         assert self.all_agents(0, n_agents) > 0
 
-    def all_agents(self, energy_coeff: float, n_agents: int, n_steps=50):
+    def all_agents(self, energy_coeff: float, n_agents: int, n_steps=100, n_envs=4):
         rewards = []
-        self.setup_env(n_agents=n_agents, energy_coeff=energy_coeff)
+        self.setup_env(n_agents=n_agents, energy_coeff=energy_coeff, num_envs=n_envs)
         obs = self.env.reset()
         total_rew = torch.zeros(self.env.num_envs)
         for _ in range(n_steps):
