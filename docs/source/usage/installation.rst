@@ -48,4 +48,4 @@ You may want to install the following rendering and logging tools
 .. code-block:: console
 
    pip install wandb
-   pip install opencv-python moviepy
+   pip install opencv-python moviepy matplotlib

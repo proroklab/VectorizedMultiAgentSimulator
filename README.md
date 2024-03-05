@@ -1,7 +1,7 @@
 # VectorizedMultiAgentSimulator (VMAS)
 <a href="https://pypi.org/project/vmas"><img src="https://img.shields.io/pypi/v/vmas" alt="pypi version"></a>
 [![Downloads](https://static.pepy.tech/personalized-badge/vmas?period=total&units=international_system&left_color=grey&right_color=blue&left_text=Downloads)](https://pepy.tech/project/vmas)
-![tests](https://github.com/proroklab/VectorizedMultiAgentSimulator/actions/workflows/python-app.yml/badge.svg)
+![tests](https://github.com/proroklab/VectorizedMultiAgentSimulator/actions/workflows/tests-linux.yml/badge.svg)
 [![codecov](https://codecov.io/github/proroklab/VectorizedMultiAgentSimulator/coverage.svg?branch=main)](https://codecov.io/gh/proroklab/VectorizedMultiAgentSimulator)
 [![Documentation Status](https://readthedocs.org/projects/vmas/badge/?version=latest)](https://vmas.readthedocs.io/en/latest/?badge=latest)
 [![Python](https://img.shields.io/badge/python-3.8%20%7C%203.9%20%7C%203.10-blue.svg)](https://www.python.org/downloads/)
@@ -121,8 +121,8 @@ pip install torchrl
 # Logging
 pip installl wandb 
 
-# Save renders
-pip install opencv-python moviepy
+# Rendering
+pip install opencv-python moviepy matplotlib
 
 # Tests
 pip install pytest pyyaml pytest-instafail tqdm
@@ -410,9 +410,9 @@ To create a fake screen you need to have `Xvfb` installed.
 ## TODOS
 
 - [ ] Reset any number of dimensions
-- [ ] Improve test efficiency and add new tests
 - [ ] Implement 1D camera sensor
 - [ ] Implement 2D birds eye view camera sensor
+- [X] Improve test efficiency and add new tests
 - [X] Implement 2D drone dynamics
 - [X] Allow any number of actions
 - [X] Improve VMAS performance
