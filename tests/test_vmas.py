@@ -49,6 +49,22 @@ def test_use_vmas_env(scenario, continuous_actions, num_envs=10, n_steps=10):
     )
 
 
+@pytest.mark.parametrize("scenario", scenario_names())
+def test_partial_reset(scenario, num_envs=10, n_steps=10):
+    env = make_env(
+        scenario=scenario,
+        num_envs=num_envs,
+        seed=0,
+    )
+    env_index = 0
+    for _ in range(n_steps):
+        env.step(env.get_random_actions())
+        env.reset_at(env_index)
+        env_index += 1
+        if env_index >= num_envs:
+            env_index = 0
+
+
 @pytest.mark.parametrize("scenario", vmas.scenarios + vmas.mpe_scenarios)
 def test_vmas_differentiable(scenario, n_steps=10, n_envs=10):
     if scenario == "football" or scenario == "simple_crypto":

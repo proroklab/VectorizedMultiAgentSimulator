@@ -3,6 +3,7 @@
 #  All rights reserved.
 
 import pytest
+import torch
 
 from vmas import make_env
 from vmas.scenarios import balance
@@ -35,12 +36,14 @@ class TestBalance:
         policy = balance.HeuristicPolicy(self.continuous_actions)
 
         obs = self.env.reset()
-        rews = None
+
+        prev_package_dist_to_goal = obs[0][:, 8:10]
 
         for _ in range(n_steps):
             actions = []
             for i in range(n_agents):
                 obs_agent = obs[i]
+                package_dist_to_goal = obs_agent[:, 8:10]
 
                 action_agent = policy.compute_action(
                     obs_agent, self.env.agents[i].u_range
@@ -50,7 +53,8 @@ class TestBalance:
 
             obs, new_rews, dones, _ = self.env.step(actions)
 
-            if rews is not None:
-                for i in range(self.n_agents):
-                    assert (new_rews[i] >= rews[i]).all()
-                rews = new_rews
+            assert (
+                torch.linalg.vector_norm(package_dist_to_goal, dim=-1)
+                <= torch.linalg.vector_norm(prev_package_dist_to_goal, dim=-1)
+            ).all()
+            prev_package_dist_to_goal = package_dist_to_goal

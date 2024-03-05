@@ -37,19 +37,16 @@ class TestWheel:
         policy = wheel.HeuristicPolicy(self.continuous_actions)
 
         obs = self.env.reset()
-        rews = None
+
         for _ in range(n_steps):
             actions = []
-            idx = 0
+
             for i in range(n_agents):
                 obs_agent = obs[i]
+
                 action_agent = policy.compute_action(
                     obs_agent, self.env.agents[i].u_range
                 )
                 actions.append(action_agent)
 
             obs, new_rews, dones, _ = self.env.step(actions)
-            if rews is not None:
-                for i in range(n_agents):
-                    assert (new_rews[i] >= rews[i]).all()
-                rews = new_rews

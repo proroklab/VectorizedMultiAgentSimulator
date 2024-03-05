@@ -1,7 +1,7 @@
 #  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-
+import pytest
 import torch
 
 from vmas import make_env
@@ -51,16 +51,17 @@ class TestTransport:
 
                 obs, rews, dones, _ = self.env.step([action_agent])
 
-    def test_heuristic(self, n_agents=4, n_envs=15):
+    @pytest.mark.parametrize("n_agents", [1, 4])
+    def test_heuristic(self, n_agents, n_envs=15):
         self.setup_env(
             n_agents=n_agents, random_package_pos_on_line=False, n_envs=n_envs
         )
         policy = transport.HeuristicPolicy(self.continuous_actions)
 
         obs = self.env.reset()
-        rews = None
+        all_done = torch.zeros(n_envs, dtype=torch.bool)
 
-        for _ in range(100):
+        while not all_done.all():
             actions = []
             for i in range(n_agents):
                 obs_agent = obs[i]
@@ -73,7 +74,9 @@ class TestTransport:
 
             obs, new_rews, dones, _ = self.env.step(actions)
 
-            if rews is not None:
-                for i in range(self.n_agents):
-                    assert (new_rews[i] >= rews[i]).all()
-                rews = new_rews
+            if dones.any():
+                all_done += dones
+
+                for env_index, done in enumerate(dones):
+                    if done:
+                        self.env.reset_at(env_index)

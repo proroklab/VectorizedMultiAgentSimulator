@@ -24,7 +24,6 @@ class TestWaterfall:
     def test_heuristic(self, n_agents=5, n_envs=15, n_steps=100):
         self.setUp(n_envs=n_envs, n_agents=n_agents)
         obs = self.env.reset()
-        rews = None
         for _ in range(n_steps):
             actions = []
             for i in range(n_agents):
@@ -36,7 +35,3 @@ class TestWaterfall:
                 )
                 actions.append(action_agent)
             obs, new_rews, _, _ = self.env.step(actions)
-            if rews is not None:
-                for i in range(n_agents):
-                    assert (new_rews[i] >= rews[i]).all()
-                rews = new_rews

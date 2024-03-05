@@ -31,7 +31,6 @@ class TestDiscovery:
         policy = discovery.HeuristicPolicy(True)
 
         obs = self.env.reset()
-        rews = None
 
         for _ in range(n_steps):
             actions = []
@@ -45,8 +44,3 @@ class TestDiscovery:
                 actions.append(action_agent)
 
             obs, new_rews, dones, _ = self.env.step(actions)
-
-            if rews is not None:
-                for i in range(n_agents):
-                    assert (new_rews[i] >= rews[i]).all()
-                rews = new_rews

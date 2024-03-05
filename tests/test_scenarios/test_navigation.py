@@ -1,50 +1,52 @@
 #  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-
 import pytest
 import torch
 
 from vmas import make_env
+from vmas.scenarios.navigation import HeuristicPolicy
 
 
-class TestReverseTransport:
-    def setup_env(self, n_envs, **kwargs) -> None:
-        self.n_agents = kwargs.get("n_agents", 4)
-        self.package_width = kwargs.get("package_width", 0.6)
-        self.package_length = kwargs.get("package_length", 0.6)
-        self.package_mass = kwargs.get("package_mass", 50)
-
+class TestNavigation:
+    def setUp(self, n_envs, n_agents) -> None:
         self.continuous_actions = True
 
         self.env = make_env(
-            scenario="reverse_transport",
+            scenario="navigation",
             num_envs=n_envs,
             device="cpu",
             continuous_actions=self.continuous_actions,
             # Environment specific variables
-            **kwargs,
+            n_agents=n_agents,
         )
         self.env.seed(0)
 
-    @pytest.mark.parametrize("n_agents", [4, 5])
-    def test_heuristic(self, n_agents, n_envs=15):
-        self.setup_env(n_agents=n_agents, n_envs=n_envs)
+    @pytest.mark.parametrize("n_agents", [1, 3])
+    def test_heuristic(
+        self,
+        n_agents,
+        n_envs=5,
+    ):
+        self.setUp(n_envs=n_envs, n_agents=n_agents)
+
+        policy = HeuristicPolicy(continuous_action=self.continuous_actions)
+
         obs = self.env.reset()
-        all_done = torch.full((n_envs,), False)
+        all_done = torch.zeros(n_envs, dtype=torch.bool)
 
         while not all_done.all():
             actions = []
             for i in range(n_agents):
                 obs_agent = obs[i]
-                action_agent = torch.clamp(
-                    -obs_agent[:, -2:],
-                    min=-self.env.agents[i].u_range,
-                    max=self.env.agents[i].u_range,
-                )
-                actions.append(action_agent)
-            obs, new_rews, dones, _ = self.env.step(actions)
 
+                action_agent = policy.compute_action(
+                    obs_agent, self.env.agents[i].action.u_range_tensor
+                )
+
+                actions.append(action_agent)
+
+            obs, new_rews, dones, _ = self.env.step(actions)
             if dones.any():
                 all_done += dones
 
