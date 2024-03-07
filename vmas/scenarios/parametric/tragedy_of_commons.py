@@ -13,7 +13,7 @@ from vmas.simulator.utils import AGENT_INFO_TYPE, Color, ScenarioUtils, TorchUti
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.n_agents = kwargs.get("n_agents", 4)
+        self.n_agents = kwargs.get("n_agents", 2)
 
         self.resource_growth_rate = torch.nn.Parameter(
             torch.tensor(
@@ -42,10 +42,11 @@ class Scenario(BaseScenario):
         self.agent_radius = kwargs.get("agent_radius", 0.035)
         self.resource_radius = kwargs.get("resource_radius", 0.05)
         self.world_semidim = kwargs.get("world_semidim", 1.0)
+        self.max_range = self.world_semidim * 5
 
-        self.eating_reward = kwargs.get("eating_reward", 1.0)
-        self.reserve_empty_reward = kwargs.get("reserve_empty_reward", -1.0)
-        self.energy_rew_coeff = kwargs.get("energy_rew_coeff", 1.0)
+        self.eating_reward = kwargs.get("eating_reward", 2.0)
+        self.reserve_empty_reward = kwargs.get("reserve_empty_reward", 0.0)
+        self.energy_rew_coeff = kwargs.get("energy_rew_coeff", 0.1)
 
         self.min_distance_between_entities = (
             max(self.agent_radius, self.resource_radius) * 2 + 0.05
@@ -190,14 +191,19 @@ class Scenario(BaseScenario):
                 (
                     -torch.stack(
                         [
-                            torch.linalg.vector_norm(a.action.u, dim=-1)
-                            / math.sqrt(self.world.dim_p * (a.u_range**2))
+                            1
+                            + (
+                                torch.linalg.vector_norm(a.action.u, dim=-1)
+                                / math.sqrt(self.world.dim_p * (a.u_range**2))
+                            )  # Min -2, max -1
                             for a in self.world.agents
                         ],
                         dim=1,
-                    ).sum(-1)
+                    ).prod(
+                        -1
+                    )  # Min -2 ** n_agents, max -1 ** n_agents
                 )
-                + 1
+                + 2  # Allow one agent to move
             ).clamp(max=0) * self.energy_rew_coeff
 
         if is_last:
@@ -256,10 +262,12 @@ class Scenario(BaseScenario):
         )
 
     def observation(self, agent: Agent):
-        rel_pos = self.get_deterministic_resource(agent)
+        rel_pos = self.get_closest_resource(agent, range=0.5)
         return torch.cat(
             [
-                self.current_reserve.unsqueeze(-1),
+                agent.state.pos,
+                agent.state.vel,
+                # self.current_reserve.unsqueeze(-1),
                 self.current_resources.unsqueeze(-1),
                 rel_pos,
             ],
@@ -275,7 +283,7 @@ class Scenario(BaseScenario):
             "rew_energy": self.rew_energy,
         }
 
-    def get_closest_resource(self, agent: Agent):
+    def get_closest_resource(self, agent: Agent, range: float):
         landmark_rel_poses = []
         landmark_distances = []
         for landmark in self.world.landmarks:
@@ -283,12 +291,19 @@ class Scenario(BaseScenario):
             landmark_rel_poses.append(landmark_rel_pos)
             landmark_distance = torch.linalg.vector_norm(landmark_rel_pos, dim=-1)
             landmark_distance = torch.where(
-                ~landmark._render, torch.inf, landmark_distance
+                ~landmark._render + (landmark_distance > range),
+                torch.inf,
+                landmark_distance,
             )
             landmark_distances.append(landmark_distance)
         landmark_rel_poses = torch.stack(landmark_rel_poses, dim=1)
         landmark_distances = torch.stack(landmark_distances, dim=1)
         min_dist_indices = landmark_distances.min(-1)[1]
+        landmark_rel_poses = torch.where(
+            landmark_distances.isinf().unsqueeze(-1).expand(landmark_rel_poses.shape),
+            self.max_range,
+            landmark_rel_poses,
+        )
         return landmark_rel_poses[torch.arange(self.world.batch_dim), min_dist_indices]
 
     def get_deterministic_resource(self, agent: Agent):
