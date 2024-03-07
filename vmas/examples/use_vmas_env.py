@@ -20,7 +20,7 @@ def _get_deterministic_action(agent: Agent, continuous: bool, env):
             .unsqueeze(-1)
             .expand(env.batch_dim, 1)
         )
-    return action
+    return action.clone()
 
 
 def use_vmas_env(
