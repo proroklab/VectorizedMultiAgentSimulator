@@ -56,7 +56,7 @@ class Scenario(BaseScenario):
                 name=f"package {i}",
                 collide=True,
                 movable=True,
-                mass=50,
+                mass=self.package_mass,
                 shape=Box(length=self.package_length, width=self.package_width),
                 color=Color.RED,
             )
