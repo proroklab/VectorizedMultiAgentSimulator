@@ -4,7 +4,6 @@
 from typing import Dict, List
 
 import torch
-from genagg import GenAgg
 
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World
@@ -26,18 +25,23 @@ class Scenario(BaseScenario):
 
         self.max_resources = torch.nn.Parameter(
             torch.tensor(
-                [kwargs.get("max_resources", 20.0)],
+                [kwargs.get("max_resources", 10.0)],
                 device=device,
                 dtype=torch.float,
             )
         )
-        self.gen_agg = GenAgg()
 
-        self.initial_resources = kwargs.get("initial_resources", 4)
+        self.initial_resources = kwargs.get(
+            "initial_resources", self.max_resources.item()
+        )
 
-        self.selfishness = kwargs.get("selfishness", 0.0)  # [0,1] 1 is selfish
-        self.eating_reward_coeff = kwargs.get("eating_reward_coeff", 1.0)
-        self.energy_reward_coeff = kwargs.get("energy_reward_coeff", 5.0)
+        self.selfishness = torch.nn.Parameter(
+            torch.tensor(
+                [kwargs.get("selfishness", 0.0)],
+                device=device,
+                dtype=torch.float,
+            )
+        )  # [0,1] 1 is selfish
 
         # Make world
         world = World(
@@ -51,12 +55,11 @@ class Scenario(BaseScenario):
                 name=f"agent_{i}",
                 collide=False,
                 action_size=1,
-                u_range=0.5,
+                u_range=self.max_resources.item() / (self.n_agents * 2),
             )
             world.add_agent(agent)
             agent.eating_reward = torch.zeros(world.batch_dim, device=world.device)
-            agent.energy_reward = torch.zeros(world.batch_dim, device=world.device)
-            agent.consumed_resources = torch.zeros(world.batch_dim, device=world.device)
+            agent.consume_action = torch.zeros(world.batch_dim, device=world.device)
 
         self.t = 0
         self.consumed_resources = torch.zeros(world.batch_dim, device=world.device)
@@ -65,7 +68,7 @@ class Scenario(BaseScenario):
         return world
 
     def parameters(self) -> List:
-        return [self.resource_growth_rate]
+        return [self.selfishness]
 
     def to_log(self) -> Dict:
         return {}
@@ -85,10 +88,12 @@ class Scenario(BaseScenario):
             )
 
     def process_action(self, agent: Agent):
-        # Actions are integers
-        agent.consume_action = (
-            (agent.action.u + agent.action.u_range).round().squeeze(-1)
-        )
+        agent.consume_action = agent.action.u.squeeze(-1) + agent.action.u_range
+
+        assert (agent.consume_action >= 0).all() and (
+            agent.consume_action <= self.max_resources / self.n_agents
+        ).all()
+
         agent.action.u = torch.zeros(
             (self.world.batch_dim, agent.dynamics.needed_action_size),
             device=self.world.device,
@@ -97,7 +102,7 @@ class Scenario(BaseScenario):
 
     def reward(self, agent: Agent):
         is_first = agent == self.world.agents[0]
-        is_last = agent == self.world.agents[-1]
+        # is_last = agent == self.world.agents[-1]
 
         if is_first:
             if self.world.batch_dim == 1:
@@ -107,49 +112,31 @@ class Scenario(BaseScenario):
                 print("Time", self.t)
                 time.sleep(0.1)
 
-            self.consumed_resources = torch.zeros(
-                self.world.batch_dim, device=self.world.device
-            )
-
+            self.consumed_resources = torch.stack(
+                [a.consume_action for a in self.world.agents], dim=-1
+            ).sum(-1)
             for a in self.world.agents:
-                # You cannot take more than available and you only take integers
-                a.consumed_resources = torch.minimum(
-                    a.consume_action, self.current_resources
-                ).floor()
-                # If someone already ate a resource then you cannot take it
-                # a.consumed_resources = torch.where(
-                #     self.consumed_resources > 0, 0, a.consumed_resources
-                # )
-
-                self.current_resources = self.current_resources - a.consumed_resources
-                self.consumed_resources = self.consumed_resources + a.consumed_resources
-
-                a.energy_reward = (
-                    -a.consume_action
-                    * self.energy_reward_coeff
-                    # * (
-                    #     1 - a.consumed_resources
-                    # )  # No energy reward for successfully eating
+                a.eating_reward = a.consume_action - a.consume_action * (
+                    self.consumed_resources / self.max_resources
                 )
-                a.eating_reward = a.consumed_resources * self.eating_reward_coeff
+            self.eating_reward = torch.stack(
+                [a.eating_reward for a in self.world.agents], dim=-1
+            ).mean(-1)
 
-            # Reward for eating
-            self.eating_reward = self.consumed_resources * self.eating_reward_coeff
+        # if is_last:
+        #     self.evolve_state()
 
-        if is_last:
-            self.evolve_state()
-
-        agent_rewards = torch.stack(
-            [a.eating_reward for a in self.world.agents], dim=-1
+        return (
+            self.eating_reward * (1 - self.selfishness)
+            + self.selfishness * agent.eating_reward
         )
-        if self.world.batch_dim == 1:
-            agent_rewards = agent_rewards.repeat(2, 1)
-        self.global_reward = self.gen_agg(agent_rewards, dim=-1).squeeze(-1)
-        if self.world.batch_dim == 1:
-            self.global_reward = self.global_reward[:1]
-        return self.global_reward + agent.energy_reward
 
     def evolve_state(self):
+        # Remove consumed resources
+        self.current_resources = (
+            self.current_resources - self.consumed_resources
+        ).clamp(min=1e-3)
+
         # Resources population growth --> Logistic growth model
         self.current_resources = self.current_resources + (
             self.resource_growth_rate
@@ -170,9 +157,8 @@ class Scenario(BaseScenario):
             "current_resources": self.current_resources,
             "total_eating_reward": self.eating_reward,
             "total_consumed_resources": self.consumed_resources,
-            "agent_consumed_resources": agent.consumed_resources,
+            "agent_consumed_resources": agent.consume_action,
             "agent_eating_reward": agent.eating_reward,
-            "agent_energy_reward": agent.energy_reward,
         }
 
 
