@@ -983,13 +983,16 @@ class AgentPolicy:
         # Dribble with the ball
         self.dribble_to_goal(agent, env_index=dribble_mask)
         # If other agent is passing/shooting, stay still
-        other_agent_shooting_mask = self.combine_or(
-            [
-                self.actions[otheragent]["pre-shooting"]
-                | self.actions[otheragent]["shooting"]
-                for otheragent in self.teammates
-                if (otheragent != agent)
-            ]
+        other_agents_shooting = [
+            self.actions[otheragent]["pre-shooting"]
+            | self.actions[otheragent]["shooting"]
+            for otheragent in self.teammates
+            if (otheragent != agent)
+        ]
+        other_agent_shooting_mask = (
+            self.combine_or(other_agents_shooting)
+            if len(other_agents_shooting)
+            else False
         )
         stay_still_mask = other_agent_shooting_mask & ~shooting_mask  # hmm
         self.go_to(
@@ -1697,7 +1700,9 @@ if __name__ == "__main__":
         __file__,
         control_two_agents=True,
         continuous=True,
-        n_blue_agents=3,
-        n_red_agents=3,
+        n_blue_agents=2,
+        n_red_agents=2,
+        ai_red_agents=True,
+        ai_blue_agents=False,
         dense_reward_ratio=0.001,
     )
