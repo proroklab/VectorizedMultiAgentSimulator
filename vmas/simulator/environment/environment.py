@@ -149,14 +149,15 @@ class Environment(TorchVectorizedObject):
         if get_infos:
             infos = {} if dict_agent_names else []
 
-        for agent in self.agents:
-            if get_rewards:
+        if get_rewards:
+            for agent in self.agents:
                 reward = self.scenario.reward(agent).clone()
                 if dict_agent_names:
                     rewards.update({agent.name: reward})
                 else:
                     rewards.append(reward)
-            if get_observations:
+        if get_observations:
+            for agent in self.agents:
                 observation = TorchUtils.recursive_clone(
                     self.scenario.observation(agent)
                 )
@@ -164,7 +165,8 @@ class Environment(TorchVectorizedObject):
                     obs.update({agent.name: observation})
                 else:
                     obs.append(observation)
-            if get_infos:
+        if get_infos:
+            for agent in self.agents:
                 info = TorchUtils.recursive_clone(self.scenario.info(agent))
                 if dict_agent_names:
                     infos.update({agent.name: info})
