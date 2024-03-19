@@ -12,6 +12,14 @@ from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import AGENT_INFO_TYPE, TorchUtils
 
 
+def agg_max(x, dim):
+    return x.max(dim=dim, keepdim=True)[0]
+
+
+def agg_mean(x, dim):
+    return x.mean(dim=dim, keepdim=True)
+
+
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.n_agents = kwargs.get("n_agents", 2)
@@ -31,13 +39,19 @@ class Scenario(BaseScenario):
                 dtype=torch.float,
             )
         )
-        self.gen_agg = GenAgg()
+        self.gen_agg_type = kwargs.get("gen_agg_type", "mean")
+        if self.gen_agg_type is None:
+            self.gen_agg = GenAgg().to(device)
+        elif self.gen_agg_type == "max":
+            self.gen_agg = agg_max
+        elif self.gen_agg_type == "mean":
+            self.gen_agg = agg_mean
 
-        self.initial_resources = kwargs.get("initial_resources", 4)
+        self.initial_resources_range = kwargs.get("initial_resources_range", 10)
 
         self.selfishness = kwargs.get("selfishness", 0.0)  # [0,1] 1 is selfish
         self.eating_reward_coeff = kwargs.get("eating_reward_coeff", 1.0)
-        self.energy_reward_coeff = kwargs.get("energy_reward_coeff", 5.0)
+        self.energy_reward_coeff = kwargs.get("energy_reward_coeff", 0.0)
 
         # Make world
         world = World(
@@ -65,21 +79,29 @@ class Scenario(BaseScenario):
         return world
 
     def parameters(self) -> List:
-        return [self.resource_growth_rate]
+        return self.gen_agg.parameters()
 
     def to_log(self) -> Dict:
         return {}
 
     def reset_world_at(self, env_index: int = None):
         if env_index is None:
-            self.current_resources = torch.full(
+            self.initial_resources = torch.empty(
                 (self.world.batch_dim,),
-                self.initial_resources,
                 device=self.world.device,
-                dtype=torch.float,
-            )
-
+                dtype=torch.float32,
+            ).uniform_(1, self.initial_resources_range)
+            self.current_resources = self.initial_resources.clone()
         else:
+            self.initial_resources = TorchUtils.where_from_index(
+                env_index,
+                torch.empty(
+                    (1,),
+                    device=self.world.device,
+                    dtype=torch.float32,
+                ).uniform_(1, self.initial_resources_range),
+                self.initial_resources,
+            )
             self.current_resources = TorchUtils.where_from_index(
                 env_index, self.initial_resources, self.current_resources
             )
@@ -134,7 +156,7 @@ class Scenario(BaseScenario):
                 a.eating_reward = a.consumed_resources * self.eating_reward_coeff
 
             # Reward for eating
-            self.eating_reward = self.consumed_resources * self.eating_reward_coeff
+            # self.eating_reward = self.consumed_resources * self.eating_reward_coeff
 
         if is_last:
             self.evolve_state()
@@ -147,7 +169,11 @@ class Scenario(BaseScenario):
         self.global_reward = self.gen_agg(agent_rewards, dim=-1).squeeze(-1)
         if self.world.batch_dim == 1:
             self.global_reward = self.global_reward[:1]
-        return self.global_reward + agent.energy_reward
+        return (
+            self.global_reward * (1 - self.selfishness)
+            + agent.eating_reward * self.selfishness
+            + agent.energy_reward
+        )
 
     def evolve_state(self):
         # Resources population growth --> Logistic growth model
@@ -168,7 +194,6 @@ class Scenario(BaseScenario):
     def info(self, agent: Agent) -> AGENT_INFO_TYPE:
         return {
             "current_resources": self.current_resources,
-            "total_eating_reward": self.eating_reward,
             "total_consumed_resources": self.consumed_resources,
             "agent_consumed_resources": agent.consumed_resources,
             "agent_eating_reward": agent.eating_reward,
