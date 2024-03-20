@@ -39,7 +39,7 @@ class Scenario(BaseScenario):
                 dtype=torch.float,
             )
         )
-        self.gen_agg_type = kwargs.get("gen_agg_type", "mean")
+        self.gen_agg_type = kwargs.get("gen_agg_type", None)
         if self.gen_agg_type is None:
             self.gen_agg = GenAgg().to(device)
         elif self.gen_agg_type == "max":
