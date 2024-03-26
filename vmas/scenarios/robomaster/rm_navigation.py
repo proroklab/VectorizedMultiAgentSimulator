@@ -27,9 +27,10 @@ class Scenario(BaseScenario):
         self.agent_box_width = 0.24
 
         # Controller
+        self.use_velocity_controller = kwargs.get("use_velocity_controller", True)
         controller_params = [2, 6, 0.002]
         self.f_range = self.a_range + self.linear_friction
-        self.u_range = self.v_range
+        self.u_range = self.v_range if self.use_velocity_controller else self.f_range
 
         self.plot_grid = True
         self.viewer_zoom = 2
@@ -81,7 +82,6 @@ class Scenario(BaseScenario):
                 collide=True,
                 color=color,
                 rotatable=False,
-                linear_friction=self.linear_friction,
                 shape=(
                     Sphere(radius=self.agent_radius)
                     if not self.box_agents
@@ -93,9 +93,10 @@ class Scenario(BaseScenario):
                 render_action=True,
                 dynamics=Holonomic(),
             )
-            agent.controller = VelocityController(
-                agent, world, controller_params, "standard"
-            )
+            if self.use_velocity_controller:
+                agent.controller = VelocityController(
+                    agent, world, controller_params, "standard"
+                )
 
             agent.pos_rew = torch.zeros(batch_dim, device=device)
             agent.agent_collision_rew = agent.pos_rew.clone()
@@ -142,7 +143,8 @@ class Scenario(BaseScenario):
             occupied_positions = torch.cat([occupied_positions, position], dim=1)
 
         for i, agent in enumerate(self.world.agents):
-            agent.controller.reset(env_index)
+            if self.use_velocity_controller:
+                agent.controller.reset(env_index)
 
             agent.goal.set_pos(goal_poses[i], batch_index=env_index)
 
@@ -163,20 +165,21 @@ class Scenario(BaseScenario):
                 )
 
     def process_action(self, agent: Agent):
-        # Clamp square to circle
-        agent.action.u = TorchUtils.clamp_with_norm(
-            agent.action.u, agent.action.u_range
-        )
+        if self.use_velocity_controller:
+            # Clamp square to circle
+            agent.action.u = TorchUtils.clamp_with_norm(
+                agent.action.u, agent.action.u_range
+            )
 
-        # Zero small input
-        action_norm = torch.linalg.vector_norm(agent.action.u, dim=1)
-        agent.action.u[action_norm < self.min_input_norm] = 0
+            # Zero small input
+            action_norm = torch.linalg.vector_norm(agent.action.u, dim=1)
+            agent.action.u[action_norm < self.min_input_norm] = 0
 
-        # Reset controller
-        vel_is_zero = torch.linalg.vector_norm(agent.action.u, dim=1) < 1e-3
-        agent.controller.reset(vel_is_zero)
+            # Reset controller
+            vel_is_zero = torch.linalg.vector_norm(agent.action.u, dim=1) < 1e-3
+            agent.controller.reset(vel_is_zero)
 
-        agent.controller.process_force()
+            agent.controller.process_force()
 
     def reward(self, agent: Agent):
         is_first = agent == self.world.agents[0]
