@@ -224,8 +224,6 @@ class Scenario(BaseScenario):
                 agent.state.pos,
                 agent.state.vel,
                 agent.state.pos - agent.goal.state.pos,
-                # agent.controller.accum_errs,
-                # agent.controller.prev_err,
             ],
             dim=-1,
         )
