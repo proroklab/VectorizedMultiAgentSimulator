@@ -37,8 +37,8 @@ class Scenario(BaseScenario):
         self.n_agents = kwargs.get("n_agents", 2)
 
         self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 1)
-        self.final_reward = kwargs.get("final_reward", 0.01)
-        self.agent_collision_penalty = kwargs.get("agent_collision_penalty", -5)
+        self.final_reward = kwargs.get("final_reward", 0.005)
+        self.agent_collision_penalty = kwargs.get("agent_collision_penalty", -1)
 
         self.min_distance_between_entities = self.agent_radius * 2 + 0.05
         self.world_semidim = 3
