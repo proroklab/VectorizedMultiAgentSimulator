@@ -168,7 +168,7 @@ Check out how simple it is to use VMAS in [BenchMARL](https://github.com/faceboo
 We provide a [notebook](https://pytorch.org/rl/tutorials/multiagent_ppo.html) which guides you through a full
 multi-agent reinforcement learning pipeline for training VMAS scenarios in TorchRL using MAPPO/IPPO.
 
-You can find **example scripts** in the TorchRL repo [here](https://github.com/pytorch/rl/tree/main/examples/multiagent)
+You can find **example scripts** in the TorchRL repo [here](https://github.com/pytorch/rl/tree/main/sota-implementations/multiagent)
 on how to run MAPPO-IPPO-MADDPG-QMIX-VDN using the [VMAS wrapper](https://github.com/pytorch/rl/blob/main/torchrl/envs/libs/vmas.py).
 
 
