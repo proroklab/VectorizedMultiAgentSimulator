@@ -1,10 +1,12 @@
 #  Copyright (c) 2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-from typing import Dict, List
+from typing import Dict, List, Sequence
 
 import torch
 from genagg import GenAgg
+from torch import Tensor
+from torch_geometric.nn import SoftmaxAggregation
 
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World
@@ -16,8 +18,96 @@ def agg_max(x, dim):
     return x.max(dim=dim, keepdim=True)[0]
 
 
+def agg_min(x, dim):
+    return x.min(dim=dim, keepdim=True)[0]
+
+
 def agg_mean(x, dim):
     return x.mean(dim=dim, keepdim=True)
+
+
+class Square:
+    def forward(self, x):
+        return (x + 1e-7) ** 2
+
+    def inverse(self, x):
+        return (x.abs() + 1e-7).sqrt()
+
+
+class LAF(torch.nn.Module):
+    def __init__(self, eps=1e-7):
+        super().__init__()
+        self.eps = eps
+
+        self.a = torch.nn.Parameter(torch.ones(1))
+        self.b = torch.nn.Parameter(torch.ones(1))
+        self.c = torch.nn.Parameter(torch.ones(1))
+        self.d = torch.nn.Parameter(torch.ones(1))
+        self.e = torch.nn.Parameter(torch.ones(1))
+        self.f = torch.nn.Parameter(torch.ones(1))
+        self.g = torch.nn.Parameter(torch.ones(1))
+        self.h = torch.nn.Parameter(torch.ones(1))
+
+        self.alpha = torch.nn.Parameter(torch.ones(1))
+        self.beta = torch.nn.Parameter(torch.ones(1))
+        self.gamma = torch.nn.Parameter(torch.ones(1))
+        self.delta = torch.nn.Parameter(torch.ones(1))
+
+    def forward(self, x: torch.Tensor, dim=-1):
+        x = x.clamp(self.eps, 1 - self.eps)
+        not_x = 1 - x
+
+        inputs = torch.stack([x, not_x, x, not_x], dim=0)
+        inner_exps = torch.stack(
+            [self.b.abs(), self.d.abs(), self.f.abs(), self.h.abs()], dim=0
+        )
+        outer_exps = torch.stack(
+            [self.a.abs(), self.c.abs(), self.e.abs(), self.g.abs()], dim=0
+        )
+        nominator_1, nominator_2, denominator_1, denominator_2 = self.lpnorm(
+            inputs, inner_exp=inner_exps, outer_exp=outer_exps, dim=dim
+        ).unbind(dim=0)
+
+        nominator = self.alpha * nominator_1 + self.beta * nominator_2
+        denominator = self.gamma * denominator_1 + self.delta * denominator_2
+
+        return nominator / denominator
+
+    @staticmethod
+    def lpnorm(x, inner_exp, outer_exp, dim):
+        x_summed = x.pow(expand_right(inner_exp, x.shape)).sum(dim=dim)
+        return x_summed.pow(expand_right(outer_exp, x_summed.shape)).unsqueeze(dim)
+
+
+def expand_right(tensor: Tensor, shape: Sequence[int]) -> Tensor:
+    """Expand a tensor on the right to match a desired shape.
+
+    Args:
+        tensor: tensor to be expanded
+        shape: target shape
+
+    Returns:
+         a tensor with shape matching the target shape.
+
+    Examples:
+        >>> tensor = torch.zeros(3,4)
+        >>> shape = (3,4,5)
+        >>> print(expand_right(tensor, shape).shape)
+        torch.Size([3,4,5])
+
+    """
+    tensor_expand = tensor
+    while tensor_expand.ndimension() < len(shape):
+        tensor_expand = tensor_expand.unsqueeze(-1)
+    tensor_expand = tensor_expand.expand(shape)
+    return tensor_expand
+
+
+def tanh_squash(loc, low, high):
+    tanh_loc = torch.nn.functional.tanh(loc)
+    scale = (high - low) / 2
+    add = (high + low) / 2
+    return tanh_loc * scale + add
 
 
 class Scenario(BaseScenario):
@@ -26,7 +116,7 @@ class Scenario(BaseScenario):
 
         self.resource_growth_rate = torch.nn.Parameter(
             torch.tensor(
-                [kwargs.get("resource_growth_rate", 0.01)],
+                [kwargs.get("resource_growth_rate", 0.0)],
                 device=device,
                 dtype=torch.float,
             )
@@ -40,14 +130,28 @@ class Scenario(BaseScenario):
             )
         )
         self.gen_agg_type = kwargs.get("gen_agg_type", "max")
-        if self.gen_agg_type is None:
-            self.gen_agg = GenAgg().to(device)
+        self.gen_agg_learn_type = kwargs.get("gen_agg_learn_type", "laf")
+        if self.gen_agg_type == "learn":
+            if self.gen_agg_learn_type == "softmax":
+                self.gen_agg = SoftmaxAggregation(t=1, learn=True).to(device)
+            elif self.gen_agg_learn_type == "genagg":
+                self.gen_agg = GenAgg(a=0.0, b=0.0).to(device)
+            elif self.gen_agg_learn_type == "laf":
+                self.gen_agg = LAF().to(device)
+            elif self.gen_agg_learn_type == "genagg_square":
+                self.gen_agg = GenAgg(f=Square()).to(device)
+
         elif self.gen_agg_type == "max":
             self.gen_agg = agg_max
         elif self.gen_agg_type == "mean":
             self.gen_agg = agg_mean
+        elif self.gen_agg_type == "min":
+            self.gen_agg = agg_min
+        else:
+            raise AssertionError
 
-        self.initial_resources_range = kwargs.get("initial_resources_range", 10)
+        self.initial_resources_range_min = kwargs.get("initial_resources_range_min", 10)
+        self.initial_resources_range_max = kwargs.get("initial_resources_range_max", 10)
 
         self.selfishness = kwargs.get("selfishness", 0.0)  # [0,1] 1 is selfish
         self.eating_reward_coeff = kwargs.get("eating_reward_coeff", 1.0)
@@ -79,7 +183,10 @@ class Scenario(BaseScenario):
         return world
 
     def parameters(self) -> List:
-        return self.gen_agg.parameters()
+        if self.gen_agg_type == "learn":
+            return self.gen_agg.parameters()
+        else:
+            return []
 
     def to_log(self) -> Dict:
         return {}
@@ -90,7 +197,9 @@ class Scenario(BaseScenario):
                 (self.world.batch_dim,),
                 device=self.world.device,
                 dtype=torch.float32,
-            ).uniform_(1, self.initial_resources_range)
+            ).uniform_(
+                self.initial_resources_range_min, self.initial_resources_range_max
+            )
             self.current_resources = self.initial_resources.clone()
         else:
             self.initial_resources = TorchUtils.where_from_index(
@@ -99,7 +208,9 @@ class Scenario(BaseScenario):
                     (1,),
                     device=self.world.device,
                     dtype=torch.float32,
-                ).uniform_(1, self.initial_resources_range),
+                ).uniform_(
+                    self.initial_resources_range_min, self.initial_resources_range_max
+                ),
                 self.initial_resources,
             )
             self.current_resources = TorchUtils.where_from_index(
@@ -108,9 +219,7 @@ class Scenario(BaseScenario):
 
     def process_action(self, agent: Agent):
         # Actions are integers
-        agent.consume_action = (
-            (agent.action.u + agent.action.u_range).round().squeeze(-1)
-        )
+        agent.consume_action = (agent.action.u + agent.action.u_range).squeeze(-1)
         agent.action.u = torch.zeros(
             (self.world.batch_dim, agent.dynamics.needed_action_size),
             device=self.world.device,
@@ -134,10 +243,10 @@ class Scenario(BaseScenario):
             )
 
             for a in self.world.agents:
-                # You cannot take more than available and you only take integers
+                # You cannot take more than available
                 a.consumed_resources = torch.minimum(
                     a.consume_action, self.current_resources
-                ).floor()
+                )
                 # If someone already ate a resource then you cannot take it
                 # a.consumed_resources = torch.where(
                 #     self.consumed_resources > 0, 0, a.consumed_resources
@@ -167,6 +276,7 @@ class Scenario(BaseScenario):
         if self.world.batch_dim == 1:
             agent_rewards = agent_rewards.repeat(2, 1)
         self.global_reward = self.gen_agg(agent_rewards, dim=-1).squeeze(-1)
+        # self.global_reward = tanh_squash(self.global_reward, 0, 1)
         if self.world.batch_dim == 1:
             self.global_reward = self.global_reward[:1]
         return (
@@ -186,7 +296,8 @@ class Scenario(BaseScenario):
     def observation(self, agent: Agent):
         return torch.cat(
             [
-                self.current_resources.unsqueeze(-1),
+                # self.current_resources.unsqueeze(-1),
+                torch.zeros_like(self.current_resources.unsqueeze(-1))
             ],
             dim=-1,
         )
