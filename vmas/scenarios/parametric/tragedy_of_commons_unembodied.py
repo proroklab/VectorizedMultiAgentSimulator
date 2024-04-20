@@ -4,7 +4,7 @@
 from typing import Dict, List, Sequence
 
 import torch
-from genagg import GenAgg
+from genagg import GenAgg, InvertibleNN
 from torch import Tensor
 from torch_geometric.nn import SoftmaxAggregation
 
@@ -139,7 +139,9 @@ class Scenario(BaseScenario):
             elif self.gen_agg_learn_type == "laf":
                 self.gen_agg = LAF().to(device)
             elif self.gen_agg_learn_type == "genagg_square":
-                self.gen_agg = GenAgg(f=Square()).to(device)
+                self.gen_agg = GenAgg(f=Square(), a=0.0).to(device)
+            elif self.gen_agg_learn_type == "genagg_fix_a":
+                self.gen_agg = GenAgg(f=InvertibleNN(), a=0.0).to(device)
 
         elif self.gen_agg_type == "max":
             self.gen_agg = agg_max
@@ -153,7 +155,11 @@ class Scenario(BaseScenario):
         self.initial_resources_range_min = kwargs.get("initial_resources_range_min", 10)
         self.initial_resources_range_max = kwargs.get("initial_resources_range_max", 10)
 
-        self.selfishness = kwargs.get("selfishness", 0.0)  # [0,1] 1 is selfish
+        self.selfishness = kwargs.get(
+            "selfishness", -10.0
+        )  # sigmoid outputting [0,1], 1 is selfish
+        self.optimize_selfishness = kwargs.get("optimize_selfishness", False)
+
         self.eating_reward_coeff = kwargs.get("eating_reward_coeff", 1.0)
         self.energy_reward_coeff = kwargs.get("energy_reward_coeff", 0.0)
 
@@ -172,6 +178,9 @@ class Scenario(BaseScenario):
                 u_range=0.5,
             )
             world.add_agent(agent)
+            agent.selfishness = torch.nn.Parameter(
+                torch.tensor(self.selfishness, device=device)
+            )
             agent.eating_reward = torch.zeros(world.batch_dim, device=world.device)
             agent.energy_reward = torch.zeros(world.batch_dim, device=world.device)
             agent.consumed_resources = torch.zeros(world.batch_dim, device=world.device)
@@ -183,13 +192,36 @@ class Scenario(BaseScenario):
         return world
 
     def parameters(self) -> List:
+        params = []
         if self.gen_agg_type == "learn":
-            return self.gen_agg.parameters()
-        else:
-            return []
+            params += self.gen_agg.parameters()
+        if self.optimize_selfishness:
+            params += [agent.selfishness for agent in self.world.agents]
+        return params
 
     def to_log(self) -> Dict:
-        return {}
+        result = {}
+        if self.gen_agg_type == "learn" and self.gen_agg_learn_type.startswith(
+            "genagg"
+        ):
+            result.update(
+                {
+                    "genagg_a": self.gen_agg.a.item()
+                    if isinstance(self.gen_agg.a, Tensor)
+                    else self.gen_agg.a,
+                    "genagg_b": self.gen_agg.b.item()
+                    if isinstance(self.gen_agg.b, Tensor)
+                    else self.gen_agg.b,
+                }
+            )
+
+        result.update(
+            {
+                agent.name + "_selfishness": agent.selfishness.sigmoid().item()
+                for agent in self.world.agents
+            }
+        )
+        return result
 
     def reset_world_at(self, env_index: int = None):
         if env_index is None:
@@ -280,8 +312,8 @@ class Scenario(BaseScenario):
         if self.world.batch_dim == 1:
             self.global_reward = self.global_reward[:1]
         return (
-            self.global_reward * (1 - self.selfishness)
-            + agent.eating_reward * self.selfishness
+            self.global_reward * (1 - agent.selfishness.sigmoid())
+            + agent.eating_reward * agent.selfishness.sigmoid()
             + agent.energy_reward
         )
 
