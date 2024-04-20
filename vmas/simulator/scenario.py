@@ -47,7 +47,7 @@ class BaseScenario(ABC):
         self.viewer_size = INITIAL_VIEWER_SIZE
         """The size of the rendering viewer window. This can be changed in the :class:`~make_world` function. """
         self.viewer_zoom = VIEWER_DEFAULT_ZOOM
-        """The zoom of the rendering camera. This can be changed in the :class:`~make_world` function. """
+        """The zoom of the rendering camera (a lower value means more zoom). This can be changed in the :class:`~make_world` function. """
         self.render_origin = (0.0, 0.0)
         """The origin of the rendering camera when ``agent_index_to_focus`` is None in the ``render()`` arguments. This can be changed in the :class:`~make_world` function. """
         self.plot_grid = False
