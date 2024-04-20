@@ -677,10 +677,7 @@ class Environment(TorchVectorizedObject):
         if shared_viewer:
             # zoom out to fit everyone
             all_poses = torch.stack(
-                [
-                    agent.state.pos[env_index] + self.scenario.render_origin
-                    for agent in self.world.agents
-                ],
+                [agent.state.pos[env_index] for agent in self.world.agents],
                 dim=0,
             )
             max_agent_radius = max(
@@ -689,8 +686,12 @@ class Environment(TorchVectorizedObject):
             viewer_size_fit = (
                 torch.stack(
                     [
-                        torch.max(torch.abs(all_poses[:, X])),
-                        torch.max(torch.abs(all_poses[:, Y])),
+                        torch.max(
+                            torch.abs(all_poses[:, X] - self.scenario.render_origin[X])
+                        ),
+                        torch.max(
+                            torch.abs(all_poses[:, Y] - self.scenario.render_origin[Y])
+                        ),
                     ]
                 )
                 + 2 * max_agent_radius
