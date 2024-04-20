@@ -18,7 +18,6 @@ class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.n_agents = kwargs.get("n_agents", 3)
         self.shared_rew = kwargs.get("shared_rew", True)
-        self.render_origin = (2, 2)
 
         self.comms_range = kwargs.get("comms_range", 0.0)
         self.lidar_range = kwargs.get("lidar_range", 0.2)
