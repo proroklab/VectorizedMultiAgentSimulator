@@ -14,7 +14,7 @@ from vmas.simulator.utils import (
     AGENT_OBS_TYPE,
     AGENT_REWARD_TYPE,
     INITIAL_VIEWER_SIZE,
-    VIEWER_MIN_ZOOM,
+    VIEWER_DEFAULT_ZOOM,
 )
 
 if typing.TYPE_CHECKING:
@@ -46,8 +46,10 @@ class BaseScenario(ABC):
         self._world = None
         self.viewer_size = INITIAL_VIEWER_SIZE
         """The size of the rendering viewer window. This can be changed in the :class:`~make_world` function. """
-        self.viewer_zoom = VIEWER_MIN_ZOOM
+        self.viewer_zoom = VIEWER_DEFAULT_ZOOM
         """The zoom of the rendering camera. This can be changed in the :class:`~make_world` function. """
+        self.render_origin = (0.0, 0.0)
+        """The origin of the rendering camera when ``agent_index_to_focus`` is None in the ``render()`` arguments. This can be changed in the :class:`~make_world` function. """
         self.plot_grid = False
         """Whether to plot a grid in the scenario rendering background. This can be changed in the :class:`~make_world` function. """
         self.grid_spacing = 0.1

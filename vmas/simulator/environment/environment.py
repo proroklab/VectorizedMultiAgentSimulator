@@ -19,7 +19,6 @@ from vmas.simulator.utils import (
     DEVICE_TYPING,
     override,
     TorchUtils,
-    VIEWER_MIN_ZOOM,
     X,
     Y,
 )
@@ -666,7 +665,9 @@ class Environment(TorchVectorizedObject):
 
             self._init_rendering()
 
-        zoom = max(VIEWER_MIN_ZOOM, self.scenario.viewer_zoom)
+        if self.scenario.viewer_zoom <= 0:
+            raise ValueError("Scenario viewer zoom must be > 0")
+        zoom = self.scenario.viewer_zoom
 
         if aspect_ratio < 1:
             cam_range = torch.tensor([zoom, zoom / aspect_ratio], device=self.device)
@@ -676,7 +677,10 @@ class Environment(TorchVectorizedObject):
         if shared_viewer:
             # zoom out to fit everyone
             all_poses = torch.stack(
-                [agent.state.pos[env_index] for agent in self.world.agents],
+                [
+                    agent.state.pos[env_index] + self.scenario.render_origin
+                    for agent in self.world.agents
+                ],
                 dim=0,
             )
             max_agent_radius = max(
@@ -698,10 +702,10 @@ class Environment(TorchVectorizedObject):
             )
             cam_range *= torch.max(viewer_size)
             self.viewer.set_bounds(
-                -cam_range[X],
-                cam_range[X],
-                -cam_range[Y],
-                cam_range[Y],
+                -cam_range[X] + self.scenario.render_origin[X],
+                cam_range[X] + self.scenario.render_origin[X],
+                -cam_range[Y] + self.scenario.render_origin[Y],
+                cam_range[Y] + self.scenario.render_origin[Y],
             )
         else:
             # update bounds to center around agent
