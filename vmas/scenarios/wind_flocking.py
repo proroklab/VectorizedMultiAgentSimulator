@@ -80,6 +80,7 @@ class Scenario(BaseScenario):
 
         # Other
         self.cover_angle_tolerance = kwargs.get("cover_angle_tolerance", 1)
+        self.start_angle_range = kwargs.get("start_angle_range", torch.pi / 8)
         self.horizon = kwargs.get("horizon", 200)
 
         self.desired_distance = 1
@@ -150,8 +151,8 @@ class Scenario(BaseScenario):
             device=self.world.device,
             dtype=torch.float32,
         ).uniform_(
-            -torch.pi / 8,
-            torch.pi / 8,
+            -self.start_angle_range,
+            self.start_angle_range,
         )
 
         start_delta_x = (self.desired_distance / 2) * torch.cos(start_angle)
