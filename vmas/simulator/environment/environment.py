@@ -347,7 +347,7 @@ class Environment(TorchVectorizedObject):
             return spaces.Box(
                 low=-np.float32("inf"),
                 high=np.float32("inf"),
-                shape=(len(obs[0]),),
+                shape=obs.shape[1:],
                 dtype=np.float32,
             )
         elif isinstance(obs, Dict):
