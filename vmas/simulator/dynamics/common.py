@@ -15,7 +15,10 @@ class Dynamics(ABC):
         self._agent = None
 
     def reset(self, index: Union[Tensor, int] = None):
-        pass
+        return
+
+    def zero_grad(self):
+        return
 
     @property
     def agent(self):
@@ -29,11 +32,15 @@ class Dynamics(ABC):
     def agent(self, value):
         if self._agent is not None:
             raise ValueError("Agent in dynamics has already been set")
-        if value.action_size < self.needed_action_size:
-            raise ValueError(
-                f"Agent action size {value.action_size} is less than the required dynamics action size {self.needed_action_size}"
-            )
         self._agent = value
+
+    def check_and_process_action(self):
+        action = self.agent.action.u
+        if action.shape[1] < self.needed_action_size:
+            raise ValueError(
+                f"Agent action size {action.shape[1]} is less than the required dynamics action size {self.needed_action_size}"
+            )
+        self.process_action()
 
     @property
     @abc.abstractmethod

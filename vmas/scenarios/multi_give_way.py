@@ -7,10 +7,10 @@ from typing import List
 import torch
 
 from vmas import render_interactively
-from vmas.simulator.core import Agent, World, Landmark, Sphere, Line, Box
+from vmas.simulator.controllers.velocity_controller import VelocityController
+from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color, TorchUtils
-from vmas.simulator.controllers.velocity_controller import VelocityController
 
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
@@ -176,7 +176,7 @@ class Scenario(BaseScenario):
                     batch_index=env_index,
                 )
 
-        for i, agent in enumerate(self.world.agents):
+        for agent in self.world.agents:
             if env_index is None:
                 agent.shaping = (
                     torch.linalg.vector_norm(

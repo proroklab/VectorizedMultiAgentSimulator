@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import math
@@ -8,11 +8,11 @@ import torch
 from torch import Tensor
 
 from vmas import render_interactively
-from vmas.simulator.core import Agent, Box, Landmark, Sphere, World, Line
+from vmas.simulator.controllers.velocity_controller import VelocityController
+from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
 from vmas.simulator.joints import Joint
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, Y, X
-from vmas.simulator.controllers.velocity_controller import VelocityController
+from vmas.simulator.utils import Color, X, Y
 
 
 def get_line_angle_0_90(rot: Tensor):
@@ -32,7 +32,8 @@ def get_line_angle_dist_0_180(angle, goal):
     return torch.minimum(
         (angle - goal).abs(),
         torch.minimum(
-            (angle - (goal - torch.pi)).abs(), ((angle - torch.pi) - goal).abs()
+            (angle - (goal - torch.pi)).abs(),
+            ((angle - torch.pi) - goal).abs(),
         ),
     ).squeeze(-1)
 
@@ -385,7 +386,9 @@ class Scenario(BaseScenario):
 
         if is_first:
             self.rew = torch.zeros(
-                self.world.batch_dim, device=self.world.device, dtype=torch.float32
+                self.world.batch_dim,
+                device=self.world.device,
+                dtype=torch.float32,
             )
             self.pos_rew[:] = 0
             self.rot_rew[:] = 0
@@ -459,7 +462,7 @@ class Scenario(BaseScenario):
                         ] += self.collision_reward
 
             # Joint collisions
-            for i, p in enumerate(self.passages):
+            for p in self.passages:
                 if p.collide:
                     self.collision_rew[
                         self.world.get_distance(p, self.joint.landmark)
@@ -498,7 +501,9 @@ class Scenario(BaseScenario):
             joint_angle = self.joint.landmark.state.rot
             angle_noise = (
                 torch.randn(
-                    *joint_angle.shape, device=self.world.device, dtype=torch.float32
+                    *joint_angle.shape,
+                    device=self.world.device,
+                    dtype=torch.float32,
                 )
                 * self.joint_angle_obs_noise
                 if self.joint_angle_obs_noise
@@ -521,10 +526,7 @@ class Scenario(BaseScenario):
         ] + ([angle_to_vector(joint_angle)] if self.observe_joint_angle else [])
 
         for i, obs in enumerate(observations):
-            noise = torch.zeros(
-                *obs.shape,
-                device=self.world.device,
-            ).uniform_(
+            noise = torch.zeros(*obs.shape, device=self.world.device,).uniform_(
                 -self.obs_noise,
                 self.obs_noise,
             )
@@ -682,19 +684,23 @@ class Scenario(BaseScenario):
             wall.set_pos(
                 torch.tensor(
                     [
-                        0.0
-                        if i % 2
-                        else (
-                            self.world.x_semidim + self.agent_radius
-                            if i == 0
-                            else -self.world.x_semidim - self.agent_radius
+                        (
+                            0.0
+                            if i % 2
+                            else (
+                                self.world.x_semidim + self.agent_radius
+                                if i == 0
+                                else -self.world.x_semidim - self.agent_radius
+                            )
                         ),
-                        0.0
-                        if not i % 2
-                        else (
-                            self.world.y_semidim + self.agent_radius
-                            if i == 1
-                            else -self.world.y_semidim - self.agent_radius
+                        (
+                            0.0
+                            if not i % 2
+                            else (
+                                self.world.y_semidim + self.agent_radius
+                                if i == 1
+                                else -self.world.y_semidim - self.agent_radius
+                            )
                         ),
                     ],
                     device=self.world.device,
@@ -703,7 +709,8 @@ class Scenario(BaseScenario):
             )
             wall.set_rot(
                 torch.tensor(
-                    [torch.pi / 2 if not i % 2 else 0.0], device=self.world.device
+                    [torch.pi / 2 if not i % 2 else 0.0],
+                    device=self.world.device,
                 ),
                 batch_index=env_index,
             )

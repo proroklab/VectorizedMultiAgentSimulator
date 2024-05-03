@@ -2,13 +2,14 @@
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import typing
-from typing import Dict, Callable
+from typing import Callable, Dict
 
 import torch
 from torch import Tensor
 from torch.distributions import MultivariateNormal
+
 from vmas import render_interactively
-from vmas.simulator.core import World, Line, Agent, Sphere, Entity
+from vmas.simulator.core import Agent, Entity, Line, Sphere, World
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.sensors import Lidar
 from vmas.simulator.utils import Color, X, Y
@@ -102,7 +103,7 @@ class Scenario(BaseScenario):
         return world
 
     def reset_world_at(self, env_index: int = None):
-        for i, loc in enumerate(self.locs):
+        for i in self.locs:
             x = torch.zeros(
                 (1,) if env_index is not None else (self.world.batch_dim, 1),
                 device=self.world.device,

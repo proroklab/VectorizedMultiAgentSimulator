@@ -11,44 +11,6 @@ from vmas.simulator.core import Agent
 from vmas.simulator.utils import save_video
 
 
-def _get_random_action(agent: Agent, continuous: bool, env):
-    if continuous:
-        actions = []
-        for action_index in range(agent.action_size):
-            actions.append(
-                torch.zeros(
-                    agent.batch_dim,
-                    device=agent.device,
-                    dtype=torch.float32,
-                ).uniform_(
-                    -agent.action.u_range_tensor[action_index],
-                    agent.action.u_range_tensor[action_index],
-                )
-            )
-        if env.world.dim_c != 0 and not agent.silent:
-            # If the agent needs to communicate
-            for _ in range(env.world.dim_c):
-                actions.append(
-                    torch.zeros(
-                        agent.batch_dim,
-                        device=agent.device,
-                        dtype=torch.float32,
-                    ).uniform_(
-                        0,
-                        1,
-                    )
-                )
-        action = torch.stack(actions, dim=-1)
-    else:
-        action = torch.randint(
-            low=0,
-            high=env.get_agent_action_space(agent).n,
-            size=(agent.batch_dim,),
-            device=agent.device,
-        )
-    return action
-
-
 def _get_deterministic_action(agent: Agent, continuous: bool, env):
     if continuous:
         action = -agent.action.u_range_tensor.expand(env.batch_dim, agent.action_size)
@@ -58,7 +20,7 @@ def _get_deterministic_action(agent: Agent, continuous: bool, env):
             .unsqueeze(-1)
             .expand(env.batch_dim, 1)
         )
-    return action
+    return action.clone()
 
 
 def use_vmas_env(
@@ -71,6 +33,7 @@ def use_vmas_env(
     scenario_name: str = "waterfall",
     n_agents: int = 4,
     continuous_actions: bool = True,
+    visualize_render: bool = True,
 ):
     """Example function to use a vmas environment
 
@@ -84,6 +47,7 @@ def use_vmas_env(
         num_envs (int): Number of vectorized environments
         n_steps (int): Number of steps before returning done
         random_action (bool): Use random actions or have all agents perform the down action
+        visualize_render (bool, optional): Whether to visualize the render. Defaults to ``True``.
 
     Returns:
 
@@ -109,7 +73,7 @@ def use_vmas_env(
     init_time = time.time()
     step = 0
 
-    for s in range(n_steps):
+    for _ in range(n_steps):
         step += 1
         print(f"Step {step}")
 
@@ -119,11 +83,11 @@ def use_vmas_env(
         dict_actions = random.choice([True, False])
 
         actions = {} if dict_actions else []
-        for i, agent in enumerate(env.agents):
+        for agent in env.agents:
             if not random_action:
                 action = _get_deterministic_action(agent, continuous_actions, env)
             else:
-                action = _get_random_action(agent, continuous_actions, env)
+                action = env.get_random_action(agent)
             if dict_actions:
                 actions.update({agent.name: action})
             else:
@@ -133,9 +97,9 @@ def use_vmas_env(
 
         if render:
             frame = env.render(
-                mode="rgb_array" if save_render else "human",
+                mode="rgb_array",
                 agent_index_focus=None,  # Can give the camera an agent index to focus on
-                visualize_when_rgb=True,
+                visualize_when_rgb=visualize_render,
             )
             if save_render:
                 frame_list.append(frame)

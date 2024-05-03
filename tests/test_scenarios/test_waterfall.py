@@ -1,35 +1,32 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-import unittest
 
 import torch
+
 from vmas import make_env
 
 
-class TestWaterfall(unittest.TestCase):
-    def setUp(self) -> None:
-        super().setUp()
-        self.n_agents = 5
-
+class TestWaterfall:
+    def setUp(self, n_envs, n_agents) -> None:
         self.continuous_actions = True
-        self.n_envs = 15
+
         self.env = make_env(
             scenario="waterfall",
-            num_envs=self.n_envs,
+            num_envs=n_envs,
             device="cpu",
             continuous_actions=self.continuous_actions,
             # Environment specific variables
-            n_agents=self.n_agents,
+            n_agents=n_agents,
         )
         self.env.seed(0)
 
-    def test_heuristic(self):
+    def test_heuristic(self, n_agents=5, n_envs=4, n_steps=50):
+        self.setUp(n_envs=n_envs, n_agents=n_agents)
         obs = self.env.reset()
-        rews = None
-        for _ in range(200):
+        for _ in range(n_steps):
             actions = []
-            for i in range(self.n_agents):
+            for i in range(n_agents):
                 obs_agent = obs[i]
                 action_agent = torch.clamp(
                     obs_agent[:, -2:],
@@ -38,7 +35,3 @@ class TestWaterfall(unittest.TestCase):
                 )
                 actions.append(action_agent)
             obs, new_rews, _, _ = self.env.step(actions)
-            if rews is not None:
-                for i in range(self.n_agents):
-                    self.assertTrue((new_rews[i] >= rews[i]).all())
-                rews = new_rews

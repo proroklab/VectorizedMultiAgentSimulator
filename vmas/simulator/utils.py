@@ -1,11 +1,11 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import importlib
 import os
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import List, Tuple, Union, Dict, Sequence
+from typing import Dict, List, Sequence, Tuple, Union
 
 import numpy as np
 import torch
@@ -20,7 +20,7 @@ X = 0
 Y = 1
 Z = 2
 ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-VIEWER_MIN_ZOOM = 1.2
+VIEWER_DEFAULT_ZOOM = 1.2
 INITIAL_VIEWER_SIZE = (700, 700)
 LINE_MIN_DIST = 4 / 6e2
 COLLISION_FORCE = 100
@@ -74,7 +74,7 @@ def _init_pyglet_device():
         )
 
 
-class Observable(ABC):
+class Observable:
     def __init__(self):
         self._observers = []
 
@@ -157,7 +157,8 @@ class TorchUtils:
     def clamp_with_norm(tensor: Tensor, max_norm: float):
         norm = torch.linalg.vector_norm(tensor, dim=-1)
         new_tensor = (tensor / norm.unsqueeze(-1)) * max_norm
-        tensor[norm > max_norm] = new_tensor[norm > max_norm]
+        cond = (norm > max_norm).unsqueeze(-1).expand(tensor.shape)
+        tensor = torch.where(cond, new_tensor, tensor)
         return tensor
 
     @staticmethod
@@ -205,6 +206,23 @@ class TorchUtils:
             return value.clone()
         else:
             return {key: TorchUtils.recursive_clone(val) for key, val in value.items()}
+
+    @staticmethod
+    def recursive_require_grad_(value: Union[Dict[str, Tensor], Tensor, List[Tensor]]):
+        if isinstance(value, Tensor) and torch.is_floating_point(value):
+            value.requires_grad_(True)
+        elif isinstance(value, Dict):
+            for val in value.values():
+                TorchUtils.recursive_require_grad_(val)
+        else:
+            for val in value:
+                TorchUtils.recursive_require_grad_(val)
+
+    @staticmethod
+    def where_from_index(env_index, new_value, old_value):
+        mask = torch.zeros_like(old_value, dtype=torch.bool, device=old_value.device)
+        mask[env_index] = True
+        return torch.where(mask, new_value, old_value)
 
 
 class ScenarioUtils:

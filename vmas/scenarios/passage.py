@@ -1,11 +1,11 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
 import torch
 
 from vmas import render_interactively
-from vmas.simulator.core import Agent, Box, Landmark, Sphere, World, Line
+from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color
 
@@ -30,7 +30,9 @@ class Scenario(BaseScenario):
         # Add agents
         for i in range(self.n_agents):
             agent = Agent(
-                name=f"agent_{i}", shape=Sphere(self.agent_radius), u_multiplier=0.7
+                name=f"agent_{i}",
+                shape=Sphere(self.agent_radius),
+                u_multiplier=0.7,
             )
             world.add_agent(agent)
             goal = Landmark(
@@ -119,19 +121,23 @@ class Scenario(BaseScenario):
                     + torch.tensor(
                         [
                             [
-                                0.0
-                                if i % 2
-                                else (
-                                    self.agent_spacing
-                                    if i == 0
-                                    else -self.agent_spacing
+                                (
+                                    0.0
+                                    if i % 2
+                                    else (
+                                        self.agent_spacing
+                                        if i == 0
+                                        else -self.agent_spacing
+                                    )
                                 ),
-                                0.0
-                                if not i % 2
-                                else (
-                                    self.agent_spacing
-                                    if i == 1
-                                    else -self.agent_spacing
+                                (
+                                    0.0
+                                    if not i % 2
+                                    else (
+                                        self.agent_spacing
+                                        if i == 1
+                                        else -self.agent_spacing
+                                    )
                                 ),
                             ],
                         ],
@@ -151,19 +157,23 @@ class Scenario(BaseScenario):
                     + torch.tensor(
                         [
                             [
-                                0.0
-                                if i % 2
-                                else (
-                                    self.agent_spacing
-                                    if i == 0
-                                    else -self.agent_spacing
+                                (
+                                    0.0
+                                    if i % 2
+                                    else (
+                                        self.agent_spacing
+                                        if i == 0
+                                        else -self.agent_spacing
+                                    )
                                 ),
-                                0.0
-                                if not i % 2
-                                else (
-                                    self.agent_spacing
-                                    if i == 1
-                                    else -self.agent_spacing
+                                (
+                                    0.0
+                                    if not i % 2
+                                    else (
+                                        self.agent_spacing
+                                        if i == 1
+                                        else -self.agent_spacing
+                                    )
                                 ),
                             ],
                         ],
@@ -212,7 +222,9 @@ class Scenario(BaseScenario):
         if self.shared_reward:
             if is_first:
                 self.rew = torch.zeros(
-                    self.world.batch_dim, device=self.world.device, dtype=torch.float32
+                    self.world.batch_dim,
+                    device=self.world.device,
+                    dtype=torch.float32,
                 )
                 for a in self.world.agents:
                     dist_to_goal = torch.linalg.vector_norm(
@@ -223,7 +235,9 @@ class Scenario(BaseScenario):
                     a.global_shaping = agent_shaping
         else:
             self.rew = torch.zeros(
-                self.world.batch_dim, device=self.world.device, dtype=torch.float32
+                self.world.batch_dim,
+                device=self.world.device,
+                dtype=torch.float32,
             )
             dist_to_goal = torch.linalg.vector_norm(
                 agent.state.pos - agent.goal.state.pos, dim=1
@@ -282,19 +296,23 @@ class Scenario(BaseScenario):
             geom.add_attr(xform)
 
             xform.set_translation(
-                0.0
-                if i % 2
-                else (
-                    self.world.x_semidim + self.agent_radius
-                    if i == 0
-                    else -self.world.x_semidim - self.agent_radius
+                (
+                    0.0
+                    if i % 2
+                    else (
+                        self.world.x_semidim + self.agent_radius
+                        if i == 0
+                        else -self.world.x_semidim - self.agent_radius
+                    )
                 ),
-                0.0
-                if not i % 2
-                else (
-                    self.world.x_semidim + self.agent_radius
-                    if i == 1
-                    else -self.world.x_semidim - self.agent_radius
+                (
+                    0.0
+                    if not i % 2
+                    else (
+                        self.world.x_semidim + self.agent_radius
+                        if i == 1
+                        else -self.world.x_semidim - self.agent_radius
+                    )
                 ),
             )
             xform.set_rotation(torch.pi / 2 if not i % 2 else 0.0)

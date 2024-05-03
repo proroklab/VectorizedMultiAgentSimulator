@@ -1,15 +1,16 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 from typing import Dict
 
 import torch
 from torch import Tensor
+
 from vmas import render_interactively
+from vmas.simulator.controllers.velocity_controller import VelocityController
 from vmas.simulator.core import Agent, Sphere, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, X, Y, TorchUtils
-from vmas.simulator.controllers.velocity_controller import VelocityController
+from vmas.simulator.utils import Color, TorchUtils, X, Y
 
 
 class Scenario(BaseScenario):
@@ -28,7 +29,11 @@ class Scenario(BaseScenario):
 
         # Make world
         world = World(
-            batch_dim, device, linear_friction=self.linear_friction, dt=0.05, drag=0
+            batch_dim,
+            device,
+            linear_friction=self.linear_friction,
+            dt=0.05,
+            drag=0,
         )
 
         controller_params = [2, 6, 0.002]
@@ -76,9 +81,11 @@ class Scenario(BaseScenario):
         self.agent.controller.reset(env_index)
         self.agent.set_pos(
             torch.zeros(
-                (1, self.world.dim_p)
-                if env_index is not None
-                else (self.world.batch_dim, self.world.dim_p),
+                (
+                    (1, self.world.dim_p)
+                    if env_index is not None
+                    else (self.world.batch_dim, self.world.dim_p)
+                ),
                 device=self.world.device,
                 dtype=torch.float32,
             ).uniform_(
@@ -150,10 +157,7 @@ class Scenario(BaseScenario):
     def observation(self, agent: Agent):
         observations = [agent.state.pos, agent.state.vel, agent.state.pos]
         for i, obs in enumerate(observations):
-            noise = torch.zeros(
-                *obs.shape,
-                device=self.world.device,
-            ).uniform_(
+            noise = torch.zeros(*obs.shape, device=self.world.device,).uniform_(
                 -self.obs_noise,
                 self.obs_noise,
             )

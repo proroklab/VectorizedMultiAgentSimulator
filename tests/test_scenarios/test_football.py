@@ -1,22 +1,22 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-import unittest
+import sys
 
+import pytest
 import torch
 from tqdm import tqdm
+
 from vmas import make_env
 
 
-class TestFootball(unittest.TestCase):
-    def setup_env(self, **kwargs) -> None:
-        super().setUp()
-
+class TestFootball:
+    def setup_env(self, n_envs, **kwargs) -> None:
         self.continuous_actions = True
-        self.n_envs = 15
+
         self.env = make_env(
             scenario="football",
-            num_envs=self.n_envs,
+            num_envs=n_envs,
             device="cpu",
             continuous_actions=True,
             # Environment specific variables
@@ -24,24 +24,25 @@ class TestFootball(unittest.TestCase):
         )
         self.env.seed(0)
 
-    def test_ai_vs_random(self):
-        n_agents = 3
+    @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Test needs linux")
+    def test_ai_vs_random(self, n_envs=4, n_agents=3):
         self.setup_env(
             n_red_agents=n_agents,
             n_blue_agents=n_agents,
             ai_red_agents=True,
             ai_blue_agents=False,
             dense_reward_ratio=0,
+            n_envs=n_envs,
         )
-        all_done = torch.full((self.n_envs,), False)
+        all_done = torch.full((n_envs,), False)
         obs = self.env.reset()
         total_rew = torch.zeros(self.env.num_envs, n_agents)
-        with tqdm(total=self.n_envs) as pbar:
+        with tqdm(total=n_envs) as pbar:
             while not all_done.all():
                 pbar.update(all_done.sum().item() - pbar.n)
                 actions = []
-                for i in range(n_agents):
-                    actions.append(torch.rand(self.n_envs, 2))
+                for _ in range(n_agents):
+                    actions.append(torch.rand(n_envs, 2))
 
                 obs, rews, dones, _ = self.env.step(actions)
                 for i in range(n_agents):
@@ -49,11 +50,9 @@ class TestFootball(unittest.TestCase):
                 if dones.any():
                     # Done envs should have exactly sum of rewards equal to num_agents
                     actual_rew = -1 * n_agents
-                    self.assertTrue(
-                        torch.equal(
-                            total_rew[dones].sum(-1).to(torch.long),
-                            torch.full((dones.sum(),), actual_rew),
-                        )
+                    assert torch.equal(
+                        total_rew[dones].sum(-1).to(torch.long),
+                        torch.full((dones.sum(),), actual_rew),
                     )
                     total_rew[dones] = 0
                     all_done += dones

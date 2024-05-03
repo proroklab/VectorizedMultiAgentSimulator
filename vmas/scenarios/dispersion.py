@@ -21,7 +21,10 @@ class Scenario(BaseScenario):
 
         # Make world
         world = World(
-            batch_dim, device, x_semidim=self.pos_range, y_semidim=self.pos_range
+            batch_dim,
+            device,
+            x_semidim=self.pos_range,
+            y_semidim=self.pos_range,
         )
         # Add agents
         for i in range(n_agents):
@@ -48,16 +51,20 @@ class Scenario(BaseScenario):
         for agent in self.world.agents:
             agent.set_pos(
                 torch.zeros(
-                    self.world.dim_p, device=self.world.device, dtype=torch.float32
+                    self.world.dim_p,
+                    device=self.world.device,
+                    dtype=torch.float32,
                 ),
                 batch_index=env_index,
             )
         for landmark in self.world.landmarks:
             landmark.set_pos(
                 torch.zeros(
-                    (1, self.world.dim_p)
-                    if env_index is not None
-                    else (self.world.batch_dim, self.world.dim_p),
+                    (
+                        (1, self.world.dim_p)
+                        if env_index is not None
+                        else (self.world.batch_dim, self.world.dim_p)
+                    ),
                     device=self.world.device,
                     dtype=torch.float32,
                 ).uniform_(

@@ -1,10 +1,10 @@
-#  Copyright (c) 2022-2023.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
 import torch
 
-from vmas.simulator.core import World, Agent, Landmark
+from vmas.simulator.core import Agent, Landmark, World
 from vmas.simulator.scenario import BaseScenario
 
 
@@ -45,19 +45,27 @@ class Scenario(BaseScenario):
                 torch.randint(0, len(self.world.landmarks), (1,)).item()
             ]
             # random properties for agents
-            for i, agent in enumerate(self.world.agents):
+            for agent in self.world.agents:
                 agent.color = torch.tensor(
-                    [0.25, 0.25, 0.25], device=self.world.device, dtype=torch.float32
+                    [0.25, 0.25, 0.25],
+                    device=self.world.device,
+                    dtype=torch.float32,
                 )
             # random properties for landmarks
             self.world.landmarks[0].color = torch.tensor(
-                [0.75, 0.25, 0.25], device=self.world.device, dtype=torch.float32
+                [0.75, 0.25, 0.25],
+                device=self.world.device,
+                dtype=torch.float32,
             )
             self.world.landmarks[1].color = torch.tensor(
-                [0.25, 0.75, 0.25], device=self.world.device, dtype=torch.float32
+                [0.25, 0.75, 0.25],
+                device=self.world.device,
+                dtype=torch.float32,
             )
             self.world.landmarks[2].color = torch.tensor(
-                [0.25, 0.25, 0.75], device=self.world.device, dtype=torch.float32
+                [0.25, 0.25, 0.75],
+                device=self.world.device,
+                dtype=torch.float32,
             )
             # special colors for goals
             self.world.agents[0].goal_a.color = self.world.agents[0].goal_b.color
@@ -67,9 +75,11 @@ class Scenario(BaseScenario):
         for agent in self.world.agents:
             agent.set_pos(
                 torch.zeros(
-                    (1, self.world.dim_p)
-                    if env_index is not None
-                    else (self.world.batch_dim, self.world.dim_p),
+                    (
+                        (1, self.world.dim_p)
+                        if env_index is not None
+                        else (self.world.batch_dim, self.world.dim_p)
+                    ),
                     device=self.world.device,
                     dtype=torch.float32,
                 ).uniform_(
@@ -81,9 +91,11 @@ class Scenario(BaseScenario):
         for landmark in self.world.landmarks:
             landmark.set_pos(
                 torch.zeros(
-                    (1, self.world.dim_p)
-                    if env_index is not None
-                    else (self.world.batch_dim, self.world.dim_p),
+                    (
+                        (1, self.world.dim_p)
+                        if env_index is not None
+                        else (self.world.batch_dim, self.world.dim_p)
+                    ),
                     device=self.world.device,
                     dtype=torch.float32,
                 ).uniform_(
@@ -106,7 +118,8 @@ class Scenario(BaseScenario):
                     )
                 self.rew += -torch.sqrt(
                     torch.sum(
-                        torch.square(a.goal_a.state.pos - a.goal_b.state.pos), dim=-1
+                        torch.square(a.goal_a.state.pos - a.goal_b.state.pos),
+                        dim=-1,
                     )
                 )
         return self.rew

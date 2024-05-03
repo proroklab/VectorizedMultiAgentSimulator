@@ -1,0 +1,35 @@
+
+
+name: pytest-windows
+
+on:
+  push:
+    branches: [ $default-branch , "main" , "dev" ]
+  pull_request:
+    branches: [ $default-branch , "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ windows-latest ]
+        python-version: ["3.11"]
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install dependencies
+      run: |
+        bash .github/unittest/install_dependencies.sh
+    - name: Test with pytest
+      run: |
+         pytest tests/ --doctest-modules --junitxml=junit/test-results.xml --cov=. --cov-report=xml --cov-report=html

@@ -1,9 +1,13 @@
 # VectorizedMultiAgentSimulator (VMAS)
 <a href="https://pypi.org/project/vmas"><img src="https://img.shields.io/pypi/v/vmas" alt="pypi version"></a>
 [![Downloads](https://static.pepy.tech/personalized-badge/vmas?period=total&units=international_system&left_color=grey&right_color=blue&left_text=Downloads)](https://pepy.tech/project/vmas)
-![tests](https://github.com/proroklab/VectorizedMultiAgentSimulator/actions/workflows/python-app.yml/badge.svg)
-[![Python](https://img.shields.io/badge/python-3.8%20%7C%203.9%20%7C%203.10-blue.svg)](https://www.python.org/downloads/)
+![tests](https://github.com/proroklab/VectorizedMultiAgentSimulator/actions/workflows/tests-linux.yml/badge.svg)
+[![codecov](https://codecov.io/github/proroklab/VectorizedMultiAgentSimulator/coverage.svg?branch=main)](https://codecov.io/gh/proroklab/VectorizedMultiAgentSimulator)
+[![Documentation Status](https://readthedocs.org/projects/vmas/badge/?version=latest)](https://vmas.readthedocs.io/en/latest/?badge=latest)
+[![Python](https://img.shields.io/badge/python-3.8%20%7C%203.9%20%7C%203.10%20%7C%203.11-blue.svg)](https://www.python.org/downloads/)
 [![GitHub license](https://img.shields.io/badge/license-GPLv3.0-blue.svg)](https://github.com/proroklab/VectorizedMultiAgentSimulator/blob/main/LICENSE)
+[![arXiv](https://img.shields.io/badge/arXiv-2207.03530-b31b1b.svg)](https://arxiv.org/abs/2207.03530)
+
 
 <p align="center">
 <img src="https://github.com/matteobettini/vmas-media/blob/main/media/VMAS_scenarios.gif?raw=true" alt="drawing"/>  
@@ -18,8 +22,8 @@
 
 This repository contains the code for the Vectorized Multi-Agent Simulator (VMAS).
 
-VMAS is a vectorized framework designed for efficient MARL benchmarking.
-It is comprised of a vectorized 2D physics engine written in PyTorch and a set of challenging multi-robot scenarios.
+VMAS is a vectorized differentiable simulator designed for efficient MARL benchmarking.
+It is comprised of a fully-differentiable vectorized 2D physics engine written in PyTorch and a set of challenging multi-robot scenarios.
 Scenario creation is made simple and modular to incentivize contributions.
 VMAS simulates agents and landmarks of different shapes and supports rotations, elastic collisions, joints, and custom gravity.
 Holonomic motion models are used for the agents to simplify simulation. Custom sensors such as LIDARs are available and the simulator supports inter-agent communication.
@@ -90,26 +94,27 @@ Watch the talk at DARS 2022 about VMAS.
 ### Notebooks
 -  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/proroklab/VectorizedMultiAgentSimulator/blob/main/notebooks/VMAS_Use_vmas_environment.ipynb) &ensp; **Using a VMAS environment**.
  Here is a simple notebook that you can run to create, step and render any scenario in VMAS. It reproduces the `use_vmas_env.py` script in the `examples` folder.
-- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/facebookresearch/BenchMARL/blob/main/notebooks/run.ipynb) &ensp;  **Using VMAS in BenchMARL (suggested)**.  In this notebook, we show how to use VMAS in [BenchMARL](https://github.com/facebookresearch/BenchMARL), TorchRL's MARL training library.
-- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/pytorch/rl/blob/gh-pages/_downloads/a977047786179278d12b52546e1c0da8/multiagent_ppo.ipynb)  &ensp;  **Using VMAS in TorchRL**.  In this notebook, [available in the TorchRL docs](https://pytorch.org/rl/tutorials/multiagent_ppo.html), we show how to use any VMAS scenario in TorchRL. It will guide you through the full pipeline needed to train agents using MAPPO/IPPO.
-- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/proroklab/VectorizedMultiAgentSimulator/blob/main/notebooks/VMAS_RLlib.ipynb)  &ensp;  **Using VMAS in RLlib**.  In this notebook, we show how to use any VMAS scenario in RLlib. It reproduces the `rllib.py` script in the `examples` folder.
+- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/facebookresearch/BenchMARL/blob/main/notebooks/run.ipynb) &ensp;  **Training VMAS in BenchMARL (suggested)**.  In this notebook, we show how to use VMAS in [BenchMARL](https://github.com/facebookresearch/BenchMARL), TorchRL's MARL training library.
+- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/pytorch/rl/blob/gh-pages/_downloads/a977047786179278d12b52546e1c0da8/multiagent_ppo.ipynb)  &ensp;  **Training VMAS in TorchRL**.  In this notebook, [available in the TorchRL docs](https://pytorch.org/rl/tutorials/multiagent_ppo.html), we show how to use any VMAS scenario in TorchRL. It will guide you through the full pipeline needed to train agents using MAPPO/IPPO.
+- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/pytorch/rl/blob/gh-pages/_downloads/d30bb6552cc07dec0f1da33382d3fa02/multiagent_competitive_ddpg.py)  &ensp;  **Training competitive VMAS MPE in TorchRL**.  In this notebook, [available in the TorchRL docs](https://pytorch.org/rl/main/tutorials/multiagent_competitive_ddpg.html), we show how to solve a Competitive Multi-Agent Reinforcement Learning (MARL) problem using MADDPG/IDDPG.
+- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/proroklab/VectorizedMultiAgentSimulator/blob/main/notebooks/VMAS_RLlib.ipynb)  &ensp;  **Training VMAS in RLlib**.  In this notebook, we show how to use any VMAS scenario in RLlib. It reproduces the `rllib.py` script in the `examples` folder.
 
 
 
 ### Install
 
 To install the simulator, you can use pip to get the latest release:
-```
+```bash
 pip install vmas
 ```
 If you want to install the current master version (more up to date than latest release), you can do:
-```
+```bash
 git clone https://github.com/proroklab/VectorizedMultiAgentSimulator.git
 cd VectorizedMultiAgentSimulator
 pip install -e .
 ```
 By default, vmas has only the core requirements. Here are some optional packages you may want to install:
-```
+```bash
 # Training
 pip install "ray[rllib]"==2.1.0 # We support versions "ray[rllib]<=2.2,>=1.13"
 pip install torchrl
@@ -117,8 +122,8 @@ pip install torchrl
 # Logging
 pip installl wandb 
 
-# Save renders
-pip install opencv-python moviepy
+# Rendering
+pip install opencv-python moviepy matplotlib
 
 # Tests
 pip install pytest pyyaml pytest-instafail tqdm
@@ -132,7 +137,7 @@ The function arguments are explained in the documentation. The function returns 
 object with the OpenAI gym interface:
 
 Here is an example:
-```
+```python
  env = vmas.make_env(
         scenario="waterfall", # can be scenario name or BaseScenario class
         num_envs=32,
@@ -143,6 +148,7 @@ Here is an example:
         seed=None, # Seed of the environment
         dict_spaces=False, # By default tuple spaces are used with each element in the tuple being an agent.
         # If dict_spaces=True, the spaces will become Dict with each key being the agent's name
+        grad_enabled=False, # If grad_enabled the simulator is differentiable and gradients can flow from output to input
         **kwargs # Additional arguments you want to pass to the scenario initialization
     )
 ```
@@ -163,7 +169,7 @@ Check out how simple it is to use VMAS in [BenchMARL](https://github.com/faceboo
 We provide a [notebook](https://pytorch.org/rl/tutorials/multiagent_ppo.html) which guides you through a full
 multi-agent reinforcement learning pipeline for training VMAS scenarios in TorchRL using MAPPO/IPPO.
 
-You can find **example scripts** in the TorchRL repo [here](https://github.com/pytorch/rl/tree/main/examples/multiagent)
+You can find **example scripts** in the TorchRL repo [here](https://github.com/pytorch/rl/tree/main/sota-implementations/multiagent)
 on how to run MAPPO-IPPO-MADDPG-QMIX-VDN using the [VMAS wrapper](https://github.com/pytorch/rl/blob/main/torchrl/envs/libs/vmas.py).
 
 
@@ -245,7 +251,8 @@ customizable. Examples are: drag, friction, gravity, simulation timestep, non-di
 - **Agent actions**: Agents' physical actions are 2D forces for holonomic motion. Agent rotation can also be controlled through a torque action (activated by setting `agent.action.u_rot_range` at agent creation time). Agents can also be equipped with continuous or discrete communication actions.
 - **Action preprocessing**: By implementing the `process_action` function of a scenario, you can modify the agents' actions before they are passed to the simulator. This is used in `controllers` (where we provide different types of controllers to use) and `dynamics` (where we provide custom robot dynamic models).
 - **Controllers**: Controllers are components that can be appended to the neural network policy or replace it completely.  We provide a `VelocityController` which can be used to treat input actions as velocities (instead of default vmas input forces). This PID controller takes velocities and outputs the forces which are fed to the simulator. See the `vel_control` debug scenario for an example.
-- **Dynamic models**: VMAS simulates holonomic dynamics models by default. Custom dynamic constraints can be enforced in an action preprocessing step. Implementations now include `DiffDriveDynamics` for differential drive robots and `KinematicBicycleDynamics` for kinematic bicycle model. See `diff_drive` and `kinematic_bicycle` debug scenarios for examples.
+- **Dynamic models**: VMAS simulates holonomic dynamics models by default. Custom dynamics can be chosen at agent creation time. Implementations now include `DiffDriveDynamics` for differential drive robots, `KinematicBicycleDynamics` for kinematic bicycle model, and `Drone` for quadcopter dynamics. See `diff_drive`, `kinematic_bicycle` and `drone` debug scenarios for examples.
+- **Differentiable**: By setting `grad_enabled=True` when creating an environment, the simulator will be differentiable, allowing gradients flowing through any of its function.
 
 ## Creating a new scenario
 
@@ -377,7 +384,8 @@ To create a fake screen you need to have `Xvfb` installed.
 | `line_trajectory.py`   | One agent is rewarded to move in a line trajectory.                                                                                                                                                                                                                                                                                                                                     | <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/line_trajectory.gif?raw=true" alt="drawing" width="300"/>   |
 | `circle_trajectory.py` | One agent is rewarded to move in a circle trajectory at the `desired_radius`.                                                                                                                                                                                                                                                                                                           | <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/circle_trajectory.gif?raw=true" alt="drawing" width="300"/> |
 | `diff_drive.py`        | An example of the `diff_drive` dynamic model constraint. Both agents have rotational actions which can be controlled interactively.  The first agent has differential drive dynamics. The second agent has standard vmas holonomic dynamics.                                                                                                                                            | <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/diff_drive.gif?raw=true" alt="drawing" width="300"/>        |
-| `kinematic_bicycle.py`         | An example of `kinematic_bicycle` dynamic model constraint. Both agents have rotational actions which can be controlled interactively.  The first agent has kinematic bicycle model dynamics. The second agent has standard vmas holonomic dynamics. | <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/kinematic_bicycle.gif?raw=true" alt="drawing" width="300"/>         |
+| `kinematic_bicycle.py` | An example of `kinematic_bicycle` dynamic model constraint. Both agents have rotational actions which can be controlled interactively.  The first agent has kinematic bicycle model dynamics. The second agent has standard vmas holonomic dynamics.                                                                                                                                    | <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/kinematic_bicycle.gif?raw=true" alt="drawing" width="300"/> |
+| `drone.py`             | An example of the `drone` dynamic model.                                                                                                                                                                                                                                                                                                                                                | <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/drone.gif?raw=true" alt="drawing" width="300"/>             |
 
 ### [MPE](https://github.com/openai/multiagent-particle-envs)
 
@@ -403,10 +411,10 @@ To create a fake screen you need to have `Xvfb` installed.
 ## TODOS
 
 - [ ] Reset any number of dimensions
-- [ ] Improve test efficiency and add new tests
 - [ ] Implement 1D camera sensor
 - [ ] Implement 2D birds eye view camera sensor
-- [ ] Implement 2D drone dynamics
+- [X] Improve test efficiency and add new tests
+- [X] Implement 2D drone dynamics
 - [X] Allow any number of actions
 - [X] Improve VMAS performance
 - [X] Dict obs support in torchrl

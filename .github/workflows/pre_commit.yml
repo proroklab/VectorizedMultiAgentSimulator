@@ -1,0 +1,27 @@
+
+name: pre-commit
+
+
+on:
+  push:
+    branches: [ $default-branch , "main" , "dev" ]
+  pull_request:
+    branches: [ $default-branch , "main" ]
+
+permissions:
+  contents: read
+
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [ "3.11" ]
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+    - uses: pre-commit/action@v3.0.1

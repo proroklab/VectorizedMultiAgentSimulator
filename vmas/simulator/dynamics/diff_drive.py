@@ -1,7 +1,7 @@
 #  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-import math
+
 
 import torch
 
@@ -23,35 +23,60 @@ class DiffDrive(Dynamics):
         self.integration = integration
         self.world = world
 
-    def euler(self, f, rot):
-        return f(rot)
+    def euler(self, f, state):
+        return state + self.dt * f(state)
 
-    def runge_kutta(self, f, rot):
-        k1 = f(rot)
-        k2 = f(rot + self.dt * k1[2] / 2)
-        k3 = f(rot + self.dt * k2[2] / 2)
-        k4 = f(rot + self.dt * k3[2])
+    def runge_kutta(self, f, state):
+        k1 = f(state)
+        k2 = f(state + self.dt * k1 / 2)
+        k3 = f(state + self.dt * k2 / 2)
+        k4 = f(state + self.dt * k3)
 
-        return (1 / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
+        return state + (self.dt / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
 
     @property
     def needed_action_size(self) -> int:
         return 2
 
     def process_action(self):
-        u_forward = self.agent.action.u[:, 0]
-        u_rot = self.agent.action.u[:, 1]
+        velocity = self.agent.action.u[:, 0]  # Forward velocity
+        ang_velocity = self.agent.action.u[:, 1]  # Angular velocity
 
-        def f(rot):
+        # Current state of the agent
+        state = torch.cat((self.agent.state.pos, self.agent.state.rot), dim=1)
+
+        def f(state):
+            theta = state[:, 2]
             return torch.stack(
-                [u_forward * torch.cos(rot), u_forward * torch.sin(rot), u_rot], dim=0
+                [
+                    velocity * torch.cos(theta),
+                    velocity * torch.sin(theta),
+                    ang_velocity,
+                ],
+                dim=-1,
             )
 
         if self.integration == "euler":
-            u = self.euler(f, self.agent.state.rot.squeeze(-1))
+            new_state = self.euler(f, state)
         else:
-            u = self.runge_kutta(f, self.agent.state.rot.squeeze(-1))
+            new_state = self.runge_kutta(f, state)
 
-        self.agent.state.force[:, vmas.simulator.utils.X] = u[vmas.simulator.utils.X]
-        self.agent.state.force[:, vmas.simulator.utils.Y] = u[vmas.simulator.utils.Y]
-        self.agent.state.torque = u_rot.unsqueeze(-1)
+        # Calculate the change in state
+        delta_state = new_state - state
+
+        # Calculate the accelerations required to achieve the change in state
+        acceleration_x = delta_state[:, 0] / self.dt
+        acceleration_y = delta_state[:, 1] / self.dt
+        angular_acceleration = delta_state[:, 2] / self.dt
+
+        # Calculate the forces required for the linear accelerations
+        force_x = self.agent.mass * acceleration_x
+        force_y = self.agent.mass * acceleration_y
+
+        # Calculate the torque required for the angular acceleration
+        torque = self.agent.moment_of_inertia * angular_acceleration
+
+        # Update the physical force and torque required for the user inputs
+        self.agent.state.force[:, vmas.simulator.utils.X] = force_x
+        self.agent.state.force[:, vmas.simulator.utils.Y] = force_y
+        self.agent.state.torque = torque.unsqueeze(-1)
