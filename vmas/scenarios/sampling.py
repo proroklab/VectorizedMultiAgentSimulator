@@ -103,7 +103,7 @@ class Scenario(BaseScenario):
         return world
 
     def reset_world_at(self, env_index: int = None):
-        for i in self.locs:
+        for i in range(len(self.locs)):
             x = torch.zeros(
                 (1,) if env_index is not None else (self.world.batch_dim, 1),
                 device=self.world.device,
@@ -273,9 +273,7 @@ class Scenario(BaseScenario):
         observations = self.observation_from_pos(agent.state.pos)
 
         if self.collisions:
-            observations += torch.cat(
-                [observations, agent.sensors[0].measure()], dim=-1
-            )
+            observations = torch.cat([observations, agent.sensors[0].measure()], dim=-1)
 
         return observations
 
