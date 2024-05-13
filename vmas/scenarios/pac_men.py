@@ -40,7 +40,6 @@ class Scenario(BaseScenario):
 
         self.plot_grid = True
         self.alpha_plot: float = 0.5
-        self.cov = kwargs.get("cov", 50)
 
         self.x_semidim = self.room_semidim - self.agent_radius
         self.y_semidim = self.room_semidim - self.agent_radius
@@ -52,10 +51,12 @@ class Scenario(BaseScenario):
             dist = torch.distributions.uniform.Uniform(
                 low=torch.tensor([-self.room_semidim], device=device, dtype=torch.float)
                 .unsqueeze(0)
-                .expand(batch_dim, 2),
+                .expand(batch_dim, 2)
+                .clone(),
                 high=torch.tensor([self.room_semidim], device=device, dtype=torch.float)
                 .unsqueeze(0)
-                .expand(batch_dim, 2),
+                .expand(batch_dim, 2)
+                .clone(),
             )
             self.distributions.append(dist)
 
@@ -78,24 +79,25 @@ class Scenario(BaseScenario):
                 collide=True,
                 collision_filter=lambda e: isinstance(e.shape, Line),
             )
-
+            agent.sample = torch.zeros(batch_dim, device=device, dtype=torch.float)
             world.add_agent(agent)
 
         return world
 
     def reset_world_at(self, env_index: int = None):
+
         ScenarioUtils.spawn_entities_randomly(
             self.world.agents,
             self.world,
             env_index,
             min_dist_between_entities=0,
             x_bounds=(
-                -0,
-                0,
+                -(self.inner_box_semidim - self.agent_radius),
+                (self.inner_box_semidim - self.agent_radius),
             ),
             y_bounds=(
-                -0,
-                0,
+                -(self.inner_box_semidim - self.agent_radius),
+                (self.inner_box_semidim - self.agent_radius),
             ),
         )
 
@@ -156,14 +158,14 @@ class Scenario(BaseScenario):
             v = v * (2 * self.room_semidim) ** 2  # Make it 1
 
             sampled = dist.sampled[
-                torch.arange(self.world.batch_dim), index[:, 0], index[:, 1]
+                torch.arange(self.world.batch_dim), index[:, X], index[:, Y]
             ]
-
-            v[sampled + out_of_bounds] = 0
+            invalid_sample = sampled + out_of_bounds
+            v[invalid_sample] = 0
             if update_sampled_flag:
                 dist.sampled[
-                    torch.arange(self.world.batch_dim), index[:, 0], index[:, 1]
-                ] = True
+                    torch.arange(self.world.batch_dim), index[:, X], index[:, Y]
+                ] += ~invalid_sample
             values.append(v)
         if len(values) == 0:
             return torch.zeros_like(pos).sum(dim=-1)
@@ -281,7 +283,7 @@ class Scenario(BaseScenario):
                 f=self.density_for_plot(env_index=env_index),
                 plot_range=(x_bounds, y_bounds),
                 cmap_alpha=self.alpha_plot,
-                precision=self.agent_radius,
+                precision=self.agent_radius / 2,
                 cmap_range=(0, 1),
             )
             geoms.append(res)
@@ -289,8 +291,8 @@ class Scenario(BaseScenario):
         return geoms
 
     def spawn_map(self, world: World):
-        self.inner_box_semidim = 1
         self.corridors_width = self.agent_radius * 4
+        self.inner_box_semidim = self.corridors_width / 2 + 1e-5
         self.corridors_length = 1.5
         self.room_semidim = 1.5
 
