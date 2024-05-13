@@ -130,7 +130,8 @@ def x_to_rgb_colormap(
     if high is None:
         high = np.max(x)
     x = np.clip(x, low, high)
-    x = (x - low) / (high - low) * (cmap_res - 1)
+    if high - low > 1e-5:
+        x = (x - low) / (high - low) * (cmap_res - 1)
     x_c0_idx = np.floor(x).astype(int)
     x_c1_idx = np.ceil(x).astype(int)
     x_c0 = colormap[x_c0_idx, :]

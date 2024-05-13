@@ -4,7 +4,6 @@
 
 
 import torch
-from torch.distributions import MultivariateNormal
 
 from vmas import render_interactively
 
@@ -28,49 +27,43 @@ class Scenario(BaseScenario):
         self.n_agents = 4
         self.agent_radius = 0.16
 
+        # Make world
+        world = World(
+            batch_dim,
+            device,
+        )
+        self.spawn_map(world)
+
         self.xdim = kwargs.get("xdim", 5)
         self.ydim = kwargs.get("ydim", 5)
         self.grid_spacing = kwargs.get("grid_spacing", self.agent_radius * 2)
 
         self.plot_grid = True
-        self.n_x_cells = int((2 * self.xdim) / self.grid_spacing)
-        self.n_y_cells = int((2 * self.ydim) / self.grid_spacing)
-        self.max_pdf = torch.zeros((batch_dim,), device=device, dtype=torch.float32)
         self.alpha_plot: float = 0.5
+        self.cov = kwargs.get("cov", 50)
 
-        self.cov = kwargs.get("cov", 0.05)
-        self.n_gaussians = 4
-        self.covs = (
-            [self.cov] * self.n_gaussians if isinstance(self.cov, float) else self.cov
-        )
+        self.x_semidim = self.room_semidim - self.agent_radius
+        self.y_semidim = self.room_semidim - self.agent_radius
+        self.n_x_cells = int((2 * self.room_semidim) / self.grid_spacing)
+        self.n_y_cells = int((2 * self.room_semidim) / self.grid_spacing)
 
-        self.x_semidim = self.xdim - self.agent_radius
-        self.y_semidim = self.ydim - self.agent_radius
+        self.distributions = []
+        for _ in range(4):
+            dist = torch.distributions.uniform.Uniform(
+                low=torch.tensor([-self.room_semidim], device=device, dtype=torch.float)
+                .unsqueeze(0)
+                .expand(batch_dim, 2),
+                high=torch.tensor([self.room_semidim], device=device, dtype=torch.float)
+                .unsqueeze(0)
+                .expand(batch_dim, 2),
+            )
+            self.distributions.append(dist)
 
-        self.sampled = torch.zeros(
-            (batch_dim, self.n_x_cells, self.n_y_cells),
-            device=device,
-            dtype=torch.bool,
-        )
-
-        self.locs = [
-            torch.zeros((batch_dim, 2), device=device, dtype=torch.float32)
-            for _ in range(self.n_gaussians)
-        ]
-        self.cov_matrices = [
-            torch.tensor([[cov, 0], [0, cov]], dtype=torch.float32, device=device)
-            .expand(batch_dim, 2, 2)
-            .clone()
-            for cov in self.covs
-        ]
-
-        # Make world#
-        world = World(
-            batch_dim,
-            device,
-            x_semidim=self.x_semidim,
-            y_semidim=self.y_semidim,
-        )
+            dist.sampled = torch.zeros(
+                (batch_dim, self.n_x_cells, self.n_y_cells),
+                device=device,
+                dtype=torch.bool,
+            )
 
         self.colors = [Color.GREEN, Color.BLUE, Color.RED, Color.GRAY]
 
@@ -87,8 +80,6 @@ class Scenario(BaseScenario):
             )
 
             world.add_agent(agent)
-
-        self.spawn_map(world)
 
         return world
 
@@ -112,151 +103,195 @@ class Scenario(BaseScenario):
         self.reset_distribution(env_index)
 
     def reset_distribution(self, env_index):
-        for i in self.locs:
-            x = torch.zeros(
-                (1,) if env_index is not None else (self.world.batch_dim, 1),
-                device=self.world.device,
-                dtype=torch.float32,
-            ).uniform_(-self.xdim, self.xdim)
-            y = torch.zeros(
-                (1,) if env_index is not None else (self.world.batch_dim, 1),
-                device=self.world.device,
-                dtype=torch.float32,
-            ).uniform_(-self.ydim, self.ydim)
-            new_loc = torch.cat([x, y], dim=-1)
+        for dist in self.distributions:
             if env_index is None:
-                self.locs[i] = new_loc
+                dist.sampled = torch.zeros_like(dist.sampled)
             else:
-                self.locs[i][env_index] = new_loc
+                dist.sampled = TorchUtils.where_from_index(
+                    env_index, False, dist.sampled
+                )
 
-        self.gaussians = [
-            MultivariateNormal(
-                loc=loc,
-                covariance_matrix=cov_matrix,
+    def translate_pos(self, pos, room_index, inverse=False):
+        if room_index == 0:
+            shift = (
+                self.left_corridor_length + self.room_semidim + self.inner_box_semidim
             )
-            for loc, cov_matrix in zip(self.locs, self.cov_matrices)
-        ]
-
-        if env_index is None:
-            self.max_pdf = torch.zeros_like(self.max_pdf)
-            self.sampled = torch.zeros_like(self.sampled)
-        else:
-            self.max_pdf = TorchUtils.where_from_index(env_index, 0, self.max_pdf)
-            self.sampled = TorchUtils.where_from_index(env_index, False, self.sampled)
-
-        self.normalize_pdf(env_index=env_index)
-
-    def normalize_pdf(self, env_index):
-        xpoints = torch.arange(
-            -self.xdim, self.xdim, self.grid_spacing, device=self.world.device
-        )
-        ypoints = torch.arange(
-            -self.ydim, self.ydim, self.grid_spacing, device=self.world.device
-        )
-        if env_index is not None:
-            ygrid, xgrid = torch.meshgrid(ypoints, xpoints, indexing="ij")
-            pos = torch.stack((xgrid, ygrid), dim=-1).reshape(-1, 2)
-            sample = self.sample_single_env(pos, env_index, norm=False)
-            self.max_pdf = TorchUtils.where_from_index(
-                env_index, sample.max(), self.max_pdf
+            pos[..., X] = pos[..., X] - (shift if not inverse else -shift)
+        if room_index == 1:
+            shift = (
+                self.right_corridor_length + self.room_semidim + self.inner_box_semidim
             )
-        else:
-            for x in xpoints:
-                for y in ypoints:
-                    pos = torch.tensor(
-                        [x, y], device=self.world.device, dtype=torch.float32
-                    ).repeat(self.world.batch_dim, 1)
-                    sample = self.sample(pos, norm=False)
-                    self.max_pdf = torch.maximum(self.max_pdf, sample)
+            pos[..., X] = pos[..., X] + (shift if not inverse else -shift)
+        if room_index == 2:
+            shift = self.up_corridor_length + self.room_semidim + self.inner_box_semidim
+            pos[..., Y] = pos[..., Y] + (shift if not inverse else -shift)
+        if room_index == 3:
+            shift = (
+                self.down_corridor_length + self.room_semidim + self.inner_box_semidim
+            )
+            pos[..., Y] = pos[..., Y] - (shift if not inverse else -shift)
+        return pos
 
     def sample(
         self,
         pos,
         update_sampled_flag: bool = False,
-        norm: bool = True,
     ):
-        out_of_bounds = (
-            (pos[:, X] < -self.xdim)
-            + (pos[:, X] > self.xdim)
-            + (pos[:, Y] < -self.ydim)
-            + (pos[:, Y] > self.ydim)
-        )
-        pos[:, X].clamp_(-self.world.x_semidim, self.world.x_semidim)
-        pos[:, Y].clamp_(-self.world.y_semidim, self.world.y_semidim)
+        values = []
+        for i, dist in enumerate(self.distributions):
+            trans_pos = self.translate_pos(pos.clone(), i, inverse=True)
+            out_of_bounds = (
+                (trans_pos < -self.room_semidim) + (trans_pos > self.room_semidim)
+            ).any(-1)
+            if out_of_bounds.all():
+                continue
+            trans_pos[:, X].clamp_(-self.x_semidim, self.x_semidim)
+            trans_pos[:, Y].clamp_(-self.y_semidim, self.y_semidim)
 
-        index = pos / self.grid_spacing
-        index[:, X] += self.n_x_cells / 2
-        index[:, Y] += self.n_y_cells / 2
-        index = index.to(torch.long)
-        v = torch.stack(
-            [gaussian.log_prob(pos).exp() for gaussian in self.gaussians], dim=-1
-        ).sum(-1)
-        if norm:
-            v = v / self.max_pdf
+            index = trans_pos / self.grid_spacing
+            index[:, X] += self.n_x_cells / 2
+            index[:, Y] += self.n_y_cells / 2
+            index = index.to(torch.long)
+            v = dist.log_prob(trans_pos).exp().prod(-1)
+            v = v * (2 * self.room_semidim) ** 2  # Make it 1
 
-        sampled = self.sampled[
-            torch.arange(self.world.batch_dim), index[:, 0], index[:, 1]
-        ]
-
-        v[sampled + out_of_bounds] = 0
-        if update_sampled_flag:
-            self.sampled[
+            sampled = dist.sampled[
                 torch.arange(self.world.batch_dim), index[:, 0], index[:, 1]
-            ] = True
+            ]
 
-        return v
+            v[sampled + out_of_bounds] = 0
+            if update_sampled_flag:
+                dist.sampled[
+                    torch.arange(self.world.batch_dim), index[:, 0], index[:, 1]
+                ] = True
+            values.append(v)
+        if len(values) == 0:
+            return torch.zeros_like(pos).sum(dim=-1)
+        return torch.stack(values, dim=-1).sum(-1)
 
     def sample_single_env(
         self,
         pos,
         env_index,
-        norm: bool = True,
     ):
         pos = pos.view(-1, self.world.dim_p)
+        values = []
+        for i, dist in enumerate(self.distributions):
+            trans_pos = self.translate_pos(pos.clone(), i, inverse=True)
+            out_of_bounds = (
+                (trans_pos < -self.room_semidim) + (trans_pos > self.room_semidim)
+            ).any(-1)
 
-        out_of_bounds = (
-            (pos[:, X] < -self.xdim)
-            + (pos[:, X] > self.xdim)
-            + (pos[:, Y] < -self.ydim)
-            + (pos[:, Y] > self.ydim)
-        )
-        pos[:, X].clamp_(-self.x_semidim, self.x_semidim)
-        pos[:, Y].clamp_(-self.y_semidim, self.y_semidim)
+            if out_of_bounds.all():
+                continue
+            trans_pos[:, X].clamp_(-self.x_semidim, self.x_semidim)
+            trans_pos[:, Y].clamp_(-self.y_semidim, self.y_semidim)
 
-        index = pos / self.grid_spacing
-        index[:, X] += self.n_x_cells / 2
-        index[:, Y] += self.n_y_cells / 2
-        index = index.to(torch.long)
+            index = trans_pos / self.grid_spacing
+            index[:, X] += self.n_x_cells / 2
+            index[:, Y] += self.n_y_cells / 2
+            index = index.to(torch.long)
 
-        pos = pos.unsqueeze(1).expand(pos.shape[0], self.world.batch_dim, 2)
+            trans_pos = trans_pos.unsqueeze(1).expand(
+                trans_pos.shape[0], self.world.batch_dim, 2
+            )
 
-        v = torch.stack(
-            [gaussian.log_prob(pos).exp() for gaussian in self.gaussians], dim=-1
-        ).sum(-1)[:, env_index]
-        if norm:
-            v = v / self.max_pdf[env_index]
+            v = dist.log_prob(trans_pos).exp().prod(-1)[:, env_index]
+            v = v * (2 * self.room_semidim) ** 2  # Make it 1
 
-        sampled = self.sampled[env_index, index[:, 0], index[:, 1]]
+            sampled = dist.sampled[env_index, index[:, 0], index[:, 1]]
 
-        v[sampled + out_of_bounds] = 0
+            v[sampled + out_of_bounds] = 0
 
-        return v
+            values.append(v)
+
+        if len(values) == 0:
+            return torch.zeros_like(pos).sum(dim=-1)
+        return torch.stack(values, dim=-1).sum(-1)
 
     def reward(self, agent: Agent):
-        # _is_first = agent == self.world.agents[0]
+        is_first = self.world.agents.index(agent) == 0
+        if is_first:
+            for a in self.world.agents:
+                a.sample = self.sample(a.state.pos, update_sampled_flag=True)
+            self.sampling_rew = torch.stack(
+                [a.sample for a in self.world.agents], dim=-1
+            ).sum(-1)
 
-        return torch.zeros(
-            self.world.batch_dim, device=self.world.device, dtype=torch.float32
-        )
+        return self.sampling_rew if self.shared_rew else agent.sample
 
     def observation(self, agent: Agent):
+        observations = self.observation_from_pos(agent.state.pos)
+        return observations
 
-        return agent.state.pos
+    def observation_from_pos(self, pos, env_index=None):
+        samples = []
+        in_pos = pos
+        for delta in [
+            [self.grid_spacing, 0],
+            [-self.grid_spacing, 0],
+            [0, self.grid_spacing],
+            [0, -self.grid_spacing],
+            [-self.grid_spacing, -self.grid_spacing],
+            [self.grid_spacing, -self.grid_spacing],
+            [-self.grid_spacing, self.grid_spacing],
+            [self.grid_spacing, self.grid_spacing],
+        ]:
+            pos = in_pos + torch.tensor(
+                delta,
+                device=self.world.device,
+                dtype=torch.float32,
+            )
+            if env_index is not None:
+                samples.append(
+                    self.sample_single_env(pos, env_index=env_index).unsqueeze(-1)
+                )
+            else:
+                samples.append(
+                    self.sample(pos, update_sampled_flag=False).unsqueeze(-1)
+                )
+
+        return torch.cat(
+            samples,
+            dim=-1,
+        )
+
+    def info(self, agent: Agent):
+        return {"agent_sample": agent.sample}
+
+    def density_for_plot(self, env_index):
+        def f(x):
+            sample = self.sample_single_env(
+                torch.tensor(x, dtype=torch.float32, device=self.world.device),
+                env_index=env_index,
+            )
+            return sample
+
+        return f
+
+    def extra_render(self, env_index: int = 0):
+
+        from vmas.simulator.rendering import render_function_util
+
+        geoms = []
+
+        # Function
+        for x_bounds, y_bounds in zip(self.x_bounds, self.y_bounds):
+            res = render_function_util(
+                f=self.density_for_plot(env_index=env_index),
+                plot_range=(x_bounds, y_bounds),
+                cmap_alpha=self.alpha_plot,
+                precision=self.agent_radius,
+                cmap_range=(0, 1),
+            )
+            geoms.append(res)
+
+        return geoms
 
     def spawn_map(self, world: World):
         self.inner_box_semidim = 1
         self.corridors_width = self.agent_radius * 4
-        self.corridors_length = 2
+        self.corridors_length = 1.5
         self.room_semidim = 1.5
 
         self.left_corridor_length = self.corridors_length * self.left_corridor_multplier
@@ -267,6 +302,57 @@ class Scenario(BaseScenario):
         self.down_corridor_length = self.corridors_length * self.down_corridor_multplier
 
         self.inner_box_lines_length = self.inner_box_semidim - self.corridors_width / 2
+
+        self.x_bounds = [
+            (
+                -(
+                    self.left_corridor_length
+                    + self.inner_box_semidim
+                    + self.room_semidim * 2
+                ),
+                -(self.left_corridor_length + self.inner_box_semidim),
+            ),
+            (
+                +(self.right_corridor_length + self.inner_box_semidim),
+                +(
+                    self.right_corridor_length
+                    + self.inner_box_semidim
+                    + self.room_semidim * 2
+                ),
+            ),
+            (
+                -self.room_semidim,
+                self.room_semidim,
+            ),
+            (
+                -self.room_semidim,
+                self.room_semidim,
+            ),
+        ]
+        self.y_bounds = [
+            (
+                -self.room_semidim,
+                self.room_semidim,
+            ),
+            (
+                -self.room_semidim,
+                self.room_semidim,
+            ),
+            (
+                (self.up_corridor_length + self.inner_box_semidim),
+                self.up_corridor_length
+                + self.inner_box_semidim
+                + self.room_semidim * 2,
+            ),
+            (
+                -(
+                    self.down_corridor_length
+                    + self.inner_box_semidim
+                    + self.room_semidim * 2
+                ),
+                -(self.down_corridor_length + self.inner_box_semidim),
+            ),
+        ]
 
         self.inner_box_lines = []
         for i in range(8):
