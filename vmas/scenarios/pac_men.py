@@ -20,7 +20,10 @@ class Scenario(BaseScenario):
         self.up_corridor_multplier = 3
         self.down_corridor_multplier = 1
 
+        self.corridors_length = kwargs.get("corridors_length", 2)
         self.shared_rew = kwargs.get("shared_rew", True)
+        self.observe_position = kwargs.get("observe_position", False)
+        self.spawn_same_pos = kwargs.get("spawn_same_pos", True)
 
         self.viewer_zoom = 3.1
 
@@ -92,12 +95,20 @@ class Scenario(BaseScenario):
             env_index,
             min_dist_between_entities=0,
             x_bounds=(
-                -(self.inner_box_semidim - self.agent_radius),
-                (self.inner_box_semidim - self.agent_radius),
+                -(self.inner_box_semidim - self.agent_radius)
+                if not self.spawn_same_pos
+                else 0,
+                (self.inner_box_semidim - self.agent_radius)
+                if not self.spawn_same_pos
+                else 0,
             ),
             y_bounds=(
-                -(self.inner_box_semidim - self.agent_radius),
-                (self.inner_box_semidim - self.agent_radius),
+                -(self.inner_box_semidim - self.agent_radius)
+                if not self.spawn_same_pos
+                else 0,
+                (self.inner_box_semidim - self.agent_radius)
+                if not self.spawn_same_pos
+                else 0,
             ),
         )
 
@@ -252,6 +263,8 @@ class Scenario(BaseScenario):
                 samples.append(
                     self.sample(pos, update_sampled_flag=False).unsqueeze(-1)
                 )
+        if self.observe_position:
+            samples.append(pos)
 
         return torch.cat(
             samples,
@@ -293,8 +306,8 @@ class Scenario(BaseScenario):
     def spawn_map(self, world: World):
         self.corridors_width = self.agent_radius * 4
         self.inner_box_semidim = self.corridors_width / 2 + 1e-5
-        self.corridors_length = 1.5
-        self.room_semidim = 1.5
+
+        self.room_semidim = self.corridors_width / 2 + 1e-6
 
         self.left_corridor_length = self.corridors_length * self.left_corridor_multplier
         self.right_corridor_length = (
