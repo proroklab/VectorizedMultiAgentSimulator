@@ -13,9 +13,6 @@ from torch import Tensor
 
 _has_matplotlib = importlib.util.find_spec("matplotlib") is not None
 
-if _has_matplotlib:
-    from matplotlib import cm
-
 X = 0
 Y = 1
 Z = 2
@@ -124,13 +121,16 @@ def x_to_rgb_colormap(
     cmap_name: str = "viridis",
     cmap_res: int = 10,
 ):
+    from matplotlib import cm
+
     colormap = cm.get_cmap(cmap_name, cmap_res)(range(cmap_res))[:, :-1]
     if low is None:
         low = np.min(x)
     if high is None:
         high = np.max(x)
     x = np.clip(x, low, high)
-    x = (x - low) / (high - low) * (cmap_res - 1)
+    if high - low > 1e-5:
+        x = (x - low) / (high - low) * (cmap_res - 1)
     x_c0_idx = np.floor(x).astype(int)
     x_c1_idx = np.ceil(x).astype(int)
     x_c0 = colormap[x_c0_idx, :]
