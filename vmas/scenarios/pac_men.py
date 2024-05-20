@@ -15,15 +15,16 @@ from vmas.simulator.utils import Color, ScenarioUtils, TorchUtils, X, Y
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
 
-        self.left_corridor_multplier = 2
-        self.right_corridor_multplier = 2
-        self.up_corridor_multplier = 3
-        self.down_corridor_multplier = 1
-
-        self.corridors_length = kwargs.get("corridors_length", 2)
+        self.corridors_length = kwargs.get("corridors_length", 1)
+        self.lrud_ratio = kwargs.get("lrud_ratio", (2, 2, 3, 1))
         self.shared_rew = kwargs.get("shared_rew", True)
         self.observe_position = kwargs.get("observe_position", False)
         self.spawn_same_pos = kwargs.get("spawn_same_pos", True)
+
+        self.left_corridor_multplier = self.lrud_ratio[0]
+        self.right_corridor_multplier = self.lrud_ratio[1]
+        self.up_corridor_multplier = self.lrud_ratio[2]
+        self.down_corridor_multplier = self.lrud_ratio[3]
 
         self.viewer_zoom = 3.1
 
