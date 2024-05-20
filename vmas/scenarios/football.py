@@ -31,6 +31,7 @@ class Scenario(BaseScenario):
         )
         self.right_goal_pos = -self.left_goal_pos
         self._done = torch.zeros(batch_dim, device=device, dtype=torch.bool)
+        self._sparse_reward = torch.zeros(batch_dim, device=device, dtype=torch.float32)
 
         self._reset_agent_range = torch.tensor(
             [self.pitch_length / 2, self.pitch_width],
@@ -80,7 +81,13 @@ class Scenario(BaseScenario):
                 " which is a bool that turns on/off the dense reward"
             )
         self.dense_reward = kwargs.get("dense_reward", True)
-        self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 1.0)
+        self.pos_shaping_factor_ball_goal = kwargs.get(
+            "pos_shaping_factor_ball_goal", 10.0
+        )
+        self.pos_shaping_factor_agent_ball = kwargs.get(
+            "pos_shaping_factor_agent_ball", 0.1
+        )
+
         self.scoring_reward = kwargs.get("scoring_reward", 100.0)
 
     def init_world(self, batch_dim: int, device: torch.device):
@@ -131,6 +138,10 @@ class Scenario(BaseScenario):
             world.add_agent(agent)
             red_agents.append(agent)
 
+        for agent in blue_agents + red_agents:
+            agent.pos_rew = torch.zeros(
+                world.batch_dim, device=agent.device, dtype=torch.float32
+            )
         self.red_agents = red_agents
         self.blue_agents = blue_agents
         world.red_agents = red_agents
@@ -165,6 +176,22 @@ class Scenario(BaseScenario):
                 + self._reset_agent_offset_red,
                 batch_index=env_index,
             )
+        for agent in self.red_agents + self.blue_agents:
+            if env_index is None:
+                agent.pos_shaping = (
+                    torch.linalg.vector_norm(
+                        agent.state.pos - self.ball.state.pos,
+                        dim=-1,
+                    )
+                    * self.pos_shaping_factor_agent_ball
+                )
+            else:
+                agent.pos_shaping[env_index] = (
+                    torch.linalg.vector_norm(
+                        agent.state.pos[env_index] - self.ball.state.pos[env_index]
+                    )
+                    * self.pos_shaping_factor_agent_ball
+                )
 
     def reset_controllers(self, env_index: int = None):
         if self.red_controller is not None:
@@ -186,6 +213,9 @@ class Scenario(BaseScenario):
             mass=self.ball_mass,
             color=Color.GRAY,
         )
+        ball.pos_rew = torch.zeros(
+            world.batch_dim, device=world.device, dtype=torch.float32
+        )
         world.add_agent(ball)
         world.ball = ball
         self.ball = ball
@@ -198,14 +228,14 @@ class Scenario(BaseScenario):
                     self.ball.state.pos - self.right_goal_pos,
                     dim=-1,
                 )
-                * self.pos_shaping_factor
+                * self.pos_shaping_factor_ball_goal
             )
         else:
             self.ball.pos_shaping[env_index] = (
                 torch.linalg.vector_norm(
                     self.ball.state.pos[env_index] - self.right_goal_pos
                 )
-                * self.pos_shaping_factor
+                * self.pos_shaping_factor_ball_goal
             )
 
     def init_background(self, world):
@@ -729,8 +759,12 @@ class Scenario(BaseScenario):
             self._done = blue_score | red_score
             # Dense Reward
             if self.dense_reward:
-                self._reward = self.reward_ball_to_goal() + self._sparse_reward
-        return self._reward
+                self._reward = self._sparse_reward + self.reward_ball_to_goal()
+        if self.dense_reward:
+            reward = self._reward + self.reward_agent_to_ball(agent)
+        else:
+            reward = self._reward
+        return reward
 
     def reward_ball_to_goal(self):
         self.ball.distance_to_goal = torch.linalg.vector_norm(
@@ -738,22 +772,38 @@ class Scenario(BaseScenario):
             dim=-1,
         )
 
-        pos_shaping = self.ball.distance_to_goal * self.pos_shaping_factor
+        pos_shaping = self.ball.distance_to_goal * self.pos_shaping_factor_ball_goal
         self.ball.pos_rew = self.ball.pos_shaping - pos_shaping
         self.ball.pos_shaping = pos_shaping
         return self.ball.pos_rew
 
+    def reward_agent_to_ball(self, agent: Agent):
+        agent.distance_to_goal = torch.linalg.vector_norm(
+            agent.state.pos - self.ball.state.pos,
+            dim=-1,
+        )
+        pos_shaping = agent.distance_to_goal * self.pos_shaping_factor_agent_ball
+        agent.pos_rew = torch.where(
+            torch.linalg.vector_norm(self.ball.state.vel, dim=-1) > 1e-6,
+            0.0,
+            agent.pos_shaping - pos_shaping,
+        )
+        agent.pos_shaping = pos_shaping
+        return agent.pos_rew
+
     def observation(self, agent: Agent):
         obs = torch.cat(
             [
-                agent.state.pos,
+                agent.state.pos - self.right_goal_pos,
                 agent.state.vel,
+                agent.state.force,
                 self.ball.state.pos - agent.state.pos,
                 self.ball.state.vel - agent.state.vel,
-                self.ball.state.pos,
+                self.ball.state.pos - self.right_goal_pos,
                 self.ball.state.vel,
+                self.ball.state.force,
             ],
-            dim=1,
+            dim=-1,
         )
         return obs
 
@@ -761,6 +811,13 @@ class Scenario(BaseScenario):
         if self.ai_blue_agents and self.ai_red_agents:
             self.reward(None)
         return self._done
+
+    def info(self, agent: Agent):
+        return {
+            "sparse_reward": self._sparse_reward,
+            "agent_ball_pos_rew": agent.pos_rew,
+            "ball_goal_pos_rew": self.ball.pos_rew,
+        }
 
 
 # Ball Physics
@@ -1728,7 +1785,7 @@ if __name__ == "__main__":
         __file__,
         control_two_agents=False,
         continuous=True,
-        n_blue_agents=2,
+        n_blue_agents=1,
         n_red_agents=0,
         ai_red_agents=True,
         dense_reward=True,
