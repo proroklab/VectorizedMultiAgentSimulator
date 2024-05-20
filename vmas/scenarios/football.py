@@ -24,7 +24,25 @@ class Scenario(BaseScenario):
         self.init_walls(world)
         self.init_goals(world)
         # self.init_traj_pts(world)
+        self.left_goal_pos = torch.tensor(
+            [-self.pitch_length / 2 - self.ball_size / 2, 0],
+            device=device,
+            dtype=torch.float,
+        )
+        self.right_goal_pos = -self.left_goal_pos
         self._done = torch.zeros(batch_dim, device=device, dtype=torch.bool)
+
+        self._reset_agent_range = torch.tensor(
+            [self.pitch_length / 2, self.pitch_width],
+            device=device,
+        )
+        self._reset_agent_offset_blue = torch.tensor(
+            [-self.pitch_length / 2, -self.pitch_width / 2],
+            device=device,
+        )
+        self._reset_agent_offset_red = torch.tensor(
+            [0.0, -self.pitch_width / 2], device=device
+        )
         return world
 
     def reset_world_at(self, env_index: int = None):
@@ -53,10 +71,17 @@ class Scenario(BaseScenario):
         self.max_speed = kwargs.get("max_speed", 0.15)
         self.u_multiplier = kwargs.get("u_multiplier", 0.1)
         self.ball_max_speed = kwargs.get("ball_max_speed", 0.3)
-        self.ball_mass = kwargs.get("ball_mass", 0.1)
+        self.ball_mass = kwargs.get("ball_mass", 0.5)
         self.ball_size = kwargs.get("ball_size", 0.02)
         self.n_traj_points = kwargs.get("n_traj_points", 8)
-        self.dense_reward_ratio = kwargs.get("dense_reward_ratio", 0.001)
+        if kwargs.get("dense_reward_ratio", None) is not None:
+            raise ValueError(
+                "dense_reward_ratio in football is deprecated, please use `dense_reward`"
+                " which is a bool that turns on/off the dense reward"
+            )
+        self.dense_reward = kwargs.get("dense_reward", True)
+        self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 1.0)
+        self.scoring_reward = kwargs.get("scoring_reward", 100.0)
 
     def init_world(self, batch_dim: int, device: torch.device):
         # Make world
@@ -77,8 +102,8 @@ class Scenario(BaseScenario):
 
     def init_agents(self, world):
         # Add agents
-        self.blue_controller = AgentPolicy(team="Blue")
-        self.red_controller = AgentPolicy(team="Red")
+        self.red_controller = AgentPolicy(team="Red") if self.ai_red_agents else None
+        self.blue_controller = AgentPolicy(team="Blue") if self.ai_blue_agents else None
 
         blue_agents = []
         for i in range(self.n_blue_agents):
@@ -122,18 +147,8 @@ class Scenario(BaseScenario):
                     ),
                     device=self.world.device,
                 )
-                * torch.tensor(
-                    [self.pitch_length / 2, self.pitch_width],
-                    device=self.world.device,
-                )
-                + torch.tensor(
-                    [-self.pitch_length / 2, -self.pitch_width / 2],
-                    device=self.world.device,
-                ),
-                batch_index=env_index,
-            )
-            agent.set_vel(
-                torch.zeros(2, device=self.world.device),
+                * self._reset_agent_range
+                + self._reset_agent_offset_blue,
                 batch_index=env_index,
             )
         for agent in self.red_agents:
@@ -146,15 +161,8 @@ class Scenario(BaseScenario):
                     ),
                     device=self.world.device,
                 )
-                * torch.tensor(
-                    [self.pitch_length / 2, self.pitch_width],
-                    device=self.world.device,
-                )
-                + torch.tensor([0.0, -self.pitch_width / 2], device=self.world.device),
-                batch_index=env_index,
-            )
-            agent.set_vel(
-                torch.zeros(2, device=self.world.device),
+                * self._reset_agent_range
+                + self._reset_agent_offset_red,
                 batch_index=env_index,
             )
 
@@ -183,14 +191,22 @@ class Scenario(BaseScenario):
         self.ball = ball
 
     def reset_ball(self, env_index: int = None):
-        self.ball.set_pos(
-            torch.zeros(2, device=self.world.device),
-            batch_index=env_index,
-        )
-        self.ball.set_vel(
-            torch.zeros(2, device=self.world.device),
-            batch_index=env_index,
-        )
+
+        if env_index is None:
+            self.ball.pos_shaping = (
+                torch.linalg.vector_norm(
+                    self.ball.state.pos - self.right_goal_pos,
+                    dim=-1,
+                )
+                * self.pos_shaping_factor
+            )
+        else:
+            self.ball.pos_shaping[env_index] = (
+                torch.linalg.vector_norm(
+                    self.ball.state.pos[env_index] - self.right_goal_pos
+                )
+                * self.pos_shaping_factor
+            )
 
     def init_background(self, world):
         # Add landmarks
@@ -702,24 +718,30 @@ class Scenario(BaseScenario):
             over_right_line = (
                 self.ball.state.pos[:, 0] > self.pitch_length / 2 + self.ball_size / 2
             )
-            # in_right_goal = self.world.is_overlapping(self.ball, self.red_net)
             over_left_line = (
                 self.ball.state.pos[:, 0] < -self.pitch_length / 2 - self.ball_size / 2
             )
-            # in_left_goal = self.world.is_overlapping(self.ball, self.blue_net)
-            blue_score = over_right_line  # & in_right_goal
-            red_score = over_left_line  # & in_left_goal
-            self._sparse_reward = 1 * blue_score - 1 * red_score
+            blue_score = over_right_line
+            red_score = over_left_line
+            self._sparse_reward = (
+                self.scoring_reward * blue_score - self.scoring_reward * red_score
+            )
             self._done = blue_score | red_score
             # Dense Reward
-            red_value = self.red_controller.get_attack_value(self.ball)
-            blue_value = self.blue_controller.get_attack_value(self.ball)
-            self._dense_reward = 1 * blue_value - 1 * red_value
-            self._reward = (
-                self.dense_reward_ratio * self._dense_reward
-                + (1 - self.dense_reward_ratio) * self._sparse_reward
-            )
+            if self.dense_reward:
+                self._reward = self.reward_ball_to_goal() + self._sparse_reward
         return self._reward
+
+    def reward_ball_to_goal(self):
+        self.ball.distance_to_goal = torch.linalg.vector_norm(
+            self.ball.state.pos - self.right_goal_pos,
+            dim=-1,
+        )
+
+        pos_shaping = self.ball.distance_to_goal * self.pos_shaping_factor
+        self.ball.pos_rew = self.ball.pos_shaping - pos_shaping
+        self.ball.pos_shaping = pos_shaping
+        return self.ball.pos_rew
 
     def observation(self, agent: Agent):
         obs = torch.cat(
@@ -728,6 +750,8 @@ class Scenario(BaseScenario):
                 agent.state.vel,
                 self.ball.state.pos - agent.state.pos,
                 self.ball.state.vel - agent.state.vel,
+                self.ball.state.pos,
+                self.ball.state.vel,
             ],
             dim=1,
         )
@@ -809,7 +833,7 @@ def ball_action_script(ball, world):
 
 
 class AgentPolicy:
-    def __init__(self, team="Red"):
+    def __init__(self, team):
         self.team_name = team
         self.otherteam_name = "Blue" if (self.team_name == "Red") else "Red"
 
@@ -873,14 +897,14 @@ class AgentPolicy:
         self.actions = {
             agent: {
                 "dribbling": torch.zeros(
-                    self.world.batch_dim, device=world.device
-                ).bool(),
+                    self.world.batch_dim, device=world.device, dtype=torch.bool
+                ),
                 "shooting": torch.zeros(
-                    self.world.batch_dim, device=world.device
-                ).bool(),
+                    self.world.batch_dim, device=world.device, dtype=torch.bool
+                ),
                 "pre-shooting": torch.zeros(
-                    self.world.batch_dim, device=world.device
-                ).bool(),
+                    self.world.batch_dim, device=world.device, dtype=torch.bool
+                ),
             }
             for agent in self.teammates
         }
@@ -904,18 +928,22 @@ class AgentPolicy:
         }
 
         self.agent_possession = {
-            agent: torch.zeros(self.world.batch_dim, device=world.device).bool()
+            agent: torch.zeros(
+                self.world.batch_dim, device=world.device, dtype=torch.bool
+            )
             for agent in self.teammates
         }
 
         self.shooting_timer = {
-            agent: torch.zeros(self.world.batch_dim, device=world.device).int()
+            agent: torch.zeros(
+                self.world.batch_dim, device=world.device, dtype=torch.int
+            )
             for agent in self.teammates
         }
 
         self.team_possession = torch.zeros(
-            self.world.batch_dim, device=world.device
-        ).bool()
+            self.world.batch_dim, device=world.device, dtype=torch.bool
+        )
 
         if len(self.teammates) == 1:
             self.role = {self.teammates[0]: 1.0}
@@ -1698,11 +1726,10 @@ class AgentPolicy:
 if __name__ == "__main__":
     render_interactively(
         __file__,
-        control_two_agents=True,
+        control_two_agents=False,
         continuous=True,
         n_blue_agents=2,
-        n_red_agents=2,
+        n_red_agents=0,
         ai_red_agents=True,
-        ai_blue_agents=False,
-        dense_reward_ratio=0.001,
+        dense_reward=True,
     )
