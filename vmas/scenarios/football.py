@@ -64,6 +64,7 @@ class Scenario(BaseScenario):
         self.ai_blue_agents = kwargs.get("ai_blue_agents", False)
         self.n_blue_agents = kwargs.get("n_blue_agents", 3)
         self.n_red_agents = kwargs.get("n_red_agents", 3)
+        self.disable_ai_red = kwargs.get("disable_ai_red", False)
         self.agent_size = kwargs.get("agent_size", 0.025)
         self.goal_size = kwargs.get("goal_size", 0.35)
         self.goal_depth = kwargs.get("goal_depth", 0.1)
@@ -87,7 +88,7 @@ class Scenario(BaseScenario):
         self.pos_shaping_factor_agent_ball = kwargs.get(
             "pos_shaping_factor_agent_ball", 0.1
         )
-
+        self.distance_to_ball_trigger = kwargs.get("distance_to_ball_trigger", 0.4)
         self.scoring_reward = kwargs.get("scoring_reward", 100.0)
 
     def init_world(self, batch_dim: int, device: torch.device):
@@ -109,7 +110,11 @@ class Scenario(BaseScenario):
 
     def init_agents(self, world):
         # Add agents
-        self.red_controller = AgentPolicy(team="Red") if self.ai_red_agents else None
+        self.red_controller = (
+            AgentPolicy(team="Red", disabled=self.disable_ai_red)
+            if self.ai_red_agents
+            else None
+        )
         self.blue_controller = AgentPolicy(team="Blue") if self.ai_blue_agents else None
 
         blue_agents = []
@@ -124,6 +129,8 @@ class Scenario(BaseScenario):
             )
             world.add_agent(agent)
             blue_agents.append(agent)
+        self.blue_agents = blue_agents
+        world.blue_agents = blue_agents
 
         red_agents = []
         for i in range(self.n_red_agents):
@@ -137,15 +144,13 @@ class Scenario(BaseScenario):
             )
             world.add_agent(agent)
             red_agents.append(agent)
+        self.red_agents = red_agents
+        world.red_agents = red_agents
 
-        for agent in blue_agents + red_agents:
+        for agent in self.blue_agents + red_agents:
             agent.pos_rew = torch.zeros(
                 world.batch_dim, device=agent.device, dtype=torch.float32
             )
-        self.red_agents = red_agents
-        self.blue_agents = blue_agents
-        world.red_agents = red_agents
-        world.blue_agents = blue_agents
 
     def reset_agents(self, env_index: int = None):
         for agent in self.blue_agents:
@@ -783,8 +788,10 @@ class Scenario(BaseScenario):
             dim=-1,
         )
         pos_shaping = agent.distance_to_goal * self.pos_shaping_factor_agent_ball
+        ball_moving = torch.linalg.vector_norm(self.ball.state.vel, dim=-1) > 1e-6
+        agent_close_to_goal = agent.distance_to_goal < self.distance_to_ball_trigger
         agent.pos_rew = torch.where(
-            torch.linalg.vector_norm(self.ball.state.vel, dim=-1) > 1e-6,
+            ball_moving + agent_close_to_goal,
             0.0,
             agent.pos_shaping - pos_shaping,
         )
@@ -805,6 +812,11 @@ class Scenario(BaseScenario):
             ],
             dim=-1,
         )
+
+        for a in self.red_agents:
+            obs = torch.cat(
+                [obs, agent.state.pos - a.state.pos, a.state.vel, a.state.force], dim=-1
+            )
         return obs
 
     def done(self):
@@ -890,7 +902,7 @@ def ball_action_script(ball, world):
 
 
 class AgentPolicy:
-    def __init__(self, team):
+    def __init__(self, team, disabled: bool = False):
         self.team_name = team
         self.otherteam_name = "Blue" if (self.team_name == "Red") else "Red"
 
@@ -934,6 +946,7 @@ class AgentPolicy:
         self.replan_margin = 0.0
 
         self.initialised = False
+        self.disabled = disabled
 
     def init(self, world):
         self.initialised = True
@@ -1091,12 +1104,26 @@ class AgentPolicy:
             env_index=stay_still_mask,
         )
 
+    def disable(self):
+        self.disabled = True
+
+    def enable(self):
+        self.disabled = False
+
     def run(self, agent, world):
-        self.check_possession()
-        self.policy(agent)
-        control = self.get_action(agent)
-        control = torch.clamp(control, min=-agent.u_range, max=agent.u_range)
-        agent.action.u = control * agent.u_multiplier
+        if not self.disabled:
+            self.check_possession()
+            self.policy(agent)
+            control = self.get_action(agent)
+            control = torch.clamp(control, min=-agent.u_range, max=agent.u_range)
+            agent.action.u = control * agent.u_multiplier
+        else:
+            agent.action.u = torch.zeros(
+                self.world.batch_dim,
+                self.world.dim_p,
+                device=self.world.device,
+                dtype=torch.float,
+            )
 
     def dribble_to_goal(self, agent, env_index=Ellipsis):
         self.dribble(agent, self.target_net.state.pos[env_index], env_index=env_index)
@@ -1784,9 +1811,9 @@ if __name__ == "__main__":
     render_interactively(
         __file__,
         control_two_agents=False,
-        continuous=True,
         n_blue_agents=1,
-        n_red_agents=0,
+        n_red_agents=1,
         ai_red_agents=True,
         dense_reward=True,
+        disable_ai_red=False,
     )
