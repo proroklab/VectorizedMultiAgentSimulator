@@ -761,10 +761,11 @@ class Scenario(BaseScenario):
             self._sparse_reward = (
                 self.scoring_reward * blue_score - self.scoring_reward * red_score
             )
+            self._reward = self._sparse_reward
             self._done = blue_score | red_score
             # Dense Reward
             if self.dense_reward:
-                self._reward = self._sparse_reward + self.reward_ball_to_goal()
+                self._reward = self._reward + self.reward_ball_to_goal()
         if self.dense_reward:
             reward = self._reward + self.reward_agent_to_ball(agent)
         else:
