@@ -805,8 +805,8 @@ class Scenario(BaseScenario):
                 agent.state.pos - self.right_goal_pos,
                 agent.state.vel,
                 agent.state.force,
-                self.ball.state.pos - agent.state.pos,
-                self.ball.state.vel - agent.state.vel,
+                agent.state.pos - self.ball.state.pos,
+                agent.state.vel - self.ball.state.vel,
                 self.ball.state.pos - self.right_goal_pos,
                 self.ball.state.vel,
                 self.ball.state.force,
@@ -818,6 +818,13 @@ class Scenario(BaseScenario):
             obs = torch.cat(
                 [obs, agent.state.pos - a.state.pos, a.state.vel, a.state.force], dim=-1
             )
+        for a in self.blue_agents:
+            if a != agent:
+                obs = torch.cat(
+                    [obs, agent.state.pos - a.state.pos, a.state.vel, a.state.force],
+                    dim=-1,
+                )
+
         return obs
 
     def done(self):
@@ -1812,8 +1819,8 @@ if __name__ == "__main__":
     render_interactively(
         __file__,
         control_two_agents=False,
-        n_blue_agents=1,
-        n_red_agents=1,
+        n_blue_agents=2,
+        n_red_agents=0,
         ai_red_agents=True,
         dense_reward=True,
         disable_ai_red=False,
