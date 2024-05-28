@@ -76,6 +76,7 @@ class Scenario(BaseScenario):
         self.ball_mass = kwargs.get("ball_mass", 0.5)
         self.ball_size = kwargs.get("ball_size", 0.02)
         self.n_traj_points = kwargs.get("n_traj_points", 8)
+        self.ai_start_vel = kwargs.get("ai_start_vel", 0.6)
         if kwargs.get("dense_reward_ratio", None) is not None:
             raise ValueError(
                 "dense_reward_ratio in football is deprecated, please use `dense_reward`"
@@ -111,11 +112,19 @@ class Scenario(BaseScenario):
     def init_agents(self, world):
         # Add agents
         self.red_controller = (
-            AgentPolicy(team="Red", disabled=self.disable_ai_red)
+            AgentPolicy(
+                team="Red",
+                disabled=self.disable_ai_red,
+                start_vel_mag=self.ai_start_vel,
+            )
             if self.ai_red_agents
             else None
         )
-        self.blue_controller = AgentPolicy(team="Blue") if self.ai_blue_agents else None
+        self.blue_controller = (
+            AgentPolicy(team="Blue", start_vel_mag=self.ai_start_vel)
+            if self.ai_blue_agents
+            else None
+        )
 
         blue_agents = []
         for i in range(self.n_blue_agents):
@@ -910,13 +919,13 @@ def ball_action_script(ball, world):
 
 
 class AgentPolicy:
-    def __init__(self, team, disabled: bool = False):
+    def __init__(self, team: str, start_vel_mag: float, disabled: bool = False):
         self.team_name = team
         self.otherteam_name = "Blue" if (self.team_name == "Red") else "Red"
 
         self.pos_lookahead = 0.01
         self.vel_lookahead = 0.01
-        self.start_vel_mag = 0.6
+        self.start_vel_mag = start_vel_mag
 
         self.dribble_speed = 0.5
         self.dribble_slowdown_dist = 0.25
@@ -1119,8 +1128,10 @@ class AgentPolicy:
         self.disabled = False
 
     def run(self, agent, world):
+
         if not self.disabled:
-            self.check_possession()
+            if "0" in agent.name:
+                self.check_possession()
             self.policy(agent)
             control = self.get_action(agent)
             control = torch.clamp(control, min=-agent.u_range, max=agent.u_range)
@@ -1820,7 +1831,7 @@ if __name__ == "__main__":
         __file__,
         control_two_agents=False,
         n_blue_agents=2,
-        n_red_agents=0,
+        n_red_agents=1,
         ai_red_agents=True,
         dense_reward=True,
         disable_ai_red=False,
