@@ -34,9 +34,7 @@ class Scenario(BaseScenario):
         max_steering_angle = kwargs.get(
             "max_steering_angle", torch.deg2rad(torch.tensor(30.0))
         )
-        max_speed = kwargs.get(
-            "max_speed", 1.0
-        )
+        max_speed = kwargs.get("max_speed", 1.0)
 
         # Make world
         world = World(batch_dim, device, substeps=10, collision_force=500)

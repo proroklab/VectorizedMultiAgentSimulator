@@ -37,15 +37,19 @@ class KinematicBicycle(Dynamics):
     def f(self, state, steering_command, v_command):
         theta = state[:, 2]  # Yaw angle
         beta = torch.atan2(
-            torch.tan(steering_command) * self.l_r / (self.l_f + self.l_r), torch.tensor(1)
-        )  # [-pi, pi] slip angle 
+            torch.tan(steering_command) * self.l_r / (self.l_f + self.l_r),
+            torch.tensor(1, device=self.world.device),
+        )  # [-pi, pi] slip angle
         dx = v_command * torch.cos(theta + beta)
         dy = v_command * torch.sin(theta + beta)
-        dtheta = v_command / (self.l_f + self.l_r) * torch.cos(beta) * torch.tan(steering_command)
-        return torch.stack(
-            (dx, dy, dtheta), dim=1
-        )  # [batch_size,3]
-            
+        dtheta = (
+            v_command
+            / (self.l_f + self.l_r)
+            * torch.cos(beta)
+            * torch.tan(steering_command)
+        )
+        return torch.stack((dx, dy, dtheta), dim=1)  # [batch_size,3]
+
     def euler(self, state, steering_command, v_command):
         # Calculate the change in state using Euler's method
         # For Euler's method, see https://math.libretexts.org/Bookshelves/Calculus/Book%3A_Active_Calculus_(Boelkins_et_al.)/07%3A_Differential_Equations/7.03%3A_Euler's_Method (the full link may not be recognized properly, please copy and paste in your browser)
@@ -68,10 +72,8 @@ class KinematicBicycle(Dynamics):
         # Extracts the velocity and steering angle from the agent's actions and convert them to physical force and torque
         v_command = self.agent.action.u[:, 0]
         # Ensure speed is within bounds
-        v_command = torch.clamp(
-            v_command, -self.agent.max_speed, self.agent.max_speed
-        )
-        steering_command =  self.agent.action.u[:, 1]
+        v_command = torch.clamp(v_command, -self.agent.max_speed, self.agent.max_speed)
+        steering_command = self.agent.action.u[:, 1]
         # Ensure steering angle is within bounds
         steering_command = torch.clamp(
             steering_command, -self.max_steering_angle, self.max_steering_angle
@@ -80,21 +82,22 @@ class KinematicBicycle(Dynamics):
         # Current state of the agent
         state = torch.cat((self.agent.state.pos, self.agent.state.rot), dim=1)
 
-        v_cur_x = self.agent.state.vel[:, 0] # Current velocity in x-direction
-        v_cur_y = self.agent.state.vel[:, 1] # Current velocity in y-direction
-        v_cur_angular = self.agent.state.ang_vel[:, 0] # Current angular velocity
+        v_cur_x = self.agent.state.vel[:, 0]  # Current velocity in x-direction
+        v_cur_y = self.agent.state.vel[:, 1]  # Current velocity in y-direction
+        v_cur_angular = self.agent.state.ang_vel[:, 0]  # Current angular velocity
 
         # Select the integration method to calculate the change in state
         if self.integration == "euler":
-            state_change = self.euler(state, steering_command, v_command)
+            delta_state = self.euler(state, steering_command, v_command)
         else:
-            state_change = self.runge_kutta(state, steering_command, v_command)
+            delta_state = self.runge_kutta(state, steering_command, v_command)
 
         # Calculate the accelerations required to achieve the change in state.
-        # Note that in `core.py`, position is updated by `pos += vel_new * dt` with `vel_new` being calculated by `vel_new += force / mass`. The same principle applies to rotation.
-        acceleration_x = (state_change[:, 0] - v_cur_x * self.dt) / self.dt**2
-        acceleration_y = (state_change[:, 1] - v_cur_y * self.dt) / self.dt**2
-        acceleration_angular = (state_change[:, 2] - v_cur_angular * self.dt) / self.dt**2
+        acceleration_x = (delta_state[:, 0] - v_cur_x * self.dt) / self.dt**2
+        acceleration_y = (delta_state[:, 1] - v_cur_y * self.dt) / self.dt**2
+        acceleration_angular = (
+            delta_state[:, 2] - v_cur_angular * self.dt
+        ) / self.dt**2
 
         # Calculate the forces required for the linear accelerations
         force_x = self.agent.mass * acceleration_x
