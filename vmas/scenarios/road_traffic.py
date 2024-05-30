@@ -1592,7 +1592,7 @@ is_observe_ref_path_other_agents = False
 is_add_noise = True
 
 
-class ScenarioRoadTraffic(BaseScenario):
+class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         # device = torch.device("mps") # For mac with m chip to use GPU acceleration (however, seems not be fully supported by VMAS)
         self.shared_reward = kwargs.get("shared_reward", False)
@@ -4058,7 +4058,7 @@ class ScenarioRoadTraffic(BaseScenario):
 
 
 if __name__ == "__main__":
-    scenario = ScenarioRoadTraffic()
+    scenario = Scenario()
     render_interactively(
         scenario=scenario,
         control_two_agents=False,
