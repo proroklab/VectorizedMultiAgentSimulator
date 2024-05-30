@@ -19,7 +19,7 @@ class KinematicBicycle(Dynamics):
         l_f: float,
         l_r: float,
         max_steering_angle: float,
-        integration: str = "euler",  # one of "euler", "rk4"
+        integration: str = "rk4",  # one of "euler", "rk4"
     ):
         super().__init__()
         assert integration in (
@@ -34,19 +34,35 @@ class KinematicBicycle(Dynamics):
         self.integration = integration
         self.world = world
 
-    def euler(self, f, state):
-        # Update the state using Euler's method
-        # For Euler's method, see https://math.libretexts.org/Bookshelves/Calculus/Book%3A_Active_Calculus_(Boelkins_et_al.)/07%3A_Differential_Equations/7.03%3A_Euler's_Method (the full link may not be recognized properly, please copy and paste in your browser)
-        return state + self.dt * f(state)
+    def f(self, state, steering_command, v_command):
+        theta = state[:, 2]  # Yaw angle
+        beta = torch.atan2(
+            torch.tan(steering_command) * self.l_r / (self.l_f + self.l_r),
+            torch.tensor(1, device=self.world.device),
+        )  # [-pi, pi] slip angle
+        dx = v_command * torch.cos(theta + beta)
+        dy = v_command * torch.sin(theta + beta)
+        dtheta = (
+            v_command
+            / (self.l_f + self.l_r)
+            * torch.cos(beta)
+            * torch.tan(steering_command)
+        )
+        return torch.stack((dx, dy, dtheta), dim=1)  # [batch_size,3]
 
-    def runge_kutta(self, f, state):
-        # Update the state using fourth-order Runge-Kutta method
+    def euler(self, state, steering_command, v_command):
+        # Calculate the change in state using Euler's method
+        # For Euler's method, see https://math.libretexts.org/Bookshelves/Calculus/Book%3A_Active_Calculus_(Boelkins_et_al.)/07%3A_Differential_Equations/7.03%3A_Euler's_Method (the full link may not be recognized properly, please copy and paste in your browser)
+        return self.dt * self.f(state, steering_command, v_command)
+
+    def runge_kutta(self, state, steering_command, v_command):
+        # Calculate the change in state using fourth-order Runge-Kutta method
         # For Runge-Kutta method, see https://math.libretexts.org/Courses/Monroe_Community_College/MTH_225_Differential_Equations/3%3A_Numerical_Methods/3.3%3A_The_Runge-Kutta_Method
-        k1 = f(state)
-        k2 = f(state + self.dt * k1 / 2)
-        k3 = f(state + self.dt * k2 / 2)
-        k4 = f(state + self.dt * k3)
-        return state + (self.dt / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
+        k1 = self.f(state, steering_command, v_command)
+        k2 = self.f(state + self.dt * k1 / 2, steering_command, v_command)
+        k3 = self.f(state + self.dt * k2 / 2, steering_command, v_command)
+        k4 = self.f(state + self.dt * k3, steering_command, v_command)
+        return (self.dt / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
 
     @property
     def needed_action_size(self) -> int:
@@ -54,49 +70,41 @@ class KinematicBicycle(Dynamics):
 
     def process_action(self):
         # Extracts the velocity and steering angle from the agent's actions and convert them to physical force and torque
-        velocity = self.agent.action.u[:, 0]
-        steering_angle = self.agent.action.u[:, 1]
-
+        v_command = self.agent.action.u[:, 0]
+        # Ensure speed is within bounds
+        v_command = torch.clamp(v_command, -self.agent.max_speed, self.agent.max_speed)
+        steering_command = self.agent.action.u[:, 1]
         # Ensure steering angle is within bounds
-        steering_angle = torch.clamp(
-            steering_angle, -self.max_steering_angle, self.max_steering_angle
+        steering_command = torch.clamp(
+            steering_command, -self.max_steering_angle, self.max_steering_angle
         )
 
         # Current state of the agent
         state = torch.cat((self.agent.state.pos, self.agent.state.rot), dim=1)
 
-        def f(state):
-            theta = state[:, 2]  # jaw angle
-            beta = torch.atan(
-                torch.tan(steering_angle) * self.l_r / (self.l_f + self.l_r)
-            )  # slip angle
-            dx = velocity * torch.cos(theta + beta)
-            dy = velocity * torch.sin(theta + beta)
-            dtheta = velocity / (self.l_f + self.l_r) * torch.sin(beta)
-            return torch.stack(
-                (dx, dy, dtheta), dim=-1
-            )  # Should return torch.Size([batch_size,3])
+        v_cur_x = self.agent.state.vel[:, 0]  # Current velocity in x-direction
+        v_cur_y = self.agent.state.vel[:, 1]  # Current velocity in y-direction
+        v_cur_angular = self.agent.state.ang_vel[:, 0]  # Current angular velocity
 
-        # Select the integration method
+        # Select the integration method to calculate the change in state
         if self.integration == "euler":
-            new_state = self.euler(f, state)
+            delta_state = self.euler(state, steering_command, v_command)
         else:
-            new_state = self.runge_kutta(f, state)
+            delta_state = self.runge_kutta(state, steering_command, v_command)
 
-        # Calculate the change in state
-        delta_state = new_state - state
-
-        # Calculate the accelerations required to achieve the change in state
-        acceleration_x = delta_state[:, 0] / self.dt
-        acceleration_y = delta_state[:, 1] / self.dt
-        angular_acceleration = delta_state[:, 2] / self.dt
+        # Calculate the accelerations required to achieve the change in state.
+        acceleration_x = (delta_state[:, 0] - v_cur_x * self.dt) / self.dt**2
+        acceleration_y = (delta_state[:, 1] - v_cur_y * self.dt) / self.dt**2
+        acceleration_angular = (
+            delta_state[:, 2] - v_cur_angular * self.dt
+        ) / self.dt**2
 
         # Calculate the forces required for the linear accelerations
         force_x = self.agent.mass * acceleration_x
         force_y = self.agent.mass * acceleration_y
 
         # Calculate the torque required for the angular acceleration
-        torque = self.agent.moment_of_inertia * angular_acceleration
+        torque = self.agent.moment_of_inertia * acceleration_angular
 
         # Update the physical force and torque required for the user inputs
         self.agent.state.force[:, vmas.simulator.utils.X] = force_x
