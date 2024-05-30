@@ -91,6 +91,7 @@ class Scenario(BaseScenario):
         )
         self.distance_to_ball_trigger = kwargs.get("distance_to_ball_trigger", 0.4)
         self.scoring_reward = kwargs.get("scoring_reward", 100.0)
+        self.observe_teammates = kwargs.get("observe_teammates", True)
 
     def init_world(self, batch_dim: int, device: torch.device):
         # Make world
@@ -827,12 +828,18 @@ class Scenario(BaseScenario):
             obs = torch.cat(
                 [obs, agent.state.pos - a.state.pos, a.state.vel, a.state.force], dim=-1
             )
-        for a in self.blue_agents:
-            if a != agent:
-                obs = torch.cat(
-                    [obs, agent.state.pos - a.state.pos, a.state.vel, a.state.force],
-                    dim=-1,
-                )
+        if self.observe_teammates:
+            for a in self.blue_agents:
+                if a != agent:
+                    obs = torch.cat(
+                        [
+                            obs,
+                            agent.state.pos - a.state.pos,
+                            a.state.vel,
+                            a.state.force,
+                        ],
+                        dim=-1,
+                    )
 
         return obs
 
