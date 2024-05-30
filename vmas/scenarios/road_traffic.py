@@ -1454,7 +1454,7 @@ def get_reference_paths(map_data):
 
 
 # Simulation parameters
-n_agents = 100  # The number of agents
+n_agents = 20  # The number of agents
 dt = 0.05  # Sample time in [s]
 max_steps = 1000  # Maximum simulation steps
 is_real_time_rendering = (
