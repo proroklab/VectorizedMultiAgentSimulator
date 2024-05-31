@@ -135,7 +135,8 @@ class Scenario(BaseScenario):
                 action_script=self.blue_controller.run if self.ai_blue_agents else None,
                 u_multiplier=self.u_multiplier,
                 max_speed=self.max_speed,
-                color=Color.BLUE,
+                color=(0.22, 0.49, 0.72),
+                alpha=1,
             )
             world.add_agent(agent)
             blue_agents.append(agent)
@@ -150,7 +151,8 @@ class Scenario(BaseScenario):
                 action_script=self.red_controller.run if self.ai_red_agents else None,
                 u_multiplier=self.u_multiplier,
                 max_speed=self.max_speed,
-                color=Color.RED,
+                color=(0.89, 0.10, 0.11),
+                alpha=1,
             )
             world.add_agent(agent)
             red_agents.append(agent)
@@ -226,7 +228,8 @@ class Scenario(BaseScenario):
             action_script=ball_action_script,
             max_speed=self.ball_max_speed,
             mass=self.ball_mass,
-            color=Color.GRAY,
+            alpha=1,
+            color=Color.BLACK,
         )
         ball.pos_rew = torch.zeros(
             world.batch_dim, device=world.device, dtype=torch.float32
@@ -255,32 +258,32 @@ class Scenario(BaseScenario):
 
     def init_background(self, world):
         # Add landmarks
-        background = Landmark(
+        self.background = Landmark(
             name="Background",
             collide=False,
             movable=False,
             shape=Box(length=self.pitch_length, width=self.pitch_width),
             color=Color.GREEN,
         )
-        world.add_landmark(background)
+        world.add_landmark(self.background)
 
-        centre_circle_outer = Landmark(
+        self.centre_circle_outer = Landmark(
             name="Centre Circle Outer",
             collide=False,
             movable=False,
             shape=Sphere(radius=self.goal_size / 2),
             color=Color.WHITE,
         )
-        world.add_landmark(centre_circle_outer)
+        world.add_landmark(self.centre_circle_outer)
 
-        centre_circle_inner = Landmark(
+        self.centre_circle_inner = Landmark(
             name="Centre Circle Inner",
             collide=False,
             movable=False,
             shape=Sphere(self.goal_size / 2 - 0.02),
             color=Color.GREEN,
         )
-        world.add_landmark(centre_circle_inner)
+        world.add_landmark(self.centre_circle_inner)
 
         centre_line = Landmark(
             name="Centre Line",
@@ -326,6 +329,15 @@ class Scenario(BaseScenario):
             color=Color.WHITE,
         )
         world.add_landmark(bottom_line)
+
+    def render_field(self, render: bool):
+        self.background.is_rendering[:] = render
+        self.centre_circle_inner.is_rendering[:] = render
+        self.centre_circle_outer.is_rendering[:] = render
+        self.left_top_wall.is_rendering[:] = render
+        self.left_bottom_wall.is_rendering[:] = render
+        self.right_top_wall.is_rendering[:] = render
+        self.right_bottom_wall.is_rendering[:] = render
 
     def reset_background(self, env_index: int = None):
         for landmark in self.world.landmarks:
@@ -392,7 +404,7 @@ class Scenario(BaseScenario):
                 )
 
     def init_walls(self, world):
-        right_top_wall = Landmark(
+        self.right_top_wall = Landmark(
             name="Right Top Wall",
             collide=True,
             movable=False,
@@ -401,9 +413,9 @@ class Scenario(BaseScenario):
             ),
             color=Color.WHITE,
         )
-        world.add_landmark(right_top_wall)
+        world.add_landmark(self.right_top_wall)
 
-        left_top_wall = Landmark(
+        self.left_top_wall = Landmark(
             name="Left Top Wall",
             collide=True,
             movable=False,
@@ -412,9 +424,9 @@ class Scenario(BaseScenario):
             ),
             color=Color.WHITE,
         )
-        world.add_landmark(left_top_wall)
+        world.add_landmark(self.left_top_wall)
 
-        right_bottom_wall = Landmark(
+        self.right_bottom_wall = Landmark(
             name="Right Bottom Wall",
             collide=True,
             movable=False,
@@ -423,9 +435,9 @@ class Scenario(BaseScenario):
             ),
             color=Color.WHITE,
         )
-        world.add_landmark(right_bottom_wall)
+        world.add_landmark(self.right_bottom_wall)
 
-        left_bottom_wall = Landmark(
+        self.left_bottom_wall = Landmark(
             name="Left Bottom Wall",
             collide=True,
             movable=False,
@@ -434,7 +446,7 @@ class Scenario(BaseScenario):
             ),
             color=Color.WHITE,
         )
-        world.add_landmark(left_bottom_wall)
+        world.add_landmark(self.left_bottom_wall)
 
     def reset_walls(self, env_index: int = None):
         for landmark in self.world.landmarks:
@@ -809,39 +821,128 @@ class Scenario(BaseScenario):
         agent.pos_shaping = pos_shaping
         return agent.pos_rew
 
-    def observation(self, agent: Agent):
-        obs = torch.cat(
-            [
-                agent.state.pos - self.right_goal_pos,
-                agent.state.vel,
-                agent.state.force,
-                agent.state.pos - self.ball.state.pos,
-                agent.state.vel - self.ball.state.vel,
-                self.ball.state.pos - self.right_goal_pos,
-                self.ball.state.vel,
-                self.ball.state.force,
-            ],
-            dim=-1,
-        )
+    def observation(
+        self,
+        agent: Agent,
+        agent_pos=None,
+        agent_vel=None,
+        agent_force=None,
+        teammate_poses=None,
+        teammate_forces=None,
+        teammate_vels=None,
+        adversary_poses=None,
+        adversary_forces=None,
+        adversary_vels=None,
+        ball_pos=None,
+        ball_vel=None,
+        ball_force=None,
+        env_index=Ellipsis,
+    ):
 
+        actual_adversary_poses = []
+        actual_adversary_forces = []
+        actual_adversary_vels = []
         for a in self.red_agents:
-            obs = torch.cat(
-                [obs, agent.state.pos - a.state.pos, a.state.vel, a.state.force], dim=-1
-            )
+            actual_adversary_poses.append(a.state.pos[env_index])
+            actual_adversary_vels.append(a.state.vel[env_index])
+            actual_adversary_forces.append(a.state.force[env_index])
+
+        actual_teammate_poses = []
+        actual_teammate_forces = []
+        actual_teammate_vels = []
         if self.observe_teammates:
             for a in self.blue_agents:
                 if a != agent:
-                    obs = torch.cat(
-                        [
-                            obs,
-                            agent.state.pos - a.state.pos,
-                            a.state.vel,
-                            a.state.force,
-                        ],
-                        dim=-1,
-                    )
+                    actual_teammate_poses.append(a.state.pos[env_index])
+                    actual_teammate_vels.append(a.state.vel[env_index])
+                    actual_teammate_forces.append(a.state.force[env_index])
 
+        obs = self.observation_base(
+            agent.state.pos[env_index] if agent_pos is None else agent_pos,
+            agent.state.vel[env_index] if agent_vel is None else agent_vel,
+            agent.state.force[env_index] if agent_force is None else agent_force,
+            ball_pos=self.ball.state.pos[env_index] if ball_pos is None else ball_pos,
+            ball_vel=self.ball.state.vel[env_index] if ball_vel is None else ball_vel,
+            ball_force=self.ball.state.force[env_index]
+            if ball_force is None
+            else ball_force,
+            adversary_poses=actual_adversary_poses
+            if adversary_poses is None
+            else adversary_poses,
+            adversary_forces=actual_adversary_forces
+            if adversary_forces is None
+            else adversary_forces,
+            adversary_vels=actual_adversary_vels
+            if adversary_vels is None
+            else adversary_vels,
+            teammate_poses=actual_teammate_poses
+            if teammate_poses is None
+            else teammate_poses,
+            teammate_forces=actual_teammate_forces
+            if teammate_forces is None
+            else teammate_forces,
+            teammate_vels=actual_teammate_vels
+            if teammate_vels is None
+            else teammate_vels,
+        )
         return obs
+
+    def observation_base(
+        self,
+        agent_pos,
+        agent_vel,
+        agent_force,
+        teammate_poses,
+        teammate_forces,
+        teammate_vels,
+        adversary_poses,
+        adversary_forces,
+        adversary_vels,
+        ball_pos,
+        ball_vel,
+        ball_force,
+    ):
+
+        obs = [
+            agent_pos - self.right_goal_pos,
+            agent_vel,
+            agent_force,
+            agent_pos - ball_pos,
+            agent_vel - ball_vel,
+            ball_pos - self.right_goal_pos,
+            ball_vel,
+            ball_force,
+        ]
+
+        for adversary_pos, adversary_force, adversary_vel in zip(
+            adversary_poses, adversary_forces, adversary_vels
+        ):
+            obs += [
+                agent_pos - adversary_pos,
+                agent_vel - adversary_vel,
+                adversary_vel,
+                adversary_force,
+            ]
+
+        if self.observe_teammates:
+            for teammate_pos, teammate_force, teammate_vel in zip(
+                teammate_poses, teammate_forces, teammate_vels
+            ):
+                obs += [
+                    agent_pos - teammate_pos,
+                    agent_vel - teammate_vel,
+                    teammate_vel,
+                    teammate_force,
+                ]
+
+        for o in obs:
+            if len(o.shape) > 1:
+                batch_dim = o.shape[0]
+        for i in range(len(obs)):
+            if len(obs[i].shape) == 1:
+                obs[i] = obs[i].unsqueeze(0).expand(batch_dim, *obs[i].shape)
+
+        return torch.cat(obs, dim=-1)
 
     def done(self):
         if self.ai_blue_agents and self.ai_red_agents:
