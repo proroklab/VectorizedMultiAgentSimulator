@@ -805,11 +805,6 @@ def ball_action_script(ball, world):
     ball.action.u = actions
 
 
-
-
-
-
-
 # Agent Policy
 
 
@@ -954,7 +949,7 @@ class AgentPolicy:
     def dribble(self, agent, pos, env_index=Ellipsis):
         if isinstance(env_index, int):
             env_index = [env_index]
-        self.actions[agent]['dribbling'][env_index] = True
+        self.actions[agent]["dribbling"][env_index] = True
         self.update_dribble(
             agent,
             pos=pos[env_index],
@@ -969,10 +964,13 @@ class AgentPolicy:
         direction = ball_disp / ball_dist[:, None]
         hit_vel = direction * self.dribble_speed
         start_vel = self.get_start_vel(ball_pos, hit_vel, agent_pos)
-        offset = start_vel / start_vel.norm(dim=-1)[:,None]
+        offset = start_vel / start_vel.norm(dim=-1)[:, None]
         new_direction = direction + 0.5 * offset
-        new_direction /= new_direction.norm(dim=-1)[:,None]
-        hit_pos = ball_pos - new_direction * (self.ball.shape.radius + agent.shape.radius) * 0.7
+        new_direction /= new_direction.norm(dim=-1)[:, None]
+        hit_pos = (
+            ball_pos
+            - new_direction * (self.ball.shape.radius + agent.shape.radius) * 0.7
+        )
         self.go_to(agent, hit_pos, hit_vel, start_vel=start_vel, env_index=env_index)
 
     def go_to(self, agent, pos, vel, start_vel=None, env_index=Ellipsis):
@@ -997,7 +995,7 @@ class AgentPolicy:
         target_dist = target_disp.norm(dim=1)
         start_vel_aug_dir = target_disp
         start_vel_aug_dir[target_dist > 0] /= target_dist[target_dist > 0, None]
-        start_vel = start_vel_aug_dir * vel_mag[:,None]
+        start_vel = start_vel_aug_dir * vel_mag[:, None]
         return start_vel
 
     def get_action(self, agent, env_index=Ellipsis):
@@ -1027,7 +1025,9 @@ class AgentPolicy:
             deriv=1,
         )
         des_curr_pos = torch.as_tensor(des_curr_pos, device=self.world.device)
-        des_curr_vel = torch.as_tensor(des_curr_vel, device=self.world.device) * self.start_vel_mag
+        des_curr_vel = (
+            torch.as_tensor(des_curr_vel, device=self.world.device) * self.start_vel_mag
+        )
         control = 0.5 * (des_curr_pos - curr_pos) + 0.5 * (des_curr_vel - curr_vel)
         return control
 
@@ -1192,13 +1192,14 @@ class AgentPolicy:
         )
         return best_pos[0, :, :]
 
-
     def get_pos_value(self, pos, agent, env_index=Ellipsis):
 
         ball_dist = (pos - self.ball.state.pos[env_index]).norm(dim=-1)
-        ball_dist_value = 2.0 * -(ball_dist - self.max_shoot_dist)**2
+        ball_dist_value = 2.0 * -((ball_dist - self.max_shoot_dist) ** 2)
 
-        side_dot_prod = ((self.ball.state.pos - pos) * (self.target_net.state.pos - pos)).sum(dim=-1)
+        side_dot_prod = (
+            (self.ball.state.pos - pos) * (self.target_net.state.pos - pos)
+        ).sum(dim=-1)
         side_value = 0.5 * side_dot_prod
 
         if self.team_disps[agent] is not None:
@@ -1215,7 +1216,6 @@ class AgentPolicy:
             team_disps = torch.stack(team_disps, dim=1)
             self.team_disps[agent] = team_disps
 
-
         wall_disps = self.get_separations(
             pos,
             agent,
@@ -1226,11 +1226,11 @@ class AgentPolicy:
         )
         wall_disps = torch.stack(wall_disps, dim=1)
 
-        team_dists = (team_disps - pos[:,None,:]).norm(dim=-1)
-        other_agent_value = -0.2 * (team_dists ** -2).mean(dim=-1)
+        team_dists = (team_disps - pos[:, None, :]).norm(dim=-1)
+        other_agent_value = -0.2 * (team_dists**-2).mean(dim=-1)
 
         wall_dists = wall_disps.norm(dim=-1)
-        wall_value = -0.01 * (wall_dists ** -2).mean(dim=-1)
+        wall_value = -0.01 * (wall_dists**-2).mean(dim=-1)
 
         return wall_value + other_agent_value + ball_dist_value + side_value
 
@@ -1262,7 +1262,9 @@ class AgentPolicy:
             for otheragent in self.teammates:
                 if otheragent != agent:
                     if target:
-                        agent_disp = self.objectives[otheragent]["target_pos"][env_index]
+                        agent_disp = self.objectives[otheragent]["target_pos"][
+                            env_index
+                        ]
                     else:
                         agent_disp = otheragent.state.pos[env_index]
                     if pos is not None:
@@ -1276,7 +1278,6 @@ class AgentPolicy:
                         agent_disp -= pos
                     disps.append(agent_disp)
         return disps
-
 
 
 # Run
