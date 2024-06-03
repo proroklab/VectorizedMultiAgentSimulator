@@ -101,10 +101,13 @@ class InteractiveEnv:
                 self.reset = False
                 total_rew = [0] * self.n_agents
 
-            action_list = [[0.0] * agent.action_size for agent in self.agents]
-            action_list[self.current_agent_index] = self.u[
-                : self.agents[self.current_agent_index].action_size
-            ]
+            if self.n_agents > 0:
+                action_list = [[0.0] * agent.action_size for agent in self.agents]
+                action_list[self.current_agent_index] = self.u[
+                    : self.agents[self.current_agent_index].action_size
+                ]
+            else:
+                action_list = []
 
             if self.n_agents > 1 and self.control_two_agents:
                 action_list[self.current_agent_index2] = self.u2[
@@ -112,7 +115,7 @@ class InteractiveEnv:
                 ]
             obs, rew, done, info = self.env.step(action_list)
 
-            if self.display_info:
+            if self.display_info and self.n_agents > 0:
                 # TODO: Determine number of lines of obs_str and render accordingly
                 obs_str = str(InteractiveEnv.format_obs(obs[self.current_agent_index]))
                 message = f"\t\t{obs_str[len(obs_str) // 2:]}"
@@ -359,7 +362,7 @@ if __name__ == "__main__":
     # If you have more than 1 agent, you can control another one with W,A,S,D and Q,E in the same way.
     # and switch the agent with these controls using LSHIFT
 
-    scenario_name = "waterfall"
+    scenario_name = "football"
 
     # Scenario specific variables
 
