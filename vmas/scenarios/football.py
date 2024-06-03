@@ -77,8 +77,8 @@ class Scenario(BaseScenario):
         self.ai_strength = kwargs.get("ai_strength", 0.3)
         if kwargs.get("dense_reward_ratio", None) is not None:
             raise ValueError(
-                "dense_reward_ratio in football is deprecated, please use `dense_reward`"
-                " which is a bool that turns on/off the dense reward"
+                "dense_reward_ratio in football is deprecated, please use `dense_reward` "
+                "which is a bool that turns on/off the dense reward"
             )
         self.dense_reward = kwargs.get("dense_reward", True)
         self.pos_shaping_factor_ball_goal = kwargs.get(
