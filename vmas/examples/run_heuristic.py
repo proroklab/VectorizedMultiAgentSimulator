@@ -73,7 +73,7 @@ def run_heuristic(
 
 
 if __name__ == "__main__":
-    from vmas.scenarios.transport import AgentPolicy as TransportHeuristic
+    from vmas.scenarios.transport import HeuristicPolicy as TransportHeuristic
 
     run_heuristic(
         scenario_name="transport",

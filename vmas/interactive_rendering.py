@@ -362,7 +362,7 @@ if __name__ == "__main__":
     # If you have more than 1 agent, you can control another one with W,A,S,D and Q,E in the same way.
     # and switch the agent with these controls using LSHIFT
 
-    scenario_name = "football"
+    scenario_name = "waterfall"
 
     # Scenario specific variables
 
