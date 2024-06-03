@@ -34,6 +34,7 @@ class Scenario(BaseScenario):
         max_steering_angle = kwargs.get(
             "max_steering_angle", torch.deg2rad(torch.tensor(30.0))
         )
+        max_speed = kwargs.get("max_speed", 1.0)
 
         # Make world
         world = World(batch_dim, device, substeps=10, collision_force=500)
@@ -46,8 +47,9 @@ class Scenario(BaseScenario):
                     shape=Box(length=l_f + l_r, width=width),
                     collide=True,
                     render_action=True,
-                    u_range=[1, max_steering_angle],
+                    u_range=[max_speed, max_steering_angle],
                     u_multiplier=[1, 1],
+                    max_speed=max_speed,
                     dynamics=KinematicBicycle(
                         world,
                         width=width,
