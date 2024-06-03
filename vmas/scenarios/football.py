@@ -955,11 +955,10 @@ class AgentPolicy:
         if isinstance(env_index, int):
             env_index = [env_index]
         self.actions[agent]['dribbling'][env_index] = True
-        dribble_mask = self.combine_mask(env_index,self.actions[agent]["dribbling"])
         self.update_dribble(
             agent,
-            pos=pos[dribble_mask],
-            env_index=dribble_mask,
+            pos=pos[env_index],
+            env_index=env_index,
         )
 
     def update_dribble(self, agent, pos, env_index=Ellipsis):
@@ -1134,21 +1133,6 @@ class AgentPolicy:
             ans = ans * k
         return ans
 
-    def combine_mask(self, env_index, mask):
-        if env_index == Ellipsis:
-            return mask
-        elif isinstance(env_index, torch.Tensor) and env_index.dtype == torch.bool:
-            if isinstance(mask, torch.Tensor) and mask.dtype == torch.bool:
-                new_env_index = env_index.clone()
-                new_env_index[env_index] = mask
-                return new_env_index
-            else:
-                return torch.arange(env_index.shape[0], device=self.world.device)[mask]
-        elif isinstance(env_index, torch.Tensor) and env_index.dtype == torch.int:
-            return env_index[mask]
-        elif isinstance(env_index, list):
-            return torch.tensor(env_index, device=self.world.device)[mask]
-    #
     def check_possession(self, env_index=Ellipsis):
         agents_pos = torch.stack(
             [agent.state.pos[env_index] for agent in self.teammates + self.opposition],
