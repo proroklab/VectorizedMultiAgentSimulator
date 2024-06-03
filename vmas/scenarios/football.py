@@ -74,7 +74,7 @@ class Scenario(BaseScenario):
         self.ball_mass = kwargs.get("ball_mass", 0.25)
         self.ball_size = kwargs.get("ball_size", 0.02)
         self.n_traj_points = kwargs.get("n_traj_points", 0)
-        self.ai_strength = kwargs.get("ai_strength", 0.3)
+        self.ai_strength = kwargs.get("ai_strength", 1)
         if kwargs.get("dense_reward_ratio", None) is not None:
             raise ValueError(
                 "dense_reward_ratio in football is deprecated, please use `dense_reward` "
@@ -766,9 +766,8 @@ class Scenario(BaseScenario):
                     world.traj_points["Blue"][agent].append(pointj)
 
     def reward(self, agent: Agent):
-        if agent == self.world.agents[0] or (
-            self.ai_blue_agents and self.ai_red_agents
-        ):
+        # Called with agent=None when only AIs are playing to compute the _done
+        if agent is None or agent == self.world.agents[0]:
             # Sparse Reward
             over_right_line = (
                 self.ball.state.pos[:, 0] > self.pitch_length / 2 + self.ball_size / 2
@@ -784,9 +783,9 @@ class Scenario(BaseScenario):
             self._reward = self._sparse_reward
             self._done = blue_score | red_score
             # Dense Reward
-            if self.dense_reward:
+            if self.dense_reward and agent is not None:
                 self._reward = self._reward + self.reward_ball_to_goal()
-        if self.dense_reward:
+        if self.dense_reward and agent is not None:
             reward = self._reward + self.reward_agent_to_ball(agent)
         else:
             reward = self._reward
@@ -1036,9 +1035,9 @@ class AgentPolicy:
 
         self.pos_lookahead = 0.01
         self.vel_lookahead = 0.01
-        self.start_vel_mag = 10.0
+        self.strength = strength * 20.0
 
-        self.dribble_speed = strength * 0.16
+        self.dribble_speed = 0.16
         self.dribble_slowdown_dist = 0.3
         self.initial_vel_dist_behind_target_frac = 0.3
         self.ball_pos_eps = 0.08
@@ -1203,7 +1202,10 @@ class AgentPolicy:
         direction = ball_disp / ball_dist[:, None]
         hit_vel = direction * self.dribble_speed
         start_vel = self.get_start_vel(ball_pos, hit_vel, agent_pos)
-        offset = start_vel / start_vel.norm(dim=-1)[:, None]
+        start_vel_mag = start_vel.norm(dim=-1)
+        offset = start_vel.clone()
+        start_vel_mag_mask = start_vel_mag > 0
+        offset[start_vel_mag_mask] /= start_vel_mag.unsqueeze(-1)[start_vel_mag_mask]
         new_direction = direction + 0.5 * offset
         new_direction /= new_direction.norm(dim=-1)[:, None]
         hit_pos = (
@@ -1263,12 +1265,11 @@ class AgentPolicy:
             ),
             deriv=1,
         )
+
         des_curr_pos = torch.as_tensor(des_curr_pos, device=self.world.device)
-        des_curr_vel = (
-            torch.as_tensor(des_curr_vel, device=self.world.device) * self.start_vel_mag
-        )
+        des_curr_vel = torch.as_tensor(des_curr_vel, device=self.world.device)
         control = 0.5 * (des_curr_pos - curr_pos) + 0.5 * (des_curr_vel - curr_vel)
-        return control
+        return control * self.strength
 
     def hermite(self, p0, p1, p0dot, p1dot, u=0.1, deriv=0):
         # Formatting
@@ -1441,19 +1442,25 @@ class AgentPolicy:
         ).sum(dim=-1)
         side_value = 0.5 * side_dot_prod
 
-        if self.team_disps[agent] is not None:
-            team_disps = self.team_disps[agent]
+        if len(self.teammates) > 1:
+            if self.team_disps[agent] is not None:
+                team_disps = self.team_disps[agent]
+            else:
+                team_disps = self.get_separations(
+                    agent=agent,
+                    teammate=True,
+                    target=True,
+                    wall=False,
+                    opposition=False,
+                    env_index=env_index,
+                )
+                team_disps = torch.stack(team_disps, dim=1)
+                self.team_disps[agent] = team_disps
+
+            team_dists = (team_disps - pos[:, None, :]).norm(dim=-1)
+            other_agent_value = -0.2 * (team_dists**-2).mean(dim=-1)
         else:
-            team_disps = self.get_separations(
-                agent=agent,
-                teammate=True,
-                target=True,
-                wall=False,
-                opposition=False,
-                env_index=env_index,
-            )
-            team_disps = torch.stack(team_disps, dim=1)
-            self.team_disps[agent] = team_disps
+            other_agent_value = 0
 
         wall_disps = self.get_separations(
             pos,
@@ -1464,9 +1471,6 @@ class AgentPolicy:
             env_index=env_index,
         )
         wall_disps = torch.stack(wall_disps, dim=1)
-
-        team_dists = (team_disps - pos[:, None, :]).norm(dim=-1)
-        other_agent_value = -0.2 * (team_dists**-2).mean(dim=-1)
 
         wall_dists = wall_disps.norm(dim=-1)
         wall_value = -0.01 * (wall_dists**-2).mean(dim=-1)
@@ -1523,10 +1527,9 @@ class AgentPolicy:
 if __name__ == "__main__":
     render_interactively(
         __file__,
-        control_two_agents=True,
+        control_two_agents=False,
         n_blue_agents=2,
-        n_red_agents=2,
-        ai_red_agents=True,
+        n_red_agents=1,
         ai_blue_agents=False,
         dense_reward=True,
     )
