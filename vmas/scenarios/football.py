@@ -1035,11 +1035,11 @@ class AgentPolicy:
 
         self.pos_lookahead = 0.01
         self.vel_lookahead = 0.01
-        self.strength = strength * 20.0
+        self.strength = strength * 25.0
 
         self.dribble_speed = 0.16
         self.dribble_slowdown_dist = 0.3
-        self.initial_vel_dist_behind_target_frac = 0.3
+        self.initial_vel_dist_behind_target_frac = 0.6
         self.ball_pos_eps = 0.08
 
         self.max_shoot_dist = 0.6
