@@ -1035,7 +1035,8 @@ class AgentPolicy:
 
         self.pos_lookahead = 0.01
         self.vel_lookahead = 0.01
-        self.strength = strength * 25.0
+        self.strength = strength
+        self.strength_multiplier = 25.0
 
         self.dribble_speed = 0.16
         self.dribble_slowdown_dist = 0.3
@@ -1269,7 +1270,7 @@ class AgentPolicy:
         des_curr_pos = torch.as_tensor(des_curr_pos, device=self.world.device)
         des_curr_vel = torch.as_tensor(des_curr_vel, device=self.world.device)
         control = 0.5 * (des_curr_pos - curr_pos) + 0.5 * (des_curr_vel - curr_vel)
-        return control * self.strength
+        return control * self.strength * self.strength_multiplier
 
     def hermite(self, p0, p1, p0dot, p1dot, u=0.1, deriv=0):
         # Formatting
