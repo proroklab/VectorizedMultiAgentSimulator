@@ -77,8 +77,8 @@ class Scenario(BaseScenario):
 
     def init_agents(self, world):
         # Add agents
-        self.blue_controller = AgentPolicy(team="Blue")
-        self.red_controller = AgentPolicy(team="Red")
+        self.blue_controller = AgentPolicy(team="Blue", strength=1.0)
+        self.red_controller = AgentPolicy(team="Red", strength=0.8)
 
         blue_agents = []
         for i in range(self.n_blue_agents):
@@ -814,7 +814,7 @@ def ball_action_script(ball, world):
 
 
 class AgentPolicy:
-    def __init__(self, team="Red", **kwargs):
+    def __init__(self, team="Red", strength=1.0, **kwargs):
         self.team_name = team
         self.otherteam_name = "Blue" if (self.team_name == "Red") else "Red"
 
@@ -822,7 +822,7 @@ class AgentPolicy:
         self.vel_lookahead = 0.01
         self.start_vel_mag = 10.0
 
-        self.dribble_speed = 0.1
+        self.dribble_speed = strength * 0.16
         self.dribble_slowdown_dist = 0.3
         self.initial_vel_dist_behind_target_frac = 0.3
         self.ball_pos_eps = 0.08
@@ -1292,284 +1292,6 @@ class AgentPolicy:
                         agent_disp -= pos
                     disps.append(agent_disp)
         return disps
-
-    # def policy(self, agent):
-    #     possession_mask = self.agent_possession[agent]
-    #     self.actions[agent]["shooting"] = self.actions[agent]["shooting"] & possession_mask
-    #     self.actions[agent]["pre-shooting"] = self.actions[agent]["pre-shooting"] & possession_mask
-    #     # Shoot
-    #     start_shoot_mask, shoot_pos = self.can_shoot(agent)
-    #     shooting_mask = (start_shoot_mask & possession_mask & self.team_possession)
-    #     self.shoot(agent, shoot_pos[shooting_mask], env_index=shooting_mask)
-    #     # Passing
-    #     furthest_forward = torch.ones(self.world.batch_dim, device=self.world.device).bool()
-    #     best_attack_val = -float('inf')
-    #     for teammate in self.teammates:
-    #         if teammate != agent:
-    #             teammate_attack_value = self.get_attack_value(teammate)
-    #             closer = (teammate.state.pos-self.target_net.state.pos).norm(dim=-1) < (agent.state.pos-self.target_net.state.pos).norm(dim=-1)
-    #             furthest_forward = furthest_forward & ~closer
-    #             better_pos_mask = teammate_attack_value > best_attack_val
-    #             pass_mask = better_pos_mask & possession_mask & ~shooting_mask & closer
-    #             self.passto(agent, teammate, env_index=pass_mask)
-    #     # Dribbling
-    #     self.dribble_to_goal(agent, env_index=furthest_forward)
-    #     # # Move without the ball
-    #     if shooting_mask[0]:
-    #         agent.color = (1., 0., 0.)
-    #     else:
-    #         agent.color = (0.6, 0.4, 0.4) # (0.65, 0.15, 0.65)
-    #     move_mask = ~possession_mask & self.team_possession
-    #     best_pos = self.check_better_positions(agent, role=1.)
-    #     self.go_to(
-    #         agent,
-    #         pos=best_pos[move_mask],
-    #         vel=torch.zeros(
-    #             move_mask.sum(), self.world.dim_p, device=self.world.device
-    #         ),
-    #         env_index=move_mask,
-    #     )
-    #     defend_ball_mask = possession_mask & ~self.team_possession
-    #     self.dribble_to_goal(agent, env_index=defend_ball_mask)
-    #     defend_mask = ~possession_mask & ~self.team_possession
-    #     self.go_to(agent, agent.state.pos, agent.state.vel, env_index=defend_mask)
-    #     receive_mask = self.check_receive(agent)
-    #     self.receive_ball(agent, env_index=receive_mask)
-    #     # TODO: receive ball when coming at you fast
-    #     # TODO: dribble to goal when not your possession
-    #     # TODO: dribble to goal when further towards goal than opponents with possession
-    #     # TODO: visualise pos value, improve. get open (dot products to find if opponents in the way of pass).
-    #     # TODO: reduce error limits on pre-shooting when opponents are close to ball
-
-    # def check_receive(self, agent):
-    #     ball_to_goal = (self.target_net.state.pos - self.ball.state.pos)
-    #     ball_to_agent = (agent.state.pos - self.ball.state.pos)
-    #     between_ball_and_goal_mask = (ball_to_goal * ball_to_agent).sum(dim=-1) > 0
-    #     ball_to_agent_vel = (self.ball.state.vel - agent.state.vel) / ((self.ball.state.vel - agent.state.vel).norm(dim=-1)[...,None] + 1e-6)
-    #     fast_enough_mask = (self.ball.state.vel - agent.state.vel).norm(dim=-1) > 0.05
-    #     far_enough_mask = ball_to_agent.norm(dim=-1) > agent.shape.radius * 4
-    #     vel_pos_dot = (ball_to_agent * ball_to_agent_vel).sum(dim=-1)
-    #     ball_towards_agent_mask = vel_pos_dot > 0
-    #     angle = torch.arccos(vel_pos_dot / ball_to_agent.norm(dim=-1))
-    #     margin = torch.tan(angle) * ball_to_agent.norm(dim=-1)
-    #     close_margin_mask = margin < 4 * agent.shape.radius
-    #     return between_ball_and_goal_mask & ball_towards_agent_mask & close_margin_mask & fast_enough_mask & far_enough_mask
-    #
-    # def receive_ball(self, agent, env_index=Ellipsis):
-    #     ball_vel_mag = self.ball.state.vel.norm(dim=-1)
-    #     vel = self.ball.state.vel * 5
-    #     end_pos = agent.state.pos + self.ball.state.vel / ball_vel_mag * agent.shape.radius * 4
-    #     self.go_to(agent, pos=end_pos[env_index], vel=vel[env_index] * 5, start_vel=vel[env_index] * 5, env_index=env_index)
-
-    # def shoot_on_goal(self, agent, env_index=Ellipsis):
-    #     goal_front = self.target_net.state.pos[env_index].clone()
-    #     left_goal_mask = goal_front[:, X] < 0
-    #     goal_front[:, X] += self.world.goal_depth / 2 * (left_goal_mask.float() * 2 - 1)
-    #     agent_pos = agent.state.pos[env_index]
-    #     shoot_dir = goal_front - agent_pos
-    #     shoot_dir = shoot_dir / shoot_dir.norm(dim=-1)[:, None]
-    #     shoot_pos = goal_front + shoot_dir * self.shoot_on_goal_dist
-    #     self.shoot(agent, shoot_pos, env_index=env_index)
-    #
-    # def passto(self, agent, agent_dest, env_index=Ellipsis):
-    #     self.shoot(agent, agent_dest.state.pos[env_index], env_index=env_index)
-    #
-    # def shoot(self, agent, pos, env_index=Ellipsis):
-    #     if isinstance(env_index, int):
-    #         env_index = [env_index]
-    #     self.actions[agent]["dribbling"][env_index] = False
-    #
-    #     ball_curr_pos = self.ball.state.pos[env_index]
-    #     agent_curr_pos = agent.state.pos[env_index]
-    #     agent_curr_vel = agent.state.vel[env_index]
-    #
-    #     ball_target_disp = pos - ball_curr_pos
-    #     ball_target_dist = ball_target_disp.norm(dim=-1)
-    #     ball_target_dir = ball_target_disp / ball_target_dist[:, None]
-    #
-    #     agent_ball_disp = ball_curr_pos - agent_curr_pos
-    #     agent_ball_dist = agent_ball_disp.norm(dim=-1)
-    #     agent_ball_dir = agent_ball_disp / agent_ball_dist[:, None]
-    #     agent_vel_dir = agent_curr_vel / agent_curr_vel.norm(dim=-1)[:, None]
-    #
-    #     dist_maxdist_ratio = (
-    #         torch.minimum(
-    #             ball_target_dist,
-    #             torch.tensor(self.max_shoot_dist, device=self.world.device),
-    #         )
-    #         / self.max_shoot_dist
-    #     )
-    #
-    #     # Determine if shooting or pre-shooting
-    #     start_dist = self.valid_start_dist * dist_maxdist_ratio
-    #     valid_angle_mask = (ball_target_dir * agent_ball_dir).sum(
-    #         dim=-1
-    #     ) > self.valid_start_pos_angle
-    #     valid_vel_mask = (ball_target_dir * agent_vel_dir).sum(
-    #         dim=-1
-    #     ) > self.valid_start_vel_angle
-    #     valid_dist_mask = agent_ball_dist > start_dist
-    #     shooting_mask = self.actions[agent]["shooting"][env_index] | (valid_dist_mask & valid_angle_mask & valid_vel_mask)
-    #     pre_shooting_mask = ~shooting_mask
-    #     self.actions[agent]["shooting"][env_index] = shooting_mask
-    #     self.actions[agent]["pre-shooting"][env_index] = pre_shooting_mask
-    #
-    #     # Shooting
-    #     hit_pos = ball_curr_pos - ball_target_dir * (
-    #         self.ball.shape.radius + agent.shape.radius
-    #     )
-    #     hit_speed = self.dist_to_hit_speed * dist_maxdist_ratio
-    #     hit_vel = ball_target_dir * hit_speed[:, None]
-    #     start_vel = self.get_start_vel(hit_pos, hit_vel, agent_curr_pos, hit_speed)
-    #
-    #     # Pre Shooting
-    #     pre_shoot_target_pos = ball_curr_pos - ball_target_dir * start_dist[:, None]
-    #     pre_shoot_target_vel = ball_target_dir * hit_speed[:, None]
-    #
-    #     # Next to wall
-    #     close_to_wall_mask = (
-    #         self.clamp_pos(pre_shoot_target_pos, return_bool=True) & pre_shooting_mask
-    #     )
-    #     pre_shooting_mask = pre_shooting_mask & ~close_to_wall_mask
-    #     self.update_dribble(
-    #         agent,
-    #         pos=pos.expand(len(close_to_wall_mask), -1)[close_to_wall_mask],
-    #         env_index=self.combine_mask(env_index, close_to_wall_mask),
-    #     )
-    #
-    #     self.go_to(
-    #         agent,
-    #         pos=pre_shoot_target_pos[pre_shooting_mask],
-    #         vel=pre_shoot_target_vel[pre_shooting_mask],
-    #         env_index=self.combine_mask(env_index, pre_shooting_mask),
-    #     )
-    #
-    #     self.go_to(
-    #         agent,
-    #         pos=hit_pos[shooting_mask],
-    #         vel=hit_vel[shooting_mask],
-    #         start_vel=start_vel[shooting_mask],
-    #         env_index=self.combine_mask(env_index, shooting_mask),
-    #     )
-    #
-    #     touch_dist = (ball_curr_pos - agent_curr_pos).norm(dim=-1) - (
-    #         self.ball.shape.radius + agent.shape.radius
-    #     )
-    #     touch_mask = touch_dist < self.touch_eps
-    #     full_shooting_mask = self.combine_mask(env_index, shooting_mask & touch_mask)
-    #     self.actions[agent]["shooting"][full_shooting_mask] = False
-    #
-    #     dist = (pos - self.ball.state.pos[env_index]).norm(dim=-1)
-    #     reached_goal_mask = self.combine_mask(env_index, dist <= self.ball_pos_eps)
-    #     self.actions[agent]["shooting"][reached_goal_mask] = False
-    #     self.actions[agent]["pre-shooting"][reached_goal_mask] = False
-
-    # def shoot_on_goal(self, agent, env_index=Ellipsis):
-    #     goal_front = self.target_net.state.pos[env_index].clone()
-    #     left_goal_mask = goal_front[:, X] < 0
-    #     goal_front[:, X] += self.world.goal_depth / 2 * (left_goal_mask.float() * 2 - 1)
-    #     agent_pos = agent.state.pos[env_index]
-    #     shoot_dir = goal_front - agent_pos
-    #     shoot_dir = shoot_dir / shoot_dir.norm(dim=-1)[:, None]
-    #     shoot_pos = goal_front + shoot_dir * self.shoot_on_goal_dist
-    #     self.shoot(agent, shoot_pos, env_index=env_index)
-    #
-    # def passto(self, agent, agent_dest, env_index=Ellipsis):
-    #     self.shoot(agent, agent_dest.state.pos[env_index], env_index=env_index)
-    #
-    # def shoot(self, agent, pos, env_index=Ellipsis):
-    #     if isinstance(env_index, int):
-    #         env_index = [env_index]
-    #     self.actions[agent]["dribbling"][env_index] = False
-    #
-    #     ball_curr_pos = self.ball.state.pos[env_index]
-    #     agent_curr_pos = agent.state.pos[env_index]
-    #     agent_curr_vel = agent.state.vel[env_index]
-    #
-    #     ball_target_disp = pos - ball_curr_pos
-    #     ball_target_dist = ball_target_disp.norm(dim=-1)
-    #     ball_target_dir = ball_target_disp / ball_target_dist[:, None]
-    #
-    #     agent_ball_disp = ball_curr_pos - agent_curr_pos
-    #     agent_ball_dist = agent_ball_disp.norm(dim=-1)
-    #     agent_ball_dir = agent_ball_disp / agent_ball_dist[:, None]
-    #     agent_vel_dir = agent_curr_vel / agent_curr_vel.norm(dim=-1)[:, None]
-    #
-    #     dist_maxdist_ratio = (
-    #         torch.minimum(
-    #             ball_target_dist,
-    #             torch.tensor(self.max_shoot_dist, device=self.world.device),
-    #         )
-    #         / self.max_shoot_dist
-    #     )
-    #
-    #     # Determine if shooting or pre-shooting
-    #     start_dist = self.valid_start_dist * dist_maxdist_ratio
-    #     valid_angle_mask = (ball_target_dir * agent_ball_dir).sum(
-    #         dim=-1
-    #     ) > self.valid_start_pos_angle
-    #     valid_vel_mask = (ball_target_dir * agent_vel_dir).sum(
-    #         dim=-1
-    #     ) > self.valid_start_vel_angle
-    #     valid_dist_mask = agent_ball_dist > start_dist
-    #     shooting_mask = self.actions[agent]["shooting"][env_index] | (valid_dist_mask & valid_angle_mask & valid_vel_mask)
-    #     pre_shooting_mask = ~shooting_mask
-    #     self.actions[agent]["shooting"][env_index] = shooting_mask
-    #     self.actions[agent]["pre-shooting"][env_index] = pre_shooting_mask
-    #
-    #     # Shooting
-    #     hit_pos = ball_curr_pos - ball_target_dir * (
-    #         self.ball.shape.radius + agent.shape.radius
-    #     )
-    #     hit_speed = self.dist_to_hit_speed * dist_maxdist_ratio
-    #     hit_vel = ball_target_dir * hit_speed[:, None]
-    #     start_vel = self.get_start_vel(hit_pos, hit_vel, agent_curr_pos, hit_speed)
-    #
-    #     # Pre Shooting
-    #     pre_shoot_target_pos = ball_curr_pos - ball_target_dir * start_dist[:, None]
-    #     pre_shoot_target_vel = ball_target_dir * hit_speed[:, None]
-    #
-    #     # Next to wall
-    #     close_to_wall_mask = (
-    #         self.clamp_pos(pre_shoot_target_pos, return_bool=True) & pre_shooting_mask
-    #     )
-    #     pre_shooting_mask = pre_shooting_mask & ~close_to_wall_mask
-    #     self.update_dribble(
-    #         agent,
-    #         pos=pos.expand(len(close_to_wall_mask), -1)[close_to_wall_mask],
-    #         env_index=self.combine_mask(env_index, close_to_wall_mask),
-    #     )
-    #
-    #     self.go_to(
-    #         agent,
-    #         pos=pre_shoot_target_pos[pre_shooting_mask],
-    #         vel=pre_shoot_target_vel[pre_shooting_mask],
-    #         env_index=self.combine_mask(env_index, pre_shooting_mask),
-    #     )
-    #
-    #     self.go_to(
-    #         agent,
-    #         pos=hit_pos[shooting_mask],
-    #         vel=hit_vel[shooting_mask],
-    #         start_vel=start_vel[shooting_mask],
-    #         env_index=self.combine_mask(env_index, shooting_mask),
-    #     )
-    #
-    #     touch_dist = (ball_curr_pos - agent_curr_pos).norm(dim=-1) - (
-    #         self.ball.shape.radius + agent.shape.radius
-    #     )
-    #     touch_mask = touch_dist < self.touch_eps
-    #     full_shooting_mask = self.combine_mask(env_index, shooting_mask & touch_mask)
-    #     self.actions[agent]["shooting"][full_shooting_mask] = False
-    #
-    #     dist = (pos - self.ball.state.pos[env_index]).norm(dim=-1)
-    #     reached_goal_mask = self.combine_mask(env_index, dist <= self.ball_pos_eps)
-    #     self.actions[agent]["shooting"][reached_goal_mask] = False
-    #     self.actions[agent]["pre-shooting"][reached_goal_mask] = False
-
-
-
-
 
 
 
