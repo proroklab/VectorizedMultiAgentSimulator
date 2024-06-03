@@ -74,7 +74,7 @@ class Scenario(BaseScenario):
         self.ball_mass = kwargs.get("ball_mass", 0.25)
         self.ball_size = kwargs.get("ball_size", 0.02)
         self.n_traj_points = kwargs.get("n_traj_points", 0)
-        self.ai_start_vel = kwargs.get("ai_start_vel", 0.6)
+        self.ai_strength = kwargs.get("ai_strength", 0.3)
         if kwargs.get("dense_reward_ratio", None) is not None:
             raise ValueError(
                 "dense_reward_ratio in football is deprecated, please use `dense_reward`"
@@ -114,14 +114,13 @@ class Scenario(BaseScenario):
             AgentPolicy(
                 team="Red",
                 disabled=self.disable_ai_red,
-                start_vel_mag=self.ai_start_vel,
-                strength=1.0,
+                strength=self.ai_strength,
             )
             if self.ai_red_agents
             else None
         )
         self.blue_controller = (
-            AgentPolicy(team="Blue", start_vel_mag=self.ai_start_vel, strength=1.0)
+            AgentPolicy(team="Blue", strength=self.ai_strength)
             if self.ai_blue_agents
             else None
         )
@@ -1026,7 +1025,12 @@ def ball_action_script(ball, world):
 
 
 class AgentPolicy:
-    def __init__(self, team: str, disabled: bool = False, strength=1.0):
+    def __init__(
+        self,
+        team: str,
+        strength=1.0,
+        disabled: bool = False,
+    ):
         self.team_name = team
         self.otherteam_name = "Blue" if (self.team_name == "Red") else "Red"
 
