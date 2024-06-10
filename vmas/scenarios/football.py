@@ -1530,7 +1530,9 @@ if __name__ == "__main__":
         __file__,
         control_two_agents=False,
         n_blue_agents=2,
-        n_red_agents=1,
-        ai_blue_agents=False,
+        n_red_agents=3,
+        ai_blue_agents=True,
         dense_reward=True,
+        ai_strength=1,
+        n_traj_points=8,
     )
