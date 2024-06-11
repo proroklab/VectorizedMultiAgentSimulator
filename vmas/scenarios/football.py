@@ -90,6 +90,8 @@ class Scenario(BaseScenario):
         self.distance_to_ball_trigger = kwargs.get("distance_to_ball_trigger", 0.4)
         self.scoring_reward = kwargs.get("scoring_reward", 100.0)
         self.observe_teammates = kwargs.get("observe_teammates", True)
+        self.observe_adversaries = kwargs.get("observe_adversaries", True)
+        self.dict_obs = kwargs.get("dict_obs", False)
 
     def init_world(self, batch_dim: int, device: torch.device):
         # Make world
@@ -839,10 +841,11 @@ class Scenario(BaseScenario):
         actual_adversary_poses = []
         actual_adversary_forces = []
         actual_adversary_vels = []
-        for a in self.red_agents:
-            actual_adversary_poses.append(a.state.pos[env_index])
-            actual_adversary_vels.append(a.state.vel[env_index])
-            actual_adversary_forces.append(a.state.force[env_index])
+        if self.observe_adversaries:
+            for a in self.red_agents:
+                actual_adversary_poses.append(a.state.pos[env_index])
+                actual_adversary_vels.append(a.state.vel[env_index])
+                actual_adversary_forces.append(a.state.force[env_index])
 
         actual_teammate_poses = []
         actual_teammate_forces = []
@@ -900,46 +903,58 @@ class Scenario(BaseScenario):
         ball_force,
     ):
 
-        obs = [
-            agent_pos - self.right_goal_pos,
-            agent_vel,
-            agent_force,
-            agent_pos - ball_pos,
-            agent_vel - ball_vel,
-            ball_pos - self.right_goal_pos,
-            ball_vel,
-            ball_force,
-        ]
+        obs = {
+            "obs": [
+                agent_force,
+                agent_pos - ball_pos,
+                agent_vel - ball_vel,
+                ball_pos - self.right_goal_pos,
+                ball_vel,
+                ball_force,
+            ],
+            "pos": [agent_pos - self.right_goal_pos],
+            "vel": [agent_vel],
+        }
 
-        for adversary_pos, adversary_force, adversary_vel in zip(
-            adversary_poses, adversary_forces, adversary_vels
-        ):
-            obs += [
-                agent_pos - adversary_pos,
-                agent_vel - adversary_vel,
-                adversary_vel,
-                adversary_force,
-            ]
+        if self.observe_adversaries:
+            for adversary_pos, adversary_force, adversary_vel in zip(
+                adversary_poses, adversary_forces, adversary_vels
+            ):
+                obs["obs"] += [
+                    agent_pos - adversary_pos,
+                    agent_vel - adversary_vel,
+                    adversary_vel,
+                    adversary_force,
+                ]
 
         if self.observe_teammates:
             for teammate_pos, teammate_force, teammate_vel in zip(
                 teammate_poses, teammate_forces, teammate_vels
             ):
-                obs += [
+                obs["obs"] += [
                     agent_pos - teammate_pos,
                     agent_vel - teammate_vel,
                     teammate_vel,
                     teammate_force,
                 ]
 
-        for o in obs:
+        # Just for when the function is called during rendering
+        for o in obs["obs"]:
             if len(o.shape) > 1:
                 batch_dim = o.shape[0]
-        for i in range(len(obs)):
-            if len(obs[i].shape) == 1:
-                obs[i] = obs[i].unsqueeze(0).expand(batch_dim, *obs[i].shape)
+                break
+        for value in obs.values():
+            for i in range(len(value)):
+                if len(value[i].shape) == 1:
+                    value[i] = value[i].unsqueeze(0).expand(batch_dim, *value[i].shape)
+        # End of just for rendering code
 
-        return torch.cat(obs, dim=-1)
+        for key, value in obs.items():
+            obs[key] = torch.cat(value, dim=-1)
+        if self.dict_obs:
+            return obs
+        else:
+            return torch.cat(list(obs.values()), dim=-1)
 
     def done(self):
         if self.ai_blue_agents and self.ai_red_agents:
@@ -1531,7 +1546,7 @@ if __name__ == "__main__":
         control_two_agents=False,
         n_blue_agents=2,
         n_red_agents=3,
-        ai_blue_agents=True,
+        ai_blue_agents=False,
         dense_reward=True,
         ai_strength=1,
         n_traj_points=8,
