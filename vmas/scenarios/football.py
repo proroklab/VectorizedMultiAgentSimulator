@@ -917,26 +917,48 @@ class Scenario(BaseScenario):
         }
 
         if self.observe_adversaries:
+            obs["adversaries"] = []
             for adversary_pos, adversary_force, adversary_vel in zip(
                 adversary_poses, adversary_forces, adversary_vels
             ):
-                obs["obs"] += [
-                    agent_pos - adversary_pos,
-                    agent_vel - adversary_vel,
-                    adversary_vel,
-                    adversary_force,
-                ]
+                obs["adversaries"].append(
+                    torch.cat(
+                        [
+                            agent_pos - adversary_pos,
+                            agent_vel - adversary_vel,
+                            adversary_vel,
+                            adversary_force,
+                        ],
+                        dim=-1,
+                    )
+                )
+            obs["adversaries"] = [
+                torch.stack(obs["adversaries"], dim=-2)
+                if self.dict_obs
+                else torch.cat(obs["adversaries"], dim=-1)
+            ]
 
         if self.observe_teammates:
+            obs["teammates"] = []
             for teammate_pos, teammate_force, teammate_vel in zip(
                 teammate_poses, teammate_forces, teammate_vels
             ):
-                obs["obs"] += [
-                    agent_pos - teammate_pos,
-                    agent_vel - teammate_vel,
-                    teammate_vel,
-                    teammate_force,
-                ]
+                obs["teammates"].append(
+                    torch.cat(
+                        [
+                            agent_pos - teammate_pos,
+                            agent_vel - teammate_vel,
+                            teammate_vel,
+                            teammate_force,
+                        ],
+                        dim=-1,
+                    )
+                )
+            obs["teammates"] = [
+                torch.stack(obs["teammates"], dim=-2)
+                if self.dict_obs
+                else torch.cat(obs["teammates"], dim=-1)
+            ]
 
         # Just for when the function is called during rendering
         for o in obs["obs"]:
