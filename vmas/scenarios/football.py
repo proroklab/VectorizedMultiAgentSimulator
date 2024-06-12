@@ -5,6 +5,7 @@
 import math
 
 import torch
+from torch import Tensor
 
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
@@ -902,6 +903,50 @@ class Scenario(BaseScenario):
         ball_vel,
         ball_force,
     ):
+        # Make all inputs same batch size (this is needed when this function is called for rendering
+        input = [
+            agent_pos,
+            agent_vel,
+            agent_force,
+            ball_pos,
+            ball_vel,
+            ball_force,
+            teammate_poses,
+            teammate_forces,
+            teammate_vels,
+            adversary_poses,
+            adversary_forces,
+            adversary_vels,
+        ]
+        for o in input:
+            if isinstance(o, Tensor) and len(o.shape) > 1:
+                batch_dim = o.shape[0]
+                break
+        for j in range(len(input)):
+            if isinstance(input[j], Tensor):
+                if len(input[j].shape) == 1:
+                    input[j] = input[j].unsqueeze(0).expand(batch_dim, *input[j].shape)
+            else:
+                o = input[j]
+                for i in range(len(o)):
+                    if len(o[i].shape) == 1:
+                        o[i] = o[i].unsqueeze(0).expand(batch_dim, *o[i].shape)
+
+        (
+            agent_pos,
+            agent_vel,
+            agent_force,
+            ball_pos,
+            ball_vel,
+            ball_force,
+            teammate_poses,
+            teammate_forces,
+            teammate_vels,
+            adversary_poses,
+            adversary_forces,
+            adversary_vels,
+        ) = input
+        #  End rendering code
 
         obs = {
             "obs": [
@@ -959,17 +1004,6 @@ class Scenario(BaseScenario):
                 if self.dict_obs
                 else torch.cat(obs["teammates"], dim=-1)
             ]
-
-        # Just for when the function is called during rendering
-        for o in obs["obs"]:
-            if len(o.shape) > 1:
-                batch_dim = o.shape[0]
-                break
-        for value in obs.values():
-            for i in range(len(value)):
-                if len(value[i].shape) == 1:
-                    value[i] = value[i].unsqueeze(0).expand(batch_dim, *value[i].shape)
-        # End of just for rendering code
 
         for key, value in obs.items():
             obs[key] = torch.cat(value, dim=-1)
