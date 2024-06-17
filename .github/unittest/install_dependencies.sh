@@ -6,7 +6,7 @@
 
 
 python -m pip install --upgrade pip
-python -m pip install flake8 pytest pytest-cov tqdm matplotlib==3.6
+python -m pip install flake8 pytest pytest-cov tqdm matplotlib==3.8
 
 python -m pip install cvxpylayers # Navigation heuristic
 
