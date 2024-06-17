@@ -46,8 +46,8 @@ class Scenario(BaseScenario):
         return world
 
     def reset_world_at(self, env_index: int = None):
-        self.reset_ball(env_index)
         self.reset_agents(env_index)
+        self.reset_ball(env_index)
         self.reset_background(env_index)
         self.reset_walls(env_index)
         self.reset_goals(env_index)
@@ -93,6 +93,9 @@ class Scenario(BaseScenario):
         self.observe_teammates = kwargs.get("observe_teammates", True)
         self.observe_adversaries = kwargs.get("observe_adversaries", True)
         self.dict_obs = kwargs.get("dict_obs", False)
+        self.only_closest_agent_ball_reward = kwargs.get(
+            "only_closest_agent_ball_reward", False
+        )
 
     def init_world(self, batch_dim: int, device: torch.device):
         # Make world
@@ -235,12 +238,13 @@ class Scenario(BaseScenario):
         ball.pos_rew = torch.zeros(
             world.batch_dim, device=world.device, dtype=torch.float32
         )
+        ball.pos_rew_agent = ball.pos_rew.clone()
         world.add_agent(ball)
         world.ball = ball
         self.ball = ball
 
     def reset_ball(self, env_index: int = None):
-
+        min_agent_dist_to_ball = self.get_closest_agent_to_ball(env_index)
         if env_index is None:
             self.ball.pos_shaping = (
                 torch.linalg.vector_norm(
@@ -249,6 +253,9 @@ class Scenario(BaseScenario):
                 )
                 * self.pos_shaping_factor_ball_goal
             )
+            self.ball.pos_shaping_agent = (
+                min_agent_dist_to_ball * self.pos_shaping_factor_agent_ball
+            )
         else:
             self.ball.pos_shaping[env_index] = (
                 torch.linalg.vector_norm(
@@ -256,6 +263,24 @@ class Scenario(BaseScenario):
                 )
                 * self.pos_shaping_factor_ball_goal
             )
+            self.ball.pos_shaping_agent[env_index] = (
+                min_agent_dist_to_ball * self.pos_shaping_factor_agent_ball
+            )
+
+    def get_closest_agent_to_ball(self, env_index):
+        pos = torch.stack(
+            [a.state.pos for a in self.world.policy_agents], dim=-2
+        )  # shape == (batch_dim, n_agents, 2)
+        ball_pos = self.ball.state.pos.unsqueeze(-2)
+        if isinstance(env_index, int):
+            pos = pos[env_index].unsuqeeze(0)
+            ball_pos = ball_pos[env_index].unsqueeze(0)
+        dist = torch.cdist(pos, ball_pos)
+        dist = dist.squeeze(-1)
+        min_dist = dist.min(dim=-1)[0]
+        if isinstance(env_index, int):
+            min_dist = min_dist.squeeze(0)
+        return min_dist
 
     def init_background(self, world):
         # Add landmarks
@@ -788,8 +813,12 @@ class Scenario(BaseScenario):
             # Dense Reward
             if self.dense_reward and agent is not None:
                 self._reward = self._reward + self.reward_ball_to_goal()
+                if self.only_closest_agent_ball_reward:
+                    self._reward = self._reward + self.reward_all_agent_to_ball()
         if self.dense_reward and agent is not None:
-            reward = self._reward + self.reward_agent_to_ball(agent)
+            reward = self._reward
+            if not self.only_closest_agent_ball_reward:
+                reward = self._reward + self.reward_agent_to_ball(agent)
         else:
             reward = self._reward
         return reward
@@ -820,6 +849,20 @@ class Scenario(BaseScenario):
         )
         agent.pos_shaping = pos_shaping
         return agent.pos_rew
+
+    def reward_all_agent_to_ball(self):
+        min_dist_to_ball = self.get_closest_agent_to_ball(env_index=None)
+        pos_shaping = min_dist_to_ball * self.pos_shaping_factor_agent_ball
+
+        ball_moving = torch.linalg.vector_norm(self.ball.state.vel, dim=-1) > 1e-6
+        agent_close_to_goal = min_dist_to_ball < self.distance_to_ball_trigger
+        self.ball.pos_rew_agent = torch.where(
+            agent_close_to_goal + ball_moving,
+            0.0,
+            self.ball.pos_shaping_agent - pos_shaping,
+        )
+        self.ball.pos_shaping_agent = pos_shaping
+        return self.ball.pos_rew_agent
 
     def observation(
         self,
@@ -961,7 +1004,7 @@ class Scenario(BaseScenario):
             "vel": [agent_vel],
         }
 
-        if self.observe_adversaries:
+        if self.observe_adversaries and len(adversary_poses):
             obs["adversaries"] = []
             for adversary_pos, adversary_force, adversary_vel in zip(
                 adversary_poses, adversary_forces, adversary_vels
@@ -1022,6 +1065,7 @@ class Scenario(BaseScenario):
             "sparse_reward": self._sparse_reward,
             "agent_ball_pos_rew": agent.pos_rew,
             "ball_goal_pos_rew": self.ball.pos_rew,
+            "all_agent_ball_pos_rew": self.ball.pos_rew_agent,
         }
 
 
@@ -1601,7 +1645,7 @@ if __name__ == "__main__":
         __file__,
         control_two_agents=False,
         n_blue_agents=2,
-        n_red_agents=3,
+        n_red_agents=0,
         ai_blue_agents=False,
         dense_reward=True,
         ai_strength=1,
