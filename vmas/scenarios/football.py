@@ -268,18 +268,25 @@ class Scenario(BaseScenario):
             )
 
     def get_closest_agent_to_ball(self, env_index):
-        pos = torch.stack(
-            [a.state.pos for a in self.world.policy_agents], dim=-2
-        )  # shape == (batch_dim, n_agents, 2)
-        ball_pos = self.ball.state.pos.unsqueeze(-2)
-        if isinstance(env_index, int):
-            pos = pos[env_index].unsuqeeze(0)
-            ball_pos = ball_pos[env_index].unsqueeze(0)
-        dist = torch.cdist(pos, ball_pos)
-        dist = dist.squeeze(-1)
-        min_dist = dist.min(dim=-1)[0]
-        if isinstance(env_index, int):
-            min_dist = min_dist.squeeze(0)
+        if self.only_closest_agent_ball_reward:
+            pos = torch.stack(
+                [a.state.pos for a in self.world.policy_agents], dim=-2
+            )  # shape == (batch_dim, n_agents, 2)
+            ball_pos = self.ball.state.pos.unsqueeze(-2)
+            if isinstance(env_index, int):
+                pos = pos[env_index].unsqueeze(0)
+                ball_pos = ball_pos[env_index].unsqueeze(0)
+            dist = torch.cdist(pos, ball_pos)
+            dist = dist.squeeze(-1)
+            min_dist = dist.min(dim=-1)[0]
+            if isinstance(env_index, int):
+                min_dist = min_dist.squeeze(0)
+        else:
+            min_dist = torch.zeros(
+                self.world.batch_dim, device=self.world.device, dtype=torch.float32
+            )
+            if isinstance(env_index, int):
+                min_dist = min_dist[env_index]
         return min_dist
 
     def init_background(self, world):
