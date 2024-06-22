@@ -100,6 +100,9 @@ class Lidar(Sensor):
         self._last_measurement = measurement
         return measurement
 
+    def set_render(self, render: bool):
+        self._render = render
+
     def render(self, env_index: int = 0) -> "List[Geom]":
         if not self._render:
             return []
