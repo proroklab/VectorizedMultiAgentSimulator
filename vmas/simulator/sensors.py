@@ -53,6 +53,7 @@ class Lidar(Sensor):
         max_range: float = 1.0,
         entity_filter: Callable[[vmas.simulator.core.Entity], bool] = lambda _: True,
         render_color: vmas.simulator.utils.Color = vmas.simulator.utils.Color.GRAY,
+        render: bool = True,
     ):
         super().__init__(world)
         if (angle_start - angle_end) % (torch.pi * 2) < 1e-5:
@@ -67,6 +68,7 @@ class Lidar(Sensor):
         self._angles = angles.repeat(self._world.batch_dim, 1)
         self._max_range = max_range
         self._last_measurement = None
+        self._render = render
         self._entity_filter = entity_filter
         self._render_color = render_color
 
@@ -98,7 +100,12 @@ class Lidar(Sensor):
         self._last_measurement = measurement
         return measurement
 
+    def set_render(self, render: bool):
+        self._render = render
+
     def render(self, env_index: int = 0) -> "List[Geom]":
+        if not self._render:
+            return []
         from vmas.simulator import rendering
 
         geoms: List[rendering.Geom] = []
