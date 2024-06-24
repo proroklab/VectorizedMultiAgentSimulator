@@ -64,12 +64,12 @@ class Environment(TorchVectorizedObject):
         self.clamp_action = clamp_actions
         self.grad_enabled = grad_enabled
 
-        self.reset(seed=seed)
+        observations = self.reset(seed=seed)
 
         # configure spaces
         self.multidiscrete_actions = multidiscrete_actions
         self.action_space = self.get_action_space()
-        self.observation_space = self.get_observation_space()
+        self.observation_space = self.get_observation_space(observations)
 
         # rendering
         self.viewer = None
@@ -285,21 +285,19 @@ class Environment(TorchVectorizedObject):
                 }
             )
 
-    def get_observation_space(self):
+    def get_observation_space(self, observations: Union[List, Dict]):
         if not self.dict_spaces:
             return spaces.Tuple(
                 [
-                    self.get_agent_observation_space(
-                        agent, self.scenario.observation(agent)
-                    )
-                    for agent in self.agents
+                    self.get_agent_observation_space(agent, observations[i])
+                    for i, agent in enumerate(self.agents)
                 ]
             )
         else:
             return spaces.Dict(
                 {
                     agent.name: self.get_agent_observation_space(
-                        agent, self.scenario.observation(agent)
+                        agent, observations[agent.name]
                     )
                     for agent in self.agents
                 }
