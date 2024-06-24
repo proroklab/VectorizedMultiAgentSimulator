@@ -2429,9 +2429,9 @@ class World(TorchVectorizedObject):
         self,
         rot_a: Tensor,
         rot_b: Tensor,
-        force_multiplier: float,
+        force_multiplier: float = TORQUE_CONSTRAINT_FORCE,
     ) -> Tensor:
-        min_dist = 1e-9
+        min_delta_rot = 1e-9
         delta_rot = rot_a - rot_b
         abs_delta_rot = torch.linalg.vector_norm(delta_rot, dim=-1).unsqueeze(-1)
 
@@ -2439,15 +2439,15 @@ class World(TorchVectorizedObject):
         k = 1
         penetration = k * (torch.exp(abs_delta_rot / k) - 1)
 
-        force = (
+        torque = (
             force_multiplier
             * delta_rot
             / torch.where(abs_delta_rot > 0, abs_delta_rot, 1e-8)
             * penetration
         )
-        force = torch.where((abs_delta_rot < min_dist), 0.0, force)
+        torque = torch.where((abs_delta_rot < min_delta_rot), 0.0, torque)
 
-        return -force, force
+        return -torque, torque
 
     # integrate physical state
     # uses semi-implicit euler with sub-stepping
