@@ -401,7 +401,7 @@ class BaseScenario(ABC):
         """
         return
 
-    def prestep(self):
+    def pre_step(self):
         """This function can be overridden to perform any computation that has to happen before the simulation step.
         Its intended use is for computation that has to happen only once before the simulation step has accured.
 
@@ -410,15 +410,14 @@ class BaseScenario(ABC):
         Examples:
             >>> from vmas.simulator.scenario import BaseScenario
             >>> class Scenario(BaseScenario):
-            >>>     def prestep(self):
+            >>>     def pre_step(self):
             >>>         for agent in self.world.agents:
             >>>             agent.prev_state = agent.state
-            >>>             agent.prev_action = agent.action
             >>>         return
         """
         return
 
-    def poststep(self):
+    def post_step(self):
         """This function can be overridden to perform any computation that has to happen after the simulation step.
         Its intended use is for computation that has to happen only once after the simulation step has accured.
 
@@ -427,13 +426,12 @@ class BaseScenario(ABC):
         Examples:
             >>> from vmas.simulator.scenario import BaseScenario
             >>> class Scenario(BaseScenario):
-            >>>     def poststep(self):
+            >>>     def post_step(self):
             >>>         for agent in self.world.agents:
             >>>             # Let the sensor take a measurement
             >>>             measurements = agent.sensors[0].measure()
             >>>             # Store sensor data in agent.sensor_history
-            >>>             hist = torch.cat([agent.sensor_history[...,1:,:], measurements.unsqueeze(1)], dim=1)
-            >>>             agent.sensor_history = hist # represents current and past measurements
+            >>>             agent.sensor_history.append(measurements)
             >>>         return
         """
         return
