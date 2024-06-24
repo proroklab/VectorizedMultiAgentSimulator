@@ -35,6 +35,7 @@ from vmas.simulator.utils import (
     Observable,
     override,
     TorchUtils,
+    TORQUE_CONSTRAINT_FORCE,
     X,
     Y,
 )
@@ -1079,6 +1080,7 @@ class World(TorchVectorizedObject):
         dim_c: int = 0,
         collision_force: float = COLLISION_FORCE,
         joint_force: float = JOINT_FORCE,
+        torque_constraint_force: float = TORQUE_CONSTRAINT_FORCE,
         contact_margin: float = 1e-3,
         gravity: Tuple[float, float] = (0.0, 0.0),
     ):
@@ -1110,6 +1112,7 @@ class World(TorchVectorizedObject):
         self._collision_force = collision_force
         self._joint_force = joint_force
         self._contact_margin = contact_margin
+        self._torque_constraint_force = torque_constraint_force
         # joints
         self._joints = {}
         # Pairs of collidable shapes
@@ -1854,7 +1857,9 @@ class World(TorchVectorizedObject):
             torque_a_rotate = TorchUtils.compute_torque(force_a, r_a)
             torque_b_rotate = TorchUtils.compute_torque(force_b, r_b)
 
-            torque_a_fixed, torque_b_fixed = self._get_constraint_torques(rot_a, rot_b)
+            torque_a_fixed, torque_b_fixed = self._get_constraint_torques(
+                rot_a, rot_b, force_multiplier=self._torque_constraint_force
+            )
 
             torque_a = torch.where(
                 rotate, torque_a_rotate, torque_a_rotate + torque_a_fixed
@@ -2424,6 +2429,7 @@ class World(TorchVectorizedObject):
         self,
         rot_a: Tensor,
         rot_b: Tensor,
+        force_multiplier: float,
     ) -> Tensor:
         min_dist = 1e-9
         delta_rot = rot_a - rot_b
@@ -2434,7 +2440,7 @@ class World(TorchVectorizedObject):
         penetration = k * (torch.exp(abs_delta_rot / k) - 1)
 
         force = (
-            10
+            force_multiplier
             * delta_rot
             / torch.where(abs_delta_rot > 0, abs_delta_rot, 1e-8)
             * penetration
