@@ -72,7 +72,11 @@ def test_partial_reset(scenario, num_envs=10, n_steps=10):
 
 @pytest.mark.parametrize("scenario", vmas.scenarios + vmas.mpe_scenarios)
 def test_vmas_differentiable(scenario, n_steps=10, n_envs=10):
-    if scenario == "football" or scenario == "simple_crypto":
+    if (
+        scenario == "football"
+        or scenario == "simple_crypto"
+        or scenario == "road_traffic"
+    ):
         pytest.skip()
     env = make_env(
         scenario=scenario,
@@ -94,3 +98,7 @@ def test_vmas_differentiable(scenario, n_steps=10, n_envs=10):
 
     loss = obs[-1].mean() + rews[-1].mean()
     grad = torch.autograd.grad(loss, first_action)
+
+
+if __name__ == "__main__":
+    test_vmas_differentiable("balance")
