@@ -398,6 +398,42 @@ class BaseScenario(ABC):
             >>>         # Can use a PID controller
             >>>         agent.controller.process_force()
             >>>         return
+        """
+        return
 
+    def prestep(self):
+        """This function can be overridden to perform any computation that has to happen before the simulation step.
+        Its intended use is for computation that has to happen only once before the simulation step has accured.
+
+        For example, you can store temporal data before letting the world step.
+
+        Examples:
+            >>> from vmas.simulator.scenario import BaseScenario
+            >>> class Scenario(BaseScenario):
+            >>>     def prestep(self):
+            >>>         for agent in self.world.agents:
+            >>>             agent.prev_state = agent.state
+            >>>             agent.prev_action = agent.action
+            >>>         return
+        """
+        return
+
+    def poststep(self):
+        """This function can be overridden to perform any computation that has to happen after the simulation step.
+        Its intended use is for computation that has to happen only once after the simulation step has accured.
+
+        For example, you can store temporal sensor data in this function.
+
+        Examples:
+            >>> from vmas.simulator.scenario import BaseScenario
+            >>> class Scenario(BaseScenario):
+            >>>     def poststep(self):
+            >>>         for agent in self.world.agents:
+            >>>             # Let the sensor take a measurement
+            >>>             measurements = agent.sensors[0].measure()
+            >>>             # Store sensor data in agent.sensor_history
+            >>>             hist = torch.cat([agent.sensor_history[...,1:,:], measurements.unsqueeze(1)], dim=1)
+            >>>             agent.sensor_history = hist # represents current and past measurements
+            >>>         return
         """
         return
