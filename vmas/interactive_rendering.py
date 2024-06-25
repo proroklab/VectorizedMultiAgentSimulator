@@ -101,10 +101,15 @@ class InteractiveEnv:
                 self.reset = False
                 total_rew = [0] * self.n_agents
 
-            action_list = [[0.0] * agent.action_size for agent in self.agents]
-            action_list[self.current_agent_index] = self.u[
-                : self.agents[self.current_agent_index].action_size
-            ]
+            if self.n_agents > 0:
+                action_list = [[0.0] * agent.action_size for agent in self.agents]
+                action_list[self.current_agent_index][
+                    : self.agents[self.current_agent_index].dynamics.needed_action_size
+                ] = self.u[
+                    : self.agents[self.current_agent_index].dynamics.needed_action_size
+                ]
+            else:
+                action_list = []
 
             if self.n_agents > 1 and self.control_two_agents:
                 action_list[self.current_agent_index2][
