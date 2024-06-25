@@ -38,7 +38,6 @@ class BaseScenario(ABC):
     - :class:`info`
     - :class:`extra_render`
     - :class:`process_action`
-
     """
 
     def __init__(self):
