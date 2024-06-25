@@ -14,7 +14,7 @@ from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
 from vmas.simulator.dynamics.holonomic import Holonomic
 from vmas.simulator.dynamics.holonomic_with_rot import HolonomicWithRotation
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, X, Y
+from vmas.simulator.utils import Color, TorchUtils, X, Y
 
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
@@ -90,13 +90,17 @@ class Scenario(BaseScenario):
 
         # Actions
         self.u_multiplier = kwargs.get("u_multiplier", 0.1)
-        self.u_rot_multiplier = kwargs.get("u_rot_multiplier", 0.0001)
-        self.enable_shooting = kwargs.get("enable_shooting", True)
+
+        # Actions shooting
+        self.enable_shooting = kwargs.get("enable_shooting", False)
+        self.u_rot_multiplier = kwargs.get("u_rot_multiplier", 0.5)
+        self.u_shoot_multiplier = kwargs.get("u_shoot_multiplier", 0.25)
         self.shooting_radius = kwargs.get("shooting_radius", 0.1)
+        self.shooting_angle = kwargs.get("shooting_angle", torch.pi / 2)
 
         # Speeds
         self.max_speed = kwargs.get("max_speed", 0.15)
-        self.ball_max_speed = kwargs.get("ball_max_speed", 0.3)
+        self.ball_max_speed = kwargs.get("ball_max_speed", 0.4)
 
         # Rewards
         self.dense_reward = kwargs.get("dense_reward", True)
@@ -165,7 +169,12 @@ class Scenario(BaseScenario):
                 action_script=self.blue_controller.run if self.ai_blue_agents else None,
                 u_multiplier=[self.u_multiplier, self.u_multiplier]
                 if not self.enable_shooting
-                else [self.u_multiplier, self.u_multiplier, self.u_rot_multiplier, 1],
+                else [
+                    self.u_multiplier,
+                    self.u_multiplier,
+                    self.u_rot_multiplier,
+                    self.u_shoot_multiplier,
+                ],
                 max_speed=self.max_speed,
                 dynamics=Holonomic()
                 if not self.enable_shooting
@@ -195,9 +204,15 @@ class Scenario(BaseScenario):
         self.red_agents = red_agents
         world.red_agents = red_agents
 
-        for agent in self.blue_agents + red_agents:
+        for agent in self.blue_agents:
             agent.pos_rew = torch.zeros(
                 world.batch_dim, device=agent.device, dtype=torch.float32
+            )
+            agent.ball_within_angle = torch.zeros(
+                world.batch_dim, device=agent.device, dtype=torch.bool
+            )
+            agent.ball_within_range = torch.zeros(
+                world.batch_dim, device=agent.device, dtype=torch.bool
             )
 
     def reset_agents(self, env_index: int = None):
@@ -271,6 +286,9 @@ class Scenario(BaseScenario):
             world.batch_dim, device=world.device, dtype=torch.float32
         )
         ball.pos_rew_agent = ball.pos_rew.clone()
+        ball.kicking_action = ball.pos_rew = torch.zeros(
+            world.batch_dim, world.dim_p, device=world.device, dtype=torch.float32
+        )
         world.add_agent(ball)
         world.ball = ball
         self.ball = ball
@@ -288,6 +306,8 @@ class Scenario(BaseScenario):
             self.ball.pos_shaping_agent = (
                 min_agent_dist_to_ball * self.pos_shaping_factor_agent_ball
             )
+            if self.enable_shooting:
+                self.ball.kicking_action[:] = 0.0
         else:
             self.ball.pos_shaping[env_index] = (
                 torch.linalg.vector_norm(
@@ -298,6 +318,8 @@ class Scenario(BaseScenario):
             self.ball.pos_shaping_agent[env_index] = (
                 min_agent_dist_to_ball * self.pos_shaping_factor_agent_ball
             )
+            if self.enable_shooting:
+                self.ball.kicking_action[env_index] = 0.0
 
     def get_closest_agent_to_ball(self, env_index):
         if self.only_closest_agent_ball_reward:
@@ -771,7 +793,37 @@ class Scenario(BaseScenario):
 
     def process_action(self, agent: Agent):
         if self.enable_shooting and agent.action_script is None:
+            rel_pos = self.ball.state.pos - agent.state.pos
+            agent.ball_within_range = (
+                torch.linalg.vector_norm(rel_pos, dim=-1) <= self.shooting_radius
+            )
+
+            rel_pos_angle = torch.atan2(rel_pos[:, Y], rel_pos[:, X])
+            a = (agent.state.rot.squeeze(-1) - rel_pos_angle + torch.pi) % (
+                2 * torch.pi
+            ) - torch.pi
+            agent.ball_within_angle = (
+                -self.shooting_angle / 2 <= a <= self.shooting_angle / 2
+            )
+
+            shoot_force = torch.zeros(
+                self.world.batch_dim, 2, device=self.world.device, dtype=torch.float32
+            )
+            shoot_force[..., X] = agent.action.u[..., -1] + self.u_shoot_multiplier / 2
+            shoot_force = TorchUtils.rotate_vector(shoot_force, agent.state.rot)
+            shoot_force = torch.where(
+                (agent.ball_within_angle * agent.ball_within_range).unsqueeze(-1),
+                shoot_force,
+                0.0,
+            )
+
+            self.ball.kicking_action += shoot_force
             agent.action.u = agent.action.u[:, :-1]
+
+    def pre_step(self):
+        if self.enable_shooting:
+            self.ball.action.u += self.ball.kicking_action
+            self.ball.kicking_action[:] = 0
 
     def reward(self, agent: Agent):
         # Called with agent=None when only AIs are playing to compute the _done
@@ -1063,8 +1115,13 @@ class Scenario(BaseScenario):
         if self.enable_shooting:
             for agent in self.world.policy_agents:
                 color = agent.color
+                if (
+                    agent.ball_within_angle[env_index]
+                    and agent.ball_within_range[env_index]
+                ):
+                    color = Color.PINK.value
                 sector = rendering.make_circle(
-                    radius=self.shooting_radius, angle=torch.pi / 2, filled=True
+                    radius=self.shooting_radius, angle=self.shooting_angle, filled=True
                 )
                 xform = rendering.Transform()
                 xform.set_rotation(agent.state.rot[env_index])
@@ -1127,7 +1184,7 @@ class Scenario(BaseScenario):
 def ball_action_script(ball, world):
     # Avoid getting stuck against the wall
     dist_thres = world.agent_size * 2
-    vel_thres = 0.5
+    vel_thres = 0.3
     impulse = 0.05
     upper = (
         1

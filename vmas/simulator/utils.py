@@ -48,6 +48,8 @@ class Color(Enum):
     WHITE = (0.75, 0.75, 0.75)
     GRAY = (0.25, 0.25, 0.25)
     BLACK = (0.15, 0.15, 0.15)
+    ORANGE = (1, 0.5, 0.1)
+    PINK = (1.0, 0.2, 0.9)
 
 
 def override(cls):
