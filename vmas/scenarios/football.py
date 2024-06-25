@@ -805,8 +805,8 @@ class Scenario(BaseScenario):
             a = (agent.state.rot.squeeze(-1) - rel_pos_angle + torch.pi) % (
                 2 * torch.pi
             ) - torch.pi
-            agent.ball_within_angle = (
-                -self.shooting_angle / 2 <= a <= self.shooting_angle / 2
+            agent.ball_within_angle = (-self.shooting_angle / 2 <= a) * (
+                a <= self.shooting_angle / 2
             )
 
             shoot_force = torch.zeros(
