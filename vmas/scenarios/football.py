@@ -37,11 +37,11 @@ class Scenario(BaseScenario):
             device=device,
         )
         self._reset_agent_offset_blue = torch.tensor(
-            [-self.pitch_length / 2, -self.pitch_width / 2],
+            [-self.pitch_length / 2 + self.agent_size, -self.pitch_width / 2],
             device=device,
         )
         self._reset_agent_offset_red = torch.tensor(
-            [0.0, -self.pitch_width / 2], device=device
+            [-self.agent_size, -self.pitch_width / 2], device=device
         )
         return world
 
@@ -1082,8 +1082,8 @@ class Scenario(BaseScenario):
 def ball_action_script(ball, world):
     # Avoid getting stuck against the wall
     dist_thres = world.agent_size * 2
-    vel_thres = 0.1
-    impulse = 0.01
+    vel_thres = 0.5
+    impulse = 0.05
     upper = (
         1
         - torch.minimum(
