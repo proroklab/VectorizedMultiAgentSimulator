@@ -214,6 +214,9 @@ class Scenario(BaseScenario):
             agent.ball_within_range = torch.zeros(
                 world.batch_dim, device=agent.device, dtype=torch.bool
             )
+            agent.shoot_force = torch.zeros(
+                world.batch_dim, 2, device=agent.device, dtype=torch.float32
+            )
 
     def reset_agents(self, env_index: int = None):
         for agent in self.blue_agents:
@@ -816,7 +819,7 @@ class Scenario(BaseScenario):
                 shoot_force,
                 0.0,
             )
-
+            agent.shoot_force = shoot_force
             self.ball.kicking_action += shoot_force
             agent.action.u = agent.action.u[:, :-1]
 
@@ -1111,7 +1114,7 @@ class Scenario(BaseScenario):
             else self._get_background_geoms(self.background_entities[3:])
         )
 
-        # Agent rotation
+        # Agent rotation and shooting
         if self.enable_shooting:
             for agent in self.world.policy_agents:
                 color = agent.color
@@ -1129,6 +1132,20 @@ class Scenario(BaseScenario):
                 sector.add_attr(xform)
                 sector.set_color(*color, alpha=agent._alpha / 2)
                 geoms.append(sector)
+
+                shoot_intensity = agent.shoot_force / (self.u_shoot_multiplier * 2)
+                color = Color.BLACK.value
+                line = rendering.Line(
+                    (0, 0),
+                    (self.shooting_radius * shoot_intensity, 0),
+                    width=2,
+                )
+                xform = rendering.Transform()
+                xform.set_rotation(agent.state.rot[env_index])
+                xform.set_translation(*agent.state.pos[env_index])
+                line.add_attr(xform)
+                line.set_color(*color)
+                geoms.append(line)
 
         return geoms
 
