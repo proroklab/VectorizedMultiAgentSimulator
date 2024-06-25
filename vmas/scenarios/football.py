@@ -812,14 +812,15 @@ class Scenario(BaseScenario):
             shoot_force = torch.zeros(
                 self.world.batch_dim, 2, device=self.world.device, dtype=torch.float32
             )
-            shoot_force[..., X] = agent.action.u[..., -1] + self.u_shoot_multiplier / 2
+            shoot_force[..., X] = agent.action.u[..., -2] + self.u_shoot_multiplier
             shoot_force = TorchUtils.rotate_vector(shoot_force, agent.state.rot)
+            agent.shoot_force = shoot_force
             shoot_force = torch.where(
                 (agent.ball_within_angle * agent.ball_within_range).unsqueeze(-1),
                 shoot_force,
                 0.0,
             )
-            agent.shoot_force = shoot_force
+
             self.ball.kicking_action += shoot_force
             agent.action.u = agent.action.u[:, :-1]
 
@@ -1136,11 +1137,11 @@ class Scenario(BaseScenario):
                 shoot_intensity = torch.linalg.vector_norm(
                     agent.shoot_force[env_index]
                 ) / (self.u_shoot_multiplier * 2)
-                color = Color.BLACK.value
+                color = Color.BLUE.value
                 line = rendering.Line(
                     (0, 0),
                     (self.shooting_radius * shoot_intensity, 0),
-                    width=2,
+                    width=7,
                 )
                 xform = rendering.Transform()
                 xform.set_rotation(agent.state.rot[env_index])
