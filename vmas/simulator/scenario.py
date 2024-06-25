@@ -38,6 +38,9 @@ class BaseScenario(ABC):
     - :class:`info`
     - :class:`extra_render`
     - :class:`process_action`
+    - :class:`pre_step`
+    - :class:`post_step`
+
     """
 
     def __init__(self):
