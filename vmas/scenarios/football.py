@@ -100,7 +100,7 @@ class Scenario(BaseScenario):
 
         # Speeds
         self.max_speed = kwargs.get("max_speed", 0.15)
-        self.ball_max_speed = kwargs.get("ball_max_speed", 0.4)
+        self.ball_max_speed = kwargs.get("ball_max_speed", 0.3)
 
         # Rewards
         self.dense_reward = kwargs.get("dense_reward", True)
