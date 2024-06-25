@@ -254,7 +254,9 @@ class Environment(TorchVectorizedObject):
             self.scenario.env_process_action(agent)
 
         # advance world state
+        self.scenario.pre_step()
         self.world.step()
+        self.scenario.post_step()
 
         self.steps += 1
         obs, rewards, dones, infos = self.get_from_scenario(
