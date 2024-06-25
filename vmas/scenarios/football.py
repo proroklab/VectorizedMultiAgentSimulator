@@ -1138,11 +1138,13 @@ class Scenario(BaseScenario):
                     agent.shoot_force[env_index]
                 ) / (self.u_shoot_multiplier * 2)
                 color = Color.BLUE.value
-                line = rendering.Line(
-                    (0, 0),
-                    (self.shooting_radius * shoot_intensity, 0),
-                    width=7,
+                l, r, t, b = (
+                    0,
+                    self.shooting_radius * shoot_intensity,
+                    self.agent_size / 2,
+                    -self.agent_size / 2,
                 )
+                line = rendering.make_polygon([(l, b), (l, t), (r, t), (r, b)])
                 xform = rendering.Transform()
                 xform.set_rotation(agent.state.rot[env_index])
                 xform.set_translation(*agent.state.pos[env_index])
