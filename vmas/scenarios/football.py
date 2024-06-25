@@ -58,29 +58,38 @@ class Scenario(BaseScenario):
             self._done[env_index] = False
 
     def init_params(self, **kwargs):
+        # Scenario config
         self.viewer_size = kwargs.get("viewer_size", (1200, 800))
-        self.ai_red_agents = kwargs.get("ai_red_agents", True)
-        self.ai_blue_agents = kwargs.get("ai_blue_agents", False)
+
+        # Agents config
         self.n_blue_agents = kwargs.get("n_blue_agents", 3)
         self.n_red_agents = kwargs.get("n_red_agents", 3)
+        self.ai_red_agents = kwargs.get("ai_red_agents", True)
+        self.ai_blue_agents = kwargs.get("ai_blue_agents", False)
+
+        # Ai config
+        self.n_traj_points = kwargs.get("n_traj_points", 0)
+        self.ai_strength = kwargs.get("ai_strength", 1)
         self.disable_ai_red = kwargs.get("disable_ai_red", False)
+
+        # Task sizes
         self.agent_size = kwargs.get("agent_size", 0.025)
         self.goal_size = kwargs.get("goal_size", 0.35)
         self.goal_depth = kwargs.get("goal_depth", 0.1)
         self.pitch_length = kwargs.get("pitch_length", 3.0)
         self.pitch_width = kwargs.get("pitch_width", 1.5)
-        self.max_speed = kwargs.get("max_speed", 0.15)
-        self.u_multiplier = kwargs.get("u_multiplier", 0.1)
-        self.ball_max_speed = kwargs.get("ball_max_speed", 0.3)
         self.ball_mass = kwargs.get("ball_mass", 0.25)
         self.ball_size = kwargs.get("ball_size", 0.02)
-        self.n_traj_points = kwargs.get("n_traj_points", 0)
-        self.ai_strength = kwargs.get("ai_strength", 1)
-        if kwargs.get("dense_reward_ratio", None) is not None:
-            raise ValueError(
-                "dense_reward_ratio in football is deprecated, please use `dense_reward` "
-                "which is a bool that turns on/off the dense reward"
-            )
+
+        # Actions
+        self.u_multiplier = kwargs.get("u_multiplier", 0.1)
+        self.enable_shooting = kwargs.get("enable_shooting", False)
+
+        # Speeds
+        self.max_speed = kwargs.get("max_speed", 0.15)
+        self.ball_max_speed = kwargs.get("ball_max_speed", 0.3)
+
+        # Rewards
         self.dense_reward = kwargs.get("dense_reward", True)
         self.pos_shaping_factor_ball_goal = kwargs.get(
             "pos_shaping_factor_ball_goal", 10.0
@@ -88,14 +97,22 @@ class Scenario(BaseScenario):
         self.pos_shaping_factor_agent_ball = kwargs.get(
             "pos_shaping_factor_agent_ball", 0.1
         )
+        self.only_closest_agent_ball_reward = kwargs.get(
+            "only_closest_agent_ball_reward", True
+        )
         self.distance_to_ball_trigger = kwargs.get("distance_to_ball_trigger", 0.4)
         self.scoring_reward = kwargs.get("scoring_reward", 100.0)
+
+        # Observations
         self.observe_teammates = kwargs.get("observe_teammates", True)
         self.observe_adversaries = kwargs.get("observe_adversaries", True)
         self.dict_obs = kwargs.get("dict_obs", False)
-        self.only_closest_agent_ball_reward = kwargs.get(
-            "only_closest_agent_ball_reward", False
-        )
+
+        if kwargs.get("dense_reward_ratio", None) is not None:
+            raise ValueError(
+                "dense_reward_ratio in football is deprecated, please use `dense_reward` "
+                "which is a bool that turns on/off the dense reward"
+            )
 
     def init_world(self, batch_dim: int, device: torch.device):
         # Make world
