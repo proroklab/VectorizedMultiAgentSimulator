@@ -289,7 +289,7 @@ class Scenario(BaseScenario):
             world.batch_dim, device=world.device, dtype=torch.float32
         )
         ball.pos_rew_agent = ball.pos_rew.clone()
-        ball.kicking_action = ball.pos_rew = torch.zeros(
+        ball.kicking_action = torch.zeros(
             world.batch_dim, world.dim_p, device=world.device, dtype=torch.float32
         )
         world.add_agent(ball)
@@ -812,7 +812,7 @@ class Scenario(BaseScenario):
             shoot_force = torch.zeros(
                 self.world.batch_dim, 2, device=self.world.device, dtype=torch.float32
             )
-            shoot_force[..., X] = agent.action.u[..., -2] + self.u_shoot_multiplier
+            shoot_force[..., X] = agent.action.u[..., -1] + self.u_shoot_multiplier
             shoot_force = TorchUtils.rotate_vector(shoot_force, agent.state.rot)
             agent.shoot_force = shoot_force
             shoot_force = torch.where(
