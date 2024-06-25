@@ -382,9 +382,6 @@ class BaseScenario(ABC):
 
         It has access to the world through the :class:`world` attribute
 
-        It can also be used for any other type of computation that has to happen after
-        the input actions have been set but before the simulation step.
-
         For example here you can manage additional actions before passing them to the dynamics.
 
         Args:
@@ -397,7 +394,8 @@ class BaseScenario(ABC):
             >>>     def process_action(self, agent):
             >>>         # Clamp square to circle
             >>>         agent.action.u = TorchUtils.clamp_with_norm(agent.action.u, agent.u_range)
-            >>>         # Can use a PID controller
+            >>>         # Can use a PID controller to turn velocity actions into forces
+            >>>         # (e.g., from vmas.simulator.controllers.velocity_controller)
             >>>         agent.controller.process_force()
             >>>         return
         """
