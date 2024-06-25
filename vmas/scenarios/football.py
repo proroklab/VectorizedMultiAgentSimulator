@@ -3,14 +3,21 @@
 #  All rights reserved.
 
 import math
+import typing
+from typing import List
 
 import torch
 from torch import Tensor
 
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
+from vmas.simulator.dynamics.holonomic import Holonomic
+from vmas.simulator.dynamics.holonomic_with_rot import HolonomicWithRotation
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import Color, X, Y
+
+if typing.TYPE_CHECKING:
+    from vmas.simulator.rendering import Geom
 
 
 class Scenario(BaseScenario):
@@ -31,6 +38,7 @@ class Scenario(BaseScenario):
         self.right_goal_pos = -self.left_goal_pos
         self._done = torch.zeros(batch_dim, device=device, dtype=torch.bool)
         self._sparse_reward = torch.zeros(batch_dim, device=device, dtype=torch.float32)
+        self._render_field = True
 
         self._reset_agent_range = torch.tensor(
             [self.pitch_length / 2, self.pitch_width],
@@ -48,7 +56,6 @@ class Scenario(BaseScenario):
     def reset_world_at(self, env_index: int = None):
         self.reset_agents(env_index)
         self.reset_ball(env_index)
-        self.reset_background(env_index)
         self.reset_walls(env_index)
         self.reset_goals(env_index)
         self.reset_controllers(env_index)
@@ -83,7 +90,9 @@ class Scenario(BaseScenario):
 
         # Actions
         self.u_multiplier = kwargs.get("u_multiplier", 0.1)
-        self.enable_shooting = kwargs.get("enable_shooting", False)
+        self.u_rot_multiplier = kwargs.get("u_rot_multiplier", 0.0001)
+        self.enable_shooting = kwargs.get("enable_shooting", True)
+        self.shooting_radius = kwargs.get("shooting_radius", 0.1)
 
         # Speeds
         self.max_speed = kwargs.get("max_speed", 0.15)
@@ -154,8 +163,14 @@ class Scenario(BaseScenario):
                 name=f"agent_blue_{i}",
                 shape=Sphere(radius=self.agent_size),
                 action_script=self.blue_controller.run if self.ai_blue_agents else None,
-                u_multiplier=self.u_multiplier,
+                u_multiplier=[self.u_multiplier, self.u_multiplier]
+                if not self.enable_shooting
+                else [self.u_multiplier, self.u_multiplier, self.u_rot_multiplier, 1],
                 max_speed=self.max_speed,
+                dynamics=Holonomic()
+                if not self.enable_shooting
+                else HolonomicWithRotation(),
+                action_size=2 if not self.enable_shooting else 4,
                 color=(0.22, 0.49, 0.72),
                 alpha=1,
             )
@@ -315,7 +330,6 @@ class Scenario(BaseScenario):
             shape=Box(length=self.pitch_length, width=self.pitch_width),
             color=Color.GREEN,
         )
-        world.add_landmark(self.background)
 
         self.centre_circle_outer = Landmark(
             name="Centre Circle Outer",
@@ -324,7 +338,6 @@ class Scenario(BaseScenario):
             shape=Sphere(radius=self.goal_size / 2),
             color=Color.WHITE,
         )
-        world.add_landmark(self.centre_circle_outer)
 
         self.centre_circle_inner = Landmark(
             name="Centre Circle Inner",
@@ -333,7 +346,6 @@ class Scenario(BaseScenario):
             shape=Sphere(self.goal_size / 2 - 0.02),
             color=Color.GREEN,
         )
-        world.add_landmark(self.centre_circle_inner)
 
         centre_line = Landmark(
             name="Centre Line",
@@ -342,7 +354,6 @@ class Scenario(BaseScenario):
             shape=Line(length=self.pitch_width - 2 * self.agent_size),
             color=Color.WHITE,
         )
-        world.add_landmark(centre_line)
 
         right_line = Landmark(
             name="Right Line",
@@ -351,7 +362,6 @@ class Scenario(BaseScenario):
             shape=Line(length=self.pitch_width - 2 * self.agent_size),
             color=Color.WHITE,
         )
-        world.add_landmark(right_line)
 
         left_line = Landmark(
             name="Left Line",
@@ -360,7 +370,6 @@ class Scenario(BaseScenario):
             shape=Line(length=self.pitch_width - 2 * self.agent_size),
             color=Color.WHITE,
         )
-        world.add_landmark(left_line)
 
         top_line = Landmark(
             name="Top Line",
@@ -369,7 +378,6 @@ class Scenario(BaseScenario):
             shape=Line(length=self.pitch_length - 2 * self.agent_size),
             color=Color.WHITE,
         )
-        world.add_landmark(top_line)
 
         bottom_line = Landmark(
             name="Bottom Line",
@@ -378,80 +386,24 @@ class Scenario(BaseScenario):
             shape=Line(length=self.pitch_length - 2 * self.agent_size),
             color=Color.WHITE,
         )
-        world.add_landmark(bottom_line)
+
+        self.background_entities = [
+            self.background,
+            self.centre_circle_outer,
+            self.centre_circle_inner,
+            centre_line,
+            right_line,
+            left_line,
+            top_line,
+            bottom_line,
+        ]
 
     def render_field(self, render: bool):
-        self.background.is_rendering[:] = render
-        self.centre_circle_inner.is_rendering[:] = render
-        self.centre_circle_outer.is_rendering[:] = render
+        self._render_field = render
         self.left_top_wall.is_rendering[:] = render
         self.left_bottom_wall.is_rendering[:] = render
         self.right_top_wall.is_rendering[:] = render
         self.right_bottom_wall.is_rendering[:] = render
-
-    def reset_background(self, env_index: int = None):
-        for landmark in self.world.landmarks:
-            if landmark.name == "Centre Line":
-                landmark.set_rot(
-                    torch.tensor(
-                        [torch.pi / 2],
-                        dtype=torch.float32,
-                        device=self.world.device,
-                    ),
-                    batch_index=env_index,
-                )
-            elif landmark.name == "Right Line":
-                landmark.set_pos(
-                    torch.tensor(
-                        [self.pitch_length / 2 - self.agent_size, 0.0],
-                        dtype=torch.float32,
-                        device=self.world.device,
-                    ),
-                    batch_index=env_index,
-                )
-                landmark.set_rot(
-                    torch.tensor(
-                        [torch.pi / 2],
-                        dtype=torch.float32,
-                        device=self.world.device,
-                    ),
-                    batch_index=env_index,
-                )
-            elif landmark.name == "Left Line":
-                landmark.set_pos(
-                    torch.tensor(
-                        [-self.pitch_length / 2 + self.agent_size, 0.0],
-                        dtype=torch.float32,
-                        device=self.world.device,
-                    ),
-                    batch_index=env_index,
-                )
-                landmark.set_rot(
-                    torch.tensor(
-                        [torch.pi / 2],
-                        dtype=torch.float32,
-                        device=self.world.device,
-                    ),
-                    batch_index=env_index,
-                )
-            elif landmark.name == "Top Line":
-                landmark.set_pos(
-                    torch.tensor(
-                        [0.0, self.pitch_width / 2 - self.agent_size],
-                        dtype=torch.float32,
-                        device=self.world.device,
-                    ),
-                    batch_index=env_index,
-                )
-            elif landmark.name == "Bottom Line":
-                landmark.set_pos(
-                    torch.tensor(
-                        [0.0, -self.pitch_width / 2 + self.agent_size],
-                        dtype=torch.float32,
-                        device=self.world.device,
-                    ),
-                    batch_index=env_index,
-                )
 
     def init_walls(self, world):
         self.right_top_wall = Landmark(
@@ -817,6 +769,10 @@ class Scenario(BaseScenario):
                     world.add_landmark(pointj)
                     world.traj_points["Blue"][agent].append(pointj)
 
+    def process_action(self, agent: Agent):
+        if self.enable_shooting and agent.action_script is None:
+            agent.action.u = agent.action.u[:, :-1]
+
     def reward(self, agent: Agent):
         # Called with agent=None when only AIs are playing to compute the _done
         if agent is None or agent == self.world.agents[0]:
@@ -1091,6 +1047,78 @@ class Scenario(BaseScenario):
             "ball_goal_pos_rew": self.ball.pos_rew,
             "all_agent_ball_pos_rew": self.ball.pos_rew_agent,
         }
+
+    def extra_render(self, env_index: int = 0) -> "List[Geom]":
+        from vmas.simulator import rendering
+        from vmas.simulator.rendering import Geom
+
+        # Background
+        geoms: List[Geom] = (
+            self._get_background_geoms(self.background_entities)
+            if self._render_field
+            else self._get_background_geoms(self.background_entities[3:])
+        )
+
+        # Agent rotation
+        if self.enable_shooting:
+            for agent in self.world.policy_agents:
+                color = agent.color
+                sector = rendering.make_circle(
+                    radius=self.shooting_radius, angle=torch.pi / 2, filled=True
+                )
+                xform = rendering.Transform()
+                xform.set_rotation(agent.state.rot[env_index])
+                xform.set_translation(*agent.state.pos[env_index])
+                sector.add_attr(xform)
+                sector.set_color(*color, alpha=agent._alpha / 2)
+                geoms.append(sector)
+
+        return geoms
+
+    def _get_background_geoms(self, objects):
+        def _get_geom(entity, pos, rot=0.0):
+            from vmas.simulator import rendering
+
+            geom = entity.shape.get_geometry()
+            xform = rendering.Transform()
+            geom.add_attr(xform)
+            xform.set_translation(*pos)
+            xform.set_rotation(rot)
+            color = entity.color
+            geom.set_color(*color)
+            return geom
+
+        geoms = []
+        for landmark in objects:
+            if landmark.name == "Centre Line":
+                geoms.append(_get_geom(landmark, [0.0, 0.0], torch.pi / 2))
+            elif landmark.name == "Right Line":
+                geoms.append(
+                    _get_geom(
+                        landmark,
+                        [self.pitch_length / 2 - self.agent_size, 0.0],
+                        torch.pi / 2,
+                    )
+                )
+            elif landmark.name == "Left Line":
+                geoms.append(
+                    _get_geom(
+                        landmark,
+                        [-self.pitch_length / 2 + self.agent_size, 0.0],
+                        torch.pi / 2,
+                    )
+                )
+            elif landmark.name == "Top Line":
+                geoms.append(
+                    _get_geom(landmark, [0.0, self.pitch_width / 2 - self.agent_size])
+                )
+            elif landmark.name == "Bottom Line":
+                geoms.append(
+                    _get_geom(landmark, [0.0, -self.pitch_width / 2 + self.agent_size])
+                )
+            else:
+                geoms.append(_get_geom(landmark, [0, 0]))
+        return geoms
 
 
 # Ball Physics
