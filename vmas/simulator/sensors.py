@@ -6,12 +6,13 @@ from __future__ import annotations
 
 import typing
 from abc import ABC, abstractmethod
-from typing import Callable, List, Union
+from typing import Callable, List, Tuple, Union
 
 import torch
 
 import vmas.simulator.core
 import vmas.simulator.utils
+from vmas.simulator.utils import Color
 
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
@@ -52,7 +53,7 @@ class Lidar(Sensor):
         n_rays: int = 8,
         max_range: float = 1.0,
         entity_filter: Callable[[vmas.simulator.core.Entity], bool] = lambda _: True,
-        render_color: vmas.simulator.utils.Color = vmas.simulator.utils.Color.GRAY,
+        render_color: Union[Color, Tuple] = Color.GRAY,
         render: bool = True,
     ):
         super().__init__(world)
@@ -84,6 +85,12 @@ class Lidar(Sensor):
         self, entity_filter: Callable[[vmas.simulator.core.Entity], bool]
     ):
         self._entity_filter = entity_filter
+
+    @property
+    def render_color(self):
+        if isinstance(self._render_color, Color):
+            return self._render_color.value
+        return self._render_color
 
     def measure(self):
         dists = []
@@ -125,7 +132,7 @@ class Lidar(Sensor):
                 ray.add_attr(xform)
 
                 ray_circ = rendering.make_circle(0.01)
-                ray_circ.set_color(*self._render_color.value)
+                ray_circ.set_color(*self.render_color)
                 xform = rendering.Transform()
                 rot = torch.stack([torch.cos(angle), torch.sin(angle)], dim=-1)
                 pos_circ = (
