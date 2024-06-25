@@ -38,6 +38,8 @@ class BaseScenario(ABC):
     - :class:`info`
     - :class:`extra_render`
     - :class:`process_action`
+    - :class:`pre_step`
+    - :class:`post_step`
 
     """
 
@@ -398,6 +400,40 @@ class BaseScenario(ABC):
             >>>         # Can use a PID controller
             >>>         agent.controller.process_force()
             >>>         return
+        """
+        return
 
+    def pre_step(self):
+        """This function can be overridden to perform any computation that has to happen before the simulation step.
+        Its intended use is for computation that has to happen only once before the simulation step has accured.
+
+        For example, you can store temporal data before letting the world step.
+
+        Examples:
+            >>> from vmas.simulator.scenario import BaseScenario
+            >>> class Scenario(BaseScenario):
+            >>>     def pre_step(self):
+            >>>         for agent in self.world.agents:
+            >>>             agent.prev_state = agent.state
+            >>>         return
+        """
+        return
+
+    def post_step(self):
+        """This function can be overridden to perform any computation that has to happen after the simulation step.
+        Its intended use is for computation that has to happen only once after the simulation step has accured.
+
+        For example, you can store temporal sensor data in this function.
+
+        Examples:
+            >>> from vmas.simulator.scenario import BaseScenario
+            >>> class Scenario(BaseScenario):
+            >>>     def post_step(self):
+            >>>         for agent in self.world.agents:
+            >>>             # Let the sensor take a measurement
+            >>>             measurements = agent.sensors[0].measure()
+            >>>             # Store sensor data in agent.sensor_history
+            >>>             agent.sensor_history.append(measurements)
+            >>>         return
         """
         return
