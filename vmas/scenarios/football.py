@@ -93,7 +93,7 @@ class Scenario(BaseScenario):
 
         # Actions shooting
         self.enable_shooting = kwargs.get("enable_shooting", False)
-        self.u_rot_multiplier = kwargs.get("u_rot_multiplier", 0.5)
+        self.u_rot_multiplier = kwargs.get("u_rot_multiplier", 0.0001)
         self.u_shoot_multiplier = kwargs.get("u_shoot_multiplier", 0.25)
         self.shooting_radius = kwargs.get("shooting_radius", 0.1)
         self.shooting_angle = kwargs.get("shooting_angle", torch.pi / 2)
@@ -1133,7 +1133,9 @@ class Scenario(BaseScenario):
                 sector.set_color(*color, alpha=agent._alpha / 2)
                 geoms.append(sector)
 
-                shoot_intensity = agent.shoot_force / (self.u_shoot_multiplier * 2)
+                shoot_intensity = torch.linalg.vector_norm(
+                    agent.shoot_force[env_index]
+                ) / (self.u_shoot_multiplier * 2)
                 color = Color.BLACK.value
                 line = rendering.Line(
                     (0, 0),
