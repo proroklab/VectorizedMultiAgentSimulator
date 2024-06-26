@@ -15,10 +15,10 @@ from vmas.simulator.utils import Color, JOINT_FORCE, X
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 0)
-        self.speed_shaping_factor = kwargs.get("speed_shaping_factor", 1)
-        self.dist_shaping_factor = kwargs.get("dist_shaping_factor", 0)
-        self.joints = kwargs.get("joints", True)
+        self.pos_shaping_factor = kwargs.pop("pos_shaping_factor", 0)
+        self.speed_shaping_factor = kwargs.pop("speed_shaping_factor", 1)
+        self.dist_shaping_factor = kwargs.pop("dist_shaping_factor", 0)
+        self.joints = kwargs.pop("joints", True)
 
         self.n_agents = 2
 

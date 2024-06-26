@@ -13,10 +13,10 @@ from vmas.simulator.utils import Color, TorchUtils
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        n_agents = kwargs.get("n_agents", 4)
-        self.line_length = kwargs.get("line_length", 2)
-        line_mass = kwargs.get("line_mass", 30)
-        self.desired_velocity = kwargs.get("desired_velocity", 0.05)
+        n_agents = kwargs.pop("n_agents", 4)
+        self.line_length = kwargs.pop("line_length", 2)
+        line_mass = kwargs.pop("line_mass", 30)
+        self.desired_velocity = kwargs.pop("desired_velocity", 0.05)
 
         # Make world
         world = World(batch_dim, device)

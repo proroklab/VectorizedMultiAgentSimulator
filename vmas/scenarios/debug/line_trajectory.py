@@ -15,7 +15,7 @@ from vmas.simulator.utils import Color, X, Y
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.obs_noise = kwargs.get("obs_noise", 0)
+        self.obs_noise = kwargs.pop("obs_noise", 0)
 
         self.agent_radius = 0.03
         self.line_length = 3

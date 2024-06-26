@@ -12,8 +12,8 @@ from vmas.simulator.utils import Color
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        num_agents = kwargs.get("n_agents", 3)
-        obs_agents = kwargs.get("obs_agents", True)
+        num_agents = kwargs.pop("n_agents", 3)
+        obs_agents = kwargs.pop("obs_agents", True)
 
         self.obs_agents = obs_agents
 

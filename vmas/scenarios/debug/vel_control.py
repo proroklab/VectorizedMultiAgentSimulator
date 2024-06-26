@@ -15,7 +15,7 @@ from vmas.simulator.utils import Color, TorchUtils, X
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.green_mass = kwargs.get("green_mass", 1)
+        self.green_mass = kwargs.pop("green_mass", 1)
         self.plot_grid = True
 
         self.agent_radius = 0.16

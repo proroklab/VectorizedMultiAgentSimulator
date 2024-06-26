@@ -12,8 +12,8 @@ from vmas.simulator.utils import Color
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.n_passages = kwargs.get("n_passages", 1)
-        self.shared_reward = kwargs.get("shared_reward", False)
+        self.n_passages = kwargs.pop("n_passages", 1)
+        self.shared_reward = kwargs.pop("shared_reward", False)
 
         assert self.n_passages >= 1 and self.n_passages <= 20
 

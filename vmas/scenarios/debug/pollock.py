@@ -12,9 +12,9 @@ from vmas.simulator.utils import Color, ScenarioUtils
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.n_agents = kwargs.get("n_agents", 15)
-        self.n_lines = kwargs.get("n_lines", 15)
-        self.n_boxes = kwargs.get("n_boxes", 15)
+        self.n_agents = kwargs.pop("n_agents", 15)
+        self.n_lines = kwargs.pop("n_lines", 15)
+        self.n_boxes = kwargs.pop("n_boxes", 15)
 
         self.agent_radius = 0.05
         self.line_length = 0.3

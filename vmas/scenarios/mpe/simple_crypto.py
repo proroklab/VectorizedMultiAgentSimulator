@@ -17,7 +17,7 @@ from vmas.simulator.utils import Color
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        dim_c = kwargs.get("dim_c", 4)
+        dim_c = kwargs.pop("dim_c", 4)
         assert dim_c > 0
 
         world = World(

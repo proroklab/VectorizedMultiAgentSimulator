@@ -34,7 +34,7 @@ class Scenario(BaseScenario):
         """
         # T
         self.plot_grid = True
-        self.n_agents = kwargs.get("n_agents", 2)
+        self.n_agents = kwargs.pop("n_agents", 2)
 
         # Make world
         world = World(batch_dim, device, substeps=10)

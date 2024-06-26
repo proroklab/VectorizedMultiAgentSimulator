@@ -56,33 +56,33 @@ class Scenario(BaseScenario):
         self.viewer_zoom = 2
 
         # Reward
-        self.vel_shaping_factor = kwargs.get("vel_shaping_factor", 1)
-        self.dist_shaping_factor = kwargs.get("dist_shaping_factor", 1)
-        self.wind_shaping_factor = kwargs.get("wind_shaping_factor", 1)
+        self.vel_shaping_factor = kwargs.pop("vel_shaping_factor", 1)
+        self.dist_shaping_factor = kwargs.pop("dist_shaping_factor", 1)
+        self.wind_shaping_factor = kwargs.pop("wind_shaping_factor", 1)
 
-        self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 0)
-        self.rot_shaping_factor = kwargs.get("rot_shaping_factor", 0)
-        self.energy_shaping_factor = kwargs.get("energy_shaping_factor", 0)
+        self.pos_shaping_factor = kwargs.pop("pos_shaping_factor", 0)
+        self.rot_shaping_factor = kwargs.pop("rot_shaping_factor", 0)
+        self.energy_shaping_factor = kwargs.pop("energy_shaping_factor", 0)
 
-        self.observe_rel_pos = kwargs.get("observe_rel_pos", False)
-        self.observe_rel_vel = kwargs.get("observe_rel_vel", False)
-        self.observe_pos = kwargs.get("observe_pos", True)
+        self.observe_rel_pos = kwargs.pop("observe_rel_pos", False)
+        self.observe_rel_vel = kwargs.pop("observe_rel_vel", False)
+        self.observe_pos = kwargs.pop("observe_pos", True)
 
         # Controller
-        self.use_controller = kwargs.get("use_controller", True)
+        self.use_controller = kwargs.pop("use_controller", True)
         self.wind = torch.tensor(
-            [0, -kwargs.get("wind", 2)], device=device, dtype=torch.float32
+            [0, -kwargs.pop("wind", 2)], device=device, dtype=torch.float32
         ).expand(batch_dim, 2)
-        self.v_range = kwargs.get("v_range", 0.5)
-        self.desired_vel = kwargs.get("desired_vel", self.v_range)
-        self.f_range = kwargs.get("f_range", 100)
+        self.v_range = kwargs.pop("v_range", 0.5)
+        self.desired_vel = kwargs.pop("desired_vel", self.v_range)
+        self.f_range = kwargs.pop("f_range", 100)
 
         controller_params = [1.5, 0.6, 0.002]
         self.u_range = self.v_range if self.use_controller else self.f_range
 
         # Other
-        self.cover_angle_tolerance = kwargs.get("cover_angle_tolerance", 1)
-        self.horizon = kwargs.get("horizon", 200)
+        self.cover_angle_tolerance = kwargs.pop("cover_angle_tolerance", 1)
+        self.horizon = kwargs.pop("horizon", 200)
 
         self.desired_distance = 1
         self.grid_spacing = self.desired_distance

@@ -15,10 +15,10 @@ from vmas.simulator.utils import Color
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.random_start_angle = kwargs.get("random_start_angle", True)
-        self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 1)
-        self.collision_reward = kwargs.get("collision_reward", -10)
-        self.max_speed_1 = kwargs.get("max_speed_1", None)  # 0.05
+        self.random_start_angle = kwargs.pop("random_start_angle", True)
+        self.pos_shaping_factor = kwargs.pop("pos_shaping_factor", 1)
+        self.collision_reward = kwargs.pop("collision_reward", -10)
+        self.max_speed_1 = kwargs.pop("max_speed_1", None)  # 0.05
 
         self.pos_shaping_factor = 1
 

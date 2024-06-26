@@ -13,9 +13,9 @@ from vmas.simulator.utils import Color, Y
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.n_agents = kwargs.get("n_agents", 3)
-        self.package_mass = kwargs.get("package_mass", 5)
-        self.random_package_pos_on_line = kwargs.get("random_package_pos_on_line", True)
+        self.n_agents = kwargs.pop("n_agents", 3)
+        self.package_mass = kwargs.pop("package_mass", 5)
+        self.random_package_pos_on_line = kwargs.pop("random_package_pos_on_line", True)
 
         assert self.n_agents > 1
 

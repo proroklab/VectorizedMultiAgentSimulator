@@ -16,9 +16,9 @@ from vmas.simulator.utils import Color, Y
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.green_mass = kwargs.get("green_mass", 4)
-        self.blue_mass = kwargs.get("blue_mass", 2)
-        self.mass_noise = kwargs.get("mass_noise", 1)
+        self.green_mass = kwargs.pop("green_mass", 4)
+        self.blue_mass = kwargs.pop("blue_mass", 2)
+        self.mass_noise = kwargs.pop("mass_noise", 1)
         self.plot_grid = True
 
         # Make world
