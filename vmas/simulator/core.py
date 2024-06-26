@@ -35,6 +35,7 @@ from vmas.simulator.utils import (
     Observable,
     override,
     TorchUtils,
+    TORQUE_CONSTRAINT_FORCE,
     X,
     Y,
 )
@@ -1079,6 +1080,7 @@ class World(TorchVectorizedObject):
         dim_c: int = 0,
         collision_force: float = COLLISION_FORCE,
         joint_force: float = JOINT_FORCE,
+        torque_constraint_force: float = TORQUE_CONSTRAINT_FORCE,
         contact_margin: float = 1e-3,
         gravity: Tuple[float, float] = (0.0, 0.0),
     ):
@@ -1110,6 +1112,7 @@ class World(TorchVectorizedObject):
         self._collision_force = collision_force
         self._joint_force = joint_force
         self._contact_margin = contact_margin
+        self._torque_constraint_force = torque_constraint_force
         # joints
         self._joints = {}
         # Pairs of collidable shapes
@@ -1597,8 +1600,6 @@ class World(TorchVectorizedObject):
                 # apply gravity
                 self._apply_gravity(entity)
 
-                # self._apply_environment_force(entity, i)
-
             self._apply_vectorized_enviornment_force()
 
             for entity in self.entities:
@@ -1802,6 +1803,9 @@ class World(TorchVectorizedObject):
             pos_joint_b = []
             dist = []
             rotate = []
+            rot_a = []
+            rot_b = []
+
             for entity_a, entity_b, joint in joints:
                 pos_joint_a.append(joint.pos_point(entity_a))
                 pos_joint_b.append(joint.pos_point(entity_b))
@@ -1809,10 +1813,14 @@ class World(TorchVectorizedObject):
                 pos_b.append(entity_b.state.pos)
                 dist.append(torch.tensor(joint.dist, device=self.device))
                 rotate.append(torch.tensor(joint.rotate, device=self.device))
+                rot_a.append(entity_a.state.rot)
+                rot_b.append(entity_b.state.rot)
             pos_a = torch.stack(pos_a, dim=-2)
             pos_b = torch.stack(pos_b, dim=-2)
             pos_joint_a = torch.stack(pos_joint_a, dim=-2)
             pos_joint_b = torch.stack(pos_joint_b, dim=-2)
+            rot_a = torch.stack(rot_a, dim=-2)
+            rot_b = torch.stack(rot_b, dim=-2)
             dist = (
                 torch.stack(
                     dist,
@@ -1846,13 +1854,19 @@ class World(TorchVectorizedObject):
             r_a = pos_joint_a - pos_a
             r_b = pos_joint_b - pos_b
 
-            torque_a = torch.zeros_like(rotate, device=self.device, dtype=torch.float)
-            torque_b = torch.zeros_like(rotate, device=self.device, dtype=torch.float)
-            if rotate_prior.any():
-                torque_a_rotate = TorchUtils.compute_torque(force_a, r_a)
-                torque_b_rotate = TorchUtils.compute_torque(force_b, r_b)
-                torque_a = torch.where(rotate, torque_a_rotate, 0)
-                torque_b = torch.where(rotate, torque_b_rotate, 0)
+            torque_a_rotate = TorchUtils.compute_torque(force_a, r_a)
+            torque_b_rotate = TorchUtils.compute_torque(force_b, r_b)
+
+            torque_a_fixed, torque_b_fixed = self._get_constraint_torques(
+                rot_a, rot_b, force_multiplier=self._torque_constraint_force
+            )
+
+            torque_a = torch.where(
+                rotate, torque_a_rotate, torque_a_rotate + torque_a_fixed
+            )
+            torque_b = torch.where(
+                rotate, torque_b_rotate, torque_b_rotate + torque_b_fixed
+            )
 
             for i, (entity_a, entity_b, _) in enumerate(joints):
                 self.update_env_forces(
@@ -2410,6 +2424,30 @@ class World(TorchVectorizedObject):
         else:
             force = torch.where((dist < dist_min).unsqueeze(-1), 0.0, force)
         return force, -force
+
+    def _get_constraint_torques(
+        self,
+        rot_a: Tensor,
+        rot_b: Tensor,
+        force_multiplier: float = TORQUE_CONSTRAINT_FORCE,
+    ) -> Tensor:
+        min_delta_rot = 1e-9
+        delta_rot = rot_a - rot_b
+        abs_delta_rot = torch.linalg.vector_norm(delta_rot, dim=-1).unsqueeze(-1)
+
+        # softmax penetration
+        k = 1
+        penetration = k * (torch.exp(abs_delta_rot / k) - 1)
+
+        torque = (
+            force_multiplier
+            * delta_rot
+            / torch.where(abs_delta_rot > 0, abs_delta_rot, 1e-8)
+            * penetration
+        )
+        torque = torch.where((abs_delta_rot < min_delta_rot), 0.0, torque)
+
+        return -torque, torque
 
     # integrate physical state
     # uses semi-implicit euler with sub-stepping
