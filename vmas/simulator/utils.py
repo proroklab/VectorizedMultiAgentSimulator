@@ -299,10 +299,12 @@ class ScenarioUtils:
         return pos
 
     @staticmethod
-    def check_kwargs_consumed(dictionary_of_kwargs: Dict, warn: bool = False):
+    def check_kwargs_consumed(dictionary_of_kwargs: Dict, warn: bool = True):
         if len(dictionary_of_kwargs) > 0:
-            message = f"Scenario kwargs: {dictionary_of_kwargs} passed but not used by the scenario"
+            message = f"Scenario kwargs: {dictionary_of_kwargs} passed but not used by the scenario."
             if warn:
-                warnings.warn(message)
+                warnings.warn(
+                    message + " This will turn into an error in future versions."
+                )
             else:
                 raise ValueError(message)
