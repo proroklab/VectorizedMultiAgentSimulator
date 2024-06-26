@@ -10,14 +10,15 @@ from torch import Tensor
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, X, Y
+from vmas.simulator.utils import Color, ScenarioUtils, X, Y
 
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.n_passages = kwargs.get("n_passages", 1)
-        self.fixed_passage = kwargs.get("fixed_passage", False)
-        self.random_start_angle = kwargs.get("random_start_angle", True)
+        self.n_passages = kwargs.pop("n_passages", 1)
+        self.fixed_passage = kwargs.pop("fixed_passage", False)
+        self.random_start_angle = kwargs.pop("random_start_angle", True)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         assert 1 <= self.n_passages <= 20
 

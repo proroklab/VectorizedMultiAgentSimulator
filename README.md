@@ -95,8 +95,8 @@ Watch the talk at DARS 2022 about VMAS.
 -  [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/proroklab/VectorizedMultiAgentSimulator/blob/main/notebooks/VMAS_Use_vmas_environment.ipynb) &ensp; **Using a VMAS environment**.
  Here is a simple notebook that you can run to create, step and render any scenario in VMAS. It reproduces the `use_vmas_env.py` script in the `examples` folder.
 - [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/facebookresearch/BenchMARL/blob/main/notebooks/run.ipynb) &ensp;  **Training VMAS in BenchMARL (suggested)**.  In this notebook, we show how to use VMAS in [BenchMARL](https://github.com/facebookresearch/BenchMARL), TorchRL's MARL training library.
-- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/pytorch/rl/blob/gh-pages/_downloads/a977047786179278d12b52546e1c0da8/multiagent_ppo.ipynb)  &ensp;  **Training VMAS in TorchRL**.  In this notebook, [available in the TorchRL docs](https://pytorch.org/rl/tutorials/multiagent_ppo.html), we show how to use any VMAS scenario in TorchRL. It will guide you through the full pipeline needed to train agents using MAPPO/IPPO.
-- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/pytorch/rl/blob/gh-pages/_downloads/d30bb6552cc07dec0f1da33382d3fa02/multiagent_competitive_ddpg.py)  &ensp;  **Training competitive VMAS MPE in TorchRL**.  In this notebook, [available in the TorchRL docs](https://pytorch.org/rl/main/tutorials/multiagent_competitive_ddpg.html), we show how to solve a Competitive Multi-Agent Reinforcement Learning (MARL) problem using MADDPG/IDDPG.
+- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/pytorch/rl/blob/gh-pages/_downloads/a977047786179278d12b52546e1c0da8/multiagent_ppo.ipynb)  &ensp;  **Training VMAS in TorchRL**.  In this notebook, [available in the TorchRL docs](https://pytorch.org/rl/stable/tutorials/multiagent_ppo.html#), we show how to use any VMAS scenario in TorchRL. It will guide you through the full pipeline needed to train agents using MAPPO/IPPO.
+- [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/pytorch/rl/blob/gh-pages/_downloads/d30bb6552cc07dec0f1da33382d3fa02/multiagent_competitive_ddpg.py)  &ensp;  **Training competitive VMAS MPE in TorchRL**.  In this notebook, [available in the TorchRL docs](https://pytorch.org/rl/stable/tutorials/multiagent_competitive_ddpg.html), we show how to solve a Competitive Multi-Agent Reinforcement Learning (MARL) problem using MADDPG/IDDPG.
 - [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/proroklab/VectorizedMultiAgentSimulator/blob/main/notebooks/VMAS_RLlib.ipynb)  &ensp;  **Training VMAS in RLlib**.  In this notebook, we show how to use any VMAS scenario in RLlib. It reproduces the `rllib.py` script in the `examples` folder.
 
 
@@ -406,12 +406,14 @@ To create a fake screen you need to have `Xvfb` installed.
 - [HetGPPO](https://matteobettini.github.io/publication/heterogeneous-multi-robot-reinforcement-learning/) features training of `het_mass`, `give_way`, `joint_passage`, `joint_passage_size`
 - [SND](https://matteobettini.github.io/publication/system-neural-diversity-measuring-behavioral-heterogeneity-in-multi-agent-learning/) features training of `navigation`, `joint_passage`, `joint_passage_size`, `wind`
 - [TorchRL](https://matteobettini.com/publication/torchrl-a-data-driven-decision-making-library-for-pytorch/) features training of `navigation`, `sampling`, `balance`
+- [BenchMARL](https://matteobettini.com/publication/benchmarl/) features training of `navigation`, `sampling`, `balance`
+- [The Cambridge RoboMaster](https://matteobettini.com/publication/robomaster/) features training of `navigation`
+- [DiversityControl (DiCo)](https://matteobettini.com/publication/controlling-behavioral-diversity-in-multi-agent-reinforcement-learning/) features training of `navigation`, `sampling`, `dispersion`, `simple_tag`
 
 ## TODOS
 
-- [ ] Reset any number of dimensions
-- [ ] Implement 1D camera sensor
-- [ ] Implement 2D birds eye view camera sensor
+TODOs are now listed [here](https://github.com/proroklab/VectorizedMultiAgentSimulator/issues/116). 
+
 - [X] Improve test efficiency and add new tests
 - [X] Implement 2D drone dynamics
 - [X] Allow any number of actions

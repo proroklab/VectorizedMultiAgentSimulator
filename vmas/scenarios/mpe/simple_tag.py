@@ -7,23 +7,24 @@ import torch
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, Line, Sphere, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color
+from vmas.simulator.utils import Color, ScenarioUtils
 
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        num_good_agents = kwargs.get("num_good_agents", 1)
-        num_adversaries = kwargs.get("num_adversaries", 3)
-        num_landmarks = kwargs.get("num_landmarks", 2)
-        self.shape_agent_rew = kwargs.get("shape_agent_rew", False)
-        self.shape_adversary_rew = kwargs.get("shape_adversary_rew", False)
-        self.agents_share_rew = kwargs.get("agents_share_rew", False)
-        self.adversaries_share_rew = kwargs.get("adversaries_share_rew", True)
-        self.observe_same_team = kwargs.get("observe_same_team", True)
-        self.observe_pos = kwargs.get("observe_pos", True)
-        self.observe_vel = kwargs.get("observe_vel", True)
-        self.bound = kwargs.get("bound", 1.0)
-        self.respawn_at_catch = kwargs.get("respawn_at_catch", False)
+        num_good_agents = kwargs.pop("num_good_agents", 1)
+        num_adversaries = kwargs.pop("num_adversaries", 3)
+        num_landmarks = kwargs.pop("num_landmarks", 2)
+        self.shape_agent_rew = kwargs.pop("shape_agent_rew", False)
+        self.shape_adversary_rew = kwargs.pop("shape_adversary_rew", False)
+        self.agents_share_rew = kwargs.pop("agents_share_rew", False)
+        self.adversaries_share_rew = kwargs.pop("adversaries_share_rew", True)
+        self.observe_same_team = kwargs.pop("observe_same_team", True)
+        self.observe_pos = kwargs.pop("observe_pos", True)
+        self.observe_vel = kwargs.pop("observe_vel", True)
+        self.bound = kwargs.pop("bound", 1.0)
+        self.respawn_at_catch = kwargs.pop("respawn_at_catch", False)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         world = World(
             batch_dim=batch_dim,

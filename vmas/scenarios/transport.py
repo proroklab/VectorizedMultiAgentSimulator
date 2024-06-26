@@ -13,11 +13,12 @@ from vmas.simulator.utils import Color, ScenarioUtils
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        n_agents = kwargs.get("n_agents", 4)
-        self.n_packages = kwargs.get("n_packages", 1)
-        self.package_width = kwargs.get("package_width", 0.15)
-        self.package_length = kwargs.get("package_length", 0.15)
-        self.package_mass = kwargs.get("package_mass", 50)
+        n_agents = kwargs.pop("n_agents", 4)
+        self.n_packages = kwargs.pop("n_packages", 1)
+        self.package_width = kwargs.pop("package_width", 0.15)
+        self.package_length = kwargs.pop("package_length", 0.15)
+        self.package_mass = kwargs.pop("package_mass", 50)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self.shaping_factor = 100
         self.world_semidim = 1

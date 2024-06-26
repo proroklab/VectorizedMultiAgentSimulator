@@ -10,12 +10,13 @@ from vmas import render_interactively
 from vmas.simulator.controllers.velocity_controller import VelocityController
 from vmas.simulator.core import Agent, Landmark, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, TorchUtils, X
+from vmas.simulator.utils import Color, ScenarioUtils, TorchUtils, X
 
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.green_mass = kwargs.get("green_mass", 1)
+        self.green_mass = kwargs.pop("green_mass", 1)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
         self.plot_grid = True
 
         self.agent_radius = 0.16

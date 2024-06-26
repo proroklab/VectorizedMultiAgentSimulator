@@ -38,6 +38,8 @@ class BaseScenario(ABC):
     - :class:`info`
     - :class:`extra_render`
     - :class:`process_action`
+    - :class:`pre_step`
+    - :class:`post_step`
 
     """
 
@@ -380,9 +382,6 @@ class BaseScenario(ABC):
 
         It has access to the world through the :class:`world` attribute
 
-        It can also be used for any other type of computation that has to happen after
-        the input actions have been set but before the simulation step.
-
         For example here you can manage additional actions before passing them to the dynamics.
 
         Args:
@@ -395,9 +394,44 @@ class BaseScenario(ABC):
             >>>     def process_action(self, agent):
             >>>         # Clamp square to circle
             >>>         agent.action.u = TorchUtils.clamp_with_norm(agent.action.u, agent.u_range)
-            >>>         # Can use a PID controller
+            >>>         # Can use a PID controller to turn velocity actions into forces
+            >>>         # (e.g., from vmas.simulator.controllers.velocity_controller)
             >>>         agent.controller.process_force()
             >>>         return
+        """
+        return
 
+    def pre_step(self):
+        """This function can be overridden to perform any computation that has to happen before the simulation step.
+        Its intended use is for computation that has to happen only once before the simulation step has accured.
+
+        For example, you can store temporal data before letting the world step.
+
+        Examples:
+            >>> from vmas.simulator.scenario import BaseScenario
+            >>> class Scenario(BaseScenario):
+            >>>     def pre_step(self):
+            >>>         for agent in self.world.agents:
+            >>>             agent.prev_state = agent.state
+            >>>         return
+        """
+        return
+
+    def post_step(self):
+        """This function can be overridden to perform any computation that has to happen after the simulation step.
+        Its intended use is for computation that has to happen only once after the simulation step has accured.
+
+        For example, you can store temporal sensor data in this function.
+
+        Examples:
+            >>> from vmas.simulator.scenario import BaseScenario
+            >>> class Scenario(BaseScenario):
+            >>>     def post_step(self):
+            >>>         for agent in self.world.agents:
+            >>>             # Let the sensor take a measurement
+            >>>             measurements = agent.sensors[0].measure()
+            >>>             # Store sensor data in agent.sensor_history
+            >>>             agent.sensor_history.append(measurements)
+            >>>         return
         """
         return

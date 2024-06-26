@@ -67,7 +67,7 @@ class Joint(vmas.simulator.utils.Observer):
                 name=f"joint {entity_a.name} {entity_b.name}",
                 collide=collidable,
                 movable=True,
-                rotatable=rotate_a and rotate_b,
+                rotatable=True,
                 mass=mass,
                 shape=(
                     vmas.simulator.core.Box(length=dist, width=width)

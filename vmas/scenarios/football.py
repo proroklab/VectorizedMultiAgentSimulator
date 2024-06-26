@@ -11,7 +11,7 @@ import torch
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, X, Y
+from vmas.simulator.utils import Color, ScenarioUtils, X, Y
 
 
 class Scenario(BaseScenario):
@@ -40,23 +40,24 @@ class Scenario(BaseScenario):
             self._done[env_index] = False
 
     def init_params(self, **kwargs):
-        self.viewer_size = kwargs.get("viewer_size", (1200, 800))
-        self.ai_red_agents = kwargs.get("ai_red_agents", True)
-        self.ai_blue_agents = kwargs.get("ai_blue_agents", False)
-        self.n_blue_agents = kwargs.get("n_blue_agents", 3)
-        self.n_red_agents = kwargs.get("n_red_agents", 3)
-        self.agent_size = kwargs.get("agent_size", 0.025)
-        self.goal_size = kwargs.get("goal_size", 0.35)
-        self.goal_depth = kwargs.get("goal_depth", 0.1)
-        self.pitch_length = kwargs.get("pitch_length", 3.0)
-        self.pitch_width = kwargs.get("pitch_width", 1.5)
-        self.max_speed = kwargs.get("max_speed", 0.15)
-        self.u_multiplier = kwargs.get("u_multiplier", 0.1)
-        self.ball_max_speed = kwargs.get("ball_max_speed", 0.3)
-        self.ball_mass = kwargs.get("ball_mass", 0.1)
-        self.ball_size = kwargs.get("ball_size", 0.02)
-        self.n_traj_points = kwargs.get("n_traj_points", 8)
-        self.dense_reward_ratio = kwargs.get("dense_reward_ratio", 0.001)
+        self.viewer_size = kwargs.pop("viewer_size", (1200, 800))
+        self.ai_red_agents = kwargs.pop("ai_red_agents", True)
+        self.ai_blue_agents = kwargs.pop("ai_blue_agents", False)
+        self.n_blue_agents = kwargs.pop("n_blue_agents", 3)
+        self.n_red_agents = kwargs.pop("n_red_agents", 3)
+        self.agent_size = kwargs.pop("agent_size", 0.025)
+        self.goal_size = kwargs.pop("goal_size", 0.35)
+        self.goal_depth = kwargs.pop("goal_depth", 0.1)
+        self.pitch_length = kwargs.pop("pitch_length", 3.0)
+        self.pitch_width = kwargs.pop("pitch_width", 1.5)
+        self.max_speed = kwargs.pop("max_speed", 0.15)
+        self.u_multiplier = kwargs.pop("u_multiplier", 0.1)
+        self.ball_max_speed = kwargs.pop("ball_max_speed", 0.3)
+        self.ball_mass = kwargs.pop("ball_mass", 0.1)
+        self.ball_size = kwargs.pop("ball_size", 0.02)
+        self.n_traj_points = kwargs.pop("n_traj_points", 8)
+        self.dense_reward_ratio = kwargs.pop("dense_reward_ratio", 0.001)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
     def init_world(self, batch_dim: int, device: torch.device):
         # Make world

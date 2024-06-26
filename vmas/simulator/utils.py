@@ -3,6 +3,7 @@
 #  All rights reserved.
 import importlib
 import os
+import warnings
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Dict, List, Sequence, Tuple, Union
@@ -22,6 +23,7 @@ INITIAL_VIEWER_SIZE = (700, 700)
 LINE_MIN_DIST = 4 / 6e2
 COLLISION_FORCE = 100
 JOINT_FORCE = 130
+TORQUE_CONSTRAINT_FORCE = 1
 
 DRAG = 0.25
 LINEAR_FRICTION = 0.0
@@ -295,3 +297,14 @@ class ScenarioUtils:
             else:
                 break
         return pos
+
+    @staticmethod
+    def check_kwargs_consumed(dictionary_of_kwargs: Dict, warn: bool = True):
+        if len(dictionary_of_kwargs) > 0:
+            message = f"Scenario kwargs: {dictionary_of_kwargs} passed but not used by the scenario."
+            if warn:
+                warnings.warn(
+                    message + " This will turn into an error in future versions."
+                )
+            else:
+                raise ValueError(message)
