@@ -410,9 +410,8 @@ To create a fake screen you need to have `Xvfb` installed.
 
 ## TODOS
 
-- [ ] Reset any number of dimensions
-- [ ] Implement 1D camera sensor
-- [ ] Implement 2D birds eye view camera sensor
+TODOs are now listed [here](https://github.com/proroklab/VectorizedMultiAgentSimulator/issues/116). 
+
 - [X] Improve test efficiency and add new tests
 - [X] Implement 2D drone dynamics
 - [X] Allow any number of actions
