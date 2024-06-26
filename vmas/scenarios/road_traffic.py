@@ -18,6 +18,44 @@ from vmas.simulator.utils import Color
 
 
 class Scenario(BaseScenario):
+    """
+    This scenario originally comes from the paper "Xu et al. - 2024 - A Sample Efficient and Generalizable Multi-Agent Reinforcement Learning Framework
+    for Motion Planning" (http://dx.doi.org/10.13140/RG.2.2.24505.17769, see also https://github.com/cas-lab-munich/generalizable-marl/tree/1.0.0),
+    which aims to design an MARL framework with efficient observation design to enable fast training and to empower agents the ability to generalize
+    to unseen scenarios.
+
+    Six observation design strategies are proposed in the paper. They correspond to six parameters in this file, and their default
+    values are True. Setting them to False will impair the observation efficiency in the evaluation conducted in the paper.
+        - is_ego_view: Whether to use ego view (otherwise bird view)
+        - is_apply_mask: Whether to mask distant agents
+        - is_observe_distance_to_agents: Whether to observe the distance to other agents
+        - is_observe_distance_to_boundaries: Whether to observe the distance to labelet boundaries (otherwise the points on lanelet boundaries)
+        - is_observe_distance_to_center_line: Whether to observe the distance to reference path (otherwise None)
+        - is_observe_vertices: Whether to observe the vertices of other agents (otherwise center points)
+
+    In addition, there are some commonly used parameters you may want to adjust to suit your case:
+        - n_agents: Number of agents
+        - dt: Sample time in seconds
+        - device: Tensor device (default "cpu")
+        - scenario_type: One of {'1', '2', '3', '4'}:
+                         1 for the entire map
+                         2 for the entire map with prioritized replay buffer (proposed by Schaul et al. - ICLR 2016 - Prioritized Experience Replay)
+                         3 for the entire map with challenging initial state buffer (inspired
+                         by Kaufmann et al. - Nature 2023 - Champion-level drone racing using deep reinforcement learning)
+                         4 for specific scenario (intersection, merge-in, or merge-out)
+        - is_partial_observation: Whether to enable partial observation (to model partially observable MDP)
+        - n_nearing_agents_observed: Number of nearing agents to be observed (consider limited sensor range)
+
+        is_testing_mode: Testing mode is designed to test the learned policy.
+                         In non-testing mode, once a collision occurs, all agents will be reset with random initial states.
+                         To ensure these initial states are feasible, the initial positions are conservatively large (1.2*diagonalLengthOfAgent).
+                         This ensures agents are initially safe and avoids putting agents in an immediate dangerous situation at the beginning of a new scenario.
+                         During testing, only colliding agents will be reset, without changing the states of other agents, who are possibly interacting with other agents.
+                         This may allow for more effective testing.
+
+    For other parameters, see the class Parameter defined in this file.
+    """
+
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.init_params(batch_dim, device, **kwargs)
         world = self.init_world(batch_dim, device)
@@ -48,17 +86,19 @@ class Scenario(BaseScenario):
 
         # Reward
         r_p_normalizer = (
-            100  # Rewards and renalties must be normalized to range [-1, 1]
+            100  # This parameter normalizes rewards and penalties to [-1, 1].
         )
+        # This is useful for RL algorithms with an actor-critic architecture where the critic's
+        # output is limited to [-1, 1] (e.g., due to tanh activation function).
 
-        reward_progress = kwargs.get(
-            "reward_progress", 10 / r_p_normalizer
+        reward_progress = (
+            kwargs.get("reward_progress", 10) / r_p_normalizer
         )  # Reward for moving along reference paths
-        reward_vel = kwargs.get(
-            "reward_vel", 5 / r_p_normalizer
+        reward_vel = (
+            kwargs.get("reward_vel", 5) / r_p_normalizer
         )  # Reward for moving in high velocities.
-        reward_reach_goal = kwargs.get(
-            "reward_reach_goal", 0 / r_p_normalizer
+        reward_reach_goal = (
+            kwargs.get("reward_reach_goal", 0) / r_p_normalizer
         )  # Goal-reaching reward
 
         # Penalty
@@ -134,10 +174,6 @@ class Scenario(BaseScenario):
             ),
         )
 
-        self.shared_reward = kwargs.get(
-            "shared_reward", False
-        )  # Shared reward is not supported yet
-
         self.max_steering_angle = kwargs.get(
             "max_steering_angle",
             torch.deg2rad(torch.tensor(35, device=device, dtype=torch.float32)),
@@ -153,7 +189,6 @@ class Scenario(BaseScenario):
             is_visualize_short_term_path=kwargs.get(
                 "is_visualize_short_term_path", True
             ),
-            max_steps=kwargs.get("max_steps", 1000),
             scenario_type=kwargs.get("scenario_type", "1"),
             n_nearing_agents_observed=kwargs.get("n_nearing_agents_observed", 2),
             is_real_time_rendering=kwargs.get("is_real_time_rendering", False),
@@ -189,12 +224,15 @@ class Scenario(BaseScenario):
         )
         self.parameters = kwargs.get("parameters", parameters)
 
-        # Parameter adjustment to meet simulation requirements
-        if self.parameters.scenario_type == "4":
-            self.parameters.n_agents = 4
-        self.parameters.n_nearing_agents_observed = min(
-            self.parameters.n_nearing_agents_observed, self.parameters.n_agents - 1
-        )
+        # Ensure parameters meet simulation requirements
+        if self.parameters.scenario_type == "4" and (self.parameters.n_agents > 10):
+            raise ValueError(
+                "For scenario_type '4', we suggest do not use more than 10 agents, as only a part of the map will be used."
+            )
+
+        if self.parameters.n_nearing_agents_observed >= self.parameters.n_agents:
+            raise ValueError("n_nearing_agents_observed must be less than n_agents")
+
         self.n_agents = self.parameters.n_agents
 
         # Timer for the first env
@@ -204,9 +242,6 @@ class Scenario(BaseScenario):
             step=torch.zeros(
                 batch_dim, device=device, dtype=torch.int32
             ),  # Each environment has its own time step
-            step_duration=torch.zeros(
-                self.parameters.max_steps, device=device, dtype=torch.float32
-            ),
             step_begin=time.time(),
             render_begin=0,
         )
@@ -428,7 +463,8 @@ class Scenario(BaseScenario):
         weighting_ref_directions /= weighting_ref_directions.sum()
         self.rewards = Rewards(
             progress=torch.tensor(reward_progress, device=device, dtype=torch.float32),
-            weighting_ref_directions=weighting_ref_directions,  # Progress in the weighted directions (directions indicating by closer short-term reference points have higher weights)
+            weighting_ref_directions=weighting_ref_directions,  # Progress in the weighted directions (directions indicating by
+            # closer short-term reference points have higher weights)
             higth_v=torch.tensor(reward_vel, device=device, dtype=torch.float32),
             reach_goal=torch.tensor(
                 reward_reach_goal, device=device, dtype=torch.float32
@@ -858,7 +894,8 @@ class Scenario(BaseScenario):
 
     def reset_world_at(self, env_index: int = None, agent_index: int = None):
         """
-        This function resets the world at the specified env_index and the specified agent_index. If env_index is given as None, the majority part of computation will be done in a vectorized manner.
+        This function resets the world at the specified env_index and the specified agent_index.
+        If env_index is given as None, the majority part of computation will be done in a vectorized manner.
 
         Args:
         :param env_index: index of the environment to reset. If None a vectorized reset should be performed
@@ -873,7 +910,6 @@ class Scenario(BaseScenario):
         ):
             # Begining of a new simulation (only record for the first env)
             if env_i == 0:
-                self.timer.step_duration[:] = 0
                 self.timer.start = time.time()
                 self.timer.step_begin = time.time()
                 self.timer.end = 0
@@ -1390,10 +1426,6 @@ class Scenario(BaseScenario):
         # Get the index of the current agent
         agent_index = self.world.agents.index(agent)
 
-        # If rewards are shared among agents
-        if self.shared_reward:
-            raise NotImplementedError("Shared reward is not supported yet.")
-
         # [update] mutual distances between agents, vertices of each agent, and collision matrices
         self.update_state_before_rewarding(agent, agent_index)
 
@@ -1524,9 +1556,6 @@ class Scenario(BaseScenario):
         """
         if agent_index == 0:  # Avoid repeated computations
             # Timer
-            self.timer.step_duration[self.timer.step] = (
-                time.time() - self.timer.step_begin
-            )
             self.timer.step_begin = (
                 time.time()
             )  # Set to the current time as the begin of the current time step
@@ -2236,9 +2265,10 @@ class Scenario(BaseScenario):
         """
         This function computes the done flag for each env in a vectorized way.
 
-        In test mode, done is true iff the maximum time steps are reached;
-        otherwise:
-            done flag is true if the maximum steps are reached or collisions occur. Besides, if `scenario_type` is "4", those agents who leave their entries or exits will be reset (in a non-vectorized way).
+        Testing mode is designed to test the learned policy. In testing mode, collisions do
+        not terminate the current simulation; instead, the colliding agents (not all agents)
+        will be reset. Besides, if `scenario_type` is "4", those agents who leave their entries
+        or exits will be reset.
         """
         is_collision_with_agents = self.collisions.with_agents.view(
             self.world.batch_dim, -1
@@ -2246,7 +2276,6 @@ class Scenario(BaseScenario):
             dim=-1
         )  # [batch_dim]
         is_collision_with_lanelets = self.collisions.with_lanelets.any(dim=-1)
-        is_max_steps_reached = self.timer.step == (self.parameters.max_steps - 1)
 
         if self.parameters.scenario_type == "3":  # Record into the initial state buffer
             if torch.rand(1) > (
@@ -2260,7 +2289,10 @@ class Scenario(BaseScenario):
                     )
 
         if self.parameters.is_testing_mode:
-            is_done = is_max_steps_reached  # In test mode, we only reset the whole env if the maximum time steps are reached
+            # In testing mode, we do not reset the whole scenario. Instead, we only reset colliding agents.
+            is_done = torch.zeros(
+                self.world.batch_dim, device=self.world.device, dtype=torch.bool
+            )
 
             # Reset single agent
             agents_reset = (
@@ -2273,15 +2305,10 @@ class Scenario(BaseScenario):
             for env_idx, agent_idx in zip(
                 agents_reset_indices[0], agents_reset_indices[1]
             ):
-                if not is_done[env_idx]:
-                    self.reset_world_at(env_index=env_idx, agent_index=agent_idx)
+                self.reset_world_at(env_index=env_idx, agent_index=agent_idx)
         else:
             if self.parameters.scenario_type == "4":
-                is_done = (
-                    is_max_steps_reached
-                    | is_collision_with_agents
-                    | is_collision_with_lanelets
-                )
+                is_done = is_collision_with_agents | is_collision_with_lanelets
 
                 # Reset single agnet
                 agents_reset = (
@@ -2296,11 +2323,7 @@ class Scenario(BaseScenario):
                         self.reset_world_at(env_index=env_idx, agent_index=agent_idx)
 
             else:
-                is_done = (
-                    is_max_steps_reached
-                    | is_collision_with_agents
-                    | is_collision_with_lanelets
-                )
+                is_done = is_collision_with_agents | is_collision_with_lanelets
 
         return is_done
 
@@ -2570,29 +2593,29 @@ class Parameters:
     def __init__(
         self,
         # General parameters
-        n_agents: int = 4,  # Number of agents
-        dt: float = 0.05,  # [s] sample time
+        n_agents: int = 20,  # Number of agents
+        dt: float = 0.05,  # Sample time in seconds
         device: str = "cpu",  # Tensor device
-        max_steps: int = 2**7,  # Episode steps before done
-        scenario_type: str = "4",  # One of {'1', '2', '3', '4'}:
+        scenario_type: str = "1",  # One of {'1', '2', '3', '4'}:
         # 1 for the entire map
-        # 2 for the entire map with prioritized replay buffer
-        # 3 for the entire map with challenging initial state buffer
+        # 2 for the entire map with prioritized replay buffer (proposed by Schaul et al. - ICLR 2016 - Prioritized Experience Replay)
+        # 3 for the entire map with challenging initial state buffer (inspired
+        # by Kaufmann et al. - Nature 2023 - Champion-level drone racing using deep reinforcement learning)
         # 4 for specific scenario (intersection, merge-in, or merge-out)
-        is_prb: bool = False,  # # Whether to enable prioritized replay buffer
+        is_prb: bool = False,  # Whether to enable prioritized replay buffer
         scenario_probabilities=None,  # Probabilities of training agents in intersection, merge-in, or merge-out scenario
         # Observation
         n_points_short_term: int = 3,  # Number of points that build a short-term reference path
-        is_partial_observation: bool = True,  # Whether to enable partial observation
+        is_partial_observation: bool = True,  # Whether to enable partial observation (to model partially observable MDP)
         n_nearing_agents_observed: int = 2,  # Number of nearing agents to be observed (consider limited sensor range)
-        # Parameters for ablation studies
-        is_ego_view: bool = True,  # Ego view or bird view
+        # Observation design strategies
+        is_ego_view: bool = True,  # Whether to use ego view (otherwise bird view)
         is_apply_mask: bool = True,  # Whether to mask distant agents
         is_observe_distance_to_agents: bool = True,  # Whether to observe the distance to other agents
-        is_observe_distance_to_boundaries: bool = True,  # Whether to observe points on lanelet boundaries or observe the distance to labelet boundaries
-        is_observe_distance_to_center_line: bool = True,  # Whether to observe the distance to reference path
-        is_observe_vertices: bool = True,  # Whether to observe the vertices of other agents (or center point)
-        is_add_noise: bool = True,  # Whether to add noise to observations
+        is_observe_distance_to_boundaries: bool = True,  # Whether to observe the distance to labelet boundaries (otherwise the points on lanelet boundaries)
+        is_observe_distance_to_center_line: bool = True,  # Whether to observe the distance to reference path (otherwise None)
+        is_observe_vertices: bool = True,  # Whether to observe the vertices of other agents (otherwise center points)
+        is_add_noise: bool = True,  # Whether to add noise to observations (to simulate sensor noise)
         is_observe_ref_path_other_agents: bool = False,  # Whether to observe the reference paths of other agents
         # Visu
         is_visualize_short_term_path: bool = True,  # Whether to visualize short-term reference paths
@@ -2600,9 +2623,12 @@ class Parameters:
         is_real_time_rendering: bool = False,  # Simulation will be paused at each time step for a certain duration to enable real-time rendering
         is_visualize_extra_info: bool = True,  # Whether to render extra information such time and time step
         render_title: str = "",  # The title to be rendered
-        is_testing_mode: bool = False,  # In testing mode, collisions do not terminate the current simulation
+        is_testing_mode: bool = False,  # Testing mode is designed to test the learned policy.
+        # In testing mode, collisions do not terminate the current simulation; instead, the colliding agents (not all agents) will be reset.
+        # In non-testing mode, once a collision occurs, all agents will be reset.
         n_steps_stored: int = 10,  # Store the states of agents of previous several time steps
-        n_steps_before_recording: int = 10,  # The states of agents at time step `current_time_step - n_steps_before_recording` before collisions will be recorded and used later when resetting the envs (used only when scenario_type = "3")
+        n_steps_before_recording: int = 10,  # The states of agents at time step `current_time_step - n_steps_before_recording` before collisions
+        # will be recorded and used later when resetting the envs (used only when scenario_type = "3")
         n_points_nearing_boundary: int = 5,  # The number of points on nearing boundaries to be observed
     ):
 
@@ -2611,8 +2637,6 @@ class Parameters:
 
         self.device = device
 
-        # Training
-        self.max_steps = max_steps
         self.scenario_type = scenario_type
 
         # Observation
@@ -2897,14 +2921,12 @@ class Timer:
         step=None,
         start=None,
         end=None,
-        step_duration=None,
         step_begin=None,
         render_begin=None,
     ):
         self.step = step  # Count the current time step
         self.start = start  # Time point of simulation start
         self.end = end  # Time point of simulation end
-        self.step_duration = step_duration  # Duration of each time step
         self.step_begin = step_begin  # Time when the current time step begins
         self.render_begin = (
             render_begin  # Time when the rendering of the current time step begins
