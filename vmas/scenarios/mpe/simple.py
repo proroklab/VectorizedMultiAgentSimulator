@@ -7,11 +7,12 @@ import torch
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color
+from vmas.simulator.utils import Color, ScenarioUtils
 
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
+        ScenarioUtils.check_kwargs_consumed(kwargs)
         # Make world
         world = World(batch_dim, device)
         # Add agents

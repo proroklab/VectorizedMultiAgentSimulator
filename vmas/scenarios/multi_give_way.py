@@ -10,7 +10,7 @@ from vmas import render_interactively
 from vmas.simulator.controllers.velocity_controller import VelocityController
 from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, TorchUtils
+from vmas.simulator.utils import Color, ScenarioUtils, TorchUtils
 
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
@@ -18,23 +18,25 @@ if typing.TYPE_CHECKING:
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.u_range = kwargs.get("u_range", 0.5)
-        self.a_range = kwargs.get("a_range", 1)
-        self.obs_noise = kwargs.get("obs_noise", 0)
-        self.box_agents = kwargs.get("box_agents", False)
-        self.linear_friction = kwargs.get("linear_friction", 0.1)
-        self.min_input_norm = kwargs.get("min_input_norm", 0.08)
-        self.comms_range = kwargs.get("comms_range", 5)
-        self.shared_rew = kwargs.get("shared_rew", True)
-        self.n_agents = kwargs.get("n_agents", 4)
+        self.u_range = kwargs.pop("u_range", 0.5)
+        self.a_range = kwargs.pop("a_range", 1)
+        self.obs_noise = kwargs.pop("obs_noise", 0)
+        self.box_agents = kwargs.pop("box_agents", False)
+        self.linear_friction = kwargs.pop("linear_friction", 0.1)
+        self.min_input_norm = kwargs.pop("min_input_norm", 0.08)
+        self.comms_range = kwargs.pop("comms_range", 5)
+        self.shared_rew = kwargs.pop("shared_rew", True)
+        self.n_agents = kwargs.pop("n_agents", 4)
 
-        self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 1)  # max is 8
-        self.final_reward = kwargs.get("final_reward", 0.01)
-        # self.energy_reward_coeff = kwargs.get("energy_rew_coeff", 0)
+        self.pos_shaping_factor = kwargs.pop("pos_shaping_factor", 1)  # max is 8
+        self.final_reward = kwargs.pop("final_reward", 0.01)
+        # self.energy_reward_coeff = kwargs.pop("energy_rew_coeff", 0)
 
-        self.agent_collision_penalty = kwargs.get("agent_collision_penalty", -0.1)
-        # self.passage_collision_penalty = kwargs.get("passage_collision_penalty", 0)
-        # self.obstacle_collision_penalty = kwargs.get("obstacle_collision_penalty", 0)
+        self.agent_collision_penalty = kwargs.pop("agent_collision_penalty", -0.1)
+        # self.passage_collision_penalty = kwargs.pop("passage_collision_penalty", 0)
+        # self.obstacle_collision_penalty = kwargs.pop("obstacle_collision_penalty", 0)
+
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self.viewer_zoom = 1.7
 
