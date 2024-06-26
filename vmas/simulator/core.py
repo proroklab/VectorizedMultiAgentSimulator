@@ -862,6 +862,7 @@ class Agent(Entity):
         render_action: bool = False,
         dynamics: Dynamics = None,  # Defaults to holonomic
         action_size: int = None,  # Defaults to what required by the dynamics
+        action_nvec: list = None,  # Defaults to what required by the dynamics
     ):
         super().__init__(
             name,
@@ -883,6 +884,16 @@ class Agent(Entity):
         )
         if obs_range == 0.0:
             assert sensors is None, f"Blind agent cannot have sensors, got {sensors}"
+
+        # Make sure action size and nvec are consistent
+        # if action_size is not None and action_nvec is not None:
+        #     raise ValueError(f'Cannot specify both action_size and action_nvec')
+        if action_nvec is not None:
+            action_nvec = list(action_nvec)
+        if action_nvec is not None and action_size is None:
+            action_nvec = len(action_nvec)
+        if action_size is not None and action_nvec is None:
+            action_nvec = [3] * action_size
 
         # cannot observe the world
         self._obs_range = obs_range
@@ -916,6 +927,9 @@ class Agent(Entity):
         # Action
         self.action_size = (
             action_size if action_size is not None else self.dynamics.needed_action_size
+        )
+        self.action_nvec = (
+            action_nvec if action_nvec is not None else self.dynamics.action_nvec
         )
         self.dynamics.agent = self
         self._action = Action(
