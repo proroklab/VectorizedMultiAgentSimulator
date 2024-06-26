@@ -11,26 +11,27 @@ from vmas import render_interactively
 from vmas.simulator.core import Agent, Entity, Line, Sphere, World
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.sensors import Lidar
-from vmas.simulator.utils import Color, X, Y
+from vmas.simulator.utils import Color, ScenarioUtils, X, Y
 
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.n_agents = kwargs.get("n_agents", 3)
-        self.shared_rew = kwargs.get("shared_rew", True)
+        self.n_agents = kwargs.pop("n_agents", 3)
+        self.shared_rew = kwargs.pop("shared_rew", True)
 
-        self.comms_range = kwargs.get("comms_range", 0.0)
-        self.lidar_range = kwargs.get("lidar_range", 0.2)
-        self.agent_radius = kwargs.get("agent_radius", 0.025)
-        self.xdim = kwargs.get("xdim", 1)
-        self.ydim = kwargs.get("ydim", 1)
-        self.grid_spacing = kwargs.get("grid_spacing", 0.05)
+        self.comms_range = kwargs.pop("comms_range", 0.0)
+        self.lidar_range = kwargs.pop("lidar_range", 0.2)
+        self.agent_radius = kwargs.pop("agent_radius", 0.025)
+        self.xdim = kwargs.pop("xdim", 1)
+        self.ydim = kwargs.pop("ydim", 1)
+        self.grid_spacing = kwargs.pop("grid_spacing", 0.05)
 
-        self.n_gaussians = kwargs.get("n_gaussians", 3)
-        self.cov = kwargs.get("cov", 0.05)
-        self.collisions = kwargs.get("collisions", True)
-        self.spawn_same_pos = kwargs.get("spawn_same_pos", False)
-        self.norm = kwargs.get("norm", True)
+        self.n_gaussians = kwargs.pop("n_gaussians", 3)
+        self.cov = kwargs.pop("cov", 0.05)
+        self.collisions = kwargs.pop("collisions", True)
+        self.spawn_same_pos = kwargs.pop("spawn_same_pos", False)
+        self.norm = kwargs.pop("norm", True)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         assert not (self.spawn_same_pos and self.collisions)
         assert (self.xdim / self.grid_spacing) % 1 == 0 and (

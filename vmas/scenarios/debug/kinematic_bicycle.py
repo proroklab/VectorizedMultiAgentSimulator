@@ -23,18 +23,19 @@ class Scenario(BaseScenario):
         """
         Kinematic bicycle model example scenario
         """
-        self.n_agents = kwargs.get("n_agents", 2)
-        width = kwargs.get("width", 0.1)  # Agent width
-        l_f = kwargs.get(
+        self.n_agents = kwargs.pop("n_agents", 2)
+        width = kwargs.pop("width", 0.1)  # Agent width
+        l_f = kwargs.pop(
             "l_f", 0.1
         )  # Distance between the front axle and the center of gravity
-        l_r = kwargs.get(
+        l_r = kwargs.pop(
             "l_r", 0.1
         )  # Distance between the rear axle and the center of gravity
-        max_steering_angle = kwargs.get(
+        max_steering_angle = kwargs.pop(
             "max_steering_angle", torch.deg2rad(torch.tensor(30.0))
         )
-        max_speed = kwargs.get("max_speed", 1.0)
+        max_speed = kwargs.pop("max_speed", 1.0)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         # Make world
         world = World(batch_dim, device, substeps=10, collision_force=500)

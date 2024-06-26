@@ -12,7 +12,7 @@ from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, Sphere, World
 from vmas.simulator.joints import Joint
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color
+from vmas.simulator.utils import Color, ScenarioUtils
 
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
@@ -47,19 +47,21 @@ def angle_to_vector(angle):
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.joint_length = kwargs.get("joint_length", 0.5)
-        self.random_start_angle = kwargs.get("random_start_angle", False)
-        self.observe_joint_angle = kwargs.get("observe_joint_angle", False)
-        self.joint_angle_obs_noise = kwargs.get("joint_angle_obs_noise", 0.0)
-        self.asym_package = kwargs.get("asym_package", True)
-        self.mass_ratio = kwargs.get("mass_ratio", 5)
-        self.mass_position = kwargs.get("mass_position", 0.75)
-        self.max_speed_1 = kwargs.get("max_speed_1", None)  # 0.1
-        self.obs_noise = kwargs.get("obs_noise", 0.2)
+        self.joint_length = kwargs.pop("joint_length", 0.5)
+        self.random_start_angle = kwargs.pop("random_start_angle", False)
+        self.observe_joint_angle = kwargs.pop("observe_joint_angle", False)
+        self.joint_angle_obs_noise = kwargs.pop("joint_angle_obs_noise", 0.0)
+        self.asym_package = kwargs.pop("asym_package", True)
+        self.mass_ratio = kwargs.pop("mass_ratio", 5)
+        self.mass_position = kwargs.pop("mass_position", 0.75)
+        self.max_speed_1 = kwargs.pop("max_speed_1", None)  # 0.1
+        self.obs_noise = kwargs.pop("obs_noise", 0.2)
 
         # Reward
-        self.rot_shaping_factor = kwargs.get("rot_shaping_factor", 1)
-        self.energy_reward_coeff = kwargs.get("energy_reward_coeff", 0.08)
+        self.rot_shaping_factor = kwargs.pop("rot_shaping_factor", 1)
+        self.energy_reward_coeff = kwargs.pop("energy_reward_coeff", 0.08)
+
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         # Make world
         world = World(

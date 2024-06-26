@@ -12,7 +12,7 @@ from vmas.simulator.controllers.velocity_controller import VelocityController
 from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
 from vmas.simulator.joints import Joint
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, X, Y
+from vmas.simulator.utils import Color, ScenarioUtils, X, Y
 
 
 def angle_to_vector(angle):
@@ -50,24 +50,25 @@ def get_line_angle_dist_0_180(angle, goal):
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.fixed_passage = kwargs.get("fixed_passage", False)
-        self.joint_length = kwargs.get("joint_length", 0.52)
-        self.random_start_angle = kwargs.get("random_start_angle", False)
-        self.random_goal_angle = kwargs.get("random_goal_angle", False)
-        self.observe_joint_angle = kwargs.get("observe_joint_angle", False)
-        self.joint_angle_obs_noise = kwargs.get("joint_angle_obs_noise", 0.0)
-        self.asym_package = kwargs.get("asym_package", False)
-        self.mass_ratio = kwargs.get("mass_ratio", 1)
-        self.mass_position = kwargs.get("mass_position", 0.75)
-        self.max_speed_1 = kwargs.get("max_speed_1", None)  # 0.1
-        self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 1)
-        self.rot_shaping_factor = kwargs.get("rot_shaping_factor", 1)
-        self.collision_reward = kwargs.get("collision_reward", 0)
-        self.energy_reward_coeff = kwargs.get("energy_reward_coeff", 0)
-        self.obs_noise = kwargs.get("obs_noise", 0.0)
-        self.n_passages = kwargs.get("n_passages", 3)
-        self.middle_angle_180 = kwargs.get("middle_angle_180", False)
-        self.use_vel_controller = kwargs.get("use_vel_controller", False)
+        self.fixed_passage = kwargs.pop("fixed_passage", False)
+        self.joint_length = kwargs.pop("joint_length", 0.52)
+        self.random_start_angle = kwargs.pop("random_start_angle", False)
+        self.random_goal_angle = kwargs.pop("random_goal_angle", False)
+        self.observe_joint_angle = kwargs.pop("observe_joint_angle", False)
+        self.joint_angle_obs_noise = kwargs.pop("joint_angle_obs_noise", 0.0)
+        self.asym_package = kwargs.pop("asym_package", False)
+        self.mass_ratio = kwargs.pop("mass_ratio", 1)
+        self.mass_position = kwargs.pop("mass_position", 0.75)
+        self.max_speed_1 = kwargs.pop("max_speed_1", None)  # 0.1
+        self.pos_shaping_factor = kwargs.pop("pos_shaping_factor", 1)
+        self.rot_shaping_factor = kwargs.pop("rot_shaping_factor", 1)
+        self.collision_reward = kwargs.pop("collision_reward", 0)
+        self.energy_reward_coeff = kwargs.pop("energy_reward_coeff", 0)
+        self.obs_noise = kwargs.pop("obs_noise", 0.0)
+        self.n_passages = kwargs.pop("n_passages", 3)
+        self.middle_angle_180 = kwargs.pop("middle_angle_180", False)
+        self.use_vel_controller = kwargs.pop("use_vel_controller", False)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         assert self.n_passages == 3 or self.n_passages == 4
 
