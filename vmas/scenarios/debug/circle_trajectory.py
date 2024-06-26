@@ -10,7 +10,7 @@ from vmas import render_interactively
 from vmas.simulator.controllers.velocity_controller import VelocityController
 from vmas.simulator.core import Agent, Sphere, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, TorchUtils, X, Y
+from vmas.simulator.utils import Color, ScenarioUtils, TorchUtils, X, Y
 
 
 class Scenario(BaseScenario):
@@ -21,6 +21,7 @@ class Scenario(BaseScenario):
         self.dt_delay = kwargs.pop("dt_delay", 0)
         self.min_input_norm = kwargs.pop("min_input_norm", 0.08)
         self.linear_friction = kwargs.pop("linear_friction", 0.1)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self.agent_radius = 0.16
         self.desired_radius = 1.5

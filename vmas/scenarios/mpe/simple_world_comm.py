@@ -6,7 +6,7 @@ import torch
 
 from vmas.simulator.core import Agent, Landmark, Sphere, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color
+from vmas.simulator.utils import Color, ScenarioUtils
 
 
 class Scenario(BaseScenario):
@@ -24,6 +24,7 @@ class Scenario(BaseScenario):
         num_food = kwargs.pop("num_food", 2)
         num_forests = kwargs.pop("num_forests", 2)
         num_agents = num_good_agents + num_adversaries
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         # Add agents
         for i in range(num_agents):

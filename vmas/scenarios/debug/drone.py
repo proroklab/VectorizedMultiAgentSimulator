@@ -27,6 +27,7 @@ class Scenario(BaseScenario):
         """
         self.plot_grid = True
         self.n_agents = kwargs.pop("n_agents", 2)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         # Make world
         world = World(batch_dim, device, substeps=10)

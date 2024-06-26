@@ -15,6 +15,7 @@ class Scenario(BaseScenario):
         self.n_agents = kwargs.pop("n_agents", 15)
         self.n_lines = kwargs.pop("n_lines", 15)
         self.n_boxes = kwargs.pop("n_boxes", 15)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self.agent_radius = 0.05
         self.line_length = 0.3

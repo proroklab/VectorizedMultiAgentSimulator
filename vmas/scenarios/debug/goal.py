@@ -11,7 +11,7 @@ from vmas import render_interactively
 from vmas.simulator.controllers.velocity_controller import VelocityController
 from vmas.simulator.core import Agent, Landmark, Sphere, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, TorchUtils
+from vmas.simulator.utils import Color, ScenarioUtils, TorchUtils
 
 
 class Scenario(BaseScenario):
@@ -26,6 +26,7 @@ class Scenario(BaseScenario):
         self.pos_shaping_factor = kwargs.pop("pos_shaping_factor", 1.0)
         self.time_rew_coeff = kwargs.pop("time_rew_coeff", -0.01)
         self.energy_reward_coeff = kwargs.pop("energy_rew_coeff", 0.0)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self.viewer_size = (1600, 700)
         self.viewer_zoom = 2

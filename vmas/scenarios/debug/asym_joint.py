@@ -12,7 +12,7 @@ from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, Sphere, World
 from vmas.simulator.joints import Joint
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color
+from vmas.simulator.utils import Color, ScenarioUtils
 
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
@@ -60,6 +60,8 @@ class Scenario(BaseScenario):
         # Reward
         self.rot_shaping_factor = kwargs.pop("rot_shaping_factor", 1)
         self.energy_reward_coeff = kwargs.pop("energy_reward_coeff", 0.08)
+
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         # Make world
         world = World(

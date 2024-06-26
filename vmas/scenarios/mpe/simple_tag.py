@@ -7,7 +7,7 @@ import torch
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, Line, Sphere, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color
+from vmas.simulator.utils import Color, ScenarioUtils
 
 
 class Scenario(BaseScenario):
@@ -24,6 +24,7 @@ class Scenario(BaseScenario):
         self.observe_vel = kwargs.pop("observe_vel", True)
         self.bound = kwargs.pop("bound", 1.0)
         self.respawn_at_catch = kwargs.pop("respawn_at_catch", False)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         world = World(
             batch_dim=batch_dim,

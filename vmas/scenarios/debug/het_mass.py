@@ -11,7 +11,7 @@ from torch import Tensor
 from vmas import render_interactively
 from vmas.simulator.core import Agent, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, Y
+from vmas.simulator.utils import Color, ScenarioUtils, Y
 
 
 class Scenario(BaseScenario):
@@ -19,6 +19,7 @@ class Scenario(BaseScenario):
         self.green_mass = kwargs.pop("green_mass", 4)
         self.blue_mass = kwargs.pop("blue_mass", 2)
         self.mass_noise = kwargs.pop("mass_noise", 1)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
         self.plot_grid = True
 
         # Make world
