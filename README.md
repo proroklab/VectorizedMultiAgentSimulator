@@ -407,6 +407,9 @@ To create a fake screen you need to have `Xvfb` installed.
 - [HetGPPO](https://matteobettini.github.io/publication/heterogeneous-multi-robot-reinforcement-learning/) features training of `het_mass`, `give_way`, `joint_passage`, `joint_passage_size`
 - [SND](https://matteobettini.github.io/publication/system-neural-diversity-measuring-behavioral-heterogeneity-in-multi-agent-learning/) features training of `navigation`, `joint_passage`, `joint_passage_size`, `wind`
 - [TorchRL](https://matteobettini.com/publication/torchrl-a-data-driven-decision-making-library-for-pytorch/) features training of `navigation`, `sampling`, `balance`
+- [BenchMARL](https://matteobettini.com/publication/benchmarl/) features training of `navigation`, `sampling`, `balance`
+- [The Cambridge RoboMaster](https://matteobettini.com/publication/robomaster/) features training of `navigation`
+- [DiversityControl (DiCo)](https://matteobettini.com/publication/controlling-behavioral-diversity-in-multi-agent-reinforcement-learning/) features training of `navigation`, `sampling`, `dispersion`, `simple_tag`
 
 ## TODOS
 
