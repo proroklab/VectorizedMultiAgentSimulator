@@ -7,13 +7,14 @@ import torch
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, Sphere, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color
+from vmas.simulator.utils import Color, ScenarioUtils
 
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        n_agents = kwargs.get("n_agents", 3)
-        n_adversaries = kwargs.get("n_adversaries", 1)
+        n_agents = kwargs.pop("n_agents", 3)
+        n_adversaries = kwargs.pop("n_adversaries", 1)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
         assert n_agents > n_adversaries
 
         world = World(

@@ -7,13 +7,14 @@ import torch
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color
+from vmas.simulator.utils import Color, ScenarioUtils
 
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.n_passages = kwargs.get("n_passages", 1)
-        self.shared_reward = kwargs.get("shared_reward", False)
+        self.n_passages = kwargs.pop("n_passages", 1)
+        self.shared_reward = kwargs.pop("shared_reward", False)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         assert self.n_passages >= 1 and self.n_passages <= 20
 

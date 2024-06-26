@@ -31,15 +31,15 @@ def use_vmas_env(
     random_action: bool = False,
     device: str = "cpu",
     scenario_name: str = "waterfall",
-    n_agents: int = 4,
     continuous_actions: bool = True,
     visualize_render: bool = True,
+    dict_spaces: bool = True,
+    **kwargs,
 ):
     """Example function to use a vmas environment
 
     Args:
         continuous_actions (bool): Whether the agents have continuous or discrete actions
-        n_agents (int): Number of agents
         scenario_name (str): Name of scenario
         device (str): Torch device to use
         render (bool): Whether to render the scenario
@@ -48,14 +48,14 @@ def use_vmas_env(
         n_steps (int): Number of steps before returning done
         random_action (bool): Use random actions or have all agents perform the down action
         visualize_render (bool, optional): Whether to visualize the render. Defaults to ``True``.
+        dict_spaces (bool, optional): Weather to return obs, rewards, and infos as dictionaries with agent names.
+            By default, they are lists of len # of agents
+        kwargs (dict, optional): Keyword arguments to pass to the scenario
 
     Returns:
 
     """
     assert not (save_render and not render), "To save the video you have to render it"
-
-    dict_spaces = True  # Weather to return obs, rewards, and infos as dictionaries with agent names
-    # (by default they are lists of len # of agents)
 
     env = make_env(
         scenario=scenario_name,
@@ -66,7 +66,7 @@ def use_vmas_env(
         wrapper=None,
         seed=None,
         # Environment specific variables
-        n_agents=n_agents,
+        **kwargs,
     )
 
     frame_list = []  # For creating a gif
@@ -121,4 +121,6 @@ if __name__ == "__main__":
         save_render=False,
         random_action=False,
         continuous_actions=False,
+        # Environment specific
+        n_agents=4,
     )
