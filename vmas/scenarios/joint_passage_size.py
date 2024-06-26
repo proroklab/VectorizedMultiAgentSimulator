@@ -12,7 +12,7 @@ from vmas.simulator.controllers.velocity_controller import VelocityController
 from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
 from vmas.simulator.joints import Joint
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, X, Y
+from vmas.simulator.utils import Color, ScenarioUtils, X, Y
 
 
 def angle_to_vector(angle):
@@ -68,6 +68,7 @@ class Scenario(BaseScenario):
         self.n_passages = kwargs.pop("n_passages", 3)
         self.middle_angle_180 = kwargs.pop("middle_angle_180", False)
         self.use_vel_controller = kwargs.pop("use_vel_controller", False)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         assert self.n_passages == 3 or self.n_passages == 4
 

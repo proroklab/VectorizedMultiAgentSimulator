@@ -12,7 +12,7 @@ from vmas.simulator.controllers.velocity_controller import VelocityController
 from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
 from vmas.simulator.joints import Joint
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, X, Y
+from vmas.simulator.utils import Color, ScenarioUtils, X, Y
 
 
 def get_line_angle_0_90(rot: Tensor):
@@ -62,6 +62,7 @@ class Scenario(BaseScenario):
         self.all_passed_rot = kwargs.pop("all_passed_rot", True)
         self.obs_noise = kwargs.pop("obs_noise", 0.0)
         self.use_controller = kwargs.pop("use_controller", False)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self.plot_grid = True
         # Make world

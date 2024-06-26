@@ -18,6 +18,7 @@ class Scenario(BaseScenario):
         self.package_width = kwargs.pop("package_width", 0.15)
         self.package_length = kwargs.pop("package_length", 0.15)
         self.package_mass = kwargs.pop("package_mass", 50)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self.shaping_factor = 100
         self.world_semidim = 1

@@ -22,6 +22,7 @@ class Scenario(BaseScenario):
 
         self.collision_reward = kwargs.pop("collision_reward", -0.1)
         self.dist_shaping_factor = kwargs.pop("dist_shaping_factor", 1)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self.plot_grid = True
         self.desired_distance = 0.1

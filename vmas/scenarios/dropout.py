@@ -22,6 +22,7 @@ class Scenario(BaseScenario):
             "energy_coeff", DEFAULT_ENERGY_COEFF
         )  # Weight of team energy penalty
         self.start_same_point = kwargs.pop("start_same_point", False)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
         self.agent_radius = 0.05
         self.goal_radius = 0.03
 

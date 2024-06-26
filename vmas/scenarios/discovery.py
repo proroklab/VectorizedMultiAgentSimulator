@@ -33,6 +33,7 @@ class Scenario(BaseScenario):
         self.agent_collision_penalty = kwargs.pop("agent_collision_penalty", 0)
         self.covering_rew_coeff = kwargs.pop("covering_rew_coeff", 1.0)
         self.time_penalty = kwargs.pop("time_penalty", 0)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self._comms_range = self._lidar_range
         self.min_collision_distance = 0.005

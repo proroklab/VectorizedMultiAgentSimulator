@@ -10,7 +10,7 @@ from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, Sphere, World
 from vmas.simulator.joints import Joint
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, JOINT_FORCE, X
+from vmas.simulator.utils import Color, JOINT_FORCE, ScenarioUtils, X
 
 
 class Scenario(BaseScenario):
@@ -19,6 +19,7 @@ class Scenario(BaseScenario):
         self.speed_shaping_factor = kwargs.pop("speed_shaping_factor", 1)
         self.dist_shaping_factor = kwargs.pop("dist_shaping_factor", 0)
         self.joints = kwargs.pop("joints", True)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self.n_agents = 2
 

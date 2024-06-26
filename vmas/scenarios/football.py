@@ -11,7 +11,7 @@ import torch
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, X, Y
+from vmas.simulator.utils import Color, ScenarioUtils, X, Y
 
 
 class Scenario(BaseScenario):
@@ -57,6 +57,7 @@ class Scenario(BaseScenario):
         self.ball_size = kwargs.pop("ball_size", 0.02)
         self.n_traj_points = kwargs.pop("n_traj_points", 8)
         self.dense_reward_ratio = kwargs.pop("dense_reward_ratio", 0.001)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
     def init_world(self, batch_dim: int, device: torch.device):
         # Make world

@@ -11,7 +11,7 @@ from vmas import render_interactively
 from vmas.simulator.controllers.velocity_controller import VelocityController
 from vmas.simulator.core import Agent, Sphere, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, X, Y
+from vmas.simulator.utils import Color, ScenarioUtils, X, Y
 
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
@@ -83,6 +83,7 @@ class Scenario(BaseScenario):
         # Other
         self.cover_angle_tolerance = kwargs.pop("cover_angle_tolerance", 1)
         self.horizon = kwargs.pop("horizon", 200)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self.desired_distance = 1
         self.grid_spacing = self.desired_distance

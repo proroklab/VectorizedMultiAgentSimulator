@@ -10,7 +10,7 @@ from vmas import render_interactively
 from vmas.simulator.controllers.velocity_controller import VelocityController
 from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, TorchUtils
+from vmas.simulator.utils import Color, ScenarioUtils, TorchUtils
 
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
@@ -35,6 +35,8 @@ class Scenario(BaseScenario):
         self.agent_collision_penalty = kwargs.pop("agent_collision_penalty", -0.1)
         # self.passage_collision_penalty = kwargs.pop("passage_collision_penalty", 0)
         # self.obstacle_collision_penalty = kwargs.pop("obstacle_collision_penalty", 0)
+
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self.viewer_zoom = 1.7
 

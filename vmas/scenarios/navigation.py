@@ -37,6 +37,7 @@ class Scenario(BaseScenario):
         self.final_reward = kwargs.pop("final_reward", 0.01)
 
         self.agent_collision_penalty = kwargs.pop("agent_collision_penalty", -1)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self.min_distance_between_entities = self.agent_radius * 2 + 0.05
         self.world_semidim = 1

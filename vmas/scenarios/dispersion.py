@@ -7,7 +7,7 @@ import torch
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, Sphere, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color
+from vmas.simulator.utils import Color, ScenarioUtils
 
 
 class Scenario(BaseScenario):
@@ -18,6 +18,7 @@ class Scenario(BaseScenario):
         self.food_radius = kwargs.pop("food_radius", 0.05)
         self.pos_range = kwargs.pop("pos_range", 1.0)
         n_food = kwargs.pop("n_food", n_agents)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         # Make world
         world = World(
