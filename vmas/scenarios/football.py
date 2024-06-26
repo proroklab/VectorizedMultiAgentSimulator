@@ -905,6 +905,7 @@ class Scenario(BaseScenario):
         self,
         agent: Agent,
         agent_pos=None,
+        agent_rot=None,
         agent_vel=None,
         agent_force=None,
         teammate_poses=None,
@@ -940,6 +941,7 @@ class Scenario(BaseScenario):
 
         obs = self.observation_base(
             agent.state.pos[env_index] if agent_pos is None else agent_pos,
+            agent.state.rot[env_index] if agent_rot is None else agent_rot,
             agent.state.vel[env_index] if agent_vel is None else agent_vel,
             agent.state.force[env_index] if agent_force is None else agent_force,
             ball_pos=self.ball.state.pos[env_index] if ball_pos is None else ball_pos,
@@ -971,6 +973,7 @@ class Scenario(BaseScenario):
     def observation_base(
         self,
         agent_pos,
+        agent_rot,
         agent_vel,
         agent_force,
         teammate_poses,
@@ -986,6 +989,7 @@ class Scenario(BaseScenario):
         # Make all inputs same batch size (this is needed when this function is called for rendering
         input = [
             agent_pos,
+            agent_rot,
             agent_vel,
             agent_force,
             ball_pos,
@@ -1014,6 +1018,7 @@ class Scenario(BaseScenario):
 
         (
             agent_pos,
+            agent_rot,
             agent_vel,
             agent_force,
             ball_pos,
@@ -1040,6 +1045,8 @@ class Scenario(BaseScenario):
             "pos": [agent_pos - self.right_goal_pos],
             "vel": [agent_vel],
         }
+        if self.enable_shooting:
+            obs["obs"].append(agent_rot)
 
         if self.observe_adversaries and len(adversary_poses):
             obs["adversaries"] = []
