@@ -3,6 +3,7 @@
 #  All rights reserved.
 import importlib
 import os
+import warnings
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Dict, List, Sequence, Tuple, Union
@@ -296,3 +297,12 @@ class ScenarioUtils:
             else:
                 break
         return pos
+
+    @staticmethod
+    def check_kwargs_consumed(dictionary_of_kwargs: Dict, warn: bool = False):
+        if len(dictionary_of_kwargs) > 0:
+            message = f"Scenario kwargs: {dictionary_of_kwargs} passed but not used by the scenario"
+            if warn:
+                warnings.warn(message)
+            else:
+                raise ValueError(message)
