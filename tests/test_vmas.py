@@ -98,7 +98,3 @@ def test_vmas_differentiable(scenario, n_steps=10, n_envs=10):
 
     loss = obs[-1].mean() + rews[-1].mean()
     grad = torch.autograd.grad(loss, first_action)
-
-
-if __name__ == "__main__":
-    test_vmas_differentiable("balance")
