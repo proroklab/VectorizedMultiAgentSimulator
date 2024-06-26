@@ -14,7 +14,7 @@ from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
 from vmas.simulator.dynamics.holonomic import Holonomic
 from vmas.simulator.dynamics.holonomic_with_rot import HolonomicWithRotation
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, TorchUtils, X, Y
+from vmas.simulator.utils import Color, ScenarioUtils, TorchUtils, X, Y
 
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
@@ -66,66 +66,67 @@ class Scenario(BaseScenario):
 
     def init_params(self, **kwargs):
         # Scenario config
-        self.viewer_size = kwargs.get("viewer_size", (1200, 800))
+        self.viewer_size = kwargs.pop("viewer_size", (1200, 800))
 
         # Agents config
-        self.n_blue_agents = kwargs.get("n_blue_agents", 3)
-        self.n_red_agents = kwargs.get("n_red_agents", 3)
-        self.ai_red_agents = kwargs.get("ai_red_agents", True)
-        self.ai_blue_agents = kwargs.get("ai_blue_agents", False)
+        self.n_blue_agents = kwargs.pop("n_blue_agents", 3)
+        self.n_red_agents = kwargs.pop("n_red_agents", 3)
+        self.ai_red_agents = kwargs.pop("ai_red_agents", True)
+        self.ai_blue_agents = kwargs.pop("ai_blue_agents", False)
 
         # Ai config
-        self.n_traj_points = kwargs.get("n_traj_points", 0)
-        self.ai_strength = kwargs.get("ai_strength", 1)
-        self.disable_ai_red = kwargs.get("disable_ai_red", False)
+        self.n_traj_points = kwargs.pop("n_traj_points", 0)
+        self.ai_strength = kwargs.pop("ai_strength", 1)
+        self.disable_ai_red = kwargs.pop("disable_ai_red", False)
 
         # Task sizes
-        self.agent_size = kwargs.get("agent_size", 0.025)
-        self.goal_size = kwargs.get("goal_size", 0.35)
-        self.goal_depth = kwargs.get("goal_depth", 0.1)
-        self.pitch_length = kwargs.get("pitch_length", 3.0)
-        self.pitch_width = kwargs.get("pitch_width", 1.5)
-        self.ball_mass = kwargs.get("ball_mass", 0.25)
-        self.ball_size = kwargs.get("ball_size", 0.02)
+        self.agent_size = kwargs.pop("agent_size", 0.025)
+        self.goal_size = kwargs.pop("goal_size", 0.35)
+        self.goal_depth = kwargs.pop("goal_depth", 0.1)
+        self.pitch_length = kwargs.pop("pitch_length", 3.0)
+        self.pitch_width = kwargs.pop("pitch_width", 1.5)
+        self.ball_mass = kwargs.pop("ball_mass", 0.25)
+        self.ball_size = kwargs.pop("ball_size", 0.02)
 
         # Actions
-        self.u_multiplier = kwargs.get("u_multiplier", 0.1)
+        self.u_multiplier = kwargs.pop("u_multiplier", 0.1)
 
         # Actions shooting
-        self.enable_shooting = kwargs.get("enable_shooting", False)
-        self.u_rot_multiplier = kwargs.get("u_rot_multiplier", 0.0001)
-        self.u_shoot_multiplier = kwargs.get("u_shoot_multiplier", 0.25)
-        self.shooting_radius = kwargs.get("shooting_radius", 0.1)
-        self.shooting_angle = kwargs.get("shooting_angle", torch.pi / 2)
+        self.enable_shooting = kwargs.pop("enable_shooting", False)
+        self.u_rot_multiplier = kwargs.pop("u_rot_multiplier", 0.0001)
+        self.u_shoot_multiplier = kwargs.pop("u_shoot_multiplier", 0.25)
+        self.shooting_radius = kwargs.pop("shooting_radius", 0.1)
+        self.shooting_angle = kwargs.pop("shooting_angle", torch.pi / 2)
 
         # Speeds
-        self.max_speed = kwargs.get("max_speed", 0.15)
-        self.ball_max_speed = kwargs.get("ball_max_speed", 0.3)
+        self.max_speed = kwargs.pop("max_speed", 0.15)
+        self.ball_max_speed = kwargs.pop("ball_max_speed", 0.3)
 
         # Rewards
-        self.dense_reward = kwargs.get("dense_reward", True)
-        self.pos_shaping_factor_ball_goal = kwargs.get(
+        self.dense_reward = kwargs.pop("dense_reward", True)
+        self.pos_shaping_factor_ball_goal = kwargs.pop(
             "pos_shaping_factor_ball_goal", 10.0
         )
-        self.pos_shaping_factor_agent_ball = kwargs.get(
+        self.pos_shaping_factor_agent_ball = kwargs.pop(
             "pos_shaping_factor_agent_ball", 0.1
         )
-        self.only_closest_agent_ball_reward = kwargs.get(
+        self.only_closest_agent_ball_reward = kwargs.pop(
             "only_closest_agent_ball_reward", True
         )
-        self.distance_to_ball_trigger = kwargs.get("distance_to_ball_trigger", 0.4)
-        self.scoring_reward = kwargs.get("scoring_reward", 100.0)
+        self.distance_to_ball_trigger = kwargs.pop("distance_to_ball_trigger", 0.4)
+        self.scoring_reward = kwargs.pop("scoring_reward", 100.0)
 
         # Observations
-        self.observe_teammates = kwargs.get("observe_teammates", True)
-        self.observe_adversaries = kwargs.get("observe_adversaries", True)
-        self.dict_obs = kwargs.get("dict_obs", False)
+        self.observe_teammates = kwargs.pop("observe_teammates", True)
+        self.observe_adversaries = kwargs.pop("observe_adversaries", True)
+        self.dict_obs = kwargs.pop("dict_obs", False)
 
-        if kwargs.get("dense_reward_ratio", None) is not None:
+        if kwargs.pop("dense_reward_ratio", None) is not None:
             raise ValueError(
                 "dense_reward_ratio in football is deprecated, please use `dense_reward` "
                 "which is a bool that turns on/off the dense reward"
             )
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
     def init_world(self, batch_dim: int, device: torch.device):
         # Make world
