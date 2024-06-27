@@ -1,7 +1,8 @@
 #  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-from typing import Dict
+import typing
+from typing import Dict, List
 
 import torch
 from torch import Tensor
@@ -11,7 +12,10 @@ from vmas.simulator.controllers.velocity_controller import VelocityController
 from vmas.simulator.core import Agent, Box, Landmark, Sphere, World
 from vmas.simulator.dynamics.holonomic import Holonomic
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import ScenarioUtils, TorchUtils, Color
+from vmas.simulator.utils import Color, ScenarioUtils, TorchUtils
+
+if typing.TYPE_CHECKING:
+    from vmas.simulator.rendering import Geom
 
 
 class Scenario(BaseScenario):
@@ -22,7 +26,7 @@ class Scenario(BaseScenario):
         self.box_agents = kwargs.get("box_agents", False)
         self.linear_friction = kwargs.get("linear_friction", 0.1)
         self.min_input_norm = kwargs.get("min_input_norm", 0.08)
-        self.edge_radius = kwargs.get("edge_radius", 10)
+        self.edge_radius = kwargs.get("edge_radius", 2)
         self.agent_radius = 0.16
         self.agent_box_length = 0.32
         self.agent_box_width = 0.24
@@ -41,7 +45,7 @@ class Scenario(BaseScenario):
         self.final_reward = kwargs.get("final_reward", 0.005)
         self.agent_collision_penalty = kwargs.get("agent_collision_penalty", -1)
 
-        self.min_distance_between_entities = self.agent_radius * 2 + 0.1
+        self.min_distance_between_entities = self.agent_radius * 2 + 0.2
         self.world_semidim = 3
         self.min_collision_distance = 0.05
 
