@@ -11,7 +11,7 @@ from vmas.simulator.controllers.velocity_controller import VelocityController
 from vmas.simulator.core import Agent, Box, Landmark, Sphere, World
 from vmas.simulator.dynamics.holonomic import Holonomic
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import ScenarioUtils, TorchUtils
+from vmas.simulator.utils import ScenarioUtils, TorchUtils, Color
 
 
 class Scenario(BaseScenario):
@@ -22,6 +22,7 @@ class Scenario(BaseScenario):
         self.box_agents = kwargs.get("box_agents", False)
         self.linear_friction = kwargs.get("linear_friction", 0.1)
         self.min_input_norm = kwargs.get("min_input_norm", 0.08)
+        self.edge_radius = kwargs.get("edge_radius", 10)
         self.agent_radius = 0.16
         self.agent_box_length = 0.32
         self.agent_box_width = 0.24
@@ -235,48 +236,32 @@ class Scenario(BaseScenario):
             "collision_rew": agent.agent_collision_rew,
         }
 
-    # def extra_render(self, env_index: int = 0):
-    #     from vmas.simulator import rendering
-    #
-    #     geoms = []
-    #     for i, entity_a in enumerate(self.world.agents):
-    #         for j, entity_b in enumerate(self.world.agents):
-    #             if i <= j:
-    #                 continue
-    #             if not self.box_agents:
-    #                 point_a = entity_a.state.pos
-    #                 point_b = entity_b.state.pos
-    #                 dist = self.world.get_distance_from_point(
-    #                     entity_a, entity_b.state.pos, env_index
-    #                 )
-    #                 dist = dist - entity_b.shape.radius
-    #             else:
-    #                 point_a, point_b = _get_closest_box_box(
-    #                     entity_a.state.pos,
-    #                     entity_a.state.rot,
-    #                     entity_a.shape.width,
-    #                     entity_a.shape.length,
-    #                     entity_b.state.pos,
-    #                     entity_b.state.rot,
-    #                     entity_b.shape.width,
-    #                     entity_b.shape.length,
-    #                 )
-    #                 dist = torch.linalg.vector_norm(point_a - point_b, dim=-1)
-    #
-    #             for point in [point_a, point_b]:
-    #                 color = (
-    #                     Color.BLACK.value
-    #                     if dist > self.min_collision_distance
-    #                     else Color.RED.value
-    #                 )
-    #                 line = rendering.make_circle(0.03)
-    #                 xform = rendering.Transform()
-    #                 xform.set_translation(point[env_index][0], point[env_index][1])
-    #                 line.add_attr(xform)
-    #                 line.set_color(*color)
-    #                 geoms.append(line)
-    #     return geoms
-    #
+    def extra_render(self, env_index: int = 0) -> "List[Geom]":
+        from vmas.simulator import rendering
+
+        geoms: List[Geom] = []
+
+        # Communication lines
+        for i, agent1 in enumerate(self.world.agents):
+            for j, agent2 in enumerate(self.world.agents):
+                if j <= i:
+                    continue
+                agent_dist = torch.linalg.vector_norm(
+                    agent1.state.pos - agent2.state.pos, dim=-1
+                )
+                if agent_dist[env_index] <= self.edge_radius:
+                    color = Color.BLACK.value
+                    line = rendering.Line(
+                        (agent1.state.pos[env_index]),
+                        (agent2.state.pos[env_index]),
+                        width=1,
+                    )
+                    xform = rendering.Transform()
+                    line.add_attr(xform)
+                    line.set_color(*color)
+                    geoms.append(line)
+
+        return geoms
 
 
 if __name__ == "__main__":
