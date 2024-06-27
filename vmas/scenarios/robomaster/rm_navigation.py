@@ -34,13 +34,13 @@ class Scenario(BaseScenario):
 
         self.plot_grid = True
         self.viewer_zoom = 2
-        self.n_agents = kwargs.get("n_agents", 2)
+        self.n_agents = kwargs.get("n_agents", 9)
 
         self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 1)
         self.final_reward = kwargs.get("final_reward", 0.005)
         self.agent_collision_penalty = kwargs.get("agent_collision_penalty", -1)
 
-        self.min_distance_between_entities = self.agent_radius * 2 + 0.05
+        self.min_distance_between_entities = self.agent_radius * 2 + 0.1
         self.world_semidim = 3
         self.min_collision_distance = 0.05
 
