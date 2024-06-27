@@ -1045,14 +1045,11 @@ class Agent(Entity):
         geoms = super().render(env_index)
         if len(geoms) == 0:
             return geoms
-
+        for geom in geoms:
+            geom.set_color(*self.color, alpha=self._alpha)
         if self._sensors is not None:
             for sensor in self._sensors:
                 geoms += sensor.render(env_index=env_index)
-
-        for geom in geoms:
-            geom.set_color(*self.color, alpha=self._alpha)
-
         if self._render_action and self.state.force is not None:
             velocity = rendering.Line(
                 self.state.pos[env_index],
@@ -1830,10 +1827,7 @@ class World(TorchVectorizedObject):
             )
             rotate = rotate_prior.unsqueeze(0).expand(self.batch_dim, -1).unsqueeze(-1)
 
-            (
-                force_a_attractive,
-                force_b_attractive,
-            ) = self._get_constraint_forces(
+            (force_a_attractive, force_b_attractive,) = self._get_constraint_forces(
                 pos_joint_a,
                 pos_joint_b,
                 dist_min=dist,
