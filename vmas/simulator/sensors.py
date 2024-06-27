@@ -135,7 +135,7 @@ class Lidar(Sensor):
                 xform.set_translation(*self.agent.state.pos[env_index])
                 xform.set_rotation(angle)
                 ray.add_attr(xform)
-                ray.set_color(*Color.BLACK.value, alpha=self.alpha)
+                ray.set_color(r=0, g=0, b=0, alpha=self.alpha)
 
                 ray_circ = rendering.make_circle(0.01)
                 ray_circ.set_color(*self.render_color, alpha=self.alpha)
