@@ -11,7 +11,6 @@ from typing import Callable, List, Tuple, Union
 import torch
 
 import vmas.simulator.core
-import vmas.simulator.utils
 from vmas.simulator.utils import Color
 
 if typing.TYPE_CHECKING:
