@@ -93,7 +93,7 @@ class Scenario(BaseScenario):
 
         # Actions shooting
         self.enable_shooting = kwargs.pop("enable_shooting", False)
-        self.u_rot_multiplier = kwargs.pop("u_rot_multiplier", 0.0001)
+        self.u_rot_multiplier = kwargs.pop("u_rot_multiplier", 0.0003)
         self.u_shoot_multiplier = kwargs.pop("u_shoot_multiplier", 0.25)
         self.shooting_radius = kwargs.pop("shooting_radius", 0.1)
         self.shooting_angle = kwargs.pop("shooting_angle", torch.pi / 2)
