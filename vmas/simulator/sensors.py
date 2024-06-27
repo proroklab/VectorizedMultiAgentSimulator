@@ -139,6 +139,7 @@ class Lidar(Sensor):
                 ray.set_color(*Color.BLACK.value, alpha=self.alpha)
 
                 ray_circ = rendering.make_circle(0.01)
+                ray_circ.set_color(*self.render_color, alpha=self.alpha)
                 xform = rendering.Transform()
                 rot = torch.stack([torch.cos(angle), torch.sin(angle)], dim=-1)
                 pos_circ = (
