@@ -130,9 +130,9 @@ class Lidar(Sensor):
                 xform.set_translation(*self.agent.state.pos[env_index])
                 xform.set_rotation(angle)
                 ray.add_attr(xform)
+                ray.set_color(*self.render_color)
 
                 ray_circ = rendering.make_circle(0.01)
-                ray_circ.set_color(*self.render_color)
                 xform = rendering.Transform()
                 rot = torch.stack([torch.cos(angle), torch.sin(angle)], dim=-1)
                 pos_circ = (
