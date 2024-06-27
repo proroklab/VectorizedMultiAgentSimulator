@@ -3,6 +3,7 @@
 #  All rights reserved.
 import importlib
 import os
+import warnings
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Dict, List, Sequence, Tuple, Union
@@ -13,18 +14,16 @@ from torch import Tensor
 
 _has_matplotlib = importlib.util.find_spec("matplotlib") is not None
 
-if _has_matplotlib:
-    from matplotlib import cm
-
 X = 0
 Y = 1
 Z = 2
 ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-VIEWER_MIN_ZOOM = 1.2
+VIEWER_DEFAULT_ZOOM = 1.2
 INITIAL_VIEWER_SIZE = (700, 700)
 LINE_MIN_DIST = 4 / 6e2
 COLLISION_FORCE = 100
 JOINT_FORCE = 130
+TORQUE_CONSTRAINT_FORCE = 1
 
 DRAG = 0.25
 LINEAR_FRICTION = 0.0
@@ -124,13 +123,16 @@ def x_to_rgb_colormap(
     cmap_name: str = "viridis",
     cmap_res: int = 10,
 ):
+    from matplotlib import cm
+
     colormap = cm.get_cmap(cmap_name, cmap_res)(range(cmap_res))[:, :-1]
     if low is None:
         low = np.min(x)
     if high is None:
         high = np.max(x)
     x = np.clip(x, low, high)
-    x = (x - low) / (high - low) * (cmap_res - 1)
+    if high - low > 1e-5:
+        x = (x - low) / (high - low) * (cmap_res - 1)
     x_c0_idx = np.floor(x).astype(int)
     x_c1_idx = np.ceil(x).astype(int)
     x_c0 = colormap[x_c0_idx, :]
@@ -295,3 +297,14 @@ class ScenarioUtils:
             else:
                 break
         return pos
+
+    @staticmethod
+    def check_kwargs_consumed(dictionary_of_kwargs: Dict, warn: bool = True):
+        if len(dictionary_of_kwargs) > 0:
+            message = f"Scenario kwargs: {dictionary_of_kwargs} passed but not used by the scenario."
+            if warn:
+                warnings.warn(
+                    message + " This will turn into an error in future versions."
+                )
+            else:
+                raise ValueError(message)

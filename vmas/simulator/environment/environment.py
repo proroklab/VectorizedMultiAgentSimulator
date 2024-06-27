@@ -19,7 +19,6 @@ from vmas.simulator.utils import (
     DEVICE_TYPING,
     override,
     TorchUtils,
-    VIEWER_MIN_ZOOM,
     X,
     Y,
 )
@@ -65,12 +64,12 @@ class Environment(TorchVectorizedObject):
         self.clamp_action = clamp_actions
         self.grad_enabled = grad_enabled
 
-        self.reset(seed=seed)
+        observations = self.reset(seed=seed)
 
         # configure spaces
         self.multidiscrete_actions = multidiscrete_actions
         self.action_space = self.get_action_space()
-        self.observation_space = self.get_observation_space()
+        self.observation_space = self.get_observation_space(observations)
 
         # rendering
         self.viewer = None
@@ -255,7 +254,9 @@ class Environment(TorchVectorizedObject):
             self.scenario.env_process_action(agent)
 
         # advance world state
+        self.scenario.pre_step()
         self.world.step()
+        self.scenario.post_step()
 
         self.steps += 1
         obs, rewards, dones, infos = self.get_from_scenario(
@@ -286,21 +287,19 @@ class Environment(TorchVectorizedObject):
                 }
             )
 
-    def get_observation_space(self):
+    def get_observation_space(self, observations: Union[List, Dict]):
         if not self.dict_spaces:
             return spaces.Tuple(
                 [
-                    self.get_agent_observation_space(
-                        agent, self.scenario.observation(agent)
-                    )
-                    for agent in self.agents
+                    self.get_agent_observation_space(agent, observations[i])
+                    for i, agent in enumerate(self.agents)
                 ]
             )
         else:
             return spaces.Dict(
                 {
                     agent.name: self.get_agent_observation_space(
-                        agent, self.scenario.observation(agent)
+                        agent, observations[agent.name]
                     )
                     for agent in self.agents
                 }
@@ -354,7 +353,7 @@ class Environment(TorchVectorizedObject):
             return spaces.Box(
                 low=-np.float32("inf"),
                 high=np.float32("inf"),
-                shape=(len(obs[0]),),
+                shape=obs.shape[1:],
                 dtype=np.float32,
             )
         elif isinstance(obs, Dict):
@@ -407,12 +406,25 @@ class Environment(TorchVectorizedObject):
                     )
             action = torch.stack(actions, dim=-1)
         else:
-            action = torch.randint(
-                low=0,
-                high=self.get_agent_action_space(agent).n,
-                size=(agent.batch_dim,),
-                device=agent.device,
-            )
+            action_space = self.get_agent_action_space(agent)
+            if self.multidiscrete_actions:
+                actions = [
+                    torch.randint(
+                        low=0,
+                        high=action_space.nvec[action_index],
+                        size=(agent.batch_dim,),
+                        device=agent.device,
+                    )
+                    for action_index in range(action_space.shape[0])
+                ]
+                action = torch.stack(actions, dim=-1)
+            else:
+                action = torch.randint(
+                    low=0,
+                    high=action_space.n,
+                    size=(agent.batch_dim,),
+                    device=agent.device,
+                )
         return action
 
     def get_random_actions(self) -> Sequence[torch.Tensor]:
@@ -666,7 +678,9 @@ class Environment(TorchVectorizedObject):
 
             self._init_rendering()
 
-        zoom = max(VIEWER_MIN_ZOOM, self.scenario.viewer_zoom)
+        if self.scenario.viewer_zoom <= 0:
+            raise ValueError("Scenario viewer zoom must be > 0")
+        zoom = self.scenario.viewer_zoom
 
         if aspect_ratio < 1:
             cam_range = torch.tensor([zoom, zoom / aspect_ratio], device=self.device)
@@ -685,8 +699,12 @@ class Environment(TorchVectorizedObject):
             viewer_size_fit = (
                 torch.stack(
                     [
-                        torch.max(torch.abs(all_poses[:, X])),
-                        torch.max(torch.abs(all_poses[:, Y])),
+                        torch.max(
+                            torch.abs(all_poses[:, X] - self.scenario.render_origin[X])
+                        ),
+                        torch.max(
+                            torch.abs(all_poses[:, Y] - self.scenario.render_origin[Y])
+                        ),
                     ]
                 )
                 + 2 * max_agent_radius
@@ -698,10 +716,10 @@ class Environment(TorchVectorizedObject):
             )
             cam_range *= torch.max(viewer_size)
             self.viewer.set_bounds(
-                -cam_range[X],
-                cam_range[X],
-                -cam_range[Y],
-                cam_range[Y],
+                -cam_range[X] + self.scenario.render_origin[X],
+                cam_range[X] + self.scenario.render_origin[X],
+                -cam_range[Y] + self.scenario.render_origin[Y],
+                cam_range[Y] + self.scenario.render_origin[Y],
             )
         else:
             # update bounds to center around agent

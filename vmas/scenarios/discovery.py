@@ -21,18 +21,19 @@ if typing.TYPE_CHECKING:
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.n_agents = kwargs.get("n_agents", 5)
-        self.n_targets = kwargs.get("n_targets", 7)
-        self._min_dist_between_entities = kwargs.get("min_dist_between_entities", 0.2)
-        self._lidar_range = kwargs.get("lidar_range", 0.35)
-        self._covering_range = kwargs.get("covering_range", 0.25)
-        self._agents_per_target = kwargs.get("agents_per_target", 2)
-        self.targets_respawn = kwargs.get("targets_respawn", True)
-        self.shared_reward = kwargs.get("shared_reward", False)
+        self.n_agents = kwargs.pop("n_agents", 5)
+        self.n_targets = kwargs.pop("n_targets", 7)
+        self._min_dist_between_entities = kwargs.pop("min_dist_between_entities", 0.2)
+        self._lidar_range = kwargs.pop("lidar_range", 0.35)
+        self._covering_range = kwargs.pop("covering_range", 0.25)
+        self._agents_per_target = kwargs.pop("agents_per_target", 2)
+        self.targets_respawn = kwargs.pop("targets_respawn", True)
+        self.shared_reward = kwargs.pop("shared_reward", False)
 
-        self.agent_collision_penalty = kwargs.get("agent_collision_penalty", 0)
-        self.covering_rew_coeff = kwargs.get("covering_rew_coeff", 1.0)
-        self.time_penalty = kwargs.get("time_penalty", 0)
+        self.agent_collision_penalty = kwargs.pop("agent_collision_penalty", 0)
+        self.covering_rew_coeff = kwargs.pop("covering_rew_coeff", 1.0)
+        self.time_penalty = kwargs.pop("time_penalty", 0)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self._comms_range = self._lidar_range
         self.min_collision_distance = 0.005

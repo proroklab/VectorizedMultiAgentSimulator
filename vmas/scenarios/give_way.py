@@ -9,33 +9,34 @@ from vmas import render_interactively
 from vmas.simulator.controllers.velocity_controller import VelocityController
 from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, TorchUtils
+from vmas.simulator.utils import Color, ScenarioUtils, TorchUtils
 
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.v_range = kwargs.get("v_range", 0.5)
-        self.a_range = kwargs.get("a_range", 1)
-        self.obs_noise = kwargs.get("obs_noise", 0)
-        self.box_agents = kwargs.get("box_agents", False)
-        self.linear_friction = kwargs.get("linear_friction", 0.1)
-        self.mirror_passage = kwargs.get("mirror_passage", False)
-        self.done_on_completion = kwargs.get("done_on_completion", False)
-        self.observe_rel_pos = kwargs.get("observe_rel_pos", False)
+        self.v_range = kwargs.pop("v_range", 0.5)
+        self.a_range = kwargs.pop("a_range", 1)
+        self.obs_noise = kwargs.pop("obs_noise", 0)
+        self.box_agents = kwargs.pop("box_agents", False)
+        self.linear_friction = kwargs.pop("linear_friction", 0.1)
+        self.mirror_passage = kwargs.pop("mirror_passage", False)
+        self.done_on_completion = kwargs.pop("done_on_completion", False)
+        self.observe_rel_pos = kwargs.pop("observe_rel_pos", False)
 
         # Reward params
-        self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 1.0)
-        self.final_reward = kwargs.get("final_reward", 0.01)
-        self.energy_reward_coeff = kwargs.get("energy_rew_coeff", 0)
+        self.pos_shaping_factor = kwargs.pop("pos_shaping_factor", 1.0)
+        self.final_reward = kwargs.pop("final_reward", 0.01)
+        self.energy_reward_coeff = kwargs.pop("energy_rew_coeff", 0)
 
-        self.agent_collision_penalty = kwargs.get("agent_collision_penalty", 0)
-        self.passage_collision_penalty = kwargs.get("passage_collision_penalty", 0)
-        self.obstacle_collision_penalty = kwargs.get("obstacle_collision_penalty", 0)
+        self.agent_collision_penalty = kwargs.pop("agent_collision_penalty", 0)
+        self.passage_collision_penalty = kwargs.pop("passage_collision_penalty", 0)
+        self.obstacle_collision_penalty = kwargs.pop("obstacle_collision_penalty", 0)
 
         # Params for real world deployment on robomasters
-        self.use_velocity_controller = kwargs.get("use_velocity_controller", True)
-        self.min_input_norm = kwargs.get("min_input_norm", 0.08)
-        self.dt_delay = kwargs.get("dt_delay", 0)
+        self.use_velocity_controller = kwargs.pop("use_velocity_controller", True)
+        self.min_input_norm = kwargs.pop("min_input_norm", 0.08)
+        self.dt_delay = kwargs.pop("dt_delay", 0)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self.viewer_size = (1600, 700)
 
