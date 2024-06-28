@@ -14,13 +14,13 @@ from vmas.simulator.core import Agent, Box, World
 
 from vmas.simulator.dynamics.kinematic_bicycle import KinematicBicycle
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color
+from vmas.simulator.utils import Color, ScenarioUtils
 
 
 class Scenario(BaseScenario):
     """
     This scenario originally comes from the paper "Xu et al. - 2024 - A Sample Efficient and Generalizable Multi-Agent Reinforcement Learning Framework
-    for Motion Planning" (http://dx.doi.org/10.13140/RG.2.2.24505.17769, see also https://github.com/cas-lab-munich/generalizable-marl/tree/1.0.0),
+    for Motion Planning" (http://dx.doi.org/10.13140/RG.2.2.24505.17769, see also its GitHub repo https://github.com/cas-lab-munich/generalizable-marl/tree/1.0.0),
     which aims to design an MARL framework with efficient observation design to enable fast training and to empower agents the ability to generalize
     to unseen scenarios.
 
@@ -36,10 +36,9 @@ class Scenario(BaseScenario):
     In addition, there are some commonly used parameters you may want to adjust to suit your case:
         - n_agents: Number of agents
         - dt: Sample time in seconds
-        - device: Tensor device (default "cpu")
         - scenario_type: One of {'1', '2', '3', '4'}:
                          1 for the entire map
-                         2 for the entire map with prioritized replay buffer (proposed by Schaul et al. - ICLR 2016 - Prioritized Experience Replay)
+                         2 for the entire map with prioritized replay buffer (proposed by Schaul et al. - ICLR 2016 - Prioritized Experience Replay). The implementation of this buffer can be found in the training file of the GitHub repo mentioned above (https://github.com/cas-lab-munich/generalizable-marl/blob/1.0.0/training_mappo_cavs.py)
                          3 for the entire map with challenging initial state buffer (inspired
                          by Kaufmann et al. - Nature 2023 - Champion-level drone racing using deep reinforcement learning)
                          4 for specific scenario (intersection, merge-in, or merge-out)
@@ -64,23 +63,23 @@ class Scenario(BaseScenario):
 
     def init_params(self, batch_dim, device, **kwargs):
         # Geometry
-        self.world_x_dim = kwargs.get(
+        self.world_x_dim = kwargs.pop(
             "world_x_dim", 4.5
         )  # The x-dimension of the world in [m]
-        self.world_y_dim = kwargs.get(
+        self.world_y_dim = kwargs.pop(
             "world_y_dim", 4.0
         )  # The y-dimension of the world in [m]
-        self.agent_width = kwargs.get(
+        self.agent_width = kwargs.pop(
             "agent_width", 0.08
         )  # The width of the agent in [m]
-        self.agent_length = kwargs.get(
+        self.agent_length = kwargs.pop(
             "agent_length", 0.16
         )  # The length of the agent in [m]
-        self.l_f = kwargs.get("l_f", self.agent_length / 2)  # Front wheelbase in [m]
-        self.l_r = kwargs.get(
+        self.l_f = kwargs.pop("l_f", self.agent_length / 2)  # Front wheelbase in [m]
+        self.l_r = kwargs.pop(
             "l_r", self.agent_length - self.l_f
         )  # Rear wheelbase in [m]
-        lane_width = kwargs.get(
+        lane_width = kwargs.pop(
             "lane_width", 0.15
         )  # The (rough) width of each lane in [m]
 
@@ -92,81 +91,81 @@ class Scenario(BaseScenario):
         # output is limited to [-1, 1] (e.g., due to tanh activation function).
 
         reward_progress = (
-            kwargs.get("reward_progress", 10) / r_p_normalizer
+            kwargs.pop("reward_progress", 10) / r_p_normalizer
         )  # Reward for moving along reference paths
         reward_vel = (
-            kwargs.get("reward_vel", 5) / r_p_normalizer
+            kwargs.pop("reward_vel", 5) / r_p_normalizer
         )  # Reward for moving in high velocities.
         reward_reach_goal = (
-            kwargs.get("reward_reach_goal", 0) / r_p_normalizer
+            kwargs.pop("reward_reach_goal", 0) / r_p_normalizer
         )  # Goal-reaching reward
 
         # Penalty
-        threshold_deviate_from_ref_path = kwargs.get(
+        threshold_deviate_from_ref_path = kwargs.pop(
             "threshold_deviate_from_ref_path", (lane_width - self.agent_width) / 2
         )  # Use for penalizing of deviating from reference path
 
-        threshold_reach_goal = kwargs.get(
+        threshold_reach_goal = kwargs.pop(
             "threshold_reach_goal", self.agent_width / 2
         )  # Threshold less than which agents are considered at their goal positions
 
-        threshold_change_steering = kwargs.get(
+        threshold_change_steering = kwargs.pop(
             "threshold_change_steering", 10
         )  # Threshold above which agents will be penalized for changing steering too quick [degree]
 
-        threshold_near_boundary_high = kwargs.get(
+        threshold_near_boundary_high = kwargs.pop(
             "threshold_near_boundary_high", (lane_width - self.agent_width) / 2 * 0.9
         )  # Threshold beneath which agents will started be
         # Penalized for being too close to lanelet boundaries
-        threshold_near_boundary_low = kwargs.get(
+        threshold_near_boundary_low = kwargs.pop(
             "threshold_near_boundary_low", 0
         )  # Threshold above which agents will be penalized for being too close to lanelet boundaries
 
-        threshold_near_other_agents_c2c_high = kwargs.get(
+        threshold_near_other_agents_c2c_high = kwargs.pop(
             "threshold_near_other_agents_c2c_high", self.agent_length + self.agent_width
         )  # Threshold beneath which agents will started be
         # Penalized for being too close to other agents (for center-to-center distance)
-        threshold_near_other_agents_c2c_low = kwargs.get(
+        threshold_near_other_agents_c2c_low = kwargs.pop(
             "threshold_near_other_agents_c2c_low",
             (self.agent_length + self.agent_width) / 2,
         )  # Threshold above which agents will be penalized (for center-to-center distance,
         # If a c2c distance is less than the half of the agent width, they are colliding, which will be penalized by another penalty)
 
-        threshold_no_reward_if_too_close_to_boundaries = kwargs.get(
+        threshold_no_reward_if_too_close_to_boundaries = kwargs.pop(
             "threshold_no_reward_if_too_close_to_boundaries", self.agent_width / 10
         )
-        threshold_no_reward_if_too_close_to_other_agents = kwargs.get(
+        threshold_no_reward_if_too_close_to_other_agents = kwargs.pop(
             "threshold_no_reward_if_too_close_to_other_agents", self.agent_width / 6
         )
 
         # Visualization
-        self.resolution_factor = kwargs.get("resolution_factor", 200)  # Default 200
+        self.resolution_factor = kwargs.pop("resolution_factor", 200)  # Default 200
 
         # Reference path
-        sample_interval_ref_path = kwargs.get(
+        sample_interval_ref_path = kwargs.pop(
             "sample_interval_ref_path", 2
         )  # Integer, sample interval from the long-term reference path for the short-term reference paths
-        max_ref_path_points = kwargs.get(
+        max_ref_path_points = kwargs.pop(
             "max_ref_path_points", 200
         )  # The estimated maximum points on the reference path
 
-        noise_level = kwargs.get(
+        noise_level = kwargs.pop(
             "noise_level", 0.2 * self.agent_width
         )  # Noise will be generated by the standary normal distribution. This parameter controls the noise level
 
-        n_stored_steps = kwargs.get(
+        n_stored_steps = kwargs.pop(
             "n_stored_steps",
             5,  # The number of steps to store (include the current step). At least one
         )
-        n_observed_steps = kwargs.get(
+        n_observed_steps = kwargs.pop(
             "n_observed_steps", 1
         )  # The number of steps to observe (include the current step). At least one, and at most `n_stored_steps`
 
-        self.render_origin = kwargs.get(
+        self.render_origin = kwargs.pop(
             "render_origin", [self.world_x_dim / 2, self.world_y_dim / 2]
         )
 
-        self.viewer_size = kwargs.get(
+        self.viewer_size = kwargs.pop(
             "viewer_size",
             (
                 int(self.world_x_dim * self.resolution_factor),
@@ -174,55 +173,55 @@ class Scenario(BaseScenario):
             ),
         )
 
-        self.max_steering_angle = kwargs.get(
+        self.max_steering_angle = kwargs.pop(
             "max_steering_angle",
             torch.deg2rad(torch.tensor(35, device=device, dtype=torch.float32)),
         )
-        self.max_speed = kwargs.get("max_speed", 1.0)
+        self.max_speed = kwargs.pop("max_speed", 1.0)
 
-        self.viewer_zoom = kwargs.get("viewer_zoom", 1.44)
+        self.viewer_zoom = kwargs.pop("viewer_zoom", 1.44)
 
         parameters = Parameters(
-            n_agents=kwargs.get("n_agents", 20),
-            is_partial_observation=kwargs.get("is_partial_observation", True),
-            is_testing_mode=kwargs.get("is_testing_mode", False),
-            is_visualize_short_term_path=kwargs.get(
+            n_agents=kwargs.pop("n_agents", 20),
+            is_partial_observation=kwargs.pop("is_partial_observation", True),
+            is_testing_mode=kwargs.pop("is_testing_mode", False),
+            is_visualize_short_term_path=kwargs.pop(
                 "is_visualize_short_term_path", True
             ),
-            scenario_type=kwargs.get("scenario_type", "1"),
-            n_nearing_agents_observed=kwargs.get("n_nearing_agents_observed", 2),
-            is_real_time_rendering=kwargs.get("is_real_time_rendering", False),
-            n_points_short_term=kwargs.get("n_points_short_term", 3),
-            dt=kwargs.get("dt", 0.05),
-            is_ego_view=kwargs.get("is_ego_view", True),
-            is_apply_mask=kwargs.get("is_apply_mask", True),
-            is_observe_vertices=kwargs.get("is_observe_vertices", True),
-            is_observe_distance_to_agents=kwargs.get(
+            scenario_type=kwargs.pop("scenario_type", "1"),
+            n_nearing_agents_observed=kwargs.pop("n_nearing_agents_observed", 2),
+            is_real_time_rendering=kwargs.pop("is_real_time_rendering", False),
+            n_points_short_term=kwargs.pop("n_points_short_term", 3),
+            dt=kwargs.pop("dt", 0.05),
+            is_ego_view=kwargs.pop("is_ego_view", True),
+            is_apply_mask=kwargs.pop("is_apply_mask", True),
+            is_observe_vertices=kwargs.pop("is_observe_vertices", True),
+            is_observe_distance_to_agents=kwargs.pop(
                 "is_observe_distance_to_agents", True
             ),
-            is_observe_distance_to_boundaries=kwargs.get(
+            is_observe_distance_to_boundaries=kwargs.pop(
                 "is_observe_distance_to_boundaries", True
             ),
-            is_observe_distance_to_center_line=kwargs.get(
+            is_observe_distance_to_center_line=kwargs.pop(
                 "is_observe_distance_to_center_line", True
             ),
-            scenario_probabilities=kwargs.get(
+            scenario_probabilities=kwargs.pop(
                 "scenario_probabilities", [1.0, 0.0, 0.0]
             ),
-            is_add_noise=kwargs.get("is_add_noise", True),
-            is_observe_ref_path_other_agents=kwargs.get(
+            is_add_noise=kwargs.pop("is_add_noise", True),
+            is_observe_ref_path_other_agents=kwargs.pop(
                 "is_observe_ref_path_other_agents", False
             ),
-            is_visualize_extra_info=kwargs.get("is_visualize_extra_info", False),
-            render_title=kwargs.get(
+            is_visualize_extra_info=kwargs.pop("is_visualize_extra_info", False),
+            render_title=kwargs.pop(
                 "render_title",
                 "Multi-Agent Reinforcement Learning for Road Traffic (CPM Lab Scenario)",
             ),
-            n_steps_stored=kwargs.get("n_steps_stored", 10),
-            n_steps_before_recording=kwargs.get("n_steps_before_recording", 10),
-            n_points_nearing_boundary=kwargs.get("n_points_nearing_boundary", 5),
+            n_steps_stored=kwargs.pop("n_steps_stored", 10),
+            n_steps_before_recording=kwargs.pop("n_steps_before_recording", 10),
+            n_points_nearing_boundary=kwargs.pop("n_points_nearing_boundary", 5),
         )
-        self.parameters = kwargs.get("parameters", parameters)
+        self.parameters = kwargs.pop("parameters", parameters)
 
         # Ensure parameters meet simulation requirements
         if self.parameters.scenario_type == "4" and (self.parameters.n_agents > 10):
@@ -247,7 +246,7 @@ class Scenario(BaseScenario):
         )
 
         # Get map data
-        map_file_path = kwargs.get(
+        map_file_path = kwargs.pop(
             "map_file_path", "vmas/scenarios_data/road_traffic/road_traffic_cpm_lab.xml"
         )
         self.map_data = get_map_data(map_file_path, device=device)
@@ -835,7 +834,7 @@ class Scenario(BaseScenario):
                     1.0, device=device, dtype=torch.float32
                 ),
                 probability_use_recording=torch.tensor(
-                    kwargs.get("probability_use_recording", 0.2),
+                    kwargs.pop("probability_use_recording", 0.2),
                     device=device,
                     dtype=torch.float32,
                 ),
@@ -844,6 +843,8 @@ class Scenario(BaseScenario):
                 ),  # [pos_x, pos_y, rot, vel_x, vel_y, scenario_id, path_id, point_id]
             )
         )
+
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self.state_buffer = StateBuffer(
             buffer=torch.zeros(
@@ -4010,5 +4011,4 @@ if __name__ == "__main__":
     render_interactively(
         scenario=scenario,
         control_two_agents=False,
-        shared_reward=False,
     )
