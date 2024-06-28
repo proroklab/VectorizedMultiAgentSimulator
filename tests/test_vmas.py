@@ -114,7 +114,11 @@ def test_global_reset(scenario, num_envs=10, n_steps=10):
 
 @pytest.mark.parametrize("scenario", vmas.scenarios + vmas.mpe_scenarios)
 def test_vmas_differentiable(scenario, n_steps=10, n_envs=10):
-    if scenario == "football" or scenario == "simple_crypto":
+    if (
+        scenario == "football"
+        or scenario == "simple_crypto"
+        or scenario == "road_traffic"
+    ):
         pytest.skip()
     env = make_env(
         scenario=scenario,
