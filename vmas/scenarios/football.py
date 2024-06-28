@@ -1084,15 +1084,16 @@ class Scenario(BaseScenario):
                 break
         for j in range(len(input)):
             if isinstance(input[j], Tensor):
-                input[j] = input[j].clone()
                 if len(input[j].shape) == 1:
                     input[j] = input[j].unsqueeze(0).expand(batch_dim, *input[j].shape)
+                input[j] = input[j].clone()
+
             else:
                 o = input[j]
                 for i in range(len(o)):
-                    o[i] = o[i].clone()
                     if len(o[i].shape) == 1:
                         o[i] = o[i].unsqueeze(0).expand(batch_dim, *o[i].shape)
+                    o[i] = o[i].clone()
 
         (
             agent_pos,
