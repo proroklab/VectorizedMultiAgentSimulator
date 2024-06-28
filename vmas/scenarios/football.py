@@ -1534,7 +1534,7 @@ class AgentPolicy:
             self.dribble_policy(agent)
             control = self.get_action(agent)
             control = torch.clamp(control, min=-agent.u_range, max=agent.u_range)
-            agent.action.u = control * agent.action._u_multiplier_tensor.unsqueeze(
+            agent.action.u = control * agent.action.u_multiplier_tensor.unsqueeze(
                 0
             ).expand(*control.shape)
         else:
