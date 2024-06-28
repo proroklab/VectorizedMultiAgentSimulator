@@ -41,7 +41,7 @@ class Scenario(BaseScenario):
                          2 for the entire map with prioritized replay buffer (proposed by Schaul et al. - ICLR 2016 - Prioritized Experience Replay). The implementation of this buffer can be found in the training file of the GitHub repo mentioned above (https://github.com/cas-lab-munich/generalizable-marl/blob/1.0.0/training_mappo_cavs.py)
                          3 for the entire map with challenging initial state buffer (inspired
                          by Kaufmann et al. - Nature 2023 - Champion-level drone racing using deep reinforcement learning)
-                         4 for specific scenario (intersection, merge-in, or merge-out)
+                         4 for specific scenario (intersection, merge-in, or merge-out). In this case, you can control the probability of using intersection, merge-in, and merge-out by the parameter `scenario_probabilities`. It is an array with three values. The first value corresponds to the probability of using intersection when resetting and making the world.  The second and the third values correspond to merge-in and merge-out, respectively. If you only want to use one specific scenario, you can set the other two values to zero. For example, if you want to train a RL policy only for intersection, they can set `scenario_probabilities` to [1.0, 0.0, 0.0].
         - is_partial_observation: Whether to enable partial observation (to model partially observable MDP)
         - n_nearing_agents_observed: Number of nearing agents to be observed (consider limited sensor range)
 
@@ -207,7 +207,7 @@ class Scenario(BaseScenario):
             ),
             scenario_probabilities=kwargs.pop(
                 "scenario_probabilities", [1.0, 0.0, 0.0]
-            ),
+            ),  # Probabilities of training agents in intersection, merge-in, and merge-out scenario
             is_add_noise=kwargs.pop("is_add_noise", True),
             is_observe_ref_path_other_agents=kwargs.pop(
                 "is_observe_ref_path_other_agents", False
@@ -224,10 +224,20 @@ class Scenario(BaseScenario):
         self.parameters = kwargs.pop("parameters", parameters)
 
         # Ensure parameters meet simulation requirements
-        if self.parameters.scenario_type == "4" and (self.parameters.n_agents > 10):
-            raise ValueError(
-                "For scenario_type '4', we suggest do not use more than 10 agents, as only a part of the map will be used."
-            )
+        if self.parameters.scenario_type == "4":
+            if (
+                self.parameters.scenario_probabilities[1] != 0
+                or self.parameters.scenario_probabilities[2] != 0
+            ):
+                if self.parameters.n_agents > 5:
+                    raise ValueError(
+                        "For scenario_type '4', if the second or third value of scenario_probabilities is not zero, a maximum of 5 agents are allowed, as only a merge-in or a merge-out will be used."
+                    )
+            else:
+                if self.parameters.n_agents > 10:
+                    raise ValueError(
+                        "For scenario_type '4', if only the first value of scenario_probabilities is not zero, a maximum of 10 agents are allowed, as only an intersection will be used."
+                    )
 
         if self.parameters.n_nearing_agents_observed >= self.parameters.n_agents:
             raise ValueError("n_nearing_agents_observed must be less than n_agents")
@@ -2604,7 +2614,7 @@ class Parameters:
         # by Kaufmann et al. - Nature 2023 - Champion-level drone racing using deep reinforcement learning)
         # 4 for specific scenario (intersection, merge-in, or merge-out)
         is_prb: bool = False,  # Whether to enable prioritized replay buffer
-        scenario_probabilities=None,  # Probabilities of training agents in intersection, merge-in, or merge-out scenario
+        scenario_probabilities=None,  # Probabilities of training agents in intersection, merge-in, and merge-out scenario
         # Observation
         n_points_short_term: int = 3,  # Number of points that build a short-term reference path
         is_partial_observation: bool = True,  # Whether to enable partial observation (to model partially observable MDP)
