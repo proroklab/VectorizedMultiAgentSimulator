@@ -195,8 +195,18 @@ class Scenario(BaseScenario):
                 name=f"agent_red_{i}",
                 shape=Sphere(radius=self.agent_size),
                 action_script=self.red_controller.run if self.ai_red_agents else None,
-                u_multiplier=self.u_multiplier,
+                u_multiplier=[self.u_multiplier, self.u_multiplier]
+                if not self.enable_shooting or self.ai_red_agents
+                else [
+                    self.u_multiplier,
+                    self.u_multiplier,
+                    self.u_rot_multiplier,
+                    self.u_shoot_multiplier,
+                ],
                 max_speed=self.max_speed,
+                dynamics=Holonomic()
+                if not self.enable_shooting or self.ai_red_agents
+                else HolonomicWithRotation(),
                 color=(0.89, 0.10, 0.11),
                 alpha=1,
             )
@@ -205,7 +215,7 @@ class Scenario(BaseScenario):
         self.red_agents = red_agents
         world.red_agents = red_agents
 
-        for agent in self.blue_agents:
+        for agent in self.blue_agents + self.red_agents:
             agent.pos_rew = torch.zeros(
                 world.batch_dim, device=agent.device, dtype=torch.float32
             )
@@ -325,10 +335,10 @@ class Scenario(BaseScenario):
             if self.enable_shooting:
                 self.ball.kicking_action[env_index] = 0.0
 
-    def get_closest_agent_to_ball(self, env_index):
+    def get_closest_agent_to_ball(self, team, env_index):
         if self.only_closest_agent_ball_reward:
             pos = torch.stack(
-                [a.state.pos for a in self.world.policy_agents], dim=-2
+                [a.state.pos for a in team], dim=-2
             )  # shape == (batch_dim, n_agents, 2)
             ball_pos = self.ball.state.pos.unsqueeze(-2)
             if isinstance(env_index, int):
@@ -920,11 +930,16 @@ class Scenario(BaseScenario):
         env_index=Ellipsis,
     ):
 
+        if agent in self.red_agents:
+            my_team, other_team = (self.red_agents, self.blue_agents)
+        else:
+            my_team, other_team = (self.blue_agents, self.red_agents)
+
         actual_adversary_poses = []
         actual_adversary_forces = []
         actual_adversary_vels = []
         if self.observe_adversaries:
-            for a in self.red_agents:
+            for a in other_team:
                 actual_adversary_poses.append(a.state.pos[env_index])
                 actual_adversary_vels.append(a.state.vel[env_index])
                 actual_adversary_forces.append(a.state.force[env_index])
@@ -933,7 +948,7 @@ class Scenario(BaseScenario):
         actual_teammate_forces = []
         actual_teammate_vels = []
         if self.observe_teammates:
-            for a in self.blue_agents:
+            for a in my_team:
                 if a != agent:
                     actual_teammate_poses.append(a.state.pos[env_index])
                     actual_teammate_vels.append(a.state.vel[env_index])
