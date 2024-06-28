@@ -335,10 +335,10 @@ class Scenario(BaseScenario):
             if self.enable_shooting:
                 self.ball.kicking_action[env_index] = 0.0
 
-    def get_closest_agent_to_ball(self, team, env_index):
+    def get_closest_agent_to_ball(self, env_index):
         if self.only_closest_agent_ball_reward:
             pos = torch.stack(
-                [a.state.pos for a in team], dim=-2
+                [a.state.pos for a in self.blue_agents], dim=-2
             )  # shape == (batch_dim, n_agents, 2)
             ball_pos = self.ball.state.pos.unsqueeze(-2)
             if isinstance(env_index, int):
@@ -1442,7 +1442,9 @@ class AgentPolicy:
             self.dribble_policy(agent)
             control = self.get_action(agent)
             control = torch.clamp(control, min=-agent.u_range, max=agent.u_range)
-            agent.action.u = control * agent.u_multiplier
+            agent.action.u = control * agent.action._u_multiplier_tensor.unsqueeze(
+                0
+            ).expand(*control.shape)
         else:
             agent.action.u = torch.zeros(
                 self.world.batch_dim,
