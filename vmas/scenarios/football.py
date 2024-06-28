@@ -94,7 +94,7 @@ class Scenario(BaseScenario):
         # Actions shooting
         self.enable_shooting = kwargs.pop("enable_shooting", False)
         self.u_rot_multiplier = kwargs.pop("u_rot_multiplier", 0.0003)
-        self.u_shoot_multiplier = kwargs.pop("u_shoot_multiplier", 0.25)
+        self.u_shoot_multiplier = kwargs.pop("u_shoot_multiplier", 0.6)
         self.shooting_radius = kwargs.pop("shooting_radius", 0.1)
         self.shooting_angle = kwargs.pop("shooting_angle", torch.pi / 2)
 
@@ -137,6 +137,7 @@ class Scenario(BaseScenario):
             drag=0.05,
             x_semidim=self.pitch_length / 2 + self.goal_depth - self.agent_size,
             y_semidim=self.pitch_width / 2 - self.agent_size,
+            substeps=2,
         )
         world.agent_size = self.agent_size
         world.pitch_width = self.pitch_width
@@ -845,13 +846,16 @@ class Scenario(BaseScenario):
         if agent is None or agent == self.world.agents[0]:
             # Sparse Reward
             over_right_line = (
-                self.ball.state.pos[:, 0] > self.pitch_length / 2 + self.ball_size / 2
+                self.ball.state.pos[:, X] > self.pitch_length / 2 + self.ball_size / 2
             )
             over_left_line = (
-                self.ball.state.pos[:, 0] < -self.pitch_length / 2 - self.ball_size / 2
+                self.ball.state.pos[:, X] < -self.pitch_length / 2 - self.ball_size / 2
             )
-            blue_score = over_right_line
-            red_score = over_left_line
+            goal_mask = (self.ball.state.pos[:, Y] <= self.goal_size / 2) * (
+                self.ball.state.pos[:, Y] >= -self.goal_size / 2
+            )
+            blue_score = over_right_line * goal_mask
+            red_score = over_left_line * goal_mask
             self._sparse_reward = (
                 self.scoring_reward * blue_score - self.scoring_reward * red_score
             )
