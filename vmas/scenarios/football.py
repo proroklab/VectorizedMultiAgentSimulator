@@ -3,15 +3,21 @@
 #  All rights reserved.
 
 import math
-import operator
-from functools import reduce
+import typing
+from typing import List
 
 import torch
+from torch import Tensor
 
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
+from vmas.simulator.dynamics.holonomic import Holonomic
+from vmas.simulator.dynamics.holonomic_with_rot import HolonomicWithRotation
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, ScenarioUtils, X, Y
+from vmas.simulator.utils import Color, ScenarioUtils, TorchUtils, X, Y
+
+if typing.TYPE_CHECKING:
+    from vmas.simulator.rendering import Geom
 
 
 class Scenario(BaseScenario):
@@ -23,14 +29,36 @@ class Scenario(BaseScenario):
         self.init_background(world)
         self.init_walls(world)
         self.init_goals(world)
-        # self.init_traj_pts(world)
+        self.init_traj_pts(world)
+        self.left_goal_pos = torch.tensor(
+            [-self.pitch_length / 2 - self.ball_size / 2, 0],
+            device=device,
+            dtype=torch.float,
+        )
+        self.right_goal_pos = -self.left_goal_pos
         self._done = torch.zeros(batch_dim, device=device, dtype=torch.bool)
+        self._sparse_reward_blue = torch.zeros(
+            batch_dim, device=device, dtype=torch.float32
+        )
+        self._sparse_reward_red = self._sparse_reward_blue.clone()
+        self._render_field = True
+
+        self._reset_agent_range = torch.tensor(
+            [self.pitch_length / 2, self.pitch_width],
+            device=device,
+        )
+        self._reset_agent_offset_blue = torch.tensor(
+            [-self.pitch_length / 2 + self.agent_size, -self.pitch_width / 2],
+            device=device,
+        )
+        self._reset_agent_offset_red = torch.tensor(
+            [-self.agent_size, -self.pitch_width / 2], device=device
+        )
         return world
 
     def reset_world_at(self, env_index: int = None):
-        self.reset_ball(env_index)
         self.reset_agents(env_index)
-        self.reset_background(env_index)
+        self.reset_ball(env_index)
         self.reset_walls(env_index)
         self.reset_goals(env_index)
         self.reset_controllers(env_index)
@@ -40,23 +68,64 @@ class Scenario(BaseScenario):
             self._done[env_index] = False
 
     def init_params(self, **kwargs):
+        # Scenario config
         self.viewer_size = kwargs.pop("viewer_size", (1200, 800))
-        self.ai_red_agents = kwargs.pop("ai_red_agents", True)
-        self.ai_blue_agents = kwargs.pop("ai_blue_agents", False)
+
+        # Agents config
         self.n_blue_agents = kwargs.pop("n_blue_agents", 3)
         self.n_red_agents = kwargs.pop("n_red_agents", 3)
+        self.ai_red_agents = kwargs.pop("ai_red_agents", True)
+        self.ai_blue_agents = kwargs.pop("ai_blue_agents", False)
+
+        # Ai config
+        self.n_traj_points = kwargs.pop("n_traj_points", 0)
+        self.ai_strength = kwargs.pop("ai_strength", 1)
+        self.disable_ai_red = kwargs.pop("disable_ai_red", False)
+
+        # Task sizes
         self.agent_size = kwargs.pop("agent_size", 0.025)
         self.goal_size = kwargs.pop("goal_size", 0.35)
         self.goal_depth = kwargs.pop("goal_depth", 0.1)
         self.pitch_length = kwargs.pop("pitch_length", 3.0)
         self.pitch_width = kwargs.pop("pitch_width", 1.5)
-        self.max_speed = kwargs.pop("max_speed", 0.15)
-        self.u_multiplier = kwargs.pop("u_multiplier", 0.1)
-        self.ball_max_speed = kwargs.pop("ball_max_speed", 0.3)
-        self.ball_mass = kwargs.pop("ball_mass", 0.1)
+        self.ball_mass = kwargs.pop("ball_mass", 0.25)
         self.ball_size = kwargs.pop("ball_size", 0.02)
-        self.n_traj_points = kwargs.pop("n_traj_points", 8)
-        self.dense_reward_ratio = kwargs.pop("dense_reward_ratio", 0.001)
+
+        # Actions
+        self.u_multiplier = kwargs.pop("u_multiplier", 0.1)
+
+        # Actions shooting
+        self.enable_shooting = kwargs.pop("enable_shooting", False)
+        self.u_rot_multiplier = kwargs.pop("u_rot_multiplier", 0.0003)
+        self.u_shoot_multiplier = kwargs.pop("u_shoot_multiplier", 0.6)
+        self.shooting_radius = kwargs.pop("shooting_radius", 0.1)
+        self.shooting_angle = kwargs.pop("shooting_angle", torch.pi / 2)
+
+        # Speeds
+        self.max_speed = kwargs.pop("max_speed", 0.15)
+        self.ball_max_speed = kwargs.pop("ball_max_speed", 0.3)
+
+        # Rewards
+        self.dense_reward = kwargs.pop("dense_reward", True)
+        self.pos_shaping_factor_ball_goal = kwargs.pop(
+            "pos_shaping_factor_ball_goal", 10.0
+        )
+        self.pos_shaping_factor_agent_ball = kwargs.pop(
+            "pos_shaping_factor_agent_ball", 0.1
+        )
+        self.distance_to_ball_trigger = kwargs.pop("distance_to_ball_trigger", 0.4)
+        self.scoring_reward = kwargs.pop("scoring_reward", 100.0)
+
+        # Observations
+        self.observe_teammates = kwargs.pop("observe_teammates", True)
+        self.observe_adversaries = kwargs.pop("observe_adversaries", True)
+        self.dict_obs = kwargs.pop("dict_obs", False)
+
+        if kwargs.pop("dense_reward_ratio", None) is not None:
+            raise ValueError(
+                "dense_reward_ratio in football is deprecated, please use `dense_reward` "
+                "which is a bool that turns on/off the dense reward"
+            )
         ScenarioUtils.check_kwargs_consumed(kwargs)
 
     def init_world(self, batch_dim: int, device: torch.device):
@@ -68,6 +137,7 @@ class Scenario(BaseScenario):
             drag=0.05,
             x_semidim=self.pitch_length / 2 + self.goal_depth - self.agent_size,
             y_semidim=self.pitch_width / 2 - self.agent_size,
+            substeps=2,
         )
         world.agent_size = self.agent_size
         world.pitch_width = self.pitch_width
@@ -78,8 +148,20 @@ class Scenario(BaseScenario):
 
     def init_agents(self, world):
         # Add agents
-        self.blue_controller = AgentPolicy(team="Blue")
-        self.red_controller = AgentPolicy(team="Red")
+        self.red_controller = (
+            AgentPolicy(
+                team="Red",
+                disabled=self.disable_ai_red,
+                strength=self.ai_strength,
+            )
+            if self.ai_red_agents
+            else None
+        )
+        self.blue_controller = (
+            AgentPolicy(team="Blue", strength=self.ai_strength)
+            if self.ai_blue_agents
+            else None
+        )
 
         blue_agents = []
         for i in range(self.n_blue_agents):
@@ -87,12 +169,26 @@ class Scenario(BaseScenario):
                 name=f"agent_blue_{i}",
                 shape=Sphere(radius=self.agent_size),
                 action_script=self.blue_controller.run if self.ai_blue_agents else None,
-                u_multiplier=self.u_multiplier,
+                u_multiplier=[self.u_multiplier, self.u_multiplier]
+                if not self.enable_shooting
+                else [
+                    self.u_multiplier,
+                    self.u_multiplier,
+                    self.u_rot_multiplier,
+                    self.u_shoot_multiplier,
+                ],
                 max_speed=self.max_speed,
-                color=Color.BLUE,
+                dynamics=Holonomic()
+                if not self.enable_shooting
+                else HolonomicWithRotation(),
+                action_size=2 if not self.enable_shooting else 4,
+                color=(0.22, 0.49, 0.72),
+                alpha=1,
             )
             world.add_agent(agent)
             blue_agents.append(agent)
+        self.blue_agents = blue_agents
+        world.blue_agents = blue_agents
 
         red_agents = []
         for i in range(self.n_red_agents):
@@ -100,17 +196,37 @@ class Scenario(BaseScenario):
                 name=f"agent_red_{i}",
                 shape=Sphere(radius=self.agent_size),
                 action_script=self.red_controller.run if self.ai_red_agents else None,
-                u_multiplier=self.u_multiplier,
+                u_multiplier=[self.u_multiplier, self.u_multiplier]
+                if not self.enable_shooting or self.ai_red_agents
+                else [
+                    self.u_multiplier,
+                    self.u_multiplier,
+                    self.u_rot_multiplier,
+                    self.u_shoot_multiplier,
+                ],
                 max_speed=self.max_speed,
-                color=Color.RED,
+                dynamics=Holonomic()
+                if not self.enable_shooting or self.ai_red_agents
+                else HolonomicWithRotation(),
+                action_size=2 if not self.enable_shooting or self.ai_red_agents else 4,
+                color=(0.89, 0.10, 0.11),
+                alpha=1,
             )
             world.add_agent(agent)
             red_agents.append(agent)
-
         self.red_agents = red_agents
-        self.blue_agents = blue_agents
         world.red_agents = red_agents
-        world.blue_agents = blue_agents
+
+        for agent in self.blue_agents + self.red_agents:
+            agent.ball_within_angle = torch.zeros(
+                world.batch_dim, device=agent.device, dtype=torch.bool
+            )
+            agent.ball_within_range = torch.zeros(
+                world.batch_dim, device=agent.device, dtype=torch.bool
+            )
+            agent.shoot_force = torch.zeros(
+                world.batch_dim, 2, device=agent.device, dtype=torch.float32
+            )
 
     def reset_agents(self, env_index: int = None):
         for agent in self.blue_agents:
@@ -123,18 +239,8 @@ class Scenario(BaseScenario):
                     ),
                     device=self.world.device,
                 )
-                * torch.tensor(
-                    [self.pitch_length / 2, self.pitch_width],
-                    device=self.world.device,
-                )
-                + torch.tensor(
-                    [-self.pitch_length / 2, -self.pitch_width / 2],
-                    device=self.world.device,
-                ),
-                batch_index=env_index,
-            )
-            agent.set_vel(
-                torch.zeros(2, device=self.world.device),
+                * self._reset_agent_range
+                + self._reset_agent_offset_blue,
                 batch_index=env_index,
             )
         for agent in self.red_agents:
@@ -147,15 +253,12 @@ class Scenario(BaseScenario):
                     ),
                     device=self.world.device,
                 )
-                * torch.tensor(
-                    [self.pitch_length / 2, self.pitch_width],
-                    device=self.world.device,
-                )
-                + torch.tensor([0.0, -self.pitch_width / 2], device=self.world.device),
+                * self._reset_agent_range
+                + self._reset_agent_offset_red,
                 batch_index=env_index,
             )
-            agent.set_vel(
-                torch.zeros(2, device=self.world.device),
+            agent.set_rot(
+                torch.tensor([torch.pi], device=self.world.device, dtype=torch.float32),
                 batch_index=env_index,
             )
 
@@ -177,50 +280,124 @@ class Scenario(BaseScenario):
             action_script=ball_action_script,
             max_speed=self.ball_max_speed,
             mass=self.ball_mass,
-            color=Color.GRAY,
+            alpha=1,
+            color=Color.BLACK,
+        )
+        ball.pos_rew_blue = torch.zeros(
+            world.batch_dim, device=world.device, dtype=torch.float32
+        )
+        ball.pos_rew_red = ball.pos_rew_blue.clone()
+        ball.pos_rew_agent_blue = ball.pos_rew_blue.clone()
+        ball.pos_rew_agent_red = ball.pos_rew_red.clone()
+
+        ball.kicking_action = torch.zeros(
+            world.batch_dim, world.dim_p, device=world.device, dtype=torch.float32
         )
         world.add_agent(ball)
         world.ball = ball
         self.ball = ball
 
     def reset_ball(self, env_index: int = None):
-        self.ball.set_pos(
-            torch.zeros(2, device=self.world.device),
-            batch_index=env_index,
-        )
-        self.ball.set_vel(
-            torch.zeros(2, device=self.world.device),
-            batch_index=env_index,
-        )
+        if not self.ai_blue_agents:
+            min_agent_dist_to_ball_blue = self.get_closest_agent_to_ball(
+                self.blue_agents, env_index
+            )
+        if not self.ai_red_agents:
+            min_agent_dist_to_ball_red = self.get_closest_agent_to_ball(
+                self.red_agents, env_index
+            )
+        if env_index is None:
+            if not self.ai_blue_agents:
+                self.ball.pos_shaping_blue = (
+                    torch.linalg.vector_norm(
+                        self.ball.state.pos - self.right_goal_pos,
+                        dim=-1,
+                    )
+                    * self.pos_shaping_factor_ball_goal
+                )
+                self.ball.pos_shaping_agent_blue = (
+                    min_agent_dist_to_ball_blue * self.pos_shaping_factor_agent_ball
+                )
+            if not self.ai_red_agents:
+                self.ball.pos_shaping_red = (
+                    torch.linalg.vector_norm(
+                        self.ball.state.pos - self.left_goal_pos,
+                        dim=-1,
+                    )
+                    * self.pos_shaping_factor_ball_goal
+                )
+
+                self.ball.pos_shaping_agent_red = (
+                    min_agent_dist_to_ball_red * self.pos_shaping_factor_agent_ball
+                )
+            if self.enable_shooting:
+                self.ball.kicking_action[:] = 0.0
+        else:
+            if not self.ai_blue_agents:
+                self.ball.pos_shaping_blue[env_index] = (
+                    torch.linalg.vector_norm(
+                        self.ball.state.pos[env_index] - self.right_goal_pos
+                    )
+                    * self.pos_shaping_factor_ball_goal
+                )
+                self.ball.pos_shaping_agent_blue[env_index] = (
+                    min_agent_dist_to_ball_blue * self.pos_shaping_factor_agent_ball
+                )
+            if not self.ai_red_agents:
+                self.ball.pos_shaping_red[env_index] = (
+                    torch.linalg.vector_norm(
+                        self.ball.state.pos[env_index] - self.left_goal_pos
+                    )
+                    * self.pos_shaping_factor_ball_goal
+                )
+
+                self.ball.pos_shaping_agent_red[env_index] = (
+                    min_agent_dist_to_ball_red * self.pos_shaping_factor_agent_ball
+                )
+            if self.enable_shooting:
+                self.ball.kicking_action[env_index] = 0.0
+
+    def get_closest_agent_to_ball(self, team, env_index):
+        pos = torch.stack(
+            [a.state.pos for a in team], dim=-2
+        )  # shape == (batch_dim, n_agents, 2)
+        ball_pos = self.ball.state.pos.unsqueeze(-2)
+        if isinstance(env_index, int):
+            pos = pos[env_index].unsqueeze(0)
+            ball_pos = ball_pos[env_index].unsqueeze(0)
+        dist = torch.cdist(pos, ball_pos)
+        dist = dist.squeeze(-1)
+        min_dist = dist.min(dim=-1)[0]
+        if isinstance(env_index, int):
+            min_dist = min_dist.squeeze(0)
+
+        return min_dist
 
     def init_background(self, world):
         # Add landmarks
-        background = Landmark(
+        self.background = Landmark(
             name="Background",
             collide=False,
             movable=False,
             shape=Box(length=self.pitch_length, width=self.pitch_width),
             color=Color.GREEN,
         )
-        world.add_landmark(background)
 
-        centre_circle_outer = Landmark(
+        self.centre_circle_outer = Landmark(
             name="Centre Circle Outer",
             collide=False,
             movable=False,
             shape=Sphere(radius=self.goal_size / 2),
             color=Color.WHITE,
         )
-        world.add_landmark(centre_circle_outer)
 
-        centre_circle_inner = Landmark(
+        self.centre_circle_inner = Landmark(
             name="Centre Circle Inner",
             collide=False,
             movable=False,
             shape=Sphere(self.goal_size / 2 - 0.02),
             color=Color.GREEN,
         )
-        world.add_landmark(centre_circle_inner)
 
         centre_line = Landmark(
             name="Centre Line",
@@ -229,7 +406,6 @@ class Scenario(BaseScenario):
             shape=Line(length=self.pitch_width - 2 * self.agent_size),
             color=Color.WHITE,
         )
-        world.add_landmark(centre_line)
 
         right_line = Landmark(
             name="Right Line",
@@ -238,7 +414,6 @@ class Scenario(BaseScenario):
             shape=Line(length=self.pitch_width - 2 * self.agent_size),
             color=Color.WHITE,
         )
-        world.add_landmark(right_line)
 
         left_line = Landmark(
             name="Left Line",
@@ -247,7 +422,6 @@ class Scenario(BaseScenario):
             shape=Line(length=self.pitch_width - 2 * self.agent_size),
             color=Color.WHITE,
         )
-        world.add_landmark(left_line)
 
         top_line = Landmark(
             name="Top Line",
@@ -256,7 +430,6 @@ class Scenario(BaseScenario):
             shape=Line(length=self.pitch_length - 2 * self.agent_size),
             color=Color.WHITE,
         )
-        world.add_landmark(top_line)
 
         bottom_line = Landmark(
             name="Bottom Line",
@@ -265,74 +438,27 @@ class Scenario(BaseScenario):
             shape=Line(length=self.pitch_length - 2 * self.agent_size),
             color=Color.WHITE,
         )
-        world.add_landmark(bottom_line)
 
-    def reset_background(self, env_index: int = None):
-        for landmark in self.world.landmarks:
-            if landmark.name == "Centre Line":
-                landmark.set_rot(
-                    torch.tensor(
-                        [torch.pi / 2],
-                        dtype=torch.float32,
-                        device=self.world.device,
-                    ),
-                    batch_index=env_index,
-                )
-            elif landmark.name == "Right Line":
-                landmark.set_pos(
-                    torch.tensor(
-                        [self.pitch_length / 2 - self.agent_size, 0.0],
-                        dtype=torch.float32,
-                        device=self.world.device,
-                    ),
-                    batch_index=env_index,
-                )
-                landmark.set_rot(
-                    torch.tensor(
-                        [torch.pi / 2],
-                        dtype=torch.float32,
-                        device=self.world.device,
-                    ),
-                    batch_index=env_index,
-                )
-            elif landmark.name == "Left Line":
-                landmark.set_pos(
-                    torch.tensor(
-                        [-self.pitch_length / 2 + self.agent_size, 0.0],
-                        dtype=torch.float32,
-                        device=self.world.device,
-                    ),
-                    batch_index=env_index,
-                )
-                landmark.set_rot(
-                    torch.tensor(
-                        [torch.pi / 2],
-                        dtype=torch.float32,
-                        device=self.world.device,
-                    ),
-                    batch_index=env_index,
-                )
-            elif landmark.name == "Top Line":
-                landmark.set_pos(
-                    torch.tensor(
-                        [0.0, self.pitch_width / 2 - self.agent_size],
-                        dtype=torch.float32,
-                        device=self.world.device,
-                    ),
-                    batch_index=env_index,
-                )
-            elif landmark.name == "Bottom Line":
-                landmark.set_pos(
-                    torch.tensor(
-                        [0.0, -self.pitch_width / 2 + self.agent_size],
-                        dtype=torch.float32,
-                        device=self.world.device,
-                    ),
-                    batch_index=env_index,
-                )
+        self.background_entities = [
+            self.background,
+            self.centre_circle_outer,
+            self.centre_circle_inner,
+            centre_line,
+            right_line,
+            left_line,
+            top_line,
+            bottom_line,
+        ]
+
+    def render_field(self, render: bool):
+        self._render_field = render
+        self.left_top_wall.is_rendering[:] = render
+        self.left_bottom_wall.is_rendering[:] = render
+        self.right_top_wall.is_rendering[:] = render
+        self.right_bottom_wall.is_rendering[:] = render
 
     def init_walls(self, world):
-        right_top_wall = Landmark(
+        self.right_top_wall = Landmark(
             name="Right Top Wall",
             collide=True,
             movable=False,
@@ -341,9 +467,9 @@ class Scenario(BaseScenario):
             ),
             color=Color.WHITE,
         )
-        world.add_landmark(right_top_wall)
+        world.add_landmark(self.right_top_wall)
 
-        left_top_wall = Landmark(
+        self.left_top_wall = Landmark(
             name="Left Top Wall",
             collide=True,
             movable=False,
@@ -352,9 +478,9 @@ class Scenario(BaseScenario):
             ),
             color=Color.WHITE,
         )
-        world.add_landmark(left_top_wall)
+        world.add_landmark(self.left_top_wall)
 
-        right_bottom_wall = Landmark(
+        self.right_bottom_wall = Landmark(
             name="Right Bottom Wall",
             collide=True,
             movable=False,
@@ -363,9 +489,9 @@ class Scenario(BaseScenario):
             ),
             color=Color.WHITE,
         )
-        world.add_landmark(right_bottom_wall)
+        world.add_landmark(self.right_bottom_wall)
 
-        left_bottom_wall = Landmark(
+        self.left_bottom_wall = Landmark(
             name="Left Bottom Wall",
             collide=True,
             movable=False,
@@ -374,7 +500,7 @@ class Scenario(BaseScenario):
             ),
             color=Color.WHITE,
         )
-        world.add_landmark(left_bottom_wall)
+        world.add_landmark(self.left_bottom_wall)
 
     def reset_walls(self, env_index: int = None):
         for landmark in self.world.landmarks:
@@ -695,49 +821,498 @@ class Scenario(BaseScenario):
                     world.add_landmark(pointj)
                     world.traj_points["Blue"][agent].append(pointj)
 
+    def process_action(self, agent: Agent):
+        blue = agent in self.blue_agents
+        if agent.action_script is None and not blue:  # Non AI
+            agent.action.u[..., X] = -agent.action.u[
+                ..., X
+            ]  # Red agents have the action X flipped
+            if self.enable_shooting:
+                agent.action.u[..., 2] = -agent.action.u[
+                    ..., 2
+                ]  # Red agents have the action rotation flipped
+
+        if self.enable_shooting and agent.action_script is None:
+            rel_pos = self.ball.state.pos - agent.state.pos
+            agent.ball_within_range = (
+                torch.linalg.vector_norm(rel_pos, dim=-1) <= self.shooting_radius
+            )
+
+            rel_pos_angle = torch.atan2(rel_pos[:, Y], rel_pos[:, X])
+            a = (agent.state.rot.squeeze(-1) - rel_pos_angle + torch.pi) % (
+                2 * torch.pi
+            ) - torch.pi
+            agent.ball_within_angle = (-self.shooting_angle / 2 <= a) * (
+                a <= self.shooting_angle / 2
+            )
+
+            shoot_force = torch.zeros(
+                self.world.batch_dim, 2, device=self.world.device, dtype=torch.float32
+            )
+            shoot_force[..., X] = agent.action.u[..., -1] + self.u_shoot_multiplier
+            shoot_force = TorchUtils.rotate_vector(shoot_force, agent.state.rot)
+            agent.shoot_force = shoot_force
+            shoot_force = torch.where(
+                (agent.ball_within_angle * agent.ball_within_range).unsqueeze(-1),
+                shoot_force,
+                0.0,
+            )
+
+            self.ball.kicking_action += shoot_force
+            agent.action.u = agent.action.u[:, :-1]
+
+    def pre_step(self):
+        if self.enable_shooting:
+            self.ball.action.u += self.ball.kicking_action
+            self.ball.kicking_action[:] = 0
+
     def reward(self, agent: Agent):
-        if agent == self.world.agents[0] or (
-            self.ai_blue_agents and self.ai_red_agents
-        ):
+        # Called with agent=None when only AIs are playing to compute the _done
+        if agent is None or agent == self.world.agents[0]:
             # Sparse Reward
             over_right_line = (
-                self.ball.state.pos[:, 0] > self.pitch_length / 2 + self.ball_size / 2
+                self.ball.state.pos[:, X] > self.pitch_length / 2 + self.ball_size / 2
             )
-            # in_right_goal = self.world.is_overlapping(self.ball, self.red_net)
             over_left_line = (
-                self.ball.state.pos[:, 0] < -self.pitch_length / 2 - self.ball_size / 2
+                self.ball.state.pos[:, X] < -self.pitch_length / 2 - self.ball_size / 2
             )
-            # in_left_goal = self.world.is_overlapping(self.ball, self.blue_net)
-            blue_score = over_right_line  # & in_right_goal
-            red_score = over_left_line  # & in_left_goal
-            self._sparse_reward = 1 * blue_score - 1 * red_score
+            goal_mask = (self.ball.state.pos[:, Y] <= self.goal_size / 2) * (
+                self.ball.state.pos[:, Y] >= -self.goal_size / 2
+            )
+            blue_score = over_right_line * goal_mask
+            red_score = over_left_line * goal_mask
+            self._sparse_reward_blue = (
+                self.scoring_reward * blue_score - self.scoring_reward * red_score
+            )
+            self._sparse_reward_red = -self._sparse_reward_blue
+
             self._done = blue_score | red_score
             # Dense Reward
-            red_value = self.red_controller.get_attack_value(self.ball)
-            blue_value = self.blue_controller.get_attack_value(self.ball)
-            self._dense_reward = 1 * blue_value - 1 * red_value
-            self._reward = (
-                self.dense_reward_ratio * self._dense_reward
-                + (1 - self.dense_reward_ratio) * self._sparse_reward
-            )
-        return self._reward
+            if self.dense_reward and agent is not None:
+                if not self.ai_blue_agents:
+                    self._dense_reward_blue = self.reward_ball_to_goal(
+                        blue=True
+                    ) + self.reward_all_agent_to_ball(blue=True)
+                if not self.ai_red_agents:
+                    self._dense_reward_red = self.reward_ball_to_goal(
+                        blue=False
+                    ) + self.reward_all_agent_to_ball(blue=False)
 
-    def observation(self, agent: Agent):
-        obs = torch.cat(
-            [
-                agent.state.pos,
-                agent.state.vel,
-                self.ball.state.pos - agent.state.pos,
-                self.ball.state.vel - agent.state.vel,
-            ],
-            dim=1,
+        blue = agent in self.blue_agents
+        if blue:
+            reward = self._sparse_reward_blue + self._dense_reward_blue
+        else:
+            reward = self._sparse_reward_red + self._dense_reward_red
+
+        return reward
+
+    def reward_ball_to_goal(self, blue: bool):
+        if blue:
+            self.ball.distance_to_goal_blue = torch.linalg.vector_norm(
+                self.ball.state.pos - self.right_goal_pos,
+                dim=-1,
+            )
+            distance_to_goal = self.ball.distance_to_goal_blue
+        else:
+            self.ball.distance_to_goal_red = torch.linalg.vector_norm(
+                self.ball.state.pos - self.left_goal_pos,
+                dim=-1,
+            )
+            distance_to_goal = self.ball.distance_to_goal_red
+
+        pos_shaping = distance_to_goal * self.pos_shaping_factor_ball_goal
+
+        if blue:
+            self.ball.pos_rew_blue = self.ball.pos_shaping_blue - pos_shaping
+            self.ball.pos_shaping_blue = pos_shaping
+            pos_rew = self.ball.pos_rew_blue
+        else:
+            self.ball.pos_rew_red = self.ball.pos_shaping_red - pos_shaping
+            self.ball.pos_shaping_red = pos_shaping
+            pos_rew = self.ball.pos_rew_red
+        return pos_rew
+
+    def reward_all_agent_to_ball(self, blue: bool):
+        min_dist_to_ball = self.get_closest_agent_to_ball(
+            team=self.blue_agents if blue else self.red_agents, env_index=None
+        )
+        pos_shaping = min_dist_to_ball * self.pos_shaping_factor_agent_ball
+
+        ball_moving = torch.linalg.vector_norm(self.ball.state.vel, dim=-1) > 1e-6
+        agent_close_to_goal = min_dist_to_ball < self.distance_to_ball_trigger
+
+        if blue:
+            self.ball.pos_rew_agent_blue = torch.where(
+                agent_close_to_goal + ball_moving,
+                0.0,
+                self.ball.pos_shaping_agent_blue - pos_shaping,
+            )
+            self.ball.pos_shaping_agent_blue = pos_shaping
+            pos_rew_agent = self.ball.pos_rew_agent_blue
+        else:
+            self.ball.pos_rew_agent_red = torch.where(
+                agent_close_to_goal + ball_moving,
+                0.0,
+                self.ball.pos_shaping_agent_red - pos_shaping,
+            )
+            self.ball.pos_shaping_agent_red = pos_shaping
+            pos_rew_agent = self.ball.pos_rew_agent_red
+
+        return pos_rew_agent
+
+    def observation(
+        self,
+        agent: Agent,
+        agent_pos=None,
+        agent_rot=None,
+        agent_vel=None,
+        agent_force=None,
+        teammate_poses=None,
+        teammate_forces=None,
+        teammate_vels=None,
+        adversary_poses=None,
+        adversary_forces=None,
+        adversary_vels=None,
+        ball_pos=None,
+        ball_vel=None,
+        ball_force=None,
+        blue=None,
+        env_index=Ellipsis,
+    ):
+        if blue:
+            assert agent in self.blue_agents
+        else:
+            blue = agent in self.blue_agents
+
+        if not blue:
+            my_team, other_team = (self.red_agents, self.blue_agents)
+            goal_pos = self.left_goal_pos
+        else:
+            my_team, other_team = (self.blue_agents, self.red_agents)
+            goal_pos = self.right_goal_pos
+
+        actual_adversary_poses = []
+        actual_adversary_forces = []
+        actual_adversary_vels = []
+        if self.observe_adversaries:
+            for a in other_team:
+                actual_adversary_poses.append(a.state.pos[env_index])
+                actual_adversary_vels.append(a.state.vel[env_index])
+                actual_adversary_forces.append(a.state.force[env_index])
+
+        actual_teammate_poses = []
+        actual_teammate_forces = []
+        actual_teammate_vels = []
+        if self.observe_teammates:
+            for a in my_team:
+                if a != agent:
+                    actual_teammate_poses.append(a.state.pos[env_index])
+                    actual_teammate_vels.append(a.state.vel[env_index])
+                    actual_teammate_forces.append(a.state.force[env_index])
+
+        obs = self.observation_base(
+            agent.state.pos[env_index] if agent_pos is None else agent_pos,
+            agent.state.rot[env_index] if agent_rot is None else agent_rot,
+            agent.state.vel[env_index] if agent_vel is None else agent_vel,
+            agent.state.force[env_index] if agent_force is None else agent_force,
+            goal_pos=goal_pos,
+            ball_pos=self.ball.state.pos[env_index] if ball_pos is None else ball_pos,
+            ball_vel=self.ball.state.vel[env_index] if ball_vel is None else ball_vel,
+            ball_force=self.ball.state.force[env_index]
+            if ball_force is None
+            else ball_force,
+            adversary_poses=actual_adversary_poses
+            if adversary_poses is None
+            else adversary_poses,
+            adversary_forces=actual_adversary_forces
+            if adversary_forces is None
+            else adversary_forces,
+            adversary_vels=actual_adversary_vels
+            if adversary_vels is None
+            else adversary_vels,
+            teammate_poses=actual_teammate_poses
+            if teammate_poses is None
+            else teammate_poses,
+            teammate_forces=actual_teammate_forces
+            if teammate_forces is None
+            else teammate_forces,
+            teammate_vels=actual_teammate_vels
+            if teammate_vels is None
+            else teammate_vels,
+            blue=blue,
         )
         return obs
+
+    def observation_base(
+        self,
+        agent_pos,
+        agent_rot,
+        agent_vel,
+        agent_force,
+        teammate_poses,
+        teammate_forces,
+        teammate_vels,
+        adversary_poses,
+        adversary_forces,
+        adversary_vels,
+        ball_pos,
+        ball_vel,
+        ball_force,
+        goal_pos,
+        blue: bool,
+    ):
+        # Make all inputs same batch size (this is needed when this function is called for rendering
+        input = [
+            agent_pos,
+            agent_rot,
+            agent_vel,
+            agent_force,
+            ball_pos,
+            ball_vel,
+            ball_force,
+            goal_pos,
+            teammate_poses,
+            teammate_forces,
+            teammate_vels,
+            adversary_poses,
+            adversary_forces,
+            adversary_vels,
+        ]
+        for o in input:
+            if isinstance(o, Tensor) and len(o.shape) > 1:
+                batch_dim = o.shape[0]
+                break
+        for j in range(len(input)):
+            if isinstance(input[j], Tensor):
+                if len(input[j].shape) == 1:
+                    input[j] = input[j].unsqueeze(0).expand(batch_dim, *input[j].shape)
+                input[j] = input[j].clone()
+
+            else:
+                o = input[j]
+                for i in range(len(o)):
+                    if len(o[i].shape) == 1:
+                        o[i] = o[i].unsqueeze(0).expand(batch_dim, *o[i].shape)
+                    o[i] = o[i].clone()
+
+        (
+            agent_pos,
+            agent_rot,
+            agent_vel,
+            agent_force,
+            ball_pos,
+            ball_vel,
+            ball_force,
+            goal_pos,
+            teammate_poses,
+            teammate_forces,
+            teammate_vels,
+            adversary_poses,
+            adversary_forces,
+            adversary_vels,
+        ) = input
+        #  End rendering code
+
+        if (
+            not blue
+        ):  # If agent is red we have to flip the x of sign of each observation
+            for tensor in (
+                [
+                    agent_pos,
+                    agent_vel,
+                    agent_force,
+                    ball_pos,
+                    ball_vel,
+                    ball_force,
+                    goal_pos,
+                ]
+                + teammate_poses
+                + teammate_forces
+                + teammate_vels
+                + adversary_poses
+                + adversary_forces
+                + adversary_vels
+            ):
+                tensor[..., X] = -tensor[..., X]
+            agent_rot = agent_rot - torch.pi
+        obs = {
+            "obs": [
+                agent_force,
+                agent_pos - ball_pos,
+                agent_vel - ball_vel,
+                ball_pos - goal_pos,
+                ball_vel,
+                ball_force,
+            ],
+            "pos": [agent_pos - goal_pos],
+            "vel": [agent_vel],
+        }
+        if self.enable_shooting:
+            obs["obs"].append(agent_rot)
+
+        if self.observe_adversaries and len(adversary_poses):
+            obs["adversaries"] = []
+            for adversary_pos, adversary_force, adversary_vel in zip(
+                adversary_poses, adversary_forces, adversary_vels
+            ):
+                obs["adversaries"].append(
+                    torch.cat(
+                        [
+                            agent_pos - adversary_pos,
+                            agent_vel - adversary_vel,
+                            adversary_vel,
+                            adversary_force,
+                        ],
+                        dim=-1,
+                    )
+                )
+            obs["adversaries"] = [
+                torch.stack(obs["adversaries"], dim=-2)
+                if self.dict_obs
+                else torch.cat(obs["adversaries"], dim=-1)
+            ]
+
+        if self.observe_teammates:
+            obs["teammates"] = []
+            for teammate_pos, teammate_force, teammate_vel in zip(
+                teammate_poses, teammate_forces, teammate_vels
+            ):
+                obs["teammates"].append(
+                    torch.cat(
+                        [
+                            agent_pos - teammate_pos,
+                            agent_vel - teammate_vel,
+                            teammate_vel,
+                            teammate_force,
+                        ],
+                        dim=-1,
+                    )
+                )
+            obs["teammates"] = [
+                torch.stack(obs["teammates"], dim=-2)
+                if self.dict_obs
+                else torch.cat(obs["teammates"], dim=-1)
+            ]
+
+        for key, value in obs.items():
+            obs[key] = torch.cat(value, dim=-1)
+        if self.dict_obs:
+            return obs
+        else:
+            return torch.cat(list(obs.values()), dim=-1)
 
     def done(self):
         if self.ai_blue_agents and self.ai_red_agents:
             self.reward(None)
         return self._done
+
+    def info(self, agent: Agent):
+        blue = agent in self.blue_agents
+        return {
+            "sparse_reward": self._sparse_reward_blue
+            if blue
+            else self._sparse_reward_red,
+            "ball_goal_pos_rew": self.ball.pos_rew_blue
+            if blue
+            else self.ball.pos_rew_red,
+            "all_agent_ball_pos_rew": self.ball.pos_rew_agent_blue
+            if blue
+            else self.ball.pos_rew_agent_red,
+        }
+
+    def extra_render(self, env_index: int = 0) -> "List[Geom]":
+        from vmas.simulator import rendering
+        from vmas.simulator.rendering import Geom
+
+        # Background
+        geoms: List[Geom] = (
+            self._get_background_geoms(self.background_entities)
+            if self._render_field
+            else self._get_background_geoms(self.background_entities[3:])
+        )
+
+        # Agent rotation and shooting
+        if self.enable_shooting:
+            for agent in self.world.policy_agents:
+                color = agent.color
+                if (
+                    agent.ball_within_angle[env_index]
+                    and agent.ball_within_range[env_index]
+                ):
+                    color = Color.PINK.value
+                sector = rendering.make_circle(
+                    radius=self.shooting_radius, angle=self.shooting_angle, filled=True
+                )
+                xform = rendering.Transform()
+                xform.set_rotation(agent.state.rot[env_index])
+                xform.set_translation(*agent.state.pos[env_index])
+                sector.add_attr(xform)
+                sector.set_color(*color, alpha=agent._alpha / 2)
+                geoms.append(sector)
+
+                shoot_intensity = torch.linalg.vector_norm(
+                    agent.shoot_force[env_index]
+                ) / (self.u_shoot_multiplier * 2)
+                l, r, t, b = (
+                    0,
+                    self.shooting_radius * shoot_intensity,
+                    self.agent_size / 2,
+                    -self.agent_size / 2,
+                )
+                line = rendering.make_polygon([(l, b), (l, t), (r, t), (r, b)])
+                xform = rendering.Transform()
+                xform.set_rotation(agent.state.rot[env_index])
+                xform.set_translation(*agent.state.pos[env_index])
+                line.add_attr(xform)
+                line.set_color(*color, alpha=agent._alpha)
+                geoms.append(line)
+
+        return geoms
+
+    def _get_background_geoms(self, objects):
+        def _get_geom(entity, pos, rot=0.0):
+            from vmas.simulator import rendering
+
+            geom = entity.shape.get_geometry()
+            xform = rendering.Transform()
+            geom.add_attr(xform)
+            xform.set_translation(*pos)
+            xform.set_rotation(rot)
+            color = entity.color
+            geom.set_color(*color)
+            return geom
+
+        geoms = []
+        for landmark in objects:
+            if landmark.name == "Centre Line":
+                geoms.append(_get_geom(landmark, [0.0, 0.0], torch.pi / 2))
+            elif landmark.name == "Right Line":
+                geoms.append(
+                    _get_geom(
+                        landmark,
+                        [self.pitch_length / 2 - self.agent_size, 0.0],
+                        torch.pi / 2,
+                    )
+                )
+            elif landmark.name == "Left Line":
+                geoms.append(
+                    _get_geom(
+                        landmark,
+                        [-self.pitch_length / 2 + self.agent_size, 0.0],
+                        torch.pi / 2,
+                    )
+                )
+            elif landmark.name == "Top Line":
+                geoms.append(
+                    _get_geom(landmark, [0.0, self.pitch_width / 2 - self.agent_size])
+                )
+            elif landmark.name == "Bottom Line":
+                geoms.append(
+                    _get_geom(landmark, [0.0, -self.pitch_width / 2 + self.agent_size])
+                )
+            else:
+                geoms.append(_get_geom(landmark, [0, 0]))
+        return geoms
 
 
 # Ball Physics
@@ -746,8 +1321,8 @@ class Scenario(BaseScenario):
 def ball_action_script(ball, world):
     # Avoid getting stuck against the wall
     dist_thres = world.agent_size * 2
-    vel_thres = 0.1
-    impulse = 0.01
+    vel_thres = 0.3
+    impulse = 0.05
     upper = (
         1
         - torch.minimum(
@@ -810,21 +1385,25 @@ def ball_action_script(ball, world):
 
 
 class AgentPolicy:
-    def __init__(self, team="Red"):
+    def __init__(
+        self,
+        team: str,
+        strength=1.0,
+        disabled: bool = False,
+    ):
         self.team_name = team
         self.otherteam_name = "Blue" if (self.team_name == "Red") else "Red"
 
         self.pos_lookahead = 0.01
         self.vel_lookahead = 0.01
-        self.start_vel_mag = 0.6
+        self.strength = strength
+        self.strength_multiplier = 25.0
 
-        self.dribble_speed = 0.5
-        self.dribble_slowdown_dist = 0.25
-        self.dribble_stop_margin_vel_coeff = 0.1
-        self.initial_vel_dist_behind_target_frac = 0.3
+        self.dribble_speed = 0.16
+        self.dribble_slowdown_dist = 0.3
+        self.initial_vel_dist_behind_target_frac = 0.6
         self.ball_pos_eps = 0.08
 
-        self.max_shoot_time = 100
         self.max_shoot_dist = 0.6
         self.valid_start_pos_angle = math.cos(torch.pi / 4)
         self.valid_start_vel_angle = math.cos(torch.pi / 4)
@@ -836,24 +1415,17 @@ class AgentPolicy:
 
         self.possession_lookahead = 0.5
 
-        self.lane_weight = 1.0
-        self.separation_weight = 0.01
-
-        self.attack_lane_weight = 1.0
-        self.attack_goal_dist_weight = 0.35
-        self.attack_defender_dist_weight = 0.25
-        self.weight_diff_pass_thres = 0.1
-
         self.passing_angle = (2 * torch.pi / 128) * 1
         self.shooting_angle = (2 * torch.pi / 128) * 3
         self.shooting_dist = self.max_shoot_dist
         self.passing_dist = self.max_shoot_dist
 
         self.nsamples = 1
-        self.sigma = 1.0
+        self.sigma = 0.5
         self.replan_margin = 0.0
 
         self.initialised = False
+        self.disabled = disabled
 
     def init(self, world):
         self.initialised = True
@@ -874,14 +1446,14 @@ class AgentPolicy:
         self.actions = {
             agent: {
                 "dribbling": torch.zeros(
-                    self.world.batch_dim, device=world.device
-                ).bool(),
+                    self.world.batch_dim, device=world.device, dtype=torch.bool
+                ),
                 "shooting": torch.zeros(
-                    self.world.batch_dim, device=world.device
-                ).bool(),
+                    self.world.batch_dim, device=world.device, dtype=torch.bool
+                ),
                 "pre-shooting": torch.zeros(
-                    self.world.batch_dim, device=world.device
-                ).bool(),
+                    self.world.batch_dim, device=world.device, dtype=torch.bool
+                ),
             }
             for agent in self.teammates
         }
@@ -905,24 +1477,17 @@ class AgentPolicy:
         }
 
         self.agent_possession = {
-            agent: torch.zeros(self.world.batch_dim, device=world.device).bool()
-            for agent in self.teammates
-        }
-
-        self.shooting_timer = {
-            agent: torch.zeros(self.world.batch_dim, device=world.device).int()
+            agent: torch.zeros(
+                self.world.batch_dim, device=world.device, dtype=torch.bool
+            )
             for agent in self.teammates
         }
 
         self.team_possession = torch.zeros(
-            self.world.batch_dim, device=world.device
-        ).bool()
+            self.world.batch_dim, device=world.device, dtype=torch.bool
+        )
 
-        if len(self.teammates) == 1:
-            self.role = {self.teammates[0]: 1.0}
-        else:
-            roles = torch.linspace(0.5, 1, len(self.teammates), device=world.device)
-            self.role = {agent: roles[i] for i, agent in enumerate(self.teammates)}
+        self.team_disps = {agent: None for agent in self.teammates}
 
     def reset(self, env_index=Ellipsis):
         for agent in self.teammates:
@@ -942,37 +1507,11 @@ class AgentPolicy:
                 self.world.dim_p, device=self.world.device
             )
 
-    def policy(self, agent):
+    def dribble_policy(self, agent):
         possession_mask = self.agent_possession[agent]
-        shooting_mask = (
-            self.actions[agent]["shooting"] | self.actions[agent]["pre-shooting"]
-        )
-        # Shoot
-        start_shoot_mask, shoot_pos = self.can_shoot(agent)
-        can_shoot_mask = (start_shoot_mask & possession_mask) | shooting_mask  # hmm
-        self.shoot(agent, shoot_pos[can_shoot_mask], env_index=can_shoot_mask)
-        # Passing
-        self_attack_value = self.get_attack_value(self.ball)
-        differential = (
-            torch.ones(self_attack_value.shape[0], device=self.world.device)
-            * self.weight_diff_pass_thres
-        )
-        for teammate in self.teammates:
-            if teammate != agent:
-                can_pass_mask = self.can_pass(teammate)
-                teammate_attack_value = self.get_attack_value(teammate)
-                better_pos_mask = (
-                    teammate_attack_value - self_attack_value
-                ) > differential
-                pass_mask = can_pass_mask & better_pos_mask & possession_mask
-                self.passto(agent, teammate, env_index=pass_mask)
-        # Move without the ball
-        shooting_mask = (
-            self.actions[agent]["shooting"] | self.actions[agent]["pre-shooting"]
-        )
-        dribble_mask = possession_mask & ~shooting_mask
-        move_mask = ~possession_mask & ~shooting_mask
-        best_pos = self.check_better_positions(agent, role=self.role[agent])
+        self.dribble_to_goal(agent, env_index=possession_mask)
+        move_mask = ~possession_mask
+        best_pos = self.check_better_positions(agent)
         self.go_to(
             agent,
             pos=best_pos[move_mask],
@@ -981,184 +1520,42 @@ class AgentPolicy:
             ),
             env_index=move_mask,
         )
-        # Dribble with the ball
-        self.dribble_to_goal(agent, env_index=dribble_mask)
-        # If other agent is passing/shooting, stay still
-        other_agents_shooting = [
-            self.actions[otheragent]["pre-shooting"]
-            | self.actions[otheragent]["shooting"]
-            for otheragent in self.teammates
-            if (otheragent != agent)
-        ]
-        other_agent_shooting_mask = (
-            self.combine_or(other_agents_shooting)
-            if len(other_agents_shooting)
-            else False
-        )
-        stay_still_mask = other_agent_shooting_mask & ~shooting_mask  # hmm
-        self.go_to(
-            agent,
-            pos=agent.state.pos[stay_still_mask],
-            vel=torch.zeros(
-                stay_still_mask.sum(),
-                self.world.dim_p,
-                device=self.world.device,
-            ),
-            env_index=stay_still_mask,
-        )
+
+    def disable(self):
+        self.disabled = True
+
+    def enable(self):
+        self.disabled = False
 
     def run(self, agent, world):
-        self.check_possession()
-        self.policy(agent)
-        control = self.get_action(agent)
-        control = torch.clamp(control, min=-agent.u_range, max=agent.u_range)
-        agent.action.u = control * agent.u_multiplier
+        if not self.disabled:
+            if "0" in agent.name:
+                self.check_possession()
+            self.dribble_policy(agent)
+            control = self.get_action(agent)
+            control = torch.clamp(control, min=-agent.u_range, max=agent.u_range)
+            agent.action.u = control * agent.action.u_multiplier_tensor.unsqueeze(
+                0
+            ).expand(*control.shape)
+        else:
+            agent.action.u = torch.zeros(
+                self.world.batch_dim,
+                self.world.dim_p,
+                device=self.world.device,
+                dtype=torch.float,
+            )
 
     def dribble_to_goal(self, agent, env_index=Ellipsis):
-        self.dribble(agent, self.target_net.state.pos[env_index], env_index=env_index)
-
-    def shoot_on_goal(self, agent, env_index=Ellipsis):
-        goal_front = self.target_net.state.pos[env_index].clone()
-        left_goal_mask = goal_front[:, X] < 0
-        goal_front[:, X] += self.world.goal_depth / 2 * (left_goal_mask.float() * 2 - 1)
-        agent_pos = agent.state.pos[env_index]
-        shoot_dir = goal_front - agent_pos
-        shoot_dir = shoot_dir / shoot_dir.norm(dim=-1)[:, None]
-        shoot_pos = goal_front + shoot_dir * self.shoot_on_goal_dist
-        self.shoot(agent, shoot_pos, env_index=env_index)
-        # self.shoot(agent, torch.tensor([-0.6, 0.]).unsqueeze(0), env_index=Ellipsis)
-
-    def passto(self, agent, agent_dest, env_index=Ellipsis):
-        self.shoot(agent, agent_dest.state.pos[env_index], env_index=env_index)
-
-    def shoot(self, agent, pos, env_index=Ellipsis):
-        if isinstance(env_index, int):
-            env_index = [env_index]
-        self.actions[agent]["dribbling"][env_index] = False
-
-        ball_curr_pos = self.ball.state.pos[env_index]
-        agent_curr_pos = agent.state.pos[env_index]
-        agent_curr_vel = agent.state.vel[env_index]
-
-        ball_target_disp = pos - ball_curr_pos
-        ball_target_dist = ball_target_disp.norm(dim=-1)
-        ball_target_dir = ball_target_disp / ball_target_dist[:, None]
-
-        agent_ball_disp = ball_curr_pos - agent_curr_pos
-        agent_ball_dist = agent_ball_disp.norm(dim=-1)
-        agent_ball_dir = agent_ball_disp / agent_ball_dist[:, None]
-        agent_vel_dir = agent_curr_vel / agent_curr_vel.norm(dim=-1)[:, None]
-
-        dist_maxdist_ratio = (
-            torch.minimum(
-                ball_target_dist,
-                torch.tensor(self.max_shoot_dist, device=self.world.device),
-            )
-            / self.max_shoot_dist
-        )
-
-        # Determine if shooting or pre-shooting
-        start_dist = self.valid_start_dist * dist_maxdist_ratio
-        valid_angle_mask = (ball_target_dir * agent_ball_dir).sum(
-            dim=-1
-        ) > self.valid_start_pos_angle
-        valid_vel_mask = (ball_target_dir * agent_vel_dir).sum(
-            dim=-1
-        ) > self.valid_start_vel_angle
-        valid_dist_mask = agent_ball_dist > start_dist
-        shooting_mask = self.actions[agent]["shooting"][env_index] | (
-            valid_dist_mask & valid_angle_mask & valid_vel_mask
-        )
-        pre_shooting_mask = ~shooting_mask
-        start_shooting_mask = (
-            ~self.actions[agent]["shooting"][env_index] & shooting_mask
-        ) | (~self.actions[agent]["pre-shooting"][env_index] & pre_shooting_mask)
-        # start_shooting_mask = ~self.actions[agent]["pre-shooting"][env_index] & pre_shooting_mask
-        self.actions[agent]["shooting"][env_index] = shooting_mask
-        self.actions[agent]["pre-shooting"][env_index] = pre_shooting_mask
-        self.shooting_timer[agent][
-            self.combine_mask(env_index, start_shooting_mask)
-        ] = 0
-        self.shooting_timer[agent][
-            self.actions[agent]["shooting"] | self.actions[agent]["pre-shooting"]
-        ] += 1
-        # self.shooting_timer[agent][self.actions[agent]["pre-shooting"]] += 1
-
-        # Shooting
-        hit_pos = ball_curr_pos - ball_target_dir * (
-            self.ball.shape.radius + agent.shape.radius
-        )
-        hit_speed = self.dist_to_hit_speed * dist_maxdist_ratio
-        hit_vel = ball_target_dir * hit_speed[:, None]
-        start_vel = self.get_start_vel(hit_pos, hit_vel, agent_curr_pos, hit_speed)
-
-        # Pre Shooting
-        pre_shoot_target_pos = ball_curr_pos - ball_target_dir * start_dist[:, None]
-        pre_shoot_target_vel = ball_target_dir * hit_speed[:, None]
-
-        # Next to wall
-        close_to_wall_mask = (
-            self.clamp_pos(pre_shoot_target_pos, return_bool=True) & pre_shooting_mask
-        )
-        pre_shooting_mask = pre_shooting_mask & ~close_to_wall_mask
-        self.update_dribble(
-            agent,
-            pos=pos.expand(len(close_to_wall_mask), -1)[close_to_wall_mask],
-            env_index=self.combine_mask(env_index, close_to_wall_mask),
-        )
-
-        self.go_to(
-            agent,
-            pos=pre_shoot_target_pos[pre_shooting_mask],
-            vel=pre_shoot_target_vel[pre_shooting_mask],
-            env_index=self.combine_mask(env_index, pre_shooting_mask),
-        )
-
-        self.go_to(
-            agent,
-            pos=hit_pos[shooting_mask],
-            vel=hit_vel[shooting_mask],
-            start_vel=start_vel[shooting_mask],
-            env_index=self.combine_mask(env_index, shooting_mask),
-        )
-
-        touch_dist = (ball_curr_pos - agent_curr_pos).norm(dim=-1) - (
-            self.ball.shape.radius + agent.shape.radius
-        )
-        touch_mask = touch_dist < self.touch_eps
-        full_shooting_mask = self.combine_mask(env_index, shooting_mask & touch_mask)
-        self.actions[agent]["shooting"][full_shooting_mask] = False
-
-        dist = (pos - self.ball.state.pos[env_index]).norm(dim=-1)
-        reached_goal_mask = self.combine_mask(env_index, dist <= self.ball_pos_eps)
-        self.actions[agent]["shooting"][reached_goal_mask] = False
-        self.actions[agent]["pre-shooting"][reached_goal_mask] = False
-
-        max_time_mask = self.shooting_timer[agent] > self.max_shoot_time
-        self.actions[agent]["shooting"][max_time_mask] = False
-        self.actions[agent]["pre-shooting"][max_time_mask] = False
+        self.dribble(agent, self.target_net.state.pos, env_index=env_index)
 
     def dribble(self, agent, pos, env_index=Ellipsis):
         if isinstance(env_index, int):
             env_index = [env_index]
         self.actions[agent]["dribbling"][env_index] = True
-        dist = (pos - self.ball.state.pos[env_index]).norm(dim=-1)
-        reached_goal_mask = self.combine_mask(env_index, dist <= self.ball_pos_eps)
-        self.actions[agent]["dribbling"][reached_goal_mask] = False
-        dribble_mask = self.actions[agent]["dribbling"][env_index]
-        curr_pos = agent.state.pos[reached_goal_mask]
-        self.go_to(
-            agent,
-            curr_pos,
-            torch.zeros(curr_pos.shape, device=self.world.device),
-            env_index=reached_goal_mask,
-        )
         self.update_dribble(
             agent,
-            pos=pos[dribble_mask],
-            env_index=self.combine_mask(
-                env_index, self.actions[agent]["dribbling"][env_index]
-            ),
+            pos=pos[env_index],
+            env_index=env_index,
         )
 
     def update_dribble(self, agent, pos, env_index=Ellipsis):
@@ -1167,32 +1564,31 @@ class AgentPolicy:
         ball_disp = pos - ball_pos
         ball_dist = ball_disp.norm(dim=-1)
         direction = ball_disp / ball_dist[:, None]
-        hit_pos = ball_pos - direction * (self.ball.shape.radius + agent.shape.radius)
         hit_vel = direction * self.dribble_speed
-        start_vel = self.get_start_vel(hit_pos, hit_vel, agent_pos, self.start_vel_mag)
-
-        slowdown_mask = ball_dist <= self.dribble_slowdown_dist
-        hit_vel[slowdown_mask, :] *= (
-            ball_dist[slowdown_mask, None] / self.dribble_slowdown_dist
+        start_vel = self.get_start_vel(ball_pos, hit_vel, agent_pos)
+        start_vel_mag = start_vel.norm(dim=-1)
+        offset = start_vel.clone()
+        start_vel_mag_mask = start_vel_mag > 0
+        offset[start_vel_mag_mask] /= start_vel_mag.unsqueeze(-1)[start_vel_mag_mask]
+        new_direction = direction + 0.5 * offset
+        new_direction /= new_direction.norm(dim=-1)[:, None]
+        hit_pos = (
+            ball_pos
+            - new_direction * (self.ball.shape.radius + agent.shape.radius) * 0.7
         )
-        # start_vel[slowdown_mask,:] *= ball_dist[slowdown_mask,None] / self.dribble_slowdown_dist
-
         self.go_to(agent, hit_pos, hit_vel, start_vel=start_vel, env_index=env_index)
 
     def go_to(self, agent, pos, vel, start_vel=None, env_index=Ellipsis):
         start_pos = agent.state.pos[env_index]
         if start_vel is None:
-            start_vel = self.get_start_vel(pos, vel, start_pos, self.start_vel_mag)
+            start_vel = self.get_start_vel(pos, vel, start_pos)
         self.objectives[agent]["target_pos"][env_index] = pos
         self.objectives[agent]["target_vel"][env_index] = vel
         self.objectives[agent]["start_pos"][env_index] = start_pos
         self.objectives[agent]["start_vel"][env_index] = start_vel
-        # self.plot_traj(agent, env_index=env_index)
+        self.plot_traj(agent, env_index=env_index)
 
-    def get_start_vel(self, pos, vel, start_pos, start_vel_mag):
-        start_vel_mag = torch.as_tensor(start_vel_mag, device=self.world.device).view(
-            -1,
-        )
+    def get_start_vel(self, pos, vel, start_pos):
         goal_disp = pos - start_pos
         goal_dist = goal_disp.norm(dim=-1)
         vel_mag = vel.norm(dim=-1)
@@ -1204,7 +1600,7 @@ class AgentPolicy:
         target_dist = target_disp.norm(dim=1)
         start_vel_aug_dir = target_disp
         start_vel_aug_dir[target_dist > 0] /= target_dist[target_dist > 0, None]
-        start_vel = start_vel_aug_dir * start_vel_mag[:, None]
+        start_vel = start_vel_aug_dir * vel_mag[:, None]
         return start_vel
 
     def get_action(self, agent, env_index=Ellipsis):
@@ -1233,10 +1629,11 @@ class AgentPolicy:
             ),
             deriv=1,
         )
+
         des_curr_pos = torch.as_tensor(des_curr_pos, device=self.world.device)
         des_curr_vel = torch.as_tensor(des_curr_vel, device=self.world.device)
         control = 0.5 * (des_curr_pos - curr_pos) + 0.5 * (des_curr_vel - curr_vel)
-        return control
+        return control * self.strength * self.strength_multiplier
 
     def hermite(self, p0, p1, p0dot, p1dot, u=0.1, deriv=0):
         # Formatting
@@ -1340,28 +1737,6 @@ class AgentPolicy:
             ans = ans * k
         return ans
 
-    def combine_or(self, seq):
-        return reduce(
-            operator.or_,
-            seq,
-            torch.zeros(seq[0].shape, device=self.world.device).bool(),
-        )
-
-    def combine_mask(self, env_index, mask):
-        if env_index == Ellipsis:
-            return mask
-        elif isinstance(env_index, torch.Tensor) and env_index.dtype == torch.bool:
-            if isinstance(mask, torch.Tensor) and mask.dtype == torch.bool:
-                new_env_index = env_index.clone()
-                new_env_index[env_index] = mask
-                return new_env_index
-            else:
-                return torch.arange(env_index.shape[0], device=self.world.device)[mask]
-        elif isinstance(env_index, torch.Tensor) and env_index.dtype == torch.int:
-            return env_index[mask]
-        elif isinstance(env_index, list):
-            return torch.tensor(env_index, device=self.world.device)[mask]
-
     def check_possession(self, env_index=Ellipsis):
         agents_pos = torch.stack(
             [agent.state.pos[env_index] for agent in self.teammates + self.opposition],
@@ -1382,18 +1757,19 @@ class AgentPolicy:
             self.agent_possession[agent][env_index] = mindist_agent == i
         self.team_possession[env_index] = mindist_team
 
-    def check_better_positions(self, agent, role, env_index=Ellipsis):
-        curr_pos = agent.state.pos[env_index]
+    def check_better_positions(self, agent, env_index=Ellipsis):
+        self.team_disps[agent] = None
+        ball_pos = self.ball.state.pos[env_index]
         curr_target = self.objectives[agent]["target_pos"]
         samples = (
             torch.randn(
                 self.nsamples,
-                curr_pos.shape[0],
+                ball_pos.shape[0],
                 self.world.dim_p,
                 device=self.world.device,
             )
             * self.sigma
-            + curr_pos[None, :, :]
+            + ball_pos[None, :, :]
         )
         test_pos = torch.cat(
             [curr_target[None, :, :], samples], dim=0
@@ -1404,9 +1780,7 @@ class AgentPolicy:
         ).view(*test_pos_shape)
         values = torch.stack(
             [
-                self.get_pos_value(
-                    test_pos[i], role=role, agent=agent, env_index=env_index
-                )
+                self.get_pos_value(test_pos[i], agent=agent, env_index=env_index)
                 for i in range(test_pos.shape[0])
             ],
             dim=0,
@@ -1422,66 +1796,60 @@ class AgentPolicy:
         )
         return best_pos[0, :, :]
 
-    def get_angle_interval(self, pos, obj, objpos=None, beams=128, env_index=Ellipsis):
-        # agent_pos = agent.state.pos[env_index]
-        if objpos is not None:
-            obj_pos = objpos
+    def get_pos_value(self, pos, agent, env_index=Ellipsis):
+
+        ball_dist = (pos - self.ball.state.pos[env_index]).norm(dim=-1)
+        ball_dist_value = 2.0 * -((ball_dist - self.max_shoot_dist) ** 2)
+
+        side_dot_prod = (
+            (self.ball.state.pos - pos) * (self.target_net.state.pos - pos)
+        ).sum(dim=-1)
+        side_value = 0.5 * side_dot_prod
+
+        if len(self.teammates) > 1:
+            if self.team_disps[agent] is not None:
+                team_disps = self.team_disps[agent]
+            else:
+                team_disps = self.get_separations(
+                    agent=agent,
+                    teammate=True,
+                    target=True,
+                    wall=False,
+                    opposition=False,
+                    env_index=env_index,
+                )
+                team_disps = torch.stack(team_disps, dim=1)
+                self.team_disps[agent] = team_disps
+
+            team_dists = (team_disps - pos[:, None, :]).norm(dim=-1)
+            other_agent_value = -0.2 * (team_dists**-2).mean(dim=-1)
         else:
-            obj_pos = obj.state.pos[env_index]
-        if obj == self.target_net or obj == self.own_net:
-            left_goal_mask = obj_pos[:, X] < 0
-            inner_centre = obj_pos.clone()
-            inner_centre[:, X] += (
-                self.world.goal_depth / 2 * (left_goal_mask.float() * 2 - 1)
-            )
-            obj_side1 = inner_centre.clone()
-            obj_side1[:, Y] += self.world.goal_size / 2
-            obj_side2 = inner_centre.clone()
-            obj_side2[:, Y] += -self.world.goal_size / 2
-        elif isinstance(obj.shape, Sphere):
-            centre_disp = obj_pos - pos
-            centre_dist = centre_disp.norm(dim=-1)
-            centre_disp[centre_dist == 0] = torch.tensor(
-                [0.02, 0], device=self.world.device
-            )
-            centre_dir = centre_disp / centre_dist[:, None]
-            normal_dir = torch.stack([-centre_dir[:, Y], centre_dir[:, X]], dim=-1)
-            obj_side1 = obj_pos + normal_dir * obj.shape.radius
-            obj_side2 = obj_pos - normal_dir * obj.shape.radius
-        disp_side1 = obj_side1 - pos
-        disp_side2 = obj_side2 - pos
-        dir_side1 = disp_side1 / disp_side1.norm(dim=-1)[:, None]
-        dir_side2 = disp_side2 / disp_side2.norm(dim=-1)[:, None]
-        angle_1 = torch.atan2(dir_side1[:, X], dir_side1[:, Y])
-        angle_2 = torch.atan2(dir_side2[:, X], dir_side2[:, Y])
-        angle_less = torch.minimum(angle_1, angle_2)
-        angle_greater = torch.maximum(angle_1, angle_2)
-        lidar = torch.zeros(angle_less.shape[0], beams, device=self.world.device).bool()
-        lidar_angles = torch.linspace(
-            -torch.pi,
-            torch.pi - (2 * torch.pi / beams),
-            beams,
-            device=self.world.device,
+            other_agent_value = 0
+
+        wall_disps = self.get_separations(
+            pos,
+            agent,
+            teammate=False,
+            wall=True,
+            opposition=False,
+            env_index=env_index,
         )
-        wraparound_mask = (angle_greater > torch.pi / 2) & (angle_less < -torch.pi / 2)
-        covered_angles = (angle_less[:, None] <= lidar_angles[None, :]) & (
-            angle_greater[:, None] >= lidar_angles[None, :]
-        )
-        covered_angles_wraparound = (angle_less[:, None] >= lidar_angles[None, :]) & (
-            angle_greater[:, None] <= lidar_angles[None, :]
-        )
-        lidar[~wraparound_mask] = covered_angles[~wraparound_mask]
-        lidar[wraparound_mask] = covered_angles_wraparound[wraparound_mask]
-        return lidar, lidar_angles
+        wall_disps = torch.stack(wall_disps, dim=1)
+
+        wall_dists = wall_disps.norm(dim=-1)
+        wall_value = -0.01 * (wall_dists**-2).mean(dim=-1)
+
+        return wall_value + other_agent_value + ball_dist_value + side_value
 
     def get_separations(
         self,
-        pos,
+        pos=None,
         agent=None,
         teammate=True,
         wall=True,
         opposition=False,
         env_index=Ellipsis,
+        target=False,
     ):
         disps = []
         if wall:
@@ -1500,199 +1868,23 @@ class AgentPolicy:
         if teammate:
             for otheragent in self.teammates:
                 if otheragent != agent:
-                    agent_disp = otheragent.state.pos[env_index] - pos
+                    if target:
+                        agent_disp = self.objectives[otheragent]["target_pos"][
+                            env_index
+                        ]
+                    else:
+                        agent_disp = otheragent.state.pos[env_index]
+                    if pos is not None:
+                        agent_disp -= pos
                     disps.append(agent_disp)
         if opposition:
             for otheragent in self.opposition:
                 if otheragent != agent:
-                    agent_disp = otheragent.state.pos[env_index] - pos
+                    agent_disp = otheragent.state.pos[env_index]
+                    if pos is not None:
+                        agent_disp -= pos
                     disps.append(agent_disp)
         return disps
-
-    def get_lane_value(self, pos, agent, opposition=False, env_index=Ellipsis):
-        if not opposition:
-            ball_angles, lidar_angles = self.get_angle_interval(pos, self.ball)
-            goal_angles, _ = self.get_angle_interval(
-                pos, self.target_net, env_index=env_index
-            )
-            blocking_angles_list = [
-                self.get_angle_interval(pos, otheragent, env_index=env_index)[0]
-                for otheragent in self.teammates + self.opposition
-                if (otheragent != agent)
-            ]
-            desired_angles = ball_angles | goal_angles
-            blocking_angles = self.combine_or(blocking_angles_list)
-            unblocked_angles = desired_angles & ~blocking_angles
-            unblocked_angle_ratio = unblocked_angles.sum(dim=-1) / desired_angles.sum(
-                dim=-1
-            )
-            unblocked_angle_ratio[torch.isnan(unblocked_angle_ratio)] = 0.0
-            return unblocked_angle_ratio
-        else:
-            opp_lane_value = 0.0
-            for opp_agent in self.opposition:
-                opp_agent_pos = opp_agent.state.pos[env_index]
-                opp_desired_angles = self.get_angle_interval(
-                    opp_agent_pos, self.own_net, env_index=env_index
-                )[0]
-                opp_blocking_angles_list = [
-                    self.get_angle_interval(
-                        opp_agent_pos,
-                        otheragent,
-                        objpos=pos,
-                        env_index=env_index,
-                    )[0]
-                    for otheragent in self.teammates
-                ]
-                opp_unblocked_angles = opp_desired_angles & ~self.combine_or(
-                    opp_blocking_angles_list
-                )
-                opp_unblocked_angle_ratio = opp_unblocked_angles.sum(
-                    dim=-1
-                ) / opp_desired_angles.sum(dim=-1)
-                opp_lane_value += -opp_unblocked_angle_ratio
-            opp_lane_value /= len(self.opposition)
-            return opp_lane_value
-
-    def get_pos_value(self, pos, role=0.5, agent=None, env_index=Ellipsis):
-        # The value of a position for movement
-        # Single agent's sight on goal and the ball, blocked by teammates and opposition
-        lane_value = self.get_lane_value(
-            pos, agent, opposition=False, env_index=env_index
-        )
-        # Agent Separations
-        dists = self.get_separations(pos, agent, env_index=env_index)
-        dists = torch.stack([dist.norm(dim=-1) for dist in dists], dim=-1)
-        inv_sq_dists = dists ** (-2)
-        separation_value = -inv_sq_dists.sum(dim=-1)
-        # Entire opposition's sight on goal, blocked by all teammates (shared value for all teammates)
-        opp_lane_value = self.get_lane_value(
-            pos, agent, opposition=True, env_index=env_index
-        )
-        # Value Calculation
-        values = (
-            self.separation_weight * separation_value
-            + self.lane_weight * role * lane_value
-            + self.lane_weight * (1 - role) * opp_lane_value
-        )
-        return values
-
-    def get_attack_value(self, agent, env_index=Ellipsis):
-        # The value of a position for attacking purposes
-        agent_pos = agent.state.pos[env_index]
-        lane_value = self.attack_lane_weight * self.get_lane_value(
-            agent.state.pos[env_index],
-            agent,
-            opposition=False,
-            env_index=env_index,
-        )
-
-        goal_dist = (agent_pos - self.target_net.state.pos[env_index]).norm(dim=-1)
-        goal_dist_value = self.attack_goal_dist_weight * -goal_dist
-
-        opp_dists = self.get_separations(
-            agent_pos,
-            agent,
-            teammate=False,
-            wall=False,
-            opposition=True,
-            env_index=env_index,
-        )
-        opp_dists = torch.stack(
-            [opp_dist.norm(dim=-1) for opp_dist in opp_dists], dim=-1
-        )
-        opp_dist = torch.min(opp_dists, dim=-1)[0]
-        opp_dist_value = self.attack_defender_dist_weight * opp_dist
-        return lane_value + goal_dist_value + opp_dist_value
-
-    def can_shoot(self, agent, env_index=Ellipsis):
-        # Distance
-        ball_pos = self.ball.state.pos[env_index]
-        goal_dist = (ball_pos - self.target_net.state.pos[env_index]).norm(dim=-1)
-        within_range_mask = goal_dist < self.shooting_dist
-        # Angle
-        beams = 128
-        goal_angles, lidar_angles = self.get_angle_interval(
-            ball_pos, self.target_net, beams=beams, env_index=env_index
-        )
-        blocking_angles_list = [
-            self.get_angle_interval(
-                ball_pos, otheragent, beams=beams, env_index=env_index
-            )[0]
-            for otheragent in self.teammates + self.opposition
-            if (otheragent != agent)
-        ]
-        unblocked_angles = goal_angles & ~self.combine_or(blocking_angles_list)
-        unblocked_angles[:, 0] = False
-        unblocked_angles[:, -1] = False
-        indicesxy = torch.where(
-            unblocked_angles[:, :-1].int() - unblocked_angles[:, 1:].int()
-        )
-        indicesx = indicesxy[0].view(-1, 2)[:, 0]
-        indicesy = indicesxy[1].view(-1, 2)
-        n = (
-            torch.zeros(unblocked_angles.shape[0], device=self.world.device)
-            .int()
-            .scatter_reduce(
-                index=indicesx,
-                src=(indicesy[:, 1] - indicesy[:, 0]).int(),
-                dim=0,
-                reduce="sum",
-            )
-        )
-        midpt = (
-            torch.zeros(unblocked_angles.shape[0], device=self.world.device)
-            .float()
-            .scatter_reduce(
-                index=indicesx,
-                src=(indicesy[:, 1] + indicesy[:, 0])
-                / 2
-                * (indicesy[:, 1] - indicesy[:, 0]),
-                dim=0,
-                reduce="sum",
-            )
-            / n
-            + 0.5
-        )
-        midpt[torch.isnan(midpt)] = 0
-        within_angle_mask = n * (2 * torch.pi / beams) >= self.shooting_angle
-        # Result
-        can_shoot_mask = within_range_mask & within_angle_mask
-        frac = midpt - torch.floor(midpt)
-        shoot_angle = (1 - frac) * lidar_angles[torch.ceil(midpt).long()] + (
-            frac
-        ) * lidar_angles[torch.floor(midpt).long()]
-        shoot_dir = torch.stack(
-            [torch.sin(shoot_angle), torch.cos(shoot_angle)], dim=-1
-        )
-        shoot_pos = ball_pos + shoot_dir * (
-            goal_dist[:, None] + self.shoot_on_goal_dist
-        )
-        return can_shoot_mask, shoot_pos
-
-    def can_pass(self, agent_dest, env_index=Ellipsis):
-        # Distance
-        ball_pos = self.ball.state.pos[env_index]
-        agent_pos = agent_dest.state.pos[env_index]
-        agent_dist = (ball_pos - agent_pos).norm(dim=-1)
-        within_range_mask = agent_dist <= self.shooting_dist
-        # Angle
-        beams = 128
-        goal_angles, lidar_angles = self.get_angle_interval(
-            ball_pos, agent_dest, beams=beams, env_index=env_index
-        )
-        blocking_angles_list = [
-            self.get_angle_interval(
-                ball_pos, otheragent, beams=beams, env_index=env_index
-            )[0]
-            for otheragent in self.teammates + self.opposition
-            if (otheragent != agent_dest)
-        ]
-        unblocked_angles = goal_angles & ~self.combine_or(blocking_angles_list)
-        passing_angle = unblocked_angles.sum(dim=-1) * (2 * torch.pi / beams)
-        within_angle_mask = passing_angle >= self.passing_angle
-        can_pass_mask = within_range_mask & within_angle_mask
-        return can_pass_mask
 
 
 # Run
@@ -1700,10 +1892,11 @@ if __name__ == "__main__":
     render_interactively(
         __file__,
         control_two_agents=True,
-        continuous=True,
         n_blue_agents=2,
         n_red_agents=2,
-        ai_red_agents=True,
         ai_blue_agents=False,
-        dense_reward_ratio=0.001,
+        ai_red_agents=False,
+        dense_reward=True,
+        ai_strength=1,
+        n_traj_points=8,
     )
