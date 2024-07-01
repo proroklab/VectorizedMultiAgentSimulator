@@ -426,3 +426,56 @@ def _get_closest_point_line(
     )
     closest_point = line_pos - sign * distance_from_line_center * rotated_vector
     return closest_point
+
+
+def _get_closest_point_line_vec(
+    line_pos,
+    line_rot,
+    line_length,
+    test_point_pos,
+    limit_to_line_length: bool = True,
+):
+    assert line_rot.shape[-1] == 1
+
+    num_world, num_angles = line_rot.shape[0], line_rot.shape[1]
+
+    # Ensure line_length is a tensor and expand to the correct size
+    if not isinstance(line_length, torch.Tensor):
+        line_length = torch.tensor(
+            line_length, dtype=torch.float32, device=line_pos.device
+        )
+    if line_length.dim() == 1:
+        line_length = line_length.unsqueeze(1).expand(num_world, num_angles)
+    else:
+        line_length = line_length.expand(num_world, num_angles)
+
+    # Ensure line_pos is expanded to [num_world, num_angles, 2]
+    if line_pos.dim() == 2:
+        line_pos = line_pos.unsqueeze(1).expand(num_world, num_angles, 2)
+
+    # Ensure test_point_pos is expanded to [num_world, num_angles, 2]
+    if test_point_pos.dim() == 2:
+        test_point_pos = test_point_pos.unsqueeze(1).expand(num_world, num_angles, 2)
+
+    # Rotate it by the angle of the line
+    rotated_vector = torch.cat([line_rot.cos(), line_rot.sin()], dim=-1)
+
+    # Get distance between line and sphere
+    delta_pos = line_pos - test_point_pos
+
+    # Dot product of distance and line vector
+    dot_p = (delta_pos * rotated_vector).sum(-1).unsqueeze(-1)
+
+    # Coordinates of the closest point
+    sign = torch.sign(dot_p)
+    distance_from_line_center = (
+        torch.minimum(
+            torch.abs(dot_p),
+            (line_length / 2).view(dot_p.shape),
+        )
+        if limit_to_line_length
+        else torch.abs(dot_p)
+    )
+    closest_point = line_pos - sign * distance_from_line_center * rotated_vector
+
+    return closest_point
