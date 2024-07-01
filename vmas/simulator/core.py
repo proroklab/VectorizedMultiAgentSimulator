@@ -20,6 +20,7 @@ from vmas.simulator.physics import (
     _get_closest_line_box,
     _get_closest_point_box,
     _get_closest_point_line,
+    _get_closest_point_line_vec,
     _get_closest_points_line_line,
     _get_inner_point_box,
 )
@@ -1256,6 +1257,71 @@ class World(TorchVectorizedObject):
         dist[~collision] = max_range
         return dist
 
+    def _cast_rays_to_box(
+        self,
+        box: Entity,
+        ray_origin: Tensor,
+        ray_direction: Tensor,
+        max_range: float,
+    ):
+        """
+        Inspired from https://tavianator.com/2011/ray_box.html
+        Computes distance of ray originating from pos at angle to a box and sets distance to
+        max_range if there is no intersection.
+        """
+        assert ray_origin.ndim == 2 and ray_direction.ndim == 2
+        assert ray_origin.shape[0] == ray_direction.shape[0]
+        assert isinstance(box.shape, Box)
+
+        num_world, num_angles = ray_direction.shape
+
+        # Expand ray_origin to [num_world, num_angles, 2]
+        ray_origin = ray_origin.unsqueeze(1).expand(num_world, num_angles, 2)
+
+        # Expand box state variables
+        box_pos_expanded = box.state.pos.unsqueeze(1).expand(num_world, num_angles, 2)
+        box_rot_expanded = box.state.rot.expand(num_world, num_angles)
+
+        # Compute pos_origin and pos_aabb
+        pos_origin = ray_origin - box_pos_expanded
+        pos_aabb = TorchUtils.rotate_vector(pos_origin, -box_rot_expanded)
+
+        # Calculate ray_dir_world
+        ray_dir_world = torch.stack(
+            [torch.cos(ray_direction), torch.sin(ray_direction)], dim=-1
+        )
+
+        # Calculate ray_dir_aabb
+        ray_dir_aabb = TorchUtils.rotate_vector(ray_dir_world, -box_rot_expanded)
+
+        # Calculate tx, ty, tmin, and tmax
+        tx1 = (-box.shape.length / 2 - pos_aabb[..., 0]) / ray_dir_aabb[..., 0]
+        tx2 = (box.shape.length / 2 - pos_aabb[..., 0]) / ray_dir_aabb[..., 0]
+        tx = torch.stack([tx1, tx2], dim=-1)
+        tmin, _ = torch.min(tx, dim=-1)
+        tmax, _ = torch.max(tx, dim=-1)
+
+        ty1 = (-box.shape.width / 2 - pos_aabb[..., 1]) / ray_dir_aabb[..., 1]
+        ty2 = (box.shape.width / 2 - pos_aabb[..., 1]) / ray_dir_aabb[..., 1]
+        ty = torch.stack([ty1, ty2], dim=-1)
+        tymin, _ = torch.min(ty, dim=-1)
+        tymax, _ = torch.max(ty, dim=-1)
+        tmin, _ = torch.max(torch.stack([tmin, tymin], dim=-1), dim=-1)
+        tmax, _ = torch.min(torch.stack([tmax, tymax], dim=-1), dim=-1)
+
+        # Compute intersect_aabb and intersect_world
+        intersect_aabb = tmin.unsqueeze(-1) * ray_dir_aabb + pos_aabb
+        intersect_world = (
+            TorchUtils.rotate_vector(intersect_aabb, box_rot_expanded)
+            + box_pos_expanded
+        )
+
+        # Calculate collision and distances
+        collision = (tmax >= tmin) & (tmin > 0.0)
+        dist = torch.linalg.norm(ray_origin - intersect_world, dim=-1)
+        dist[~collision] = max_range
+        return dist
+
     def _cast_ray_to_sphere(
         self,
         sphere: Entity,
@@ -1292,6 +1358,62 @@ class World(TorchVectorizedObject):
         u_dot_ray = (u * ray_dir_world).sum(-1)
         sphere_is_in_front = u_dot_ray > 0.0
         dist = torch.linalg.vector_norm(u1, dim=1) - m
+        dist[~(ray_intersects & sphere_is_in_front)] = max_range
+
+        return dist
+
+    def _cast_rays_to_sphere(
+        self,
+        sphere: Entity,
+        ray_origin: Tensor,
+        ray_direction: Tensor,
+        max_range: float,
+    ):
+        num_world, num_angles = ray_direction.shape[0], ray_direction.shape[1]
+
+        # Expand ray_origin to [num_world, num_angles, 2]
+        ray_origin = ray_origin.unsqueeze(1).expand(num_world, num_angles, 2)
+
+        # Calculate ray_dir_world
+        ray_dir_world = torch.stack(
+            [torch.cos(ray_direction), torch.sin(ray_direction)], dim=-1
+        )
+
+        # Expand test_point_pos to [num_world, num_angles, 2]
+        test_point_pos = sphere.state.pos.unsqueeze(1).expand(num_world, num_angles, 2)
+
+        # Expand line_rot to [num_world, num_angles, 1]
+        line_rot = ray_direction.unsqueeze(-1)
+
+        # line_length remains scalar and will be broadcasted as needed
+        line_length = max_range
+
+        # Calculate line_pos
+        line_pos = ray_origin + ray_dir_world * (line_length / 2)
+
+        # Call the updated _get_closest_point_line function
+        closest_point = _get_closest_point_line_vec(
+            line_pos,
+            line_rot,
+            line_length,
+            test_point_pos,
+            limit_to_line_length=False,
+        )
+
+        # Calculate distances and other metrics
+        d = test_point_pos - closest_point
+        d_norm = torch.linalg.vector_norm(d, dim=-1)
+        ray_intersects = d_norm < sphere.shape.radius
+        a = sphere.shape.radius**2 - d_norm**2
+        m = torch.sqrt(torch.where(a > 0, a, 1e-8))
+
+        u = test_point_pos - ray_origin
+        u1 = closest_point - ray_origin
+
+        # Dot product of u and u1
+        u_dot_ray = (u * ray_dir_world).sum(-1)
+        sphere_is_in_front = u_dot_ray > 0.0
+        dist = torch.linalg.vector_norm(u1, dim=-1) - m
         dist[~(ray_intersects & sphere_is_in_front)] = max_range
 
         return dist
@@ -1348,6 +1470,69 @@ class World(TorchVectorizedObject):
         d[behind_line.squeeze(-1)] = max_range
         return d
 
+    def _cast_rays_to_line(
+        self,
+        line: Entity,
+        ray_origin: Tensor,
+        ray_direction: Tensor,
+        max_range: float,
+    ):
+        """
+        Inspired by https://stackoverflow.com/questions/563198/how-do-you-detect-where-two-line-segments-intersect/565282#565282
+        Computes distance of ray originating from pos at angle to a line and sets distance to
+        max_range if there is no intersection.
+        """
+        assert ray_origin.ndim == 2 and ray_direction.ndim == 2
+        assert ray_origin.shape[0] == ray_direction.shape[0]
+        assert isinstance(line.shape, Line)
+
+        num_world, num_angles = ray_direction.shape
+
+        # Expand ray_origin to [num_world, num_angles, 2]
+        ray_origin = ray_origin.unsqueeze(1).expand(num_world, num_angles, 2)
+
+        # Expand line state variables
+        p = line.state.pos.unsqueeze(1).expand(num_world, num_angles, 2)
+        r = (
+            torch.stack(
+                [
+                    torch.cos(line.state.rot.squeeze(1)),
+                    torch.sin(line.state.rot.squeeze(1)),
+                ],
+                dim=-1,
+            )
+            .unsqueeze(1)
+            .expand(num_world, num_angles, 2)
+            * line.shape.length
+        )
+
+        # Calculate q and s
+        q = ray_origin
+        s = torch.stack(
+            [
+                torch.cos(ray_direction),
+                torch.sin(ray_direction),
+            ],
+            dim=-1,
+        )
+
+        # Calculate rxs, t, u, and d
+        rxs = TorchUtils.cross(r, s)
+        t = TorchUtils.cross(q - p, s / rxs)
+        u = TorchUtils.cross(q - p, r / rxs)
+        d = torch.linalg.norm(u * s, dim=-1)
+
+        # Handle edge cases
+        perpendicular = rxs == 0.0
+        above_line = t > 0.5
+        below_line = t < -0.5
+        behind_line = u < 0.0
+        d[perpendicular.squeeze(-1)] = max_range
+        d[above_line.squeeze(-1)] = max_range
+        d[below_line.squeeze(-1)] = max_range
+        d[behind_line.squeeze(-1)] = max_range
+        return d
+
     def cast_ray(
         self,
         entity: Entity,
@@ -1376,6 +1561,38 @@ class World(TorchVectorizedObject):
                 d = self._cast_ray_to_sphere(e, pos, angles, max_range)
             elif isinstance(e.shape, Line):
                 d = self._cast_ray_to_line(e, pos, angles, max_range)
+            else:
+                raise RuntimeError(f"Shape {e.shape} currently not handled by cast_ray")
+            dists.append(d)
+        dist, _ = torch.min(torch.stack(dists, dim=-1), dim=-1)
+        return dist
+
+    def cast_rays(
+        self,
+        entity: Entity,
+        angles: Tensor,
+        max_range: float,
+        entity_filter: Callable[[Entity], bool] = lambda _: False,
+    ):
+        pos = entity.state.pos
+
+        assert pos.ndim == 2 and angles.ndim == 2
+        assert pos.shape[0] == angles.shape[0]
+
+        # Initialize with full max_range to avoid dists being empty when all entities are filtered
+        dists = [torch.full_like(angles, fill_value=max_range, device=self.device)]
+        for e in self.entities:
+            if entity is e or not entity_filter(e):
+                continue
+            assert e.collides(entity) and entity.collides(
+                e
+            ), "Rays are only casted among collidables"
+            if isinstance(e.shape, Box):
+                d = self._cast_rays_to_box(e, pos, angles, max_range)
+            elif isinstance(e.shape, Sphere):
+                d = self._cast_rays_to_sphere(e, pos, angles, max_range)
+            elif isinstance(e.shape, Line):
+                d = self._cast_rays_to_line(e, pos, angles, max_range)
             else:
                 raise RuntimeError(f"Shape {e.shape} currently not handled by cast_ray")
             dists.append(d)
