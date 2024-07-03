@@ -79,6 +79,7 @@ class Scenario(BaseScenario):
 
         # Ai config
         self.n_traj_points = kwargs.pop("n_traj_points", 0)
+        self.show_value = kwargs.pop("show_value", False)
         self.ai_strength = kwargs.pop("ai_strength", 1)
         self.disable_ai_red = kwargs.pop("disable_ai_red", False)
 
@@ -1267,6 +1268,20 @@ class Scenario(BaseScenario):
                 line.set_color(*color, alpha=agent._alpha)
                 geoms.append(line)
 
+        if self.ai_red_agents and self.show_value:
+            from vmas.simulator.rendering import render_function_util
+            def func(pos):
+                vals = self.red_controller.get_pos_value(torch.tensor(pos), agent=self.world.red_agents[0], env_index=0)
+                return vals
+            eps = 0.01
+            geoms.append(
+                render_function_util(
+                    f=func,
+                    plot_range=(self.pitch_length/2-eps, self.pitch_width/2-eps),
+                    cmap_alpha=0.5,
+                    cmap_range=[0, 1]
+                )
+            )
         return geoms
 
     def _get_background_geoms(self, objects):
@@ -1400,7 +1415,6 @@ class AgentPolicy:
         self.strength_multiplier = 25.0
 
         self.dribble_speed = 0.16
-        self.dribble_slowdown_dist = 0.3
         self.initial_vel_dist_behind_target_frac = 0.6
         self.ball_pos_eps = 0.08
 
@@ -1515,9 +1529,8 @@ class AgentPolicy:
         self.go_to(
             agent,
             pos=best_pos[move_mask],
-            vel=torch.zeros(
-                move_mask.sum(), self.world.dim_p, device=self.world.device
-            ),
+            vel=torch.zeros(move_mask.sum(), self.world.dim_p, device=self.world.device),
+            aggression=1.,
             env_index=move_mask,
         )
 
@@ -1534,9 +1547,8 @@ class AgentPolicy:
             self.dribble_policy(agent)
             control = self.get_action(agent)
             control = torch.clamp(control, min=-agent.u_range, max=agent.u_range)
-            agent.action.u = control * agent.action.u_multiplier_tensor.unsqueeze(
-                0
-            ).expand(*control.shape)
+            agent.action.u = control * agent.action.u_multiplier_tensor.unsqueeze(0)\
+                .expand(*control.shape)
         else:
             agent.action.u = torch.zeros(
                 self.world.batch_dim,
@@ -1559,39 +1571,46 @@ class AgentPolicy:
         )
 
     def update_dribble(self, agent, pos, env_index=Ellipsis):
+        # Specifies a new location to dribble towards.
         agent_pos = agent.state.pos[env_index]
         ball_pos = self.ball.state.pos[env_index]
         ball_disp = pos - ball_pos
         ball_dist = ball_disp.norm(dim=-1)
         direction = ball_disp / ball_dist[:, None]
         hit_vel = direction * self.dribble_speed
-        start_vel = self.get_start_vel(ball_pos, hit_vel, agent_pos)
+        start_vel = self.get_start_vel(ball_pos, hit_vel, agent_pos, aggression=0)
         start_vel_mag = start_vel.norm(dim=-1)
+        # Calculate hit_pos, the adjusted position to strike the ball so it goes where we want
         offset = start_vel.clone()
         start_vel_mag_mask = start_vel_mag > 0
         offset[start_vel_mag_mask] /= start_vel_mag.unsqueeze(-1)[start_vel_mag_mask]
         new_direction = direction + 0.5 * offset
         new_direction /= new_direction.norm(dim=-1)[:, None]
-        hit_pos = (
-            ball_pos
-            - new_direction * (self.ball.shape.radius + agent.shape.radius) * 0.7
-        )
+        hit_pos = ball_pos - new_direction * (self.ball.shape.radius + agent.shape.radius) * 0.7
+        # Execute dribble with a go_to command
         self.go_to(agent, hit_pos, hit_vel, start_vel=start_vel, env_index=env_index)
 
-    def go_to(self, agent, pos, vel, start_vel=None, env_index=Ellipsis):
+    def go_to(self, agent, pos, vel, start_vel=None, aggression=1., env_index=Ellipsis):
         start_pos = agent.state.pos[env_index]
         if start_vel is None:
-            start_vel = self.get_start_vel(pos, vel, start_pos)
+            start_vel = self.get_start_vel(pos, vel, start_pos, aggression=aggression)
         self.objectives[agent]["target_pos"][env_index] = pos
         self.objectives[agent]["target_vel"][env_index] = vel
         self.objectives[agent]["start_pos"][env_index] = start_pos
         self.objectives[agent]["start_vel"][env_index] = start_vel
         self.plot_traj(agent, env_index=env_index)
 
-    def get_start_vel(self, pos, vel, start_pos):
+    def get_start_vel(self, pos, vel, start_pos, aggression=0.):
+        # Calculates the starting velocity for a planned trajectory ending at position pos at velocity vel
+        # The initial velocity is not directly towards the goal because we want a curved path
+        #     that reaches the goal at the moment it achieves a given velocity.
+        # Since we replan trajectories a lot, the magnitude of the initial velocity highly influences the
+        #     overall speed. To modulate this, we introduce an aggression parameter.
+        # aggression=0 will set the magnitude of the initial velocity to the current velocity, while
+        #     aggression=1 will set the magnitude of the initial velocity to 1.0.
+        vel_mag = 1.0 * aggression + vel.norm(dim=-1) * (1-aggression)
         goal_disp = pos - start_pos
         goal_dist = goal_disp.norm(dim=-1)
-        vel_mag = vel.norm(dim=-1)
         vel_dir = vel.clone()
         vel_dir[vel_mag > 0] /= vel_mag[vel_mag > 0, None]
         dist_behind_target = self.initial_vel_dist_behind_target_frac * goal_dist
@@ -1604,10 +1623,22 @@ class AgentPolicy:
         return start_vel
 
     def get_action(self, agent, env_index=Ellipsis):
+        # Gets the action computed by the policy for the given agent.
+        # All the logic in AgentPolicy (dribbling, moving, shooting, etc) uses the go_to command
+        #     as an interface to specify a desired trajectory.
+        # After AgentPolicy has computed its desired trajectories, get_action looks up the parameters
+        #     specifying those trajectories, and computes an action from them using splines.
+        # To compute the action, we generate a hermite spline and take the first position and velocity
+        #     along that trajectory (or, to be more precise, we look in the future by pos_lookahead
+        #     and vel_lookahead. The velocity is simply the first derivative of the position spline.
+        # Given these open-loop position and velocity controls, we use the error in the position and
+        #     velocity to compute the closed-loop control.
+        # The strength modifier (between 0 and 1) times some multiplier modulates the magnitude of the
+        #     resulting action, controlling the speed.
         curr_pos = agent.state.pos[env_index, :]
         curr_vel = agent.state.vel[env_index, :]
         u_start = torch.zeros(curr_pos.shape[0], device=self.world.device)
-        des_curr_pos = self.hermite(
+        des_curr_pos = Splines.hermite(
             self.objectives[agent]["start_pos"][env_index, :],
             self.objectives[agent]["target_pos"][env_index, :],
             self.objectives[agent]["start_vel"][env_index, :],
@@ -1618,7 +1649,7 @@ class AgentPolicy:
             ),
             deriv=0,
         )
-        des_curr_vel = self.hermite(
+        des_curr_vel = Splines.hermite(
             self.objectives[agent]["start_pos"][env_index, :],
             self.objectives[agent]["target_pos"][env_index, :],
             self.objectives[agent]["start_vel"][env_index, :],
@@ -1629,39 +1660,10 @@ class AgentPolicy:
             ),
             deriv=1,
         )
-
         des_curr_pos = torch.as_tensor(des_curr_pos, device=self.world.device)
         des_curr_vel = torch.as_tensor(des_curr_vel, device=self.world.device)
         control = 0.5 * (des_curr_pos - curr_pos) + 0.5 * (des_curr_vel - curr_vel)
-        return control * self.strength * self.strength_multiplier
-
-    def hermite(self, p0, p1, p0dot, p1dot, u=0.1, deriv=0):
-        # Formatting
-        u = u.reshape((-1,))
-
-        # Calculation
-        U = torch.stack(
-            [
-                self.nPr(3, deriv) * (u ** max(0, 3 - deriv)),
-                self.nPr(2, deriv) * (u ** max(0, 2 - deriv)),
-                self.nPr(1, deriv) * (u ** max(0, 1 - deriv)),
-                self.nPr(0, deriv) * (u**0),
-            ],
-            dim=1,
-        ).float()
-        A = torch.tensor(
-            [
-                [2.0, -2.0, 1.0, 1.0],
-                [-3.0, 3.0, -2.0, -1.0],
-                [0.0, 0.0, 1.0, 0.0],
-                [1.0, 0.0, 0.0, 0.0],
-            ],
-            device=U.device,
-        )
-        P = torch.stack([p0, p1, p0dot, p1dot], dim=1)
-        ans = U[:, None, :] @ A[None, :, :] @ P
-        ans = ans.squeeze(1)
-        return ans
+        return control * (self.strength * self.strength_multiplier)
 
     def plot_traj(self, agent, env_index=0):
         for i, u in enumerate(
@@ -1669,7 +1671,7 @@ class AgentPolicy:
         ):
             pointi = self.world.traj_points[self.team_name][agent][i]
             num_envs = self.objectives[agent]["start_pos"][env_index, :].shape[0]
-            posi = self.hermite(
+            posi = Splines.hermite(
                 self.objectives[agent]["start_pos"][env_index, :],
                 self.objectives[agent]["target_pos"][env_index, :],
                 self.objectives[agent]["start_vel"][env_index, :],
@@ -1728,14 +1730,6 @@ class AgentPolicy:
             return torch.any(pos != orig_pos, dim=-1)
         else:
             return pos
-
-    def nPr(self, n, r):
-        if r > n:
-            return 0
-        ans = 1
-        for k in range(n, max(1, n - r), -1):
-            ans = ans * k
-        return ans
 
     def check_possession(self, env_index=Ellipsis):
         agents_pos = torch.stack(
@@ -1799,12 +1793,14 @@ class AgentPolicy:
     def get_pos_value(self, pos, agent, env_index=Ellipsis):
 
         ball_dist = (pos - self.ball.state.pos[env_index]).norm(dim=-1)
-        ball_dist_value = 2.0 * -((ball_dist - self.max_shoot_dist) ** 2)
+        ball_dist_value = torch.exp(-2*ball_dist**4)
 
-        side_dot_prod = (
-            (self.ball.state.pos - pos) * (self.target_net.state.pos - pos)
-        ).sum(dim=-1)
-        side_value = 0.5 * side_dot_prod
+        ball_vec = (self.ball.state.pos - pos)
+        ball_vec /= ball_vec.norm(dim=-1, keepdim=True)
+        net_vec = (self.target_net.state.pos - pos)
+        net_vec /= net_vec.norm(dim=-1, keepdim=True)
+        side_dot_prod = (ball_vec * net_vec).sum(dim=-1)
+        side_value = torch.minimum(side_dot_prod + 1.25, torch.tensor(1))
 
         if len(self.teammates) > 1:
             if self.team_disps[agent] is not None:
@@ -1813,7 +1809,7 @@ class AgentPolicy:
                 team_disps = self.get_separations(
                     agent=agent,
                     teammate=True,
-                    target=True,
+                    target=False,
                     wall=False,
                     opposition=False,
                     env_index=env_index,
@@ -1822,7 +1818,7 @@ class AgentPolicy:
                 self.team_disps[agent] = team_disps
 
             team_dists = (team_disps - pos[:, None, :]).norm(dim=-1)
-            other_agent_value = -0.2 * (team_dists**-2).mean(dim=-1)
+            other_agent_value = -torch.exp(-5*team_dists).norm(dim=-1) + 1
         else:
             other_agent_value = 0
 
@@ -1837,9 +1833,11 @@ class AgentPolicy:
         wall_disps = torch.stack(wall_disps, dim=1)
 
         wall_dists = wall_disps.norm(dim=-1)
-        wall_value = -0.01 * (wall_dists**-2).mean(dim=-1)
+        wall_value = -torch.exp(-8*wall_dists).norm(dim=-1) + 1
 
-        return wall_value + other_agent_value + ball_dist_value + side_value
+        value = (wall_value + other_agent_value + ball_dist_value + side_value) / 4
+        return value
+        # return side_value
 
     def get_separations(
         self,
@@ -1886,6 +1884,57 @@ class AgentPolicy:
                     disps.append(agent_disp)
         return disps
 
+## Helper Functions ##
+
+class Splines:
+    A = torch.tensor(
+        [
+            [2.0, -2.0, 1.0, 1.0],
+            [-3.0, 3.0, -2.0, -1.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [1.0, 0.0, 0.0, 0.0],
+        ],
+    )
+    U = {}
+
+    @classmethod
+    def hermite(cls, p0, p1, p0dot, p1dot, u=0.1, deriv=0):
+        # A trajectory specified by the initial pos p0, initial vel p0dot, end pos p1,
+        #     and end vel p1dot.
+        # Evaluated at the given value of u, which is between 0 and 1 (0 being the start
+        #     of the trajectory, and 1 being the end). This yields a position.
+        # When called with deriv=n, we instead return the nth time derivative of the trajectory.
+        #     For example, deriv=1 will give the velocity evaluated at time u.
+        u = u.reshape((-1,))
+        if (deriv, u) in cls.U:
+            U = cls.U[(deriv, u)]
+        else:
+            U = torch.stack(
+                [
+                    cls.nPr(3, deriv) * (u ** max(0, 3 - deriv)),
+                    cls.nPr(2, deriv) * (u ** max(0, 2 - deriv)),
+                    cls.nPr(1, deriv) * (u ** max(0, 1 - deriv)),
+                    cls.nPr(0, deriv) * (u**0),
+                ],
+                dim=1,
+            ).float()
+            cls.U[(deriv, u)] = U
+            cls.A = cls.A.to(p0.device)
+        P = torch.stack([p0, p1, p0dot, p1dot], dim=1)
+        ans = U[:, None, :] @ cls.A[None, :, :] @ P
+        ans = ans.squeeze(1)
+        return ans
+
+    @classmethod
+    def nPr(cls, n, r):
+        # calculates n! / (n-r)!
+        if r > n:
+            return 0
+        ans = 1
+        for k in range(n, max(1, n - r), -1):
+            ans = ans * k
+        return ans
+
 
 # Run
 if __name__ == "__main__":
@@ -1895,7 +1944,7 @@ if __name__ == "__main__":
         n_blue_agents=2,
         n_red_agents=2,
         ai_blue_agents=False,
-        ai_red_agents=False,
+        ai_red_agents=True,
         dense_reward=True,
         ai_strength=1,
         n_traj_points=8,
