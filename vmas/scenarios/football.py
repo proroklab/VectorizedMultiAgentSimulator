@@ -889,6 +889,8 @@ class Scenario(BaseScenario):
 
             self._done = blue_score | red_score
             # Dense Reward
+            self._dense_reward_blue = 0
+            self._dense_reward_red = 0
             if self.dense_reward and agent is not None:
                 if not self.ai_blue_agents:
                     self._dense_reward_blue = self.reward_ball_to_goal(
@@ -1271,7 +1273,7 @@ class Scenario(BaseScenario):
         if self.ai_red_agents and self.show_value:
             from vmas.simulator.rendering import render_function_util
             def func(pos):
-                vals = self.red_controller.get_pos_value(torch.tensor(pos), agent=self.world.red_agents[0], env_index=0)
+                vals = self.red_controller.get_pos_value(torch.tensor(pos), agent=self.world.red_agents[0], env_index=[0])
                 return vals
             eps = 0.01
             geoms.append(
@@ -1434,7 +1436,7 @@ class AgentPolicy:
         self.shooting_dist = self.max_shoot_dist
         self.passing_dist = self.max_shoot_dist
 
-        self.nsamples = 1
+        self.nsamples = 2
         self.sigma = 0.5
         self.replan_margin = 0.0
 
@@ -1474,6 +1476,9 @@ class AgentPolicy:
 
         self.objectives = {
             agent: {
+                "target_pos_rel": torch.zeros(
+                    self.world.batch_dim, self.world.dim_p, device=world.device
+                ),
                 "target_pos": torch.zeros(
                     self.world.batch_dim, self.world.dim_p, device=world.device
                 ),
@@ -1525,10 +1530,10 @@ class AgentPolicy:
         possession_mask = self.agent_possession[agent]
         self.dribble_to_goal(agent, env_index=possession_mask)
         move_mask = ~possession_mask
-        best_pos = self.check_better_positions(agent)
+        best_pos = self.check_better_positions(agent, env_index=move_mask)
         self.go_to(
             agent,
-            pos=best_pos[move_mask],
+            pos=best_pos,
             vel=torch.zeros(move_mask.sum(), self.world.dim_p, device=self.world.device),
             aggression=1.,
             env_index=move_mask,
@@ -1593,7 +1598,9 @@ class AgentPolicy:
     def go_to(self, agent, pos, vel, start_vel=None, aggression=1., env_index=Ellipsis):
         start_pos = agent.state.pos[env_index]
         if start_vel is None:
+            aggression = ((pos - start_pos).norm(dim=-1) > 0.1).float() * aggression
             start_vel = self.get_start_vel(pos, vel, start_pos, aggression=aggression)
+        self.objectives[agent]["target_pos_rel"][env_index] = pos - self.ball.state.pos
         self.objectives[agent]["target_pos"][env_index] = pos
         self.objectives[agent]["target_vel"][env_index] = vel
         self.objectives[agent]["start_pos"][env_index] = start_pos
@@ -1731,40 +1738,44 @@ class AgentPolicy:
         else:
             return pos
 
-    def check_possession(self, env_index=Ellipsis):
+    def check_possession(self):
         agents_pos = torch.stack(
-            [agent.state.pos[env_index] for agent in self.teammates + self.opposition],
+            [agent.state.pos for agent in self.teammates + self.opposition],
             dim=1,
         )
         agents_vel = torch.stack(
-            [agent.state.vel[env_index] for agent in self.teammates + self.opposition],
+            [agent.state.vel for agent in self.teammates + self.opposition],
             dim=1,
         )
-        ball_pos = self.ball.state.pos[env_index]
-        ball_vel = self.ball.state.vel[env_index]
-        disps = ball_pos[:, None, :] - agents_pos
+        ball_pos = self.ball.state.pos
+        ball_vel = self.ball.state.vel
+        ball_disps = ball_pos[:, None, :] - agents_pos
         relvels = ball_vel[:, None, :] - agents_vel
-        dists = (disps + relvels * self.possession_lookahead).norm(dim=-1)
-        mindist_agent = torch.argmin(dists[:, : len(self.teammates)], dim=-1)
+        dists = (ball_disps + relvels * self.possession_lookahead).norm(dim=-1)
         mindist_team = torch.argmin(dists, dim=-1) < len(self.teammates)
+        self.team_possession = mindist_team
+        net_disps = self.target_net.state.pos[:,None,:] - agents_pos
+        ball_dir = ball_disps / ball_disps.norm(dim=-1, keepdim=True)
+        net_dir = net_disps / net_disps.norm(dim=-1, keepdim=True)
+        side_dot_prod = (ball_dir * net_dir).sum(dim=-1)
+        dists -= 0.5 * side_dot_prod
+        mindist_agent = torch.argmin(dists[:, : len(self.teammates)], dim=-1)
         for i, agent in enumerate(self.teammates):
-            self.agent_possession[agent][env_index] = mindist_agent == i
-        self.team_possession[env_index] = mindist_team
+            self.agent_possession[agent] = mindist_agent == i
+
 
     def check_better_positions(self, agent, env_index=Ellipsis):
         self.team_disps[agent] = None
         ball_pos = self.ball.state.pos[env_index]
-        curr_target = self.objectives[agent]["target_pos"]
-        samples = (
-            torch.randn(
+        curr_target = self.objectives[agent]["target_pos_rel"][env_index] + ball_pos
+        samples = torch.randn(
                 self.nsamples,
                 ball_pos.shape[0],
                 self.world.dim_p,
                 device=self.world.device,
-            )
-            * self.sigma
-            + ball_pos[None, :, :]
-        )
+            ) * self.sigma
+        samples[::2] += ball_pos
+        samples[1::2] += agent.state.pos[env_index]
         test_pos = torch.cat(
             [curr_target[None, :, :], samples], dim=0
         )  # curr_pos[None,:,:],
@@ -1812,7 +1823,6 @@ class AgentPolicy:
                     target=False,
                     wall=False,
                     opposition=False,
-                    env_index=env_index,
                 )
                 team_disps = torch.stack(team_disps, dim=1)
                 self.team_disps[agent] = team_disps
@@ -1828,7 +1838,6 @@ class AgentPolicy:
             teammate=False,
             wall=True,
             opposition=False,
-            env_index=env_index,
         )
         wall_disps = torch.stack(wall_disps, dim=1)
 
@@ -1837,7 +1846,6 @@ class AgentPolicy:
 
         value = (wall_value + other_agent_value + ball_dist_value + side_value) / 4
         return value
-        # return side_value
 
     def get_separations(
         self,
@@ -1846,7 +1854,6 @@ class AgentPolicy:
         teammate=True,
         wall=True,
         opposition=False,
-        env_index=Ellipsis,
         target=False,
     ):
         disps = []
@@ -1867,18 +1874,16 @@ class AgentPolicy:
             for otheragent in self.teammates:
                 if otheragent != agent:
                     if target:
-                        agent_disp = self.objectives[otheragent]["target_pos"][
-                            env_index
-                        ]
+                        agent_disp = self.objectives[otheragent]["target_pos"]
                     else:
-                        agent_disp = otheragent.state.pos[env_index]
+                        agent_disp = otheragent.state.pos
                     if pos is not None:
                         agent_disp -= pos
                     disps.append(agent_disp)
         if opposition:
             for otheragent in self.opposition:
                 if otheragent != agent:
-                    agent_disp = otheragent.state.pos[env_index]
+                    agent_disp = otheragent.state.pos
                     if pos is not None:
                         agent_disp -= pos
                     disps.append(agent_disp)
@@ -1940,12 +1945,13 @@ class Splines:
 if __name__ == "__main__":
     render_interactively(
         __file__,
-        control_two_agents=True,
+        control_two_agents=False,
         n_blue_agents=2,
-        n_red_agents=2,
-        ai_blue_agents=False,
+        n_red_agents=3,
+        ai_blue_agents=True,
         ai_red_agents=True,
         dense_reward=True,
+        show_value=False,
         ai_strength=1,
-        n_traj_points=8,
+        n_traj_points=0,
     )
