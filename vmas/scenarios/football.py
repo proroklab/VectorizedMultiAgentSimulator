@@ -1506,9 +1506,10 @@ class AgentPolicy:
             self.world.batch_dim, device=world.device, dtype=torch.bool
         )
 
-        self.team_disps = {agent: None for agent in self.teammates}
+        self.team_disps = {}
 
     def reset(self, env_index=Ellipsis):
+        self.team_disps = {}
         for agent in self.teammates:
             self.actions[agent]["dribbling"][env_index] = False
             self.actions[agent]["shooting"][env_index] = False
@@ -1548,7 +1549,9 @@ class AgentPolicy:
     def run(self, agent, world):
         if not self.disabled:
             if "0" in agent.name:
+                self.team_disps = {}
                 self.check_possession()
+                self.compute_passing_angles()
             self.dribble_policy(agent)
             control = self.get_action(agent)
             control = torch.clamp(control, min=-agent.u_range, max=agent.u_range)
@@ -1600,7 +1603,7 @@ class AgentPolicy:
         if start_vel is None:
             aggression = ((pos - start_pos).norm(dim=-1) > 0.1).float() * aggression
             start_vel = self.get_start_vel(pos, vel, start_pos, aggression=aggression)
-        self.objectives[agent]["target_pos_rel"][env_index] = pos - self.ball.state.pos
+        self.objectives[agent]["target_pos_rel"][env_index] = pos - self.ball.state.pos[env_index]
         self.objectives[agent]["target_pos"][env_index] = pos
         self.objectives[agent]["target_vel"][env_index] = vel
         self.objectives[agent]["start_pos"][env_index] = start_pos
@@ -1765,7 +1768,6 @@ class AgentPolicy:
 
 
     def check_better_positions(self, agent, env_index=Ellipsis):
-        self.team_disps[agent] = None
         ball_pos = self.ball.state.pos[env_index]
         curr_target = self.objectives[agent]["target_pos_rel"][env_index] + ball_pos
         samples = torch.randn(
@@ -1806,88 +1808,81 @@ class AgentPolicy:
         ball_dist = (pos - self.ball.state.pos[env_index]).norm(dim=-1)
         ball_dist_value = torch.exp(-2*ball_dist**4)
 
-        ball_vec = (self.ball.state.pos - pos)
+        ball_vec = (self.ball.state.pos[env_index] - pos)
         ball_vec /= ball_vec.norm(dim=-1, keepdim=True)
-        net_vec = (self.target_net.state.pos - pos)
+        net_vec = (self.target_net.state.pos[env_index] - pos)
         net_vec /= net_vec.norm(dim=-1, keepdim=True)
         side_dot_prod = (ball_vec * net_vec).sum(dim=-1)
         side_value = torch.minimum(side_dot_prod + 1.25, torch.tensor(1))
 
         if len(self.teammates) > 1:
-            if self.team_disps[agent] is not None:
-                team_disps = self.team_disps[agent]
-            else:
-                team_disps = self.get_separations(
-                    agent=agent,
-                    teammate=True,
-                    target=False,
-                    wall=False,
-                    opposition=False,
-                )
-                team_disps = torch.stack(team_disps, dim=1)
-                self.team_disps[agent] = team_disps
+            team_disps = self.get_separations(
+                agent=agent,
+                teammate=True,
+            )
 
-            team_dists = (team_disps - pos[:, None, :]).norm(dim=-1)
+            team_dists = (team_disps[env_index] - pos[:, None, :]).norm(dim=-1)
             other_agent_value = -torch.exp(-5*team_dists).norm(dim=-1) + 1
         else:
             other_agent_value = 0
 
-        wall_disps = self.get_separations(
-            pos,
-            agent,
-            teammate=False,
-            wall=True,
-            opposition=False,
-        )
-        wall_disps = torch.stack(wall_disps, dim=1)
-
+        wall_disps = self.get_wall_separations(pos)
         wall_dists = wall_disps.norm(dim=-1)
         wall_value = -torch.exp(-8*wall_dists).norm(dim=-1) + 1
 
         value = (wall_value + other_agent_value + ball_dist_value + side_value) / 4
         return value
 
+    def get_wall_separations(
+        self,
+        pos,
+    ):
+        top_wall_dist = -pos[:, Y] + self.world.pitch_width / 2
+        bottom_wall_dist = pos[:, Y] + self.world.pitch_width / 2
+        left_wall_dist = pos[:, X] + self.world.pitch_length / 2
+        right_wall_dist = -pos[:, X] + self.world.pitch_length / 2
+        vertical_wall_disp = torch.zeros(pos.shape, device=self.world.device)
+        vertical_wall_disp[:, Y] = torch.minimum(top_wall_dist, bottom_wall_dist)
+        vertical_wall_disp[bottom_wall_dist < top_wall_dist, Y] *= -1
+        horizontal_wall_disp = torch.zeros(pos.shape, device=self.world.device)
+        horizontal_wall_disp[:, X] = torch.minimum(left_wall_dist, right_wall_dist)
+        horizontal_wall_disp[left_wall_dist < right_wall_dist, X] *= -1
+        return torch.stack([vertical_wall_disp, horizontal_wall_disp], dim=1)
+
     def get_separations(
         self,
-        pos=None,
         agent=None,
-        teammate=True,
-        wall=True,
+        teammate=False,
         opposition=False,
-        target=False,
+        vel=False,
     ):
+        assert teammate or opposition, "One of teammate or opposition must be True"
+        key = (agent, teammate, opposition, vel)
+        if key in self.team_disps:
+            return self.team_disps[key]
         disps = []
-        if wall:
-            top_wall_dist = -pos[:, Y] + self.world.pitch_width / 2
-            bottom_wall_dist = pos[:, Y] + self.world.pitch_width / 2
-            left_wall_dist = pos[:, X] + self.world.pitch_length / 2
-            right_wall_dist = -pos[:, X] + self.world.pitch_length / 2
-            vertical_wall_disp = torch.zeros(pos.shape, device=self.world.device)
-            vertical_wall_disp[:, Y] = torch.minimum(top_wall_dist, bottom_wall_dist)
-            vertical_wall_disp[bottom_wall_dist < top_wall_dist, Y] *= -1
-            horizontal_wall_disp = torch.zeros(pos.shape, device=self.world.device)
-            horizontal_wall_disp[:, X] = torch.minimum(left_wall_dist, right_wall_dist)
-            horizontal_wall_disp[left_wall_dist < right_wall_dist, X] *= -1
-            disps.append(vertical_wall_disp)
-            disps.append(horizontal_wall_disp)
         if teammate:
             for otheragent in self.teammates:
                 if otheragent != agent:
-                    if target:
-                        agent_disp = self.objectives[otheragent]["target_pos"]
+                    if vel:
+                        agent_disp = otheragent.state.vel
                     else:
                         agent_disp = otheragent.state.pos
-                    if pos is not None:
-                        agent_disp -= pos
                     disps.append(agent_disp)
         if opposition:
             for otheragent in self.opposition:
                 if otheragent != agent:
-                    agent_disp = otheragent.state.pos
-                    if pos is not None:
-                        agent_disp -= pos
+                    if vel:
+                        agent_disp = otheragent.state.vel
+                    else:
+                        agent_disp = otheragent.state.pos
                     disps.append(agent_disp)
-        return disps
+        out = torch.stack(disps, dim=1)
+        self.team_disps[key] = out
+        return out
+
+    def compute_passing_angles(self, env_index=Ellipsis):
+        pass
 
 ## Helper Functions ##
 
