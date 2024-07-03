@@ -54,6 +54,7 @@ class Scenario(BaseScenario):
         self._reset_agent_offset_red = torch.tensor(
             [-self.agent_size, -self.pitch_width / 2], device=device
         )
+        self._agents_rel_pos_to_ball = None
         return world
 
     def reset_world_at(self, env_index: int = None):
@@ -99,7 +100,7 @@ class Scenario(BaseScenario):
         self.enable_shooting = kwargs.pop("enable_shooting", False)
         self.u_rot_multiplier = kwargs.pop("u_rot_multiplier", 0.0003)
         self.u_shoot_multiplier = kwargs.pop("u_shoot_multiplier", 0.6)
-        self.shooting_radius = kwargs.pop("shooting_radius", 0.1)
+        self.shooting_radius = kwargs.pop("shooting_radius", 0.08)
         self.shooting_angle = kwargs.pop("shooting_angle", torch.pi / 2)
 
         # Speeds
@@ -823,6 +824,8 @@ class Scenario(BaseScenario):
                     world.traj_points["Blue"][agent].append(pointj)
 
     def process_action(self, agent: Agent):
+        if agent is self.ball:
+            return
         blue = agent in self.blue_agents
         if agent.action_script is None and not blue:  # Non AI
             agent.action.u[..., X] = -agent.action.u[
@@ -834,9 +837,22 @@ class Scenario(BaseScenario):
                 ]  # Red agents have the action rotation flipped
 
         if self.enable_shooting and agent.action_script is None:
-            rel_pos = self.ball.state.pos - agent.state.pos
+            agents_exclude_ball = [a for a in self.world.agents if a is not self.ball]
+            if self._agents_rel_pos_to_ball is None:
+                self._agents_rel_pos_to_ball = torch.stack(
+                    [self.ball.state.pos - a.state.pos for a in agents_exclude_ball],
+                    dim=1,
+                )
+                self._agent_dist_to_ball = torch.linalg.vector_norm(
+                    self._agents_rel_pos_to_ball, dim=-1
+                )
+                self._agents_closest_to_ball = (
+                    self._agent_dist_to_ball == self._agent_dist_to_ball.min(dim=-1)[0]
+                )
+            agent_index = agents_exclude_ball.index(agent)
+            rel_pos = self._agents_rel_pos_to_ball[:, agent_index]
             agent.ball_within_range = (
-                torch.linalg.vector_norm(rel_pos, dim=-1) <= self.shooting_radius
+                self._agent_dist_to_ball[:, agent_index] <= self.shooting_radius
             )
 
             rel_pos_angle = torch.atan2(rel_pos[:, Y], rel_pos[:, X])
@@ -854,7 +870,11 @@ class Scenario(BaseScenario):
             shoot_force = TorchUtils.rotate_vector(shoot_force, agent.state.rot)
             agent.shoot_force = shoot_force
             shoot_force = torch.where(
-                (agent.ball_within_angle * agent.ball_within_range).unsqueeze(-1),
+                (
+                    agent.ball_within_angle
+                    * agent.ball_within_range
+                    * self._agents_closest_to_ball[:, agent_index]
+                ).unsqueeze(-1),
                 shoot_force,
                 0.0,
             )
@@ -864,6 +884,9 @@ class Scenario(BaseScenario):
 
     def pre_step(self):
         if self.enable_shooting:
+            self._agents_rel_pos_to_ball = (
+                None  # Make sure the global elements in precess_actions are recomputed
+            )
             self.ball.action.u += self.ball.kicking_action
             self.ball.kicking_action[:] = 0
 
