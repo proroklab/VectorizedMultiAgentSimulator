@@ -81,7 +81,9 @@ class Scenario(BaseScenario):
         # Ai config
         self.n_traj_points = kwargs.pop("n_traj_points", 0)
         self.show_value = kwargs.pop("show_value", False)
-        self.ai_strength = kwargs.pop("ai_strength", 1)
+        self.ai_speed_strength = kwargs.pop("ai_speed_strength", 1.)
+        self.ai_decision_strength = kwargs.pop("ai_decision_strength", 1.)
+        self.ai_precision_strength = kwargs.pop("ai_precision_strength", 1.)
         self.disable_ai_red = kwargs.pop("disable_ai_red", False)
 
         # Task sizes
@@ -154,13 +156,20 @@ class Scenario(BaseScenario):
             AgentPolicy(
                 team="Red",
                 disabled=self.disable_ai_red,
-                strength=self.ai_strength,
+                speed_strength=self.ai_speed_strength,
+                precision_strength=self.ai_precision_strength,
+                decision_strength=self.ai_decision_strength,
             )
             if self.ai_red_agents
             else None
         )
         self.blue_controller = (
-            AgentPolicy(team="Blue", strength=self.ai_strength)
+            AgentPolicy(
+                team="Blue",
+                speed_strength=self.ai_speed_strength,
+                precision_strength=self.ai_precision_strength,
+                decision_strength=self.ai_decision_strength,
+            )
             if self.ai_blue_agents
             else None
         )
@@ -1429,13 +1438,18 @@ class AgentPolicy:
     def __init__(
         self,
         team: str,
-        strength=1.0,
+        speed_strength=1.0,
+        decision_strength=1.0,
+        precision_strength=1.0,
         disabled: bool = False,
     ):
         self.team_name = team
         self.otherteam_name = "Blue" if (self.team_name == "Red") else "Red"
 
-        self.strength = strength
+        self.speed_strength = speed_strength # affects the speed of the agents
+        self.decision_strength = decision_strength # affects off-the-ball movement
+        self.precision_strength = precision_strength # affects the ability to execute planned manoeuvres
+
         self.strength_multiplier = 25.0
 
         self.pos_lookahead = 0.01
@@ -1654,6 +1668,9 @@ class AgentPolicy:
         if start_vel is None:
             aggression = ((pos - start_pos).norm(dim=-1) > 0.1).float() * aggression
             start_vel = self.get_start_vel(pos, vel, start_pos, aggression=aggression)
+        diff = (self.objectives[agent]["target_pos"][env_index] - pos).norm(dim=-1).unsqueeze(-1)
+        pos += torch.randn(pos.shape) * 10 * (1 - self.precision_strength) * (1-torch.exp(-diff))
+        vel += torch.randn(pos.shape) * 10 * (1 - self.precision_strength) * (1-torch.exp(-diff))
         self.objectives[agent]["target_pos_rel"][env_index] = pos - self.ball.state.pos[env_index]
         self.objectives[agent]["target_pos"][env_index] = pos
         self.objectives[agent]["target_vel"][env_index] = vel
@@ -1724,7 +1741,7 @@ class AgentPolicy:
         des_curr_pos = torch.as_tensor(des_curr_pos, device=self.world.device)
         des_curr_vel = torch.as_tensor(des_curr_vel, device=self.world.device)
         movement_control = 0.5 * (des_curr_pos - curr_pos) + 0.5 * (des_curr_vel - curr_vel)
-        movement_control *= (self.strength * self.strength_multiplier)
+        movement_control *= (self.speed_strength * self.strength_multiplier)
         if agent.action_size == 2:
             return movement_control
         shooting_control = torch.zeros_like(movement_control)
@@ -1833,16 +1850,24 @@ class AgentPolicy:
         ball_dir = ball_disps / ball_disps.norm(dim=-1, keepdim=True)
         net_dir = net_disps / net_disps.norm(dim=-1, keepdim=True)
         side_dot_prod = (ball_dir * net_dir).sum(dim=-1)
-        dists -= 0.5 * side_dot_prod
-        # mindist_agent = torch.argmin(dists[:, : len(self.teammates)], dim=-1)
-        mindist_agents = torch.topk(dists[:,:len(self.teammates)], k=2, largest=False, sorted=True)
+        dists -= 0.5 * side_dot_prod * self.decision_strength
+        dists += 0.5 * torch.randn(dists.shape) * (1-self.decision_strength) ** 2
+        mindist_agents = torch.topk(dists[:,:len(self.teammates)], k=1, largest=False, sorted=True)
+        if self.decision_strength != 1:
+            mask = torch.rand(ball_pos.shape[0]) < self.decision_strength + 0.1
         for i, agent in enumerate(self.teammates):
-            self.agent_possession[agent] = (mindist_agents.indices[:, 0] == i) | \
-                                           ((mindist_agents.indices[:,1] == i) & ~mindist_team)
-            if self.agent_possession[agent][0]:
-                agent.color = Color.PINK.value
+            if self.decision_strength == 1:
+                self.agent_possession[agent] = (mindist_agents.indices[:, 0] == i)
+                # self.agent_possession[agent] = (mindist_agents.indices[:, 0] == i) | \
+                #                                ((mindist_agents.indices[:,1] == i) & ~mindist_team)
             else:
-                agent.color = self.team_color
+                self.agent_possession[agent][mask] = (mindist_agents.indices[mask, 0] == i)
+
+    # mindist_agent = torch.argmin(dists[:, : len(self.teammates)], dim=-1)
+            # if self.agent_possession[agent][0]:
+            #     agent.color = Color.PINK.value
+            # else:
+            #     agent.color = self.team_color
 
     def check_better_positions(self, agent, env_index=Ellipsis):
         ball_pos = self.ball.state.pos[env_index]
@@ -1852,7 +1877,7 @@ class AgentPolicy:
                 ball_pos.shape[0],
                 self.world.dim_p,
                 device=self.world.device,
-            ) * self.sigma
+            ) * self.sigma * (1 + 3*(1-self.decision_strength))
         samples[::2] += ball_pos
         samples[1::2] += agent.state.pos[env_index]
         test_pos = torch.cat(
@@ -1869,7 +1894,7 @@ class AgentPolicy:
             ],
             dim=0,
         )
-        values[0, :] += self.replan_margin
+        values[0, :] += self.replan_margin + 3*(1-self.decision_strength)
         highest_value = values.argmax(dim=0)
         best_pos = torch.gather(
             test_pos,
@@ -1899,7 +1924,7 @@ class AgentPolicy:
         own_net_vec /= net_vec.norm(dim=-1, keepdim=True)
         defend_dot_prod = (ball_vec * -own_net_vec).sum(dim=-1)
         defend_value = torch.maximum(defend_dot_prod, torch.tensor(0))
-        defend_value[self.team_possession[env_index]] = 0.
+        # defend_value[self.team_possession[env_index]] = 0.
 
         # other_agent_value disincentivises being close to a teammate
         if len(self.teammates) > 1:
@@ -1919,6 +1944,7 @@ class AgentPolicy:
         wall_value = -torch.exp(-8*wall_dists).norm(dim=-1) + 1
 
         value = (wall_value + other_agent_value + ball_dist_value + side_value + defend_value) / 5
+        value += torch.randn(value.shape) * 1 * (1-self.decision_strength)
         return value
 
     def get_wall_separations(self, pos):
@@ -2028,9 +2054,11 @@ if __name__ == "__main__":
         ai_blue_agents=True,
         ai_red_agents=True,
         dense_reward=True,
-        show_value=False,
-        ai_strength=1,
+        ai_speed_strength=1.,
+        ai_decision_strength=1.,
+        ai_precision_strength=1.,
         n_traj_points=0,
         ball_mass=0.25,
         enable_shooting=False,
+        show_value=False,
     )
