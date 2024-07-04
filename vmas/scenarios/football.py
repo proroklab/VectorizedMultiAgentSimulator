@@ -1442,7 +1442,7 @@ class AgentPolicy:
         self.vel_lookahead = 0.01
         self.possession_lookahead = 0.5
 
-        self.dribble_speed = 0.16
+        self.dribble_speed = 0.35
 
         self.shooting_radius = 0.08
         self.shooting_angle = torch.pi / 2
@@ -1472,6 +1472,7 @@ class AgentPolicy:
             self.own_net = self.world.blue_net
             self.target_net = self.world.red_net
 
+        self.team_color = self.teammates[0].color if len(self.teammates)>0 else None
         self.enable_shooting = self.teammates[0].action_size == 4 if len(self.teammates)>0 else False
 
         self.objectives = {
@@ -1607,7 +1608,7 @@ class AgentPolicy:
         ball_dist = ball_disp.norm(dim=-1)
         direction = ball_disp / ball_dist[:, None]
         hit_vel = direction * self.dribble_speed
-        start_vel = self.get_start_vel(ball_pos, hit_vel, agent_pos, aggression=0)
+        start_vel = self.get_start_vel(ball_pos, hit_vel, agent_pos, aggression=0.)
         start_vel_mag = start_vel.norm(dim=-1)
         # Calculate hit_pos, the adjusted position to strike the ball so it goes where we want
         offset = start_vel.clone()
@@ -1833,9 +1834,15 @@ class AgentPolicy:
         net_dir = net_disps / net_disps.norm(dim=-1, keepdim=True)
         side_dot_prod = (ball_dir * net_dir).sum(dim=-1)
         dists -= 0.5 * side_dot_prod
-        mindist_agent = torch.argmin(dists[:, : len(self.teammates)], dim=-1)
+        # mindist_agent = torch.argmin(dists[:, : len(self.teammates)], dim=-1)
+        mindist_agents = torch.topk(dists[:,:len(self.teammates)], k=2, largest=False, sorted=True)
         for i, agent in enumerate(self.teammates):
-            self.agent_possession[agent] = (mindist_agent == i)
+            self.agent_possession[agent] = (mindist_agents.indices[:, 0] == i) | \
+                                           ((mindist_agents.indices[:,1] == i) & ~mindist_team)
+            if self.agent_possession[agent][0]:
+                agent.color = Color.PINK.value
+            else:
+                agent.color = self.team_color
 
     def check_better_positions(self, agent, env_index=Ellipsis):
         ball_pos = self.ball.state.pos[env_index]
@@ -1875,9 +1882,11 @@ class AgentPolicy:
 
     def get_pos_value(self, pos, agent, env_index=Ellipsis):
 
+        # ball_dist_value prioritises positions relatively close to the ball
         ball_dist = (pos - self.ball.state.pos[env_index]).norm(dim=-1)
         ball_dist_value = torch.exp(-2*ball_dist**4)
 
+        # side_value prevents being between the ball and the target goal
         ball_vec = (self.ball.state.pos[env_index] - pos)
         ball_vec /= ball_vec.norm(dim=-1, keepdim=True)
         net_vec = (self.target_net.state.pos[env_index] - pos)
@@ -1885,6 +1894,14 @@ class AgentPolicy:
         side_dot_prod = (ball_vec * net_vec).sum(dim=-1)
         side_value = torch.minimum(side_dot_prod + 1.25, torch.tensor(1))
 
+        # defend_value prioritises being between the ball and your own goal while on defence
+        own_net_vec = (self.own_net.state.pos[env_index] - pos)
+        own_net_vec /= net_vec.norm(dim=-1, keepdim=True)
+        defend_dot_prod = (ball_vec * -own_net_vec).sum(dim=-1)
+        defend_value = torch.maximum(defend_dot_prod, torch.tensor(0))
+        defend_value[self.team_possession[env_index]] = 0.
+
+        # other_agent_value disincentivises being close to a teammate
         if len(self.teammates) > 1:
             team_disps = self.get_separations(
                 agent=agent,
@@ -1896,11 +1913,12 @@ class AgentPolicy:
         else:
             other_agent_value = 0
 
+        # wall_value disincentivises being close to a wall
         wall_disps = self.get_wall_separations(pos)
         wall_dists = wall_disps.norm(dim=-1)
         wall_value = -torch.exp(-8*wall_dists).norm(dim=-1) + 1
 
-        value = (wall_value + other_agent_value + ball_dist_value + side_value) / 4
+        value = (wall_value + other_agent_value + ball_dist_value + side_value + defend_value) / 5
         return value
 
     def get_wall_separations(self, pos):
@@ -2005,8 +2023,8 @@ if __name__ == "__main__":
     render_interactively(
         __file__,
         control_two_agents=False,
-        n_blue_agents=2,
-        n_red_agents=2,
+        n_blue_agents=3,
+        n_red_agents=3,
         ai_blue_agents=True,
         ai_red_agents=True,
         dense_reward=True,
