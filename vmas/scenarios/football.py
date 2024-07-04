@@ -846,7 +846,8 @@ class Scenario(BaseScenario):
                     self._agents_rel_pos_to_ball, dim=-1
                 )
                 self._agents_closest_to_ball = (
-                    self._agent_dist_to_ball == self._agent_dist_to_ball.min(dim=-1)[0]
+                    self._agent_dist_to_ball
+                    == self._agent_dist_to_ball.min(dim=-1, keepdim=True)[0]
                 )
             agent_index = agents_exclude_ball.index(agent)
             rel_pos = self._agents_rel_pos_to_ball[:, agent_index]
