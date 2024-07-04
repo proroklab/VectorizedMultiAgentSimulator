@@ -951,8 +951,8 @@ class Agent(Entity):
             self._action.u is not None
         ), f"Action script of {self.name} should set u action"
         assert (
-            self._action.u.shape[1] == world.dim_p
-        ), f"Scripted physical action of agent {self.name} has wrong shape"
+            self._action.u.shape[1] == self.action_size
+        ), f"Scripted action of agent {self.name} has wrong shape"
 
         assert (
             (self._action.u / self.action.u_multiplier_tensor).abs()
