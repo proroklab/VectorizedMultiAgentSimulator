@@ -1873,58 +1873,55 @@ class AgentPolicy:
         ball_pos = self.ball.state.pos[env_index]
         curr_target = self.objectives[agent]["target_pos_rel"][env_index] + ball_pos
         samples = torch.randn(
-                self.nsamples,
                 ball_pos.shape[0],
+                self.nsamples,
                 self.world.dim_p,
                 device=self.world.device,
             ) * self.sigma * (1 + 3*(1-self.decision_strength))
-        samples[::2] += ball_pos
-        samples[1::2] += agent.state.pos[env_index]
+        samples[:,::2] += ball_pos[:,None]
+        samples[:,1::2] += agent.state.pos[env_index,None]
         test_pos = torch.cat(
-            [curr_target[None, :, :], samples], dim=0
-        )  # curr_pos[None,:,:],
+            [curr_target[:, None, :], samples], dim=1
+        )
         test_pos_shape = test_pos.shape
         test_pos = self.clamp_pos(
             test_pos.view(test_pos_shape[0] * test_pos_shape[1], test_pos_shape[2])
         ).view(*test_pos_shape)
-        values = torch.stack(
-            [
-                self.get_pos_value(test_pos[i], agent=agent, env_index=env_index)
-                for i in range(test_pos.shape[0])
-            ],
-            dim=0,
-        )
-        values[0, :] += self.replan_margin + 3*(1-self.decision_strength)
-        highest_value = values.argmax(dim=0)
+        values = self.get_pos_value(test_pos, agent=agent, env_index=env_index)
+        values[:,0] += self.replan_margin + 3*(1-self.decision_strength)
+        highest_value = values.argmax(dim=1)
         best_pos = torch.gather(
             test_pos,
-            dim=0,
+            dim=1,
             index=highest_value.unsqueeze(0)
             .unsqueeze(-1)
             .expand(-1, -1, self.world.dim_p),
         )
-        return best_pos[0, :, :]
+        return best_pos[0]
 
     def get_pos_value(self, pos, agent, env_index=Ellipsis):
+        ball_pos = self.ball.state.pos[env_index, None]
+        target_net_pos = self.target_net.state.pos[env_index, None]
+        own_net_pos = self.own_net.state.pos[env_index, None]
+        ball_vec = (ball_pos - pos)
+        ball_vec /= ball_vec.norm(dim=-1, keepdim=True)
+        ball_vec[ball_vec.isnan()] = 0
 
         # ball_dist_value prioritises positions relatively close to the ball
-        ball_dist = (pos - self.ball.state.pos[env_index]).norm(dim=-1)
+        ball_dist = (pos - ball_pos).norm(dim=-1)
         ball_dist_value = torch.exp(-2*ball_dist**4)
 
         # side_value prevents being between the ball and the target goal
-        ball_vec = (self.ball.state.pos[env_index] - pos)
-        ball_vec /= ball_vec.norm(dim=-1, keepdim=True)
-        net_vec = (self.target_net.state.pos[env_index] - pos)
+        net_vec = (target_net_pos - pos)
         net_vec /= net_vec.norm(dim=-1, keepdim=True)
         side_dot_prod = (ball_vec * net_vec).sum(dim=-1)
         side_value = torch.minimum(side_dot_prod + 1.25, torch.tensor(1))
 
         # defend_value prioritises being between the ball and your own goal while on defence
-        own_net_vec = (self.own_net.state.pos[env_index] - pos)
+        own_net_vec = (own_net_pos - pos)
         own_net_vec /= net_vec.norm(dim=-1, keepdim=True)
         defend_dot_prod = (ball_vec * -own_net_vec).sum(dim=-1)
         defend_value = torch.maximum(defend_dot_prod, torch.tensor(0))
-        # defend_value[self.team_possession[env_index]] = 0.
 
         # other_agent_value disincentivises being close to a teammate
         if len(self.teammates) > 1:
@@ -1932,8 +1929,7 @@ class AgentPolicy:
                 agent=agent,
                 teammate=True,
             )
-
-            team_dists = (team_disps[env_index] - pos[:, None, :]).norm(dim=-1)
+            team_dists = (team_disps[env_index, None] - pos[:, :, None]).norm(dim=-1)
             other_agent_value = -torch.exp(-5*team_dists).norm(dim=-1) + 1
         else:
             other_agent_value = 0
@@ -1944,7 +1940,7 @@ class AgentPolicy:
         wall_value = -torch.exp(-8*wall_dists).norm(dim=-1) + 1
 
         value = (wall_value + other_agent_value + ball_dist_value + side_value + defend_value) / 5
-        value += torch.randn(value.shape) * 1 * (1-self.decision_strength)
+        value += torch.randn(value.shape) * (1-self.decision_strength)
         return value
 
     def get_wall_separations(self, pos):
@@ -1958,7 +1954,7 @@ class AgentPolicy:
         horizontal_wall_disp = torch.zeros(pos.shape, device=self.world.device)
         horizontal_wall_disp[:, X] = torch.minimum(left_wall_dist, right_wall_dist)
         horizontal_wall_disp[left_wall_dist < right_wall_dist, X] *= -1
-        return torch.stack([vertical_wall_disp, horizontal_wall_disp], dim=1)
+        return torch.stack([vertical_wall_disp, horizontal_wall_disp], dim=-2)
 
     def get_separations(
         self,
