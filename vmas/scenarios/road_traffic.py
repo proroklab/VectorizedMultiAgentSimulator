@@ -36,12 +36,11 @@ class Scenario(BaseScenario):
     In addition, there are some commonly used parameters you may want to adjust to suit your case:
         - n_agents: Number of agents
         - dt: Sample time in seconds
-        - scenario_type: One of {'1', '2', '3', '4'}:
-                         1 for the entire map
-                         2 for the entire map with prioritized replay buffer (proposed by Schaul et al. - ICLR 2016 - Prioritized Experience Replay). The implementation of this buffer can be found in the training file of the GitHub repo mentioned above (https://github.com/cas-lab-munich/generalizable-marl/blob/1.0.0/training_mappo_cavs.py)
-                         3 for the entire map with challenging initial state buffer (inspired
+        - map_type: One of {'1', '2', '3'}:
+                         1: the entire map will be used
+                         2: the entire map will be used ; besides, challenging initial state buffer will be recorded and used when resetting the envs (inspired
                          by Kaufmann et al. - Nature 2023 - Champion-level drone racing using deep reinforcement learning)
-                         4 for specific scenario (intersection, merge-in, or merge-out). In this case, you can control the probability of using intersection, merge-in, and merge-out by the parameter `scenario_probabilities`. It is an array with three values. The first value corresponds to the probability of using intersection when resetting and making the world.  The second and the third values correspond to merge-in and merge-out, respectively. If you only want to use one specific scenario, you can set the other two values to zero. For example, if you want to train a RL policy only for intersection, they can set `scenario_probabilities` to [1.0, 0.0, 0.0].
+                         3: a specific part of the map (intersection, merge-in, or merge-out) will be used for each env when making or resetting it. You can control the probability of using each of them by the parameter `scenario_probabilities`. It is an array with three values. The first value corresponds to the probability of using intersection. The second and the third values correspond to merge-in and merge-out, respectively. If you only want to use one specific part of the map for all parallel envs, you can set the other two values to zero. For example, if you want to train a RL policy only for intersection, they can set `scenario_probabilities` to [1.0, 0.0, 0.0].
         - is_partial_observation: Whether to enable partial observation (to model partially observable MDP)
         - n_nearing_agents_observed: Number of nearing agents to be observed (consider limited sensor range)
 
@@ -188,7 +187,7 @@ class Scenario(BaseScenario):
             is_visualize_short_term_path=kwargs.pop(
                 "is_visualize_short_term_path", True
             ),
-            scenario_type=kwargs.pop("scenario_type", "1"),
+            map_type=kwargs.pop("map_type", "1"),
             n_nearing_agents_observed=kwargs.pop("n_nearing_agents_observed", 2),
             is_real_time_rendering=kwargs.pop("is_real_time_rendering", False),
             n_points_short_term=kwargs.pop("n_points_short_term", 3),
@@ -224,19 +223,19 @@ class Scenario(BaseScenario):
         self.parameters = kwargs.pop("parameters", parameters)
 
         # Ensure parameters meet simulation requirements
-        if self.parameters.scenario_type == "4":
+        if self.parameters.map_type == "3":
             if (
                 self.parameters.scenario_probabilities[1] != 0
                 or self.parameters.scenario_probabilities[2] != 0
             ):
                 if self.parameters.n_agents > 5:
                     raise ValueError(
-                        "For scenario_type '4', if the second or third value of scenario_probabilities is not zero, a maximum of 5 agents are allowed, as only a merge-in or a merge-out will be used."
+                        "For map_type '3', if the second or third value of scenario_probabilities is not zero, a maximum of 5 agents are allowed, as only a merge-in or a merge-out will be used."
                     )
             else:
                 if self.parameters.n_agents > 10:
                     raise ValueError(
-                        "For scenario_type '4', if only the first value of scenario_probabilities is not zero, a maximum of 10 agents are allowed, as only an intersection will be used."
+                        "For map_type '3', if only the first value of scenario_probabilities is not zero, a maximum of 10 agents are allowed, as only an intersection will be used."
                     )
 
         if self.parameters.n_nearing_agents_observed >= self.parameters.n_agents:
@@ -269,7 +268,7 @@ class Scenario(BaseScenario):
         ) = get_reference_paths(self.map_data)
 
         # Determine the maximum number of points on the reference path
-        if self.parameters.scenario_type in ("1", "2", "3"):
+        if self.parameters.map_type in ("1", "2"):
             # Train on the entire map
             max_ref_path_points = (
                 max([ref_p["center_line"].shape[0] for ref_p in reference_paths_all])
@@ -839,7 +838,7 @@ class Scenario(BaseScenario):
         )
 
         self.initial_state_buffer = (
-            InitialStateBuffer(  # Used only when "scenario_type == '4'"
+            InitialStateBuffer(  # Used only when "map_type == '3'"
                 probability_record=torch.tensor(
                     1.0, device=device, dtype=torch.float32
                 ),
@@ -933,9 +932,9 @@ class Scenario(BaseScenario):
                 env_i, is_reset_single_agent, agent_index
             )
 
-            # If scenario type is 3, there is a certain probability of using initial state buffer to reset the agents
+            # If map_type is 2, there is a certain probability of using initial state buffer to reset the agents
             if (
-                (self.parameters.scenario_type == "3")
+                (self.parameters.map_type == "2")
                 and (
                     torch.rand(1) < self.initial_state_buffer.probability_use_recording
                 )
@@ -1029,7 +1028,7 @@ class Scenario(BaseScenario):
         """
         Resets scenario-related reference paths and scenario IDs for the specified environment and agents.
 
-        This function determines and sets the long-term reference paths based on the current scenario type.
+        This function determines and sets the long-term reference paths based on the current map_type.
         If `is_reset_single_agent` is true, the current paths for the specified agent will be kept.
 
         Args:
@@ -1043,7 +1042,7 @@ class Scenario(BaseScenario):
             - extended_points (tensor): [numOfRefPaths, numExtendedPoints, 2] The extended points for the current scenario.
         """
         # Get the center line and boundaries of the long-term reference path
-        if self.parameters.scenario_type in {"1", "2", "3"}:
+        if self.parameters.map_type in {"1", "2"}:
             ref_paths_scenario = self.ref_paths_map_related.long_term_all
             extended_points = self.ref_paths_map_related.point_extended_all
             self.ref_paths_agent_related.scenario_id[env_i, :] = 0
@@ -2278,7 +2277,7 @@ class Scenario(BaseScenario):
 
         Testing mode is designed to test the learned policy. In testing mode, collisions do
         not terminate the current simulation; instead, the colliding agents (not all agents)
-        will be reset. Besides, if `scenario_type` is "4", those agents who leave their entries
+        will be reset. Besides, if `map_type` is "3", those agents who leave their entries
         or exits will be reset.
         """
         is_collision_with_agents = self.collisions.with_agents.view(
@@ -2288,7 +2287,7 @@ class Scenario(BaseScenario):
         )  # [batch_dim]
         is_collision_with_lanelets = self.collisions.with_lanelets.any(dim=-1)
 
-        if self.parameters.scenario_type == "3":  # Record into the initial state buffer
+        if self.parameters.map_type == "2":  # Record into the initial state buffer
             if torch.rand(1) > (
                 1 - self.initial_state_buffer.probability_record
             ):  # Only a certain probability to record
@@ -2318,7 +2317,7 @@ class Scenario(BaseScenario):
             ):
                 self.reset_world_at(env_index=env_idx, agent_index=agent_idx)
         else:
-            if self.parameters.scenario_type == "4":
+            if self.parameters.map_type == "3":
                 is_done = is_collision_with_agents | is_collision_with_lanelets
 
                 # Reset single agnet
@@ -2607,7 +2606,7 @@ class Parameters:
         n_agents: int = 20,  # Number of agents
         dt: float = 0.05,  # Sample time in seconds
         device: str = "cpu",  # Tensor device
-        scenario_type: str = "1",  # One of {'1', '2', '3', '4'}:
+        map_type: str = "1",  # One of {'1', '2', '3'}:
         # 1 for the entire map
         # 2 for the entire map with prioritized replay buffer (proposed by Schaul et al. - ICLR 2016 - Prioritized Experience Replay)
         # 3 for the entire map with challenging initial state buffer (inspired
@@ -2639,7 +2638,7 @@ class Parameters:
         # In non-testing mode, once a collision occurs, all agents will be reset.
         n_steps_stored: int = 10,  # Store the states of agents of previous several time steps
         n_steps_before_recording: int = 10,  # The states of agents at time step `current_time_step - n_steps_before_recording` before collisions
-        # will be recorded and used later when resetting the envs (used only when scenario_type = "3")
+        # will be recorded and used later when resetting the envs (used only when map_type = "2")
         n_points_nearing_boundary: int = 5,  # The number of points on nearing boundaries to be observed
     ):
 
@@ -2648,7 +2647,7 @@ class Parameters:
 
         self.device = device
 
-        self.scenario_type = scenario_type
+        self.map_type = map_type
 
         # Observation
         self.is_partial_observation = is_partial_observation
