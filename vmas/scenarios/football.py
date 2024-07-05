@@ -83,7 +83,7 @@ class Scenario(BaseScenario):
         self.show_value = kwargs.pop("show_value", False)
         self.ai_speed_strength = kwargs.pop("ai_speed_strength", 1.)
         self.ai_decision_strength = kwargs.pop("ai_decision_strength", 1.)
-        self.ai_precision_strength = kwargs.pop("ai_precision_strength", 1.)
+        self.ai_precision_strength = kwargs.pop("ai_precision_strength", 1.0)
         self.disable_ai_red = kwargs.pop("disable_ai_red", False)
 
         # Task sizes
@@ -156,9 +156,9 @@ class Scenario(BaseScenario):
             AgentPolicy(
                 team="Red",
                 disabled=self.disable_ai_red,
-                speed_strength=self.ai_speed_strength,
-                precision_strength=self.ai_precision_strength,
-                decision_strength=self.ai_decision_strength,
+                speed_strength=self.ai_speed_strength[1] if isinstance(self.ai_speed_strength, tuple) else self.ai_speed_strength,
+                precision_strength=self.ai_precision_strength[1] if isinstance(self.ai_precision_strength, tuple) else self.ai_precision_strength,
+                decision_strength=self.ai_decision_strength[1] if isinstance(self.ai_decision_strength, tuple) else self.ai_decision_strength,
             )
             if self.ai_red_agents
             else None
@@ -166,9 +166,9 @@ class Scenario(BaseScenario):
         self.blue_controller = (
             AgentPolicy(
                 team="Blue",
-                speed_strength=self.ai_speed_strength,
-                precision_strength=self.ai_precision_strength,
-                decision_strength=self.ai_decision_strength,
+                speed_strength=self.ai_speed_strength[0] if isinstance(self.ai_speed_strength, tuple) else self.ai_speed_strength,
+                precision_strength=self.ai_precision_strength[0] if isinstance(self.ai_precision_strength, tuple) else self.ai_precision_strength,
+                decision_strength=self.ai_decision_strength[0] if isinstance(self.ai_decision_strength, tuple) else self.ai_decision_strength,
             )
             if self.ai_blue_agents
             else None
@@ -2051,7 +2051,7 @@ if __name__ == "__main__":
         ai_red_agents=True,
         dense_reward=True,
         ai_speed_strength=1.,
-        ai_decision_strength=1.,
+        ai_decision_strength=(1., 0.5),
         ai_precision_strength=1.,
         n_traj_points=0,
         ball_mass=0.25,
