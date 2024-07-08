@@ -1592,7 +1592,6 @@ class AgentPolicy:
         if not self.disabled:
             if "0" in agent.name:
                 self.team_disps = {}
-                self.get_separations(teammate=True)
                 self.check_possession()
             self.dribble_policy(agent)
             control = self.get_action(agent)
