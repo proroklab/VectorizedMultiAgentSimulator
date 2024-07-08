@@ -1313,6 +1313,21 @@ class Scenario(BaseScenario):
                 line.set_color(*color, alpha=agent._alpha)
                 geoms.append(line)
 
+        if hasattr(self, "alternative_actions"):
+            for index, agent in enumerate(self.blue_agents):
+                other_actions = self.alternative_actions[agent]
+                for i, action in enumerate(other_actions):
+                    is_agent = index == i
+                    line = rendering.Line(
+                        agent.state.pos[env_index],
+                        agent.state.pos[env_index]
+                        + action[env_index] * 15 * agent.shape.circumscribed_radius(),
+                        width=2,
+                    )
+                    if is_agent:
+                        line.set_color(*agent.color)
+                    geoms.append(line)
+
         return geoms
 
     def _get_background_geoms(self, objects):
