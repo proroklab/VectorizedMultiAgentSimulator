@@ -1442,11 +1442,17 @@ class AgentPolicy:
         self.team_name = team
         self.otherteam_name = "Blue" if (self.team_name == "Red") else "Red"
 
-        self.speed_strength = speed_strength**2  # affects the speed of the agents
-        self.decision_strength = decision_strength  # affects off-the-ball movement
-        self.precision_strength = (
-            precision_strength  # affects the ability to execute planned manoeuvres
-        )
+        # affects the speed of the agents
+        self.speed_strength = speed_strength**2
+
+        # affects off-the-ball movement
+        # (who is assigned to the ball and the positioning of the non-dribbling agents)
+        # so with poor decision strength they might decide that an agent that is actually in a worse position should go for the ball
+        self.decision_strength = decision_strength
+
+        # affects the ability to execute planned manoeuvres,
+        # it will add some error to the target position and velocity
+        self.precision_strength = precision_strength
 
         self.strength_multiplier = 25.0
 
@@ -2083,13 +2089,13 @@ if __name__ == "__main__":
     render_interactively(
         __file__,
         control_two_agents=False,
-        n_blue_agents=2,
+        n_blue_agents=3,
         n_red_agents=3,
-        ai_blue_agents=False,
+        ai_blue_agents=True,
         ai_red_agents=True,
         dense_reward=True,
-        ai_strength=0.5,
+        ai_strength=(0.1, 1),
         ai_decision_strength=(1.0, 1),
-        ai_precision_strength=(1.0, 1),
+        ai_precision_strength=(1.0, 0),
         enable_shooting=False,
     )
