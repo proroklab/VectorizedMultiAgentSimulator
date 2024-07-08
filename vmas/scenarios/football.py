@@ -1321,7 +1321,7 @@ class Scenario(BaseScenario):
                     line = rendering.Line(
                         agent.state.pos[env_index],
                         agent.state.pos[env_index]
-                        + action[env_index] * 15 * agent.shape.circumscribed_radius(),
+                        + action[env_index] * 10 * agent.shape.circumscribed_radius(),
                         width=2,
                     )
                     if is_agent:
