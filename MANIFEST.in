@@ -1,1 +1,2 @@
 include vmas/simulator/secrcode.ttf
+include vmas/scenarios_data/road_traffic/road_traffic_cpm_lab.xml
