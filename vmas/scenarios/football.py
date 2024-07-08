@@ -1589,6 +1589,8 @@ class AgentPolicy:
                 self.check_possession()
             self.dribble_policy(agent)
             control = self.get_action(agent)
+            if "0" in agent.name:
+                print(control)
             control = torch.clamp(control, min=-agent.u_range, max=agent.u_range)
             agent.action.u = control * agent.action.u_multiplier_tensor.unsqueeze(
                 0
@@ -2086,15 +2088,13 @@ if __name__ == "__main__":
     render_interactively(
         __file__,
         control_two_agents=False,
-        n_blue_agents=3,
+        n_blue_agents=2,
         n_red_agents=3,
         ai_blue_agents=False,
         ai_red_agents=True,
         dense_reward=True,
-        ai_strength=0.1,
+        ai_strength=0.8,
         ai_decision_strength=(1.0, 1),
-        ai_precision_strength=(1.0, 0.1),
-        n_traj_points=0,
-        ball_mass=0.25,
-        enable_shooting=True,
+        ai_precision_strength=(1.0, 1),
+        enable_shooting=False,
     )
