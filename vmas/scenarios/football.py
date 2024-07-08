@@ -1592,6 +1592,7 @@ class AgentPolicy:
         if not self.disabled:
             if "0" in agent.name:
                 self.team_disps = {}
+                self.get_separations(teammate=True)
                 self.check_possession()
             self.dribble_policy(agent)
             control = self.get_action(agent)
@@ -1691,17 +1692,18 @@ class AgentPolicy:
             .unsqueeze(-1)
         )
         if self.precision_strength != 1:
+            exp_diff = torch.exp(-diff)
             pos += (
                 torch.randn(pos.shape, device=pos.device)
                 * 10
                 * (1 - self.precision_strength)
-                * (1 - torch.exp(-diff))
+                * (1 - exp_diff)
             )
             vel += (
                 torch.randn(pos.shape, device=vel.device)
                 * 10
                 * (1 - self.precision_strength)
-                * (1 - torch.exp(-diff))
+                * (1 - exp_diff)
             )
         self.objectives[agent]["target_pos_rel"][env_index] = (
             pos - self.ball.state.pos[env_index]
@@ -1724,13 +1726,15 @@ class AgentPolicy:
         goal_disp = pos - start_pos
         goal_dist = goal_disp.norm(dim=-1)
         vel_dir = vel.clone()
-        vel_dir[vel_mag > 0] /= vel_mag[vel_mag > 0, None]
+        vel_mag_great_0 = vel_mag > 0
+        vel_dir[vel_mag_great_0] /= vel_mag[vel_mag_great_0, None]
         dist_behind_target = 0.6 * goal_dist
         target_pos = pos - vel_dir * dist_behind_target[:, None]
         target_disp = target_pos - start_pos
         target_dist = target_disp.norm(dim=1)
         start_vel_aug_dir = target_disp
-        start_vel_aug_dir[target_dist > 0] /= target_dist[target_dist > 0, None]
+        target_dist_great_0 = target_dist > 0
+        start_vel_aug_dir[target_dist_great_0] /= target_dist[target_dist_great_0, None]
         start_vel = start_vel_aug_dir * vel_mag[:, None]
         return start_vel
 
@@ -1947,19 +1951,24 @@ class AgentPolicy:
         net_vec = target_net_pos - pos
         net_vec /= net_vec.norm(dim=-1, keepdim=True)
         side_dot_prod = (ball_vec * net_vec).sum(dim=-1)
-        side_value = torch.minimum(side_dot_prod + 1.25, torch.tensor(1))
+        side_value = torch.minimum(
+            side_dot_prod + 1.25, torch.tensor(1, device=side_dot_prod.device)
+        )
 
         # defend_value prioritises being between the ball and your own goal while on defence
         own_net_vec = own_net_pos - pos
         own_net_vec /= net_vec.norm(dim=-1, keepdim=True)
         defend_dot_prod = (ball_vec * -own_net_vec).sum(dim=-1)
-        defend_value = torch.maximum(defend_dot_prod, torch.tensor(0))
+        defend_value = torch.maximum(
+            defend_dot_prod, torch.tensor(0, device=side_dot_prod.device)
+        )
 
         # other_agent_value disincentivises being close to a teammate
         if len(self.teammates) > 1:
-            team_disps = self.get_separations(
-                agent=agent,
-                teammate=True,
+            agent_index = self.teammates.index(agent)
+            team_disps = self.get_separations(teammate=True)
+            team_disps = torch.cat(
+                [team_disps[:, 0:agent_index], team_disps[:, agent_index + 1 :]], dim=1
             )
             team_dists = (team_disps[env_index, None] - pos[:, :, None]).norm(dim=-1)
             other_agent_value = -torch.exp(-5 * team_dists).norm(dim=-1) + 1
@@ -1995,32 +2004,29 @@ class AgentPolicy:
 
     def get_separations(
         self,
-        agent=None,
         teammate=False,
         opposition=False,
         vel=False,
     ):
         assert teammate or opposition, "One of teammate or opposition must be True"
-        key = (agent, teammate, opposition, vel)
+        key = (teammate, opposition, vel)
         if key in self.team_disps:
             return self.team_disps[key]
         disps = []
         if teammate:
             for otheragent in self.teammates:
-                if otheragent != agent:
-                    if vel:
-                        agent_disp = otheragent.state.vel
-                    else:
-                        agent_disp = otheragent.state.pos
-                    disps.append(agent_disp)
+                if vel:
+                    agent_disp = otheragent.state.vel
+                else:
+                    agent_disp = otheragent.state.pos
+                disps.append(agent_disp)
         if opposition:
             for otheragent in self.opposition:
-                if otheragent != agent:
-                    if vel:
-                        agent_disp = otheragent.state.vel
-                    else:
-                        agent_disp = otheragent.state.pos
-                    disps.append(agent_disp)
+                if vel:
+                    agent_disp = otheragent.state.vel
+                else:
+                    agent_disp = otheragent.state.pos
+                disps.append(agent_disp)
         out = torch.stack(disps, dim=1)
         self.team_disps[key] = out
         return out
@@ -2086,11 +2092,11 @@ if __name__ == "__main__":
         control_two_agents=False,
         n_blue_agents=3,
         n_red_agents=3,
-        ai_blue_agents=True,
+        ai_blue_agents=False,
         ai_red_agents=True,
         dense_reward=True,
-        ai_strength=(0.1, 1),
-        ai_decision_strength=(1.0, 1),
-        ai_precision_strength=(1.0, 0),
+        ai_strength=(1.0, 1.0),
+        ai_decision_strength=(1.0, 1.0),
+        ai_precision_strength=(1.0, 1.0),
         enable_shooting=False,
     )
