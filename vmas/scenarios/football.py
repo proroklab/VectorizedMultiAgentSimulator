@@ -1685,13 +1685,13 @@ class AgentPolicy:
             .unsqueeze(-1)
         )
         pos += (
-            torch.randn(pos.shape)
+            torch.randn(pos.shape, device=pos.device)
             * 10
             * (1 - self.precision_strength)
             * (1 - torch.exp(-diff))
         )
         vel += (
-            torch.randn(pos.shape)
+            torch.randn(pos.shape, device=vel.device)
             * 10
             * (1 - self.precision_strength)
             * (1 - torch.exp(-diff))
@@ -1882,27 +1882,22 @@ class AgentPolicy:
         net_dir = net_disps / net_disps.norm(dim=-1, keepdim=True)
         side_dot_prod = (ball_dir * net_dir).sum(dim=-1)
         dists -= 0.5 * side_dot_prod * self.decision_strength
-        dists += 0.5 * torch.randn(dists.shape) * (1 - self.decision_strength) ** 2
-        mindist_agents = torch.topk(
-            dists[:, : len(self.teammates)], k=1, largest=False, sorted=True
+        dists += (
+            0.5
+            * torch.randn(dists.shape, device=dists.device)
+            * (1 - self.decision_strength) ** 2
         )
+        mindist_agent = torch.argmin(dists[:, : len(self.teammates)], dim=-1)
         if self.decision_strength != 1:
-            mask = torch.rand(ball_pos.shape[0]) < self.decision_strength + 0.1
+            mask = (
+                torch.rand(ball_pos.shape[0], device=ball_pos.device)
+                < self.decision_strength + 0.1
+            )
         for i, agent in enumerate(self.teammates):
             if self.decision_strength == 1:
-                self.agent_possession[agent] = mindist_agents.indices[:, 0] == i
-                # self.agent_possession[agent] = (mindist_agents.indices[:, 0] == i) | \
-                #                                ((mindist_agents.indices[:,1] == i) & ~mindist_team)
+                self.agent_possession[agent] = mindist_agent == i
             else:
-                self.agent_possession[agent][mask] = (
-                    mindist_agents.indices[mask, 0] == i
-                )
-
-    # mindist_agent = torch.argmin(dists[:, : len(self.teammates)], dim=-1)
-    # if self.agent_possession[agent][0]:
-    #     agent.color = Color.PINK.value
-    # else:
-    #     agent.color = self.team_color
+                self.agent_possession[agent][mask] = mindist_agent[mask] == i
 
     def check_better_positions(self, agent, env_index=Ellipsis):
         ball_pos = self.ball.state.pos[env_index]
@@ -1979,7 +1974,9 @@ class AgentPolicy:
         value = (
             wall_value + other_agent_value + ball_dist_value + side_value + defend_value
         ) / 5
-        value += torch.randn(value.shape) * (1 - self.decision_strength)
+        value += torch.randn(value.shape, device=value.device) * (
+            1 - self.decision_strength
+        )
         return value
 
     def get_wall_separations(self, pos):
