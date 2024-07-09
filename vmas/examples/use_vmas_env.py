@@ -116,11 +116,17 @@ def use_vmas_env(
 
 if __name__ == "__main__":
     use_vmas_env(
-        scenario_name="waterfall",
+        scenario_name="football",
         render=True,
         save_render=False,
-        random_action=False,
-        continuous_actions=False,
+        random_action=True,
+        continuous_actions=True,
+        n_steps=500,
+        num_envs=500,
         # Environment specific
-        n_agents=4,
+        n_blue_agents=5,
+        n_red_agents=5,
+        ai_blue_agents=False,
+        ai_red_agents=True,
+        n_traj_points=0,
     )
