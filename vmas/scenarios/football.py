@@ -1321,8 +1321,8 @@ class Scenario(BaseScenario):
             for index, agent in enumerate(self.blue_agents):
                 uncertanty = self.agents_uncertanties[agent]
                 circle = rendering.make_ellipse(
-                    uncertanty[env_index, X] / 10,
-                    uncertanty[env_index, Y] / 10,
+                    uncertanty[X] / 10,
+                    uncertanty[Y] / 10,
                 )
                 xform = rendering.Transform()
                 xform.set_translation(*agent.state.pos[env_index])
@@ -1336,7 +1336,7 @@ class Scenario(BaseScenario):
                     line = rendering.Line(
                         agent.state.pos[env_index],
                         agent.state.pos[env_index]
-                        + action[env_index] * 10 * agent.shape.circumscribed_radius(),
+                        + action * 10 * agent.shape.circumscribed_radius(),
                         width=2,
                     )
                     if is_agent:
