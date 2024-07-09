@@ -1767,16 +1767,12 @@ class AgentPolicy:
         #     resulting action, controlling the speed.
         curr_pos = agent.state.pos[env_index, :]
         curr_vel = agent.state.vel[env_index, :]
-        u_start = torch.zeros(curr_pos.shape[0], device=self.world.device)
         des_curr_pos = Splines.hermite(
             self.objectives[agent]["start_pos"][env_index, :],
             self.objectives[agent]["target_pos"][env_index, :],
             self.objectives[agent]["start_vel"][env_index, :],
             self.objectives[agent]["target_vel"][env_index, :],
-            u=torch.minimum(
-                u_start + self.pos_lookahead,
-                torch.tensor(1.0, device=self.world.device),
-            ),
+            u=min(self.pos_lookahead, 1),
             deriv=0,
         )
         des_curr_vel = Splines.hermite(
@@ -1784,10 +1780,7 @@ class AgentPolicy:
             self.objectives[agent]["target_pos"][env_index, :],
             self.objectives[agent]["start_vel"][env_index, :],
             self.objectives[agent]["target_vel"][env_index, :],
-            u=torch.minimum(
-                u_start + self.vel_lookahead,
-                torch.tensor(1.0, device=self.world.device),
-            ),
+            u=min(self.vel_lookahead, 1),
             deriv=1,
         )
         des_curr_pos = torch.as_tensor(des_curr_pos, device=self.world.device)
@@ -1825,13 +1818,12 @@ class AgentPolicy:
             torch.linspace(0, 1, len(self.world.traj_points[self.team_name][agent]))
         ):
             pointi = self.world.traj_points[self.team_name][agent][i]
-            num_envs = self.objectives[agent]["start_pos"][env_index, :].shape[0]
             posi = Splines.hermite(
                 self.objectives[agent]["start_pos"][env_index, :],
                 self.objectives[agent]["target_pos"][env_index, :],
                 self.objectives[agent]["start_vel"][env_index, :],
                 self.objectives[agent]["target_vel"][env_index, :],
-                u=torch.tensor([u] * num_envs, device=self.world.device),
+                u=float(u),
                 deriv=0,
             )
             if env_index == Ellipsis or (
@@ -2058,7 +2050,7 @@ class Splines:
             [1.0, 0.0, 0.0, 0.0],
         ],
     )
-    U = {}
+    U_matmul_A = {}
 
     @classmethod
     def hermite(cls, p0, p1, p0dot, p1dot, u=0.1, deriv=0):
@@ -2068,23 +2060,27 @@ class Splines:
         #     of the trajectory, and 1 being the end). This yields a position.
         # When called with deriv=n, we instead return the nth time derivative of the trajectory.
         #     For example, deriv=1 will give the velocity evaluated at time u.
-        u = u.reshape((-1,))
-        if (deriv, u) in cls.U:
-            U = cls.U[(deriv, u)]
-        else:
+        assert isinstance(u, float)
+        U_matmul_A = cls.U_matmul_A.get((deriv, u), None)
+        if U_matmul_A is None:
+            u_tensor = torch.tensor([u], device=p0.device)
             U = torch.stack(
                 [
-                    cls.nPr(3, deriv) * (u ** max(0, 3 - deriv)),
-                    cls.nPr(2, deriv) * (u ** max(0, 2 - deriv)),
-                    cls.nPr(1, deriv) * (u ** max(0, 1 - deriv)),
-                    cls.nPr(0, deriv) * (u**0),
+                    cls.nPr(3, deriv) * (u_tensor ** max(0, 3 - deriv)),
+                    cls.nPr(2, deriv) * (u_tensor ** max(0, 2 - deriv)),
+                    cls.nPr(1, deriv) * (u_tensor ** max(0, 1 - deriv)),
+                    cls.nPr(0, deriv) * (u_tensor**0),
                 ],
                 dim=1,
             ).float()
-            cls.U[(deriv, u)] = U
             cls.A = cls.A.to(p0.device)
+            U_matmul_A = U[:, None, :] @ cls.A[None, :, :]
+            cls.U_matmul_A[(deriv, u)] = U_matmul_A
         P = torch.stack([p0, p1, p0dot, p1dot], dim=1)
-        ans = U[:, None, :] @ cls.A[None, :, :] @ P
+
+        ans = (
+            U_matmul_A.expand(P.shape[0], 1, 4) @ P
+        )  # Matmul [batch x 1 x 4] @ [batch x 4 x 2] -> [batch x 1 x 2]
         ans = ans.squeeze(1)
         return ans
 
@@ -2106,11 +2102,12 @@ if __name__ == "__main__":
         control_two_agents=False,
         n_blue_agents=3,
         n_red_agents=3,
-        ai_blue_agents=False,
+        ai_blue_agents=True,
         ai_red_agents=True,
         dense_reward=True,
         ai_strength=(1.0, 1.0),
-        ai_decision_strength=(1.0, 1.0),
+        ai_decision_strength=(1.0, 0.5),
         ai_precision_strength=(1.0, 1.0),
         enable_shooting=False,
+        n_traj_points=8,
     )
