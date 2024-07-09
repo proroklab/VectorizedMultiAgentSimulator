@@ -1313,8 +1313,23 @@ class Scenario(BaseScenario):
                 line.set_color(*color, alpha=agent._alpha)
                 geoms.append(line)
 
-        if hasattr(self, "alternative_actions"):
+        if (
+            hasattr(self, "alternative_actions")
+            and hasattr(self, "agents_uncertanties")
+            and not self.enable_shooting
+        ):
             for index, agent in enumerate(self.blue_agents):
+                uncertanty = self.agents_uncertanties[agent]
+                circle = rendering.make_ellipse(
+                    uncertanty[env_index, X] / 10,
+                    uncertanty[env_index, Y] / 10,
+                )
+                xform = rendering.Transform()
+                xform.set_translation(*agent.state.pos[env_index])
+                circle.add_attr(xform)
+                circle.set_color(*agent.color, alpha=0.2)
+                geoms.append(circle)
+
                 other_actions = self.alternative_actions[agent]
                 for i, action in enumerate(other_actions):
                     is_agent = index == i
