@@ -2,6 +2,7 @@
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
+import pathlib
 import time
 import xml.etree.ElementTree as ET  # For reading the map data
 from typing import Dict
@@ -255,9 +256,14 @@ class Scenario(BaseScenario):
         )
 
         # Get map data
-        map_file_path = kwargs.pop(
-            "map_file_path", "vmas/scenarios_data/road_traffic/road_traffic_cpm_lab.xml"
-        )
+        map_file_path = kwargs.pop("map_file_path", None)
+        if map_file_path is None:
+            map_file_path = str(
+                pathlib.Path(__file__).parent.parent
+                / "scenarios_data"
+                / "road_traffic"
+                / "road_traffic_cpm_lab.xml"
+            )
         self.map_data = get_map_data(map_file_path, device=device)
         # Long-term reference path
         (

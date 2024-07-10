@@ -1,2 +1,2 @@
 include vmas/simulator/secrcode.ttf
-include vmas/scenarios_data
+recursive-include vmas/scenarios_data *
