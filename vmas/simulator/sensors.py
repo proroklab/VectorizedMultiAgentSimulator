@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import time
 import typing
 from abc import ABC, abstractmethod
 from typing import Callable, List, Tuple, Union
@@ -99,7 +98,6 @@ class Lidar(Sensor):
         return self._alpha
 
     def measure(self):
-        dists = []
 
         # start_time = time.perf_counter()
         # for angle in self._angles.unbind(1):
