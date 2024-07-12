@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import time
 import typing
 from abc import ABC, abstractmethod
 from typing import Callable, List, Tuple, Union
@@ -99,16 +100,47 @@ class Lidar(Sensor):
 
     def measure(self):
         dists = []
-        for angle in self._angles.unbind(1):
-            dists.append(
-                self._world.cast_ray(
-                    self.agent,
-                    angle + self.agent.state.rot.squeeze(-1),
-                    max_range=self._max_range,
-                    entity_filter=self.entity_filter,
-                )
-            )
-        measurement = torch.stack(dists, dim=1)
+
+        # start_time = time.perf_counter()
+        # for angle in self._angles.unbind(1):
+        #     dists.append(
+        #         self._world.cast_ray(
+        #             self.agent,
+        #             angle + self.agent.state.rot.squeeze(-1),
+        #             max_range=self._max_range,
+        #             entity_filter=self.entity_filter,
+        #         )
+        #     )
+        # measurement = torch.stack(dists, dim=1)
+        # print(f"LOOP TIME: {time.perf_counter() - start_time}")
+
+        a = self._angles
+        # start_time = time.perf_counter()
+        dist_test = self._world.cast_rays(
+            self.agent,
+            a + self.agent.state.rot,
+            max_range=self._max_range,
+            entity_filter=self.entity_filter,
+        )
+        # print(f"VEC TIME: {time.perf_counter() - start_time}")
+
+        # Define a tolerance for the comparison
+        # tolerance = 1e-5
+        # differences = torch.abs(dist_test - measurement)
+
+        # Find indices where differences exceed the tolerance
+        # significant_diffs = torch.nonzero(differences > tolerance)
+
+        # if significant_diffs.numel() > 0:
+        #     print("AssertionError triggered!")
+        #     for idx in significant_diffs:
+        #         i, j = idx.tolist()
+        #         print(f"Difference at index ({i}, {j}):")
+        #         print(f"  dist_test[{i}, {j}] = {dist_test[i, j]}")
+        #         print(f"  measurement[{i}, {j}] = {measurement[i, j]}")
+        #         print(f"  Difference = {differences[i, j]}")
+        #     raise AssertionError("not all vectors were close!")
+        measurement = dist_test
         self._last_measurement = measurement
         return measurement
 
