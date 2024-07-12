@@ -1609,7 +1609,6 @@ class World(TorchVectorizedObject):
         angles: Tensor,
         max_range: float,
         entity_filter: Callable[[Entity], bool] = lambda _: False,
-        vectorized: bool = True,
     ):
         pos = entity.state.pos
 
