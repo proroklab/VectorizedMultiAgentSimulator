@@ -77,6 +77,11 @@ class Scenario(BaseScenario):
         self.ai_red_agents = kwargs.pop("ai_red_agents", True)
         self.ai_blue_agents = kwargs.pop("ai_blue_agents", False)
 
+        # Agent spawning
+        self.spawn_in_formation = kwargs.pop("spawn_in_formation", False)
+        self.formation_agents_per_column = kwargs.pop("formation_agents_per_column", 2)
+        self.formation_noise = kwargs.pop("formation_noise", 0.1)
+
         # Ai config
         self.n_traj_points = kwargs.pop("n_traj_points", 0)
         self.ai_speed_strength = kwargs.pop("ai_strength", 1.0)
@@ -250,38 +255,78 @@ class Scenario(BaseScenario):
             )
 
     def reset_agents(self, env_index: int = None):
-        for agent in self.blue_agents:
-            agent.set_pos(
-                torch.rand(
-                    (
-                        (1, self.world.dim_p)
-                        if env_index is not None
-                        else (self.world.batch_dim, self.world.dim_p)
-                    ),
-                    device=self.world.device,
+
+        if self.spawn_in_formation:
+            self._spawn_formation(self.blue_agents, True, env_index)
+            self._spawn_formation(self.red_agents, False, env_index)
+        else:
+            for agent in self.blue_agents:
+                pos = self._get_random_spawn_position(blue=True, env_index=env_index)
+                agent.set_pos(
+                    pos,
+                    batch_index=env_index,
                 )
-                * self._reset_agent_range
-                + self._reset_agent_offset_blue,
-                batch_index=env_index,
-            )
-        for agent in self.red_agents:
-            agent.set_pos(
-                torch.rand(
-                    (
-                        (1, self.world.dim_p)
-                        if env_index is not None
-                        else (self.world.batch_dim, self.world.dim_p)
-                    ),
-                    device=self.world.device,
+            for agent in self.red_agents:
+                pos = self._get_random_spawn_position(blue=False, env_index=env_index)
+                agent.set_pos(
+                    pos,
+                    batch_index=env_index,
                 )
-                * self._reset_agent_range
-                + self._reset_agent_offset_red,
-                batch_index=env_index,
-            )
-            agent.set_rot(
-                torch.tensor([torch.pi], device=self.world.device, dtype=torch.float32),
-                batch_index=env_index,
-            )
+                agent.set_rot(
+                    torch.tensor(
+                        [torch.pi], device=self.world.device, dtype=torch.float32
+                    ),
+                    batch_index=env_index,
+                )
+
+    def _spawn_formation(self, agents, blue, env_index):
+        agent_index = 0
+        endpoint = -self.pitch_length / 2 * (1 if blue else -1)
+        for x in torch.linspace(
+            0, endpoint, len(agents) // self.formation_agents_per_column + 3
+        ):
+            if agent_index >= len(agents):
+                break
+            if x == 0 or x == endpoint:
+                continue
+            agents_this_column = agents[
+                agent_index : agent_index + self.formation_agents_per_column
+            ]
+            n_agents_this_column = len(agents_this_column)
+
+            for y in torch.linspace(
+                self.pitch_width / 2,
+                -self.pitch_width / 2,
+                n_agents_this_column + 2,
+            ):
+                if y == -self.pitch_width / 2 or y == self.pitch_width / 2:
+                    continue
+                agents[agent_index].set_pos(
+                    torch.tensor([x, y], device=self.world.device, dtype=torch.float32)
+                    + torch.rand(
+                        (
+                            (self.world.dim_p,)
+                            if env_index is not None
+                            else (self.world.batch_dim, self.world.dim_p)
+                        ),
+                        device=self.world.device,
+                    )
+                    * self.formation_noise,
+                    batch_index=env_index,
+                )
+                agent_index += 1
+
+    def _get_random_spawn_position(self, blue, env_index):
+        return torch.rand(
+            (
+                (1, self.world.dim_p)
+                if env_index is not None
+                else (self.world.batch_dim, self.world.dim_p)
+            ),
+            device=self.world.device,
+        ) * self._reset_agent_range + (
+            self._reset_agent_offset_blue if blue else self._reset_agent_offset_red
+        )
 
     def reset_controllers(self, env_index: int = None):
         if self.red_controller is not None:
