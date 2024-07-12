@@ -1388,6 +1388,27 @@ class Scenario(BaseScenario):
                         line.set_color(*agent.color)
                     geoms.append(line)
 
+        if hasattr(self, "edge_radius") and self.ai_red_agents:
+            # Communication lines
+            for i, agent1 in enumerate(self.blue_agents):
+                for j, agent2 in enumerate(self.blue_agents):
+                    if j <= i:
+                        continue
+                    agent_dist = torch.linalg.vector_norm(
+                        agent1.state.pos - agent2.state.pos, dim=-1
+                    )
+                    if agent_dist[env_index] <= self.edge_radius:
+                        color = Color.BLACK.value
+                        line = rendering.Line(
+                            (agent1.state.pos[env_index]),
+                            (agent2.state.pos[env_index]),
+                            width=1,
+                        )
+                        xform = rendering.Transform()
+                        line.add_attr(xform)
+                        line.set_color(*color)
+                        geoms.append(line)
+
         return geoms
 
     def _get_background_geoms(self, objects):
