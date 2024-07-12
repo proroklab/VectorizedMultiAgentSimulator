@@ -97,18 +97,27 @@ class Lidar(Sensor):
     def alpha(self):
         return self._alpha
 
-    def measure(self):
-        dists = []
-        for angle in self._angles.unbind(1):
-            dists.append(
-                self._world.cast_ray(
-                    self.agent,
-                    angle + self.agent.state.rot.squeeze(-1),
-                    max_range=self._max_range,
-                    entity_filter=self.entity_filter,
+    def measure(self, vectorized: bool = True):
+        if not vectorized:
+            dists = []
+            for angle in self._angles.unbind(1):
+                dists.append(
+                    self._world.cast_ray(
+                        self.agent,
+                        angle + self.agent.state.rot.squeeze(-1),
+                        max_range=self._max_range,
+                        entity_filter=self.entity_filter,
+                    )
                 )
+            measurement = torch.stack(dists, dim=1)
+
+        else:
+            measurement = self._world.cast_rays(
+                self.agent,
+                self._angles + self.agent.state.rot,
+                max_range=self._max_range,
+                entity_filter=self.entity_filter,
             )
-        measurement = torch.stack(dists, dim=1)
         self._last_measurement = measurement
         return measurement
 

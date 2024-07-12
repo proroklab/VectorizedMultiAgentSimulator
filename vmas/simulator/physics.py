@@ -407,7 +407,7 @@ def _get_closest_point_line(
     if not isinstance(line_length, torch.Tensor):
         line_length = torch.tensor(
             line_length, dtype=torch.float32, device=line_pos.device
-        ).expand(line_pos.shape[0])
+        ).expand(line_rot.shape)
     # Rotate it by the angle of the line
     rotated_vector = torch.cat([line_rot.cos(), line_rot.sin()], dim=-1)
     # Get distance between line and sphere
