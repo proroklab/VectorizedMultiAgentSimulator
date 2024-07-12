@@ -20,7 +20,6 @@ from vmas.simulator.physics import (
     _get_closest_line_box,
     _get_closest_point_box,
     _get_closest_point_line,
-    _get_closest_point_line_vec,
     _get_closest_points_line_line,
     _get_inner_point_box,
 )
@@ -1392,7 +1391,7 @@ class World(TorchVectorizedObject):
         line_pos = ray_origin + ray_dir_world * (line_length / 2)
 
         # Call the updated _get_closest_point_line function
-        closest_point = _get_closest_point_line_vec(
+        closest_point = _get_closest_point_line(
             line_pos,
             line_rot,
             line_length,
@@ -1539,6 +1538,7 @@ class World(TorchVectorizedObject):
         angles: Tensor,
         max_range: float,
         entity_filter: Callable[[Entity], bool] = lambda _: False,
+        vectorized: bool = True,
     ):
         pos = entity.state.pos
 
