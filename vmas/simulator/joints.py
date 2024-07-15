@@ -136,6 +136,7 @@ class Joint(vmas.simulator.utils.Observer):
             batch_index=None,
         )
 
+        # If we do not allow rotation, and we did not provide a fixed rotation value, we infer it
         if not self.rotate_a and self.fixed_rotation_a is None:
             self.joint_constraints[0].fixed_rotation = (
                 angle - self.entity_a.state.rot
