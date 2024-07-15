@@ -862,7 +862,9 @@ class Agent(Entity):
         render_action: bool = False,
         dynamics: Dynamics = None,  # Defaults to holonomic
         action_size: int = None,  # Defaults to what required by the dynamics
-        action_nvec: list = None,  # Defaults to what required by the dynamics
+        discrete_action_nvec: List[
+            int
+        ] = None,  # Defaults to 3-way discretization (stay, decrement, increment)
     ):
         super().__init__(
             name,
@@ -885,15 +887,11 @@ class Agent(Entity):
         if obs_range == 0.0:
             assert sensors is None, f"Blind agent cannot have sensors, got {sensors}"
 
-        # Make sure action size and nvec are consistent
-        # if action_size is not None and action_nvec is not None:
-        #     raise ValueError(f'Cannot specify both action_size and action_nvec')
-        if action_nvec is not None:
-            action_nvec = list(action_nvec)
-        if action_nvec is not None and action_size is None:
-            action_nvec = len(action_nvec)
-        if action_size is not None and action_nvec is None:
-            action_nvec = [3] * action_size
+        if action_size is not None and discrete_action_nvec is not None:
+            if action_size != len(discrete_action_nvec):
+                raise ValueError(
+                    f"action_size {action_size} is inconsistent with discrete_action_nvec {discrete_action_nvec}"
+                )
 
         # cannot observe the world
         self._obs_range = obs_range
@@ -925,12 +923,14 @@ class Agent(Entity):
         # Dynamics
         self.dynamics = dynamics if dynamics is not None else Holonomic()
         # Action
-        self.action_size = (
-            action_size if action_size is not None else self.dynamics.needed_action_size
-        )
-        self.action_nvec = (
-            action_nvec if action_nvec is not None else self.dynamics.action_nvec
-        )
+        if action_size is not None:
+            self.action_size = action_size
+        elif discrete_action_nvec is not None:
+            self.action_size = len(discrete_action_nvec)
+        else:
+            self.action_size = self.dynamics.needed_action_size
+        if discrete_action_nvec is None:
+            self.discrete_action_nvec = [3] * self.action_size
         self.dynamics.agent = self
         self._action = Action(
             u_range=u_range,

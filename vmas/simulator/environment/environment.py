@@ -1,9 +1,9 @@
 #  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
+import math
 import random
 from ctypes import byref
-from functools import reduce
 from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -335,13 +335,13 @@ class Environment(TorchVectorizedObject):
                 dtype=np.float32,
             )
         elif self.multidiscrete_actions:
-            nvec = list(agent.action_nvec) + (
+            actions = agent.discrete_action_nvec + (
                 [self.world.dim_c] if not agent.silent and self.world.dim_c != 0 else []
             )
-            return spaces.MultiDiscrete(nvec)
+            return spaces.MultiDiscrete(actions)
         else:
             return spaces.Discrete(
-                reduce(lambda x, y: x * y, agent.action_nvec, 1)
+                math.prod(agent.discrete_action_nvec)
                 * (
                     self.world.dim_c
                     if not agent.silent and self.world.dim_c != 0
@@ -406,25 +406,6 @@ class Environment(TorchVectorizedObject):
                         )
                     )
             action = torch.stack(actions, dim=-1)
-        elif self.multidiscrete_actions:
-            # from https://github.com/pytorch/pytorch/issues/89438#issuecomment-1862363360
-            def randint(low, high, size, device):
-                return (
-                    torch.randint(2**63 - 1, size=size, device=device) % (high - low)
-                    + low
-                )
-
-            nvec_tensor = torch.tensor(self.get_agent_action_space(agent).nvec) 
-            if torch.any(nvec_tensor > 2**63 - 1):
-                raise ValueError(
-                    "Multidiscrete action spaces with nvec > 2**63 - 1 are not supported"
-                )
-            action = randint(
-                low=0,
-                high=nvec_tensor,
-                size=(agent.batch_dim, len(nvec_tensor)),
-                device=agent.device,
-            )
         else:
             action_space = self.get_agent_action_space(agent)
             if self.multidiscrete_actions:
@@ -471,13 +452,10 @@ class Environment(TorchVectorizedObject):
         """
         return [self.get_random_action(agent) for agent in self.agents]
 
-    def _check_discrete_action(
-        self, action: Tensor, low: int, high: Union[int, Tensor], type: str
-    ):
-        if not isinstance(high, Tensor):
-            high = torch.tensor(high, device=self.device)
+    def _check_discrete_action(self, action: Tensor, low: int, high: int, type: str):
         assert torch.all(
-            (action >= torch.tensor(low, device=self.device)) * (action < high)
+            (action >= torch.tensor(low, device=self.device))
+            * (action < torch.tensor(high, device=self.device))
         ), f"Discrete {type} actions are out of bounds, allowed int range [{low},{high})"
 
     # set env action for a particular agent
@@ -529,12 +507,12 @@ class Environment(TorchVectorizedObject):
                 # This is done by iteratively taking the modulo of the action and dividing by the
                 # number of actions in the current action space, which treats the action as if
                 # it was the "flat index" of the multi-discrete actions. E.g. if we have
-                # action spaces [2, 3, 4], action 0 corresponds to the actions [0, 0, 0],
-                # action 1 corresponds to the action [1, 0, 0], action 2 corresponds
-                # to the action [0, 1, 0], action 3 corresponds to the action [1, 1, 0], etc.
+                # nvec = [3,2], action 0 corresponds to the actions [0,0],
+                # action 1 corresponds to the action [0,1], action 2 corresponds
+                # to the action [1,0], action 3 corresponds to the action [1,1], etc.
                 flat_action = action.squeeze(-1)
                 actions = []
-                nvec = list(agent.action_nvec) + (
+                nvec = list(agent.discrete_action_nvec) + (
                     [self.world.dim_c]
                     if not agent.silent and self.world.dim_c != 0
                     else []
@@ -545,7 +523,7 @@ class Environment(TorchVectorizedObject):
                 action = torch.stack(actions, dim=-1)
 
             # Now we have an action with shape [n_envs, action_size+comms_actions]
-            for n in agent.action_nvec:
+            for n in agent.discrete_action_nvec:
                 physical_action = action[:, action_index]
                 self._check_discrete_action(
                     physical_action.unsqueeze(-1),
@@ -554,6 +532,14 @@ class Environment(TorchVectorizedObject):
                     type="physical",
                 )
                 u_max = agent.action.u_range_tensor[action_index]
+                # For odd n we want the first action to always map to u=0, so
+                # we swap 0 values with the middle value, and shift the first
+                # half of the remaining values by -1.
+                if n % 2 != 0:
+                    stay = physical_action == 0
+                    decrement = (physical_action > 0) & (physical_action < n // 2)
+                    physical_action[stay] = n // 2
+                    physical_action[decrement] -= 1
                 # We know u must be in [-u_max, u_max], and we know action is
                 # in [0, n-1]. Conversion steps: [0, n-1] -> [0, 1] -> [0, 2*u_max] -> [-u_max, u_max]
                 # E.g. action 0 -> -u_max, action n-1 -> u_max, action 1 -> -u_max + 2*u_max/(n-1)

@@ -13,12 +13,3 @@ class HolonomicWithRotation(Dynamics):
     def process_action(self):
         self.agent.state.force = self.agent.action.u[:, :2]
         self.agent.state.torque = self.agent.action.u[:, 2].unsqueeze(-1)
-
-
-class Rotation(Dynamics):
-    @property
-    def needed_action_size(self) -> int:
-        return 1
-
-    def process_action(self):
-        self.agent.state.torque = self.agent.action.u
