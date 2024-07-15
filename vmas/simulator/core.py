@@ -2095,7 +2095,7 @@ class World(TorchVectorizedObject):
                     frozenset({entity_a.name, entity_b.name}), None
                 )
                 if joint is not None:
-                    joints.append((entity_a, entity_b, joint))
+                    joints.append(joint)
                     if joint.dist == 0:
                         continue
                 if not self.collides(entity_a, entity_b):
@@ -2187,7 +2187,9 @@ class World(TorchVectorizedObject):
             rot_a = []
             rot_b = []
             joint_rot = []
-            for entity_a, entity_b, joint in joints:
+            for joint in joints:
+                entity_a = joint.entity_a
+                entity_b = joint.entity_b
                 pos_joint_a.append(joint.pos_point(entity_a))
                 pos_joint_b.append(joint.pos_point(entity_b))
                 pos_a.append(entity_a.state.pos)
@@ -2257,12 +2259,12 @@ class World(TorchVectorizedObject):
                 rotate, torque_b_rotate, torque_b_rotate + torque_b_fixed
             )
 
-            for i, (entity_a, entity_b, _) in enumerate(joints):
+            for i, joint in enumerate(joints):
                 self.update_env_forces(
-                    entity_a,
+                    joint.entity_a,
                     force_a[:, i],
                     torque_a[:, i],
-                    entity_b,
+                    joint.entity_b,
                     force_b[:, i],
                     torque_b[:, i],
                 )
@@ -2828,12 +2830,7 @@ class World(TorchVectorizedObject):
         k = 1
         penetration = k * (torch.exp(abs_delta_rot / k) - 1)
 
-        torque = (
-            force_multiplier
-            * delta_rot
-            / torch.where(abs_delta_rot > 0, abs_delta_rot, 1e-8)
-            * penetration
-        )
+        torque = force_multiplier * delta_rot.sign() * penetration
         torque = torch.where((abs_delta_rot < min_delta_rot), 0.0, torque)
 
         return -torque, torque

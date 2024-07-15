@@ -241,5 +241,5 @@ if __name__ == "__main__":
     render_interactively(
         __file__,
         control_two_agents=True,
-        n_agents=2,
+        n_agents=4,
     )
