@@ -59,6 +59,10 @@ class Joint(vmas.simulator.utils.Observer):
 
         self.entity_a = entity_a
         self.entity_b = entity_b
+        self.rotate_a = rotate_a
+        self.rotate_b = rotate_b
+        self.fixed_rotation_a = fixed_rotation_a
+        self.fixed_rotation_b = fixed_rotation_b
         self.landmark = None
         self.joint_constraints = []
 
@@ -71,7 +75,7 @@ class Joint(vmas.simulator.utils.Observer):
                     anchor_b=anchor_b,
                     dist=dist,
                     rotate=rotate_a and rotate_b,
-                    fixed_rotation=(fixed_rotation_a + fixed_rotation_b) / 2,
+                    fixed_rotation=fixed_rotation_a,  # or b, it is the same
                 ),
             )
         else:
@@ -121,13 +125,25 @@ class Joint(vmas.simulator.utils.Observer):
             (pos_a + pos_b) / 2,
             batch_index=None,
         )
+
+        angle = torch.atan2(
+            pos_b[:, vmas.simulator.utils.Y] - pos_a[:, vmas.simulator.utils.Y],
+            pos_b[:, vmas.simulator.utils.X] - pos_a[:, vmas.simulator.utils.X],
+        ).unsqueeze(-1)
+
         self.landmark.set_rot(
-            torch.atan2(
-                pos_b[:, vmas.simulator.utils.Y] - pos_a[:, vmas.simulator.utils.Y],
-                pos_b[:, vmas.simulator.utils.X] - pos_a[:, vmas.simulator.utils.X],
-            ).unsqueeze(-1),
+            angle,
             batch_index=None,
         )
+
+        if not self.rotate_a and self.fixed_rotation_a is None:
+            self.joint_constraints[0].fixed_rotation = (
+                angle - self.entity_a.state.rot
+            ) * (1 if angle >= 0 else -1)
+        if not self.rotate_b and self.fixed_rotation_b is None:
+            self.joint_constraints[1].fixed_rotation = (
+                angle - self.entity_b.state.rot
+            ) * (1 if angle >= 0 else -1)
 
 
 # Private class: do not instantiate directly
@@ -154,7 +170,10 @@ class JointConstraint:
         assert dist >= 0, f"Joint dist must be >= 0, got {dist}"
         if fixed_rotation is not None:
             assert not rotate, "If fixed rotation is provided, rotate should be False"
-        if fixed_rotation is None:
+        if rotate:
+            assert (
+                fixed_rotation is None
+            ), "If you provide a fixed rotation, rotate should be False"
             fixed_rotation = 0.0
 
         self.entity_a = entity_a

@@ -19,7 +19,8 @@ class Scenario(BaseScenario):
         self.module_mass = kwargs.pop("module_mass", 10)
 
         ScenarioUtils.check_kwargs_consumed(kwargs)
-        assert not self.n_agents % 2
+
+        assert not self.n_agents % 2, "Rowing needs even agents"
         self.width = 0.2
         self.box_width = 0.05
         self.box_length = 0.15
@@ -52,8 +53,6 @@ class Scenario(BaseScenario):
                 dist=self.width,
                 rotate_a=False,
                 rotate_b=False,
-                fixed_rotation_a=-torch.pi / 2,
-                fixed_rotation_b=-torch.pi / 2,
                 collidable=False,
                 width=0,
                 mass=self.module_mass - 2,
@@ -71,8 +70,6 @@ class Scenario(BaseScenario):
                 dist=self.row_dist,
                 rotate_a=self.rotatable_modules,
                 rotate_b=self.rotatable_modules,
-                fixed_rotation_a=torch.pi / 2 if not self.rotatable_modules else None,
-                fixed_rotation_b=torch.pi / 2 if not self.rotatable_modules else None,
                 collidable=False,
                 width=0,
                 mass=1,
@@ -141,5 +138,5 @@ if __name__ == "__main__":
     render_interactively(
         __file__,
         control_two_agents=True,
-        n_agents=6,
+        n_agents=4,
     )
