@@ -2186,7 +2186,7 @@ class World(TorchVectorizedObject):
             rotate = []
             rot_a = []
             rot_b = []
-
+            joint_rot = []
             for entity_a, entity_b, joint in joints:
                 pos_joint_a.append(joint.pos_point(entity_a))
                 pos_joint_b.append(joint.pos_point(entity_b))
@@ -2196,6 +2196,13 @@ class World(TorchVectorizedObject):
                 rotate.append(torch.tensor(joint.rotate, device=self.device))
                 rot_a.append(entity_a.state.rot)
                 rot_b.append(entity_b.state.rot)
+                joint_rot.append(
+                    torch.tensor(joint.fixed_rotation, device=self.device)
+                    .unsqueeze(-1)
+                    .expand(self.batch_dim, 1)
+                    if isinstance(joint.fixed_rotation, float)
+                    else joint.fixed_rotation
+                )
             pos_a = torch.stack(pos_a, dim=-2)
             pos_b = torch.stack(pos_b, dim=-2)
             pos_joint_a = torch.stack(pos_joint_a, dim=-2)
@@ -2215,6 +2222,7 @@ class World(TorchVectorizedObject):
                 dim=-1,
             )
             rotate = rotate_prior.unsqueeze(0).expand(self.batch_dim, -1).unsqueeze(-1)
+            joint_rot = torch.stack(joint_rot, dim=-2)
 
             (force_a_attractive, force_b_attractive,) = self._get_constraint_forces(
                 pos_joint_a,
@@ -2239,7 +2247,7 @@ class World(TorchVectorizedObject):
             torque_b_rotate = TorchUtils.compute_torque(force_b, r_b)
 
             torque_a_fixed, torque_b_fixed = self._get_constraint_torques(
-                rot_a, rot_b, force_multiplier=self._torque_constraint_force
+                rot_a, rot_b + joint_rot, force_multiplier=self._torque_constraint_force
             )
 
             torque_a = torch.where(
