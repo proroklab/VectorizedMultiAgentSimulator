@@ -53,9 +53,7 @@ class TestTransport:
 
     @pytest.mark.parametrize("n_agents", [6])
     def test_heuristic(self, n_agents, n_envs=4):
-        self.setup_env(
-            n_agents=n_agents, random_package_pos_on_line=False, n_envs=n_envs
-        )
+        self.setup_env(n_agents=n_agents, n_envs=n_envs)
         policy = transport.HeuristicPolicy(self.continuous_actions)
 
         obs = self.env.reset()

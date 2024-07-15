@@ -21,22 +21,23 @@ if typing.TYPE_CHECKING:
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.plot_grid = False
-        self.n_agents = kwargs.get("n_agents", 4)
-        self.collisions = kwargs.get("collisions", True)
+        self.n_agents = kwargs.pop("n_agents", 4)
+        self.collisions = kwargs.pop("collisions", True)
 
-        self.agents_with_same_goal = kwargs.get("agents_with_same_goal", 1)
-        self.split_goals = kwargs.get("split_goals", False)
-        self.observe_all_goals = kwargs.get("observe_all_goals", False)
+        self.agents_with_same_goal = kwargs.pop("agents_with_same_goal", 1)
+        self.split_goals = kwargs.pop("split_goals", False)
+        self.observe_all_goals = kwargs.pop("observe_all_goals", False)
 
-        self.lidar_range = kwargs.get("lidar_range", 0.35)
-        self.agent_radius = kwargs.get("agent_radius", 0.1)
-        self.comms_range = kwargs.get("comms_range", 0)
+        self.lidar_range = kwargs.pop("lidar_range", 0.35)
+        self.agent_radius = kwargs.pop("agent_radius", 0.1)
+        self.comms_range = kwargs.pop("comms_range", 0)
 
-        self.shared_rew = kwargs.get("shared_rew", True)
-        self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 1)
-        self.final_reward = kwargs.get("final_reward", 0.01)
+        self.shared_rew = kwargs.pop("shared_rew", True)
+        self.pos_shaping_factor = kwargs.pop("pos_shaping_factor", 1)
+        self.final_reward = kwargs.pop("final_reward", 0.01)
 
-        self.agent_collision_penalty = kwargs.get("agent_collision_penalty", -1)
+        self.agent_collision_penalty = kwargs.pop("agent_collision_penalty", -1)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self.min_distance_between_entities = self.agent_radius * 2 + 0.05
         self.world_semidim = 1

@@ -10,12 +10,13 @@ from vmas import render_interactively
 from vmas.simulator.controllers.velocity_controller import VelocityController
 from vmas.simulator.core import Agent, Sphere, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, X, Y
+from vmas.simulator.utils import Color, ScenarioUtils, X, Y
 
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.obs_noise = kwargs.get("obs_noise", 0)
+        self.obs_noise = kwargs.pop("obs_noise", 0)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self.agent_radius = 0.03
         self.line_length = 3

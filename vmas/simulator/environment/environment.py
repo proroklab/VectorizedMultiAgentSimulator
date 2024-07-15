@@ -426,12 +426,25 @@ class Environment(TorchVectorizedObject):
                 device=agent.device,
             )
         else:
-            action = torch.randint(
-                low=0,
-                high=self.get_agent_action_space(agent).n,
-                size=(agent.batch_dim,),
-                device=agent.device,
-            )
+            action_space = self.get_agent_action_space(agent)
+            if self.multidiscrete_actions:
+                actions = [
+                    torch.randint(
+                        low=0,
+                        high=action_space.nvec[action_index],
+                        size=(agent.batch_dim,),
+                        device=agent.device,
+                    )
+                    for action_index in range(action_space.shape[0])
+                ]
+                action = torch.stack(actions, dim=-1)
+            else:
+                action = torch.randint(
+                    low=0,
+                    high=action_space.n,
+                    size=(agent.batch_dim,),
+                    device=agent.device,
+                )
         return action
 
     def get_random_actions(self) -> Sequence[torch.Tensor]:
