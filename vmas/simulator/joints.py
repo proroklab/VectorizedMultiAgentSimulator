@@ -138,13 +138,17 @@ class Joint(vmas.simulator.utils.Observer):
 
         # If we do not allow rotation, and we did not provide a fixed rotation value, we infer it
         if not self.rotate_a and self.fixed_rotation_a is None:
-            self.joint_constraints[0].fixed_rotation = (
-                angle - self.entity_a.state.rot
-            ) * (1 if angle >= 0 else -1)
+            self.joint_constraints[0].fixed_rotation = torch.where(
+                angle >= 0,
+                angle - self.entity_a.state.rot,
+                -angle + self.entity_a.state.rot,
+            )
         if not self.rotate_b and self.fixed_rotation_b is None:
-            self.joint_constraints[1].fixed_rotation = (
-                angle - self.entity_b.state.rot
-            ) * (1 if angle >= 0 else -1)
+            self.joint_constraints[1].fixed_rotation = torch.where(
+                angle >= 0,
+                angle - self.entity_b.state.rot,
+                -angle + self.entity_b.state.rot,
+            )
 
 
 # Private class: do not instantiate directly
