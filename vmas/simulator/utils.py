@@ -305,6 +305,7 @@ class ScenarioUtils:
                 warnings.warn(
                     "It is taking many iterations to spawn the entity, make sure the bounds or "
                     "the min_dist_between_entities are not too tight to fit all entities."
+                    "You can disable this warning by setting disable_warn=True"
                 )
         return pos
 
