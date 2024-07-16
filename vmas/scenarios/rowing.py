@@ -207,7 +207,7 @@ class Scenario(BaseScenario):
             rot = agent.state.rot - torch.pi / 2
         rot = torch.cat([torch.cos(rot), torch.sin(rot)], dim=-1)
         return torch.cat(
-            [pos, rot],
+            [self.goal.state.pos - pos, rot],
             dim=-1,
         )
 
