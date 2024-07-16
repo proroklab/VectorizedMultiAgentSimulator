@@ -21,10 +21,10 @@ class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.n_agents = kwargs.pop("n_agents", 2)
         self.rotatable_modules = kwargs.pop("rotatable_modules", False)
-        self.module_mass = kwargs.pop("module_mass", 10)
+        self.agent_mass = kwargs.pop("agent_mass", 5)
         self.observe_shared = kwargs.pop("observe_shared", True)
 
-        self.pos_shaping_factor = kwargs.pop("pos_shaping_factor", 1)
+        self.pos_shaping_factor = kwargs.pop("pos_shaping_factor", 10)
 
         ScenarioUtils.check_kwargs_consumed(kwargs)
 
@@ -39,7 +39,7 @@ class Scenario(BaseScenario):
 
         # Make world
         world = World(
-            batch_dim, device, substeps=5, torque_constraint_force=12, joint_force=300
+            batch_dim, device, substeps=10, torque_constraint_force=10, joint_force=300
         )
 
         # Goal
@@ -59,6 +59,7 @@ class Scenario(BaseScenario):
                 dynamics=Forward(),
                 rotatable=True,
                 collide=False,
+                mass=self.agent_mass,
             )
             world.add_agent(agent)
 
@@ -76,7 +77,7 @@ class Scenario(BaseScenario):
                 rotate_b=False,
                 collidable=False,
                 width=0,
-                mass=self.module_mass - 2,
+                mass=1,
             )
             self.agent_joints.append(joint)
             world.add_joint(joint)
@@ -200,14 +201,13 @@ class Scenario(BaseScenario):
 
     def observation(self, agent: Agent):
         # get positions of all entities in this agent's reference frame
-        if self.observe_shared:
-            _, pos, rot = self._get_central_entity()
-        else:
+        entity, pos, rot = self._get_central_entity()
+        if not self.observe_shared:
             pos = agent.state.pos
             rot = agent.state.rot - torch.pi / 2
         rot = torch.cat([torch.cos(rot), torch.sin(rot)], dim=-1)
         return torch.cat(
-            [self.goal.state.pos - pos, rot],
+            [self.goal.state.pos - pos, entity.state.vel, agent.state.ang_vel, rot],
             dim=-1,
         )
 
