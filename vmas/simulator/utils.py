@@ -237,6 +237,7 @@ class ScenarioUtils:
         x_bounds: Tuple[int, int],
         y_bounds: Tuple[int, int],
         occupied_positions: Tensor = None,
+        disable_warn: bool = False,
     ):
         batch_size = world.batch_dim if env_index is None else 1
 
@@ -253,6 +254,7 @@ class ScenarioUtils:
                 min_dist_between_entities,
                 x_bounds,
                 y_bounds,
+                disable_warn,
             )
             occupied_positions = torch.cat([occupied_positions, pos], dim=1)
             entity.set_pos(pos.squeeze(1), batch_index=env_index)
@@ -265,10 +267,12 @@ class ScenarioUtils:
         min_dist_between_entities: float,
         x_bounds: Tuple[int, int],
         y_bounds: Tuple[int, int],
+        disable_warn: bool = False,
     ):
         batch_size = world.batch_dim if env_index is None else 1
 
         pos = None
+        tries = 0
         while True:
             proposed_pos = torch.cat(
                 [
@@ -296,6 +300,13 @@ class ScenarioUtils:
                 pos[overlaps] = proposed_pos[overlaps]
             else:
                 break
+            tries += 1
+            if tries > 50_000 and not disable_warn:
+                warnings.warn(
+                    "It is taking many iterations to spawn the entity, make sure the bounds or "
+                    "the min_dist_between_entities are not too tight to fit all entities."
+                    "You can disable this warning by setting disable_warn=True"
+                )
         return pos
 
     @staticmethod
