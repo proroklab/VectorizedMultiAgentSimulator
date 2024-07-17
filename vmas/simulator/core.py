@@ -864,7 +864,7 @@ class Agent(Entity):
         action_size: int = None,  # Defaults to what required by the dynamics
         discrete_action_nvec: List[
             int
-        ] = None,  # Defaults to 3-way discretization (stay, decrement, increment)
+        ] = None,  # Defaults to 3-way discretization if discrete actions are chosen (stay, decrement, increment)
     ):
         super().__init__(
             name,
@@ -931,6 +931,8 @@ class Agent(Entity):
             self.action_size = self.dynamics.needed_action_size
         if discrete_action_nvec is None:
             self.discrete_action_nvec = [3] * self.action_size
+        else:
+           self.discrete_action_nvec = discrete_action_nvec
         self.dynamics.agent = self
         self._action = Action(
             u_range=u_range,

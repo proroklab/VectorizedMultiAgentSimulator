@@ -537,7 +537,7 @@ class Environment(TorchVectorizedObject):
                 # half of the remaining values by -1.
                 if n % 2 != 0:
                     stay = physical_action == 0
-                    decrement = (physical_action > 0) & (physical_action < n // 2)
+                    decrement = (physical_action > 0) & (physical_action <= n // 2)
                     physical_action[stay] = n // 2
                     physical_action[decrement] -= 1
                 # We know u must be in [-u_max, u_max], and we know action is
