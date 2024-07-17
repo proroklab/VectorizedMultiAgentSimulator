@@ -17,6 +17,10 @@ if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
 
 
+def angle_to_vector(angle):
+    return torch.cat([torch.cos(angle), torch.sin(angle)], dim=-1)
+
+
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.n_agents = kwargs.pop("n_agents", 2)
@@ -24,7 +28,8 @@ class Scenario(BaseScenario):
         self.agent_mass = kwargs.pop("agent_mass", 5)
         self.observe_shared = kwargs.pop("observe_shared", True)
 
-        self.pos_shaping_factor = kwargs.pop("pos_shaping_factor", 10)
+        self.pos_shaping_factor = kwargs.pop("pos_shaping_factor", 0)
+        self.rot_shaping_factor = kwargs.pop("rot_shaping_factor", 10)
 
         ScenarioUtils.check_kwargs_consumed(kwargs)
 
@@ -36,6 +41,7 @@ class Scenario(BaseScenario):
         self.goal_semidim = 2
         self.viewer_zoom = 1.5
         self.min_goal_dist = self.box_length
+        self.min_rot_dist = torch.pi / 8
 
         # Make world
         world = World(
@@ -43,11 +49,7 @@ class Scenario(BaseScenario):
         )
 
         # Goal
-        goal = Landmark(
-            name="goal",
-            collide=False,
-            color=Color.GREEN,
-        )
+        goal = Landmark(name="goal", collide=False, color=Color.GREEN, shape=Box())
         world.add_landmark(goal)
         self.goal = goal
 
@@ -112,6 +114,17 @@ class Scenario(BaseScenario):
             (-self.goal_semidim, self.goal_semidim),
             (-self.goal_semidim, self.goal_semidim),
         )
+        self.goal.set_rot(
+            torch.zeros(
+                (1, 1) if env_index is not None else (self.world.batch_dim, 1),
+                device=self.world.device,
+                dtype=torch.float32,
+            ).uniform_(
+                -torch.pi / 2,
+                torch.pi / 2,
+            ),
+            batch_index=env_index,
+        )
 
         i = 0
         row = 0
@@ -155,7 +168,10 @@ class Scenario(BaseScenario):
             i += 2
             row += 1
 
-        _, pos, _ = self._get_central_entity()
+        _, pos, rot = self._get_central_entity()
+
+        my_rot = angle_to_vector(rot)
+        goal_rot = angle_to_vector(self.goal.state.rot)
         if env_index is None:
             self.pos_shaping = (
                 torch.linalg.vector_norm(
@@ -164,6 +180,7 @@ class Scenario(BaseScenario):
                 )
                 * self.pos_shaping_factor
             )
+            self.rot_shaping = ((goal_rot * my_rot).sum(-1)) * self.rot_shaping_factor
         else:
             self.pos_shaping[env_index] = (
                 torch.linalg.vector_norm(
@@ -171,12 +188,15 @@ class Scenario(BaseScenario):
                 )
                 * self.pos_shaping_factor
             )
+            self.rot_shaping[env_index] = (
+                (goal_rot[env_index] * my_rot[env_index]).sum(-1)
+            ) * self.rot_shaping_factor
 
     def reward(self, agent: Agent):
         is_first = agent == self.world.agents[0]
 
         if is_first:
-            _, pos, _ = self._get_central_entity()
+            _, pos, rot = self._get_central_entity()
             goal_dist = torch.linalg.vector_norm(
                 pos - self.goal.state.pos,
                 dim=-1,
@@ -186,17 +206,26 @@ class Scenario(BaseScenario):
 
             self.pos_rew = self.pos_shaping - pos_shaping
             self.pos_shaping = pos_shaping
-        return self.pos_rew
+
+            my_rot = angle_to_vector(rot)
+            goal_rot = angle_to_vector(self.goal.state.rot)
+            rot_dist = (goal_rot * my_rot).sum(-1)
+            self.on_rot = rot_dist < self.min_rot_dist
+            rot_shaping = rot_dist * self.rot_shaping_factor
+            self.rot_rew = self.rot_shaping - rot_shaping
+            self.rot_shaping = rot_shaping
+
+        return self.pos_rew + self.rot_rew
 
     def _get_central_entity(self):
         if len(self.agent_joints) % 2:
             landmark = self.agent_joints[len(self.agent_joints) // 2].landmark
             pos = landmark.state.pos
-            rot = landmark.state.rot
+            rot = landmark.state.rot + torch.pi / 2
         else:
             landmark = self.joint_joints[len(self.joint_joints) // 2].landmark
             pos = landmark.state.pos
-            rot = landmark.state.rot + torch.pi / 2
+            rot = landmark.state.rot + torch.pi
         return landmark, pos, rot
 
     def observation(self, agent: Agent):
@@ -204,10 +233,14 @@ class Scenario(BaseScenario):
         entity, pos, rot = self._get_central_entity()
         if not self.observe_shared:
             pos = agent.state.pos
-            rot = agent.state.rot - torch.pi / 2
+            rot = agent.state.rot
         rot = torch.cat([torch.cos(rot), torch.sin(rot)], dim=-1)
+
         return torch.cat(
-            [self.goal.state.pos - pos, entity.state.vel, agent.state.ang_vel, rot],
+            [
+                self.goal.state.pos - pos,
+                (angle_to_vector(self.goal.state.rot) * rot).sum(-1, keepdim=True),
+            ],
             dim=-1,
         )
 
