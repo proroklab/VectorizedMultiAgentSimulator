@@ -892,6 +892,11 @@ class Agent(Entity):
                 raise ValueError(
                     f"action_size {action_size} is inconsistent with discrete_action_nvec {discrete_action_nvec}"
                 )
+        if discrete_action_nvec is not None:
+            if not all(n > 1 for n in discrete_action_nvec):
+                raise ValueError(
+                    f"All values in discrete_action_nvec must be greater than 1, got {discrete_action_nvec}"
+                )
 
         # cannot observe the world
         self._obs_range = obs_range
@@ -932,7 +937,7 @@ class Agent(Entity):
         if discrete_action_nvec is None:
             self.discrete_action_nvec = [3] * self.action_size
         else:
-           self.discrete_action_nvec = discrete_action_nvec
+            self.discrete_action_nvec = discrete_action_nvec
         self.dynamics.agent = self
         self._action = Action(
             u_range=u_range,

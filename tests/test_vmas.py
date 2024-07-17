@@ -1,7 +1,9 @@
 #  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
+import math
 import os
+import random
 import sys
 from pathlib import Path
 
@@ -68,6 +70,135 @@ def test_multi_discrete_actions(scenario, num_envs=10, n_steps=10):
     )
     for _ in range(n_steps):
         env.step(env.get_random_actions())
+
+
+@pytest.mark.parametrize("scenario", scenario_names())
+def test_discrete_action_nvec(scenario, num_envs=10, n_steps=10):
+    env = make_env(
+        scenario=scenario,
+        num_envs=num_envs,
+        seed=0,
+        multidiscrete_actions=True,
+        continuous_actions=False,
+    )
+    if (
+        type(env.scenario).process_action
+        is not vmas.simulator.scenario.BaseScenario.process_action
+    ):
+        pytest.skip("Scenario uses a custom process_action method.")
+
+    random.seed(0)
+    for agent in env.world.agents:
+        agent.discrete_action_nvec = [
+            random.randint(2, 6) for _ in range(agent.action_size)
+        ]
+    env.action_space = env.get_action_space()
+
+    for _ in range(n_steps):
+        actions = env.get_random_actions()
+
+        # Check that generated actions are in the action space
+        for a_batch, s in zip(actions, env.action_space.spaces):
+            for a in a_batch:
+                assert a.numpy() in s
+
+        env.step(actions)
+
+        # Check that discrete action to continuous control mapping is correct.
+        for i_a, agent in enumerate(env.world.policy_agents):
+            for i, n in enumerate(agent.discrete_action_nvec):
+                a = actions[i_a][:, i]
+                u = agent.action.u[:, i]
+                U = agent.action.u_range_tensor[i]
+                k = agent.action.u_multiplier_tensor[i]
+                for aj, uj in zip(a, u):
+                    assert aj in range(
+                        n
+                    ), f"discrete action {aj} not in [0,{n-1}] (n={n}, U={U}, k={k})"
+                    if n % 2 != 0:
+                        assert (
+                            aj != 0 or uj == 0
+                        ), f"discrete action {aj} maps to control {uj} (n={n}), U={U}, k={k})"
+                        assert (aj < 1 or aj > n // 2) or torch.isclose(
+                            uj / k, (2 * U * (aj - 1)) / (n - 1) - U
+                        ), f"discrete action {aj} maps to control {uj} (n={n}, U={U}, k={k})"
+                        assert (aj <= n // 2) or torch.isclose(
+                            uj / k, 2 * U * (aj / (n - 1)) - U
+                        ), f"discrete action {aj} maps to control {uj} (n={n}), U={U}, k={k})"
+                    else:
+                        assert torch.isclose(
+                            uj / k, 2 * U * (aj / (n - 1)) - U
+                        ), f"discrete action {aj} maps to control {uj} (n={n}), U={U}, k={k})"
+
+
+@pytest.mark.parametrize("scenario", scenario_names())
+def test_discrete_action_nvec_discrete_to_multi(scenario, num_envs=10, n_steps=10):
+    kwargs = {
+        "scenario": scenario,
+        "num_envs": num_envs,
+        "seed": 0,
+        "continuous_actions": False,
+    }
+    env = make_env(**kwargs, multidiscrete_actions=False)
+    env_multi = make_env(**kwargs, multidiscrete_actions=True)
+    if (
+        type(env.scenario).process_action
+        is not vmas.simulator.scenario.BaseScenario.process_action
+    ):
+        pytest.skip("Scenario uses a custom process_action method.")
+
+    random.seed(0)
+    for agent, agent_multi in zip(
+        env.world.policy_agents, env_multi.world.policy_agents
+    ):
+        nvec = [random.randint(2, 6) for _ in range(agent.action_size)]
+        agent.discrete_action_nvec = nvec
+        agent_multi.discrete_action_nvec = nvec
+    env.action_space = env.get_action_space()
+    env_multi.action_space = env.get_action_space()
+
+    def full_nvec(agent, world):
+        return list(agent.discrete_action_nvec) + (
+            [world.dim_c] if not agent.silent and world.dim_c != 0 else []
+        )
+
+    def full_action_size(agent, world):
+        return len(full_nvec(agent, world))
+
+    for _ in range(n_steps):
+        actions_multi = env_multi.get_random_actions()
+        prodss = [
+            [
+                math.prod(full_nvec(agent, env.world)[i + 1 :])
+                for i in range(full_action_size(agent, env.world))
+            ]
+            for agent in env.world.policy_agents
+        ]
+        # Compute the expected mapping from multi-discrete to discrete
+        actions = [
+            (a_multi * torch.tensor(prods)).sum(dim=1)
+            for a_multi, prods in zip(actions_multi, prodss)
+        ]
+
+        env_multi.step(actions_multi)
+        env.step(actions)
+
+        # Check that both discrete and multi-discrete actions result in the
+        # same control value
+        for agent, agent_multi, action, action_multi in zip(
+            env.world.policy_agents,
+            env_multi.world.policy_agents,
+            actions,
+            actions_multi,
+        ):
+            U = agent.action.u_range_tensor
+            k = agent.action.u_multiplier_tensor
+            for u, u_multi, a, a_multi in zip(
+                agent.action.u, agent_multi.action.u, action, action_multi
+            ):
+                assert torch.allclose(
+                    u, u_multi
+                ), f"{u} != {u_multi} (nvec={agent.discrete_action_nvec}, a={a}, a_multi={a_multi}, U={U}, k={k})"
 
 
 @pytest.mark.parametrize("scenario", scenario_names())

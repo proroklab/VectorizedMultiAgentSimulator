@@ -517,9 +517,10 @@ class Environment(TorchVectorizedObject):
                     if not agent.silent and self.world.dim_c != 0
                     else []
                 )
-                for n in nvec:
-                    actions.append(flat_action % n)
-                    flat_action = flat_action // n
+                for i in range(len(nvec)):
+                    n = math.prod(nvec[i + 1 :])
+                    actions.append(flat_action // n)
+                    flat_action = flat_action % n
                 action = torch.stack(actions, dim=-1)
 
             # Now we have an action with shape [n_envs, action_size+comms_actions]
