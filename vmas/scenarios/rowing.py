@@ -11,7 +11,7 @@ from vmas.simulator.core import Agent, Box, Landmark, World
 from vmas.simulator.dynamics.forward import Forward
 from vmas.simulator.joints import Joint
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, ScenarioUtils
+from vmas.simulator.utils import Color, ScenarioUtils, X, Y
 
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
@@ -25,11 +25,11 @@ class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.n_agents = kwargs.pop("n_agents", 2)
         self.rotatable_modules = kwargs.pop("rotatable_modules", False)
-        self.agent_mass = kwargs.pop("agent_mass", 5)
+        self.agent_mass = kwargs.pop("agent_mass", 10)
         self.observe_shared = kwargs.pop("observe_shared", True)
 
         self.pos_shaping_factor = kwargs.pop("pos_shaping_factor", 0)
-        self.rot_shaping_factor = kwargs.pop("rot_shaping_factor", 10)
+        self.rot_shaping_factor = kwargs.pop("rot_shaping_factor", 1)
 
         ScenarioUtils.check_kwargs_consumed(kwargs)
 
@@ -41,7 +41,7 @@ class Scenario(BaseScenario):
         self.goal_semidim = 2
         self.viewer_zoom = 1.5
         self.min_goal_dist = self.box_length
-        self.min_rot_dist = torch.pi / 8
+        self.min_rot_dist = 0.95
 
         # Make world
         world = World(
@@ -49,7 +49,7 @@ class Scenario(BaseScenario):
         )
 
         # Goal
-        goal = Landmark(name="goal", collide=False, color=Color.GREEN, shape=Box())
+        goal = Landmark(name="goal", collide=False, color=Color.GREEN)
         world.add_landmark(goal)
         self.goal = goal
 
@@ -102,6 +102,8 @@ class Scenario(BaseScenario):
             world.add_joint(joint)
 
         self.on_goal = torch.zeros(world.batch_dim, dtype=torch.bool, device=device)
+        self.on_rot = torch.zeros(world.batch_dim, dtype=torch.bool, device=device)
+
         return world
 
     def reset_world_at(self, env_index: int = None):
@@ -120,8 +122,8 @@ class Scenario(BaseScenario):
                 device=self.world.device,
                 dtype=torch.float32,
             ).uniform_(
-                -torch.pi / 2,
-                torch.pi / 2,
+                -torch.pi,
+                torch.pi,
             ),
             batch_index=env_index,
         )
@@ -180,7 +182,7 @@ class Scenario(BaseScenario):
                 )
                 * self.pos_shaping_factor
             )
-            self.rot_shaping = ((goal_rot * my_rot).sum(-1)) * self.rot_shaping_factor
+            self.rot_shaping = -((goal_rot * my_rot).sum(-1)) * self.rot_shaping_factor
         else:
             self.pos_shaping[env_index] = (
                 torch.linalg.vector_norm(
@@ -189,8 +191,9 @@ class Scenario(BaseScenario):
                 * self.pos_shaping_factor
             )
             self.rot_shaping[env_index] = (
-                (goal_rot[env_index] * my_rot[env_index]).sum(-1)
-            ) * self.rot_shaping_factor
+                -((goal_rot[env_index] * my_rot[env_index]).sum(-1))
+                * self.rot_shaping_factor
+            )
 
     def reward(self, agent: Agent):
         is_first = agent == self.world.agents[0]
@@ -205,14 +208,17 @@ class Scenario(BaseScenario):
             pos_shaping = goal_dist * self.pos_shaping_factor
 
             self.pos_rew = self.pos_shaping - pos_shaping
+            # self.pos_rew += self.on_goal.float() * self.pos_shaping_factor
             self.pos_shaping = pos_shaping
 
             my_rot = angle_to_vector(rot)
             goal_rot = angle_to_vector(self.goal.state.rot)
             rot_dist = (goal_rot * my_rot).sum(-1)
-            self.on_rot = rot_dist < self.min_rot_dist
-            rot_shaping = rot_dist * self.rot_shaping_factor
+            self.on_rot = rot_dist > self.min_rot_dist
+            rot_shaping = -rot_dist * self.rot_shaping_factor
+
             self.rot_rew = self.rot_shaping - rot_shaping
+            # self.rot_rew += self.on_rot.float() * self.rot_shaping_factor
             self.rot_shaping = rot_shaping
 
         return self.pos_rew + self.rot_rew
@@ -232,40 +238,58 @@ class Scenario(BaseScenario):
         # get positions of all entities in this agent's reference frame
         entity, pos, rot = self._get_central_entity()
         if not self.observe_shared:
-            pos = agent.state.pos
+            # pos = agent.state.pos
             rot = agent.state.rot
-        rot = torch.cat([torch.cos(rot), torch.sin(rot)], dim=-1)
-
+        rot = angle_to_vector(rot)
+        goal_rot = angle_to_vector(self.goal.state.rot)
         return torch.cat(
-            [
-                self.goal.state.pos - pos,
-                (angle_to_vector(self.goal.state.rot) * rot).sum(-1, keepdim=True),
-            ],
+            [(goal_rot * rot).sum(-1, keepdim=True), rot, goal_rot],
             dim=-1,
         )
 
     def done(self):
-        return self.on_goal
+        return self.on_rot
 
     def extra_render(self, env_index: int = 0) -> "List[Geom]":
         from vmas.simulator import rendering
 
         geoms = []
 
-        # Agent rotation
-        entity = self.agent_joints[0].landmark
-        color = entity.color
-        line = rendering.Line(
-            (0, 0),
-            (0.15, 0),
-            width=2,
-        )
-        xform = rendering.Transform()
-        xform.set_rotation(entity.state.rot[env_index] + torch.pi / 2)
-        xform.set_translation(*entity.state.pos[env_index])
-        line.add_attr(xform)
-        line.set_color(*color)
-        geoms.append(line)
+        # Agent indices
+        for i, entity in enumerate(self.world.agents):
+            line = rendering.TextLine(
+                text=str(i),
+                font_size=15,
+                x=(entity.state.pos[env_index, X] / (self.viewer_zoom**2))
+                * self.viewer_size[X]
+                / 2
+                + self.viewer_size[X] / 2,
+                y=(entity.state.pos[env_index, Y] / (self.viewer_zoom**2))
+                * self.viewer_size[Y]
+                / 2
+                + self.viewer_size[Y] / 2,
+            )
+            xform = rendering.Transform()
+            line.add_attr(xform)
+            geoms.append(line)
+
+        # Rotation
+        for entity in [self.agent_joints[0].landmark, self.goal]:
+            color = entity.color
+            line = rendering.Line(
+                (0, 0),
+                (0.15, 0),
+                width=2,
+            )
+            xform = rendering.Transform()
+            xform.set_rotation(
+                entity.state.rot[env_index]
+                + (torch.pi / 2 if entity is not self.goal else 0)
+            )
+            xform.set_translation(*entity.state.pos[env_index])
+            line.add_attr(xform)
+            line.set_color(*color)
+            geoms.append(line)
 
         return geoms
 
