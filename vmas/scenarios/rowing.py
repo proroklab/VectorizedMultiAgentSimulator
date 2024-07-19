@@ -25,8 +25,9 @@ class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.n_agents = kwargs.pop("n_agents", 2)
         self.rotatable_modules = kwargs.pop("rotatable_modules", False)
-        self.agent_mass = kwargs.pop("agent_mass", 10)
+        self.agent_mass = kwargs.pop("agent_mass", 5)
         self.observe_shared = kwargs.pop("observe_shared", True)
+        self.sparse_rewards = kwargs.pop("sparse_rewards", True)
 
         self.pos_shaping_factor = kwargs.pop("pos_shaping_factor", 0)
         self.rot_shaping_factor = kwargs.pop("rot_shaping_factor", 1)
@@ -45,7 +46,11 @@ class Scenario(BaseScenario):
 
         # Make world
         world = World(
-            batch_dim, device, substeps=10, torque_constraint_force=10, joint_force=300
+            batch_dim,
+            device,
+            substeps=25,
+            torque_constraint_force=100,
+            joint_force=1000,
         )
 
         # Goal
@@ -207,8 +212,10 @@ class Scenario(BaseScenario):
             self.on_goal = goal_dist < self.min_goal_dist
             pos_shaping = goal_dist * self.pos_shaping_factor
 
-            self.pos_rew = self.pos_shaping - pos_shaping
-            # self.pos_rew += self.on_goal.float() * self.pos_shaping_factor
+            if not self.sparse_rewards:
+                self.pos_rew = self.pos_shaping - pos_shaping
+            else:
+                self.pos_rew = self.on_goal.float() * self.pos_shaping_factor
             self.pos_shaping = pos_shaping
 
             my_rot = angle_to_vector(rot)
@@ -217,8 +224,10 @@ class Scenario(BaseScenario):
             self.on_rot = rot_dist > self.min_rot_dist
             rot_shaping = -rot_dist * self.rot_shaping_factor
 
-            self.rot_rew = self.rot_shaping - rot_shaping
-            # self.rot_rew += self.on_rot.float() * self.rot_shaping_factor
+            if not self.sparse_rewards:
+                self.rot_rew = self.rot_shaping - rot_shaping
+            else:
+                self.rot_rew = self.on_rot.float() * self.rot_shaping_factor
             self.rot_shaping = rot_shaping
 
         return self.pos_rew + self.rot_rew
