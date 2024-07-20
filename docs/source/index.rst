@@ -43,9 +43,15 @@ Forthcoming doc sections:
    usage/running
    usage/citing
 
+
 .. toctree::
    :maxdepth: 1
-   :caption: Concepts
+   :caption: Tutorials
+
+   generated/tutorials/index
+   generated/tutorials/environment/index
+   generated/tutorials/scenario/index
+   generated/tutorials/simulator/index
 
 
 .. toctree::
