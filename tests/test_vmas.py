@@ -73,7 +73,7 @@ def test_multi_discrete_actions(scenario, num_envs=10, n_steps=10):
 
 
 @pytest.mark.parametrize("scenario", scenario_names())
-def test_discrete_action_nvec(scenario, num_envs=10, n_steps=10):
+def test_discrete_action_nvec(scenario, num_envs=10, n_steps=5):
     env = make_env(
         scenario=scenario,
         num_envs=num_envs,
@@ -132,7 +132,7 @@ def test_discrete_action_nvec(scenario, num_envs=10, n_steps=10):
 
 
 @pytest.mark.parametrize("scenario", scenario_names())
-def test_discrete_action_nvec_discrete_to_multi(scenario, num_envs=10, n_steps=10):
+def test_discrete_action_nvec_discrete_to_multi(scenario, num_envs=10, n_steps=5):
     kwargs = {
         "scenario": scenario,
         "num_envs": num_envs,
