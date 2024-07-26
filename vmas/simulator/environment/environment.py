@@ -1,6 +1,7 @@
 #  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
+import math
 import random
 from ctypes import byref
 from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
@@ -334,13 +335,13 @@ class Environment(TorchVectorizedObject):
                 dtype=np.float32,
             )
         elif self.multidiscrete_actions:
-            actions = [3] * agent.action_size + (
+            actions = agent.discrete_action_nvec + (
                 [self.world.dim_c] if not agent.silent and self.world.dim_c != 0 else []
             )
             return spaces.MultiDiscrete(actions)
         else:
             return spaces.Discrete(
-                3**agent.action_size
+                math.prod(agent.discrete_action_nvec)
                 * (
                     self.world.dim_c
                     if not agent.silent and self.world.dim_c != 0
@@ -503,41 +504,49 @@ class Environment(TorchVectorizedObject):
             if not self.multidiscrete_actions:
                 # This bit of code translates the discrete action (taken from a space that
                 # is the cartesian product of all action spaces) into a multi discrete action.
-                # For example, if agent.action_size=4, it will mean that the agent will have
-                # 4 actions each with 3 possibilities (stay, decrement, increment).
-                # The env will have a space Discrete(3**4).
-                # This code will translate the action (with shape [n_envs,1] and range [0,3**4)) to an
-                # action with shape [n_envs,4] and range [0,3).
-                n_actions = self.get_agent_action_space(agent).n
-                action_range = torch.arange(n_actions, device=self.device).expand(
-                    self.world.batch_dim, n_actions
+                # This is done by iteratively taking the modulo of the action and dividing by the
+                # number of actions in the current action space, which treats the action as if
+                # it was the "flat index" of the multi-discrete actions. E.g. if we have
+                # nvec = [3,2], action 0 corresponds to the actions [0,0],
+                # action 1 corresponds to the action [0,1], action 2 corresponds
+                # to the action [1,0], action 3 corresponds to the action [1,1], etc.
+                flat_action = action.squeeze(-1)
+                actions = []
+                nvec = list(agent.discrete_action_nvec) + (
+                    [self.world.dim_c]
+                    if not agent.silent and self.world.dim_c != 0
+                    else []
                 )
-                physical_action = action
-                action_range = torch.where(action_range == physical_action, 1.0, 0.0)
-                action_range = action_range.view(
-                    (self.world.batch_dim,)
-                    + (3,) * agent.action_size
-                    + (self.world.dim_c,)
-                    * (1 if not agent.silent and self.world.dim_c != 0 else 0)
-                )
-                action = action_range.nonzero()[:, 1:]
+                for i in range(len(nvec)):
+                    n = math.prod(nvec[i + 1 :])
+                    actions.append(flat_action // n)
+                    flat_action = flat_action % n
+                action = torch.stack(actions, dim=-1)
 
             # Now we have an action with shape [n_envs, action_size+comms_actions]
-            for _ in range(agent.action_size):
-                physical_action = action[:, action_index].unsqueeze(-1)
+            for n in agent.discrete_action_nvec:
+                physical_action = action[:, action_index]
                 self._check_discrete_action(
-                    physical_action,
+                    physical_action.unsqueeze(-1),
                     low=0,
-                    high=3,
+                    high=n,
                     type="physical",
                 )
-
-                arr1 = physical_action == 1
-                arr2 = physical_action == 2
-
-                disc_action_value = agent.action.u_range_tensor[action_index]
-                agent.action.u[:, action_index] -= disc_action_value * arr1.squeeze(-1)
-                agent.action.u[:, action_index] += disc_action_value * arr2.squeeze(-1)
+                u_max = agent.action.u_range_tensor[action_index]
+                # For odd n we want the first action to always map to u=0, so
+                # we swap 0 values with the middle value, and shift the first
+                # half of the remaining values by -1.
+                if n % 2 != 0:
+                    stay = physical_action == 0
+                    decrement = (physical_action > 0) & (physical_action <= n // 2)
+                    physical_action[stay] = n // 2
+                    physical_action[decrement] -= 1
+                # We know u must be in [-u_max, u_max], and we know action is
+                # in [0, n-1]. Conversion steps: [0, n-1] -> [0, 1] -> [0, 2*u_max] -> [-u_max, u_max]
+                # E.g. action 0 -> -u_max, action n-1 -> u_max, action 1 -> -u_max + 2*u_max/(n-1)
+                agent.action.u[:, action_index] = (physical_action / (n - 1)) * (
+                    2 * u_max
+                ) - u_max
 
                 action_index += 1
 

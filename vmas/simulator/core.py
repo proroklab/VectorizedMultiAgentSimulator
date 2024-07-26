@@ -862,6 +862,9 @@ class Agent(Entity):
         render_action: bool = False,
         dynamics: Dynamics = None,  # Defaults to holonomic
         action_size: int = None,  # Defaults to what required by the dynamics
+        discrete_action_nvec: List[
+            int
+        ] = None,  # Defaults to 3-way discretization if discrete actions are chosen (stay, decrement, increment)
     ):
         super().__init__(
             name,
@@ -883,6 +886,17 @@ class Agent(Entity):
         )
         if obs_range == 0.0:
             assert sensors is None, f"Blind agent cannot have sensors, got {sensors}"
+
+        if action_size is not None and discrete_action_nvec is not None:
+            if action_size != len(discrete_action_nvec):
+                raise ValueError(
+                    f"action_size {action_size} is inconsistent with discrete_action_nvec {discrete_action_nvec}"
+                )
+        if discrete_action_nvec is not None:
+            if not all(n > 1 for n in discrete_action_nvec):
+                raise ValueError(
+                    f"All values in discrete_action_nvec must be greater than 1, got {discrete_action_nvec}"
+                )
 
         # cannot observe the world
         self._obs_range = obs_range
@@ -914,9 +928,16 @@ class Agent(Entity):
         # Dynamics
         self.dynamics = dynamics if dynamics is not None else Holonomic()
         # Action
-        self.action_size = (
-            action_size if action_size is not None else self.dynamics.needed_action_size
-        )
+        if action_size is not None:
+            self.action_size = action_size
+        elif discrete_action_nvec is not None:
+            self.action_size = len(discrete_action_nvec)
+        else:
+            self.action_size = self.dynamics.needed_action_size
+        if discrete_action_nvec is None:
+            self.discrete_action_nvec = [3] * self.action_size
+        else:
+            self.discrete_action_nvec = discrete_action_nvec
         self.dynamics.agent = self
         self._action = Action(
             u_range=u_range,
