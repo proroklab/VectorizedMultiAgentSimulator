@@ -76,6 +76,7 @@ class Scenario(BaseScenario):
         self.n_red_agents = kwargs.pop("n_red_agents", 3)
         self.ai_red_agents = kwargs.pop("ai_red_agents", True)
         self.ai_blue_agents = kwargs.pop("ai_blue_agents", False)
+        self.physically_different = kwargs.pop("physically_different", False)
 
         # Agent spawning
         self.spawn_in_formation = kwargs.pop("spawn_in_formation", False)
@@ -190,29 +191,36 @@ class Scenario(BaseScenario):
         )
 
         blue_agents = []
-        for i in range(self.n_blue_agents):
-            agent = Agent(
-                name=f"agent_blue_{i}",
-                shape=Sphere(radius=self.agent_size),
-                action_script=self.blue_controller.run if self.ai_blue_agents else None,
-                u_multiplier=[self.u_multiplier, self.u_multiplier]
-                if not self.enable_shooting
-                else [
-                    self.u_multiplier,
-                    self.u_multiplier,
-                    self.u_rot_multiplier,
-                    self.u_shoot_multiplier,
-                ],
-                max_speed=self.max_speed,
-                dynamics=Holonomic()
-                if not self.enable_shooting
-                else HolonomicWithRotation(),
-                action_size=2 if not self.enable_shooting else 4,
-                color=(0.22, 0.49, 0.72),
-                alpha=1,
-            )
-            world.add_agent(agent)
-            blue_agents.append(agent)
+        if self.physically_different:
+            blue_agents = self.get_physically_different_agents()
+            for agent in blue_agents:
+                world.add_agent(agent)
+        else:
+            for i in range(self.n_blue_agents):
+                agent = Agent(
+                    name=f"agent_blue_{i}",
+                    shape=Sphere(radius=self.agent_size),
+                    action_script=self.blue_controller.run
+                    if self.ai_blue_agents
+                    else None,
+                    u_multiplier=[self.u_multiplier, self.u_multiplier]
+                    if not self.enable_shooting
+                    else [
+                        self.u_multiplier,
+                        self.u_multiplier,
+                        self.u_rot_multiplier,
+                        self.u_shoot_multiplier,
+                    ],
+                    max_speed=self.max_speed,
+                    dynamics=Holonomic()
+                    if not self.enable_shooting
+                    else HolonomicWithRotation(),
+                    action_size=2 if not self.enable_shooting else 4,
+                    color=(0.22, 0.49, 0.72),
+                    alpha=1,
+                )
+                world.add_agent(agent)
+                blue_agents.append(agent)
         self.blue_agents = blue_agents
         world.blue_agents = blue_agents
 
@@ -254,6 +262,90 @@ class Scenario(BaseScenario):
                 world.batch_dim, 2, device=agent.device, dtype=torch.float32
             )
 
+    def get_physically_different_agents(self):
+        assert self.n_blue_agents == 5, "Physical differences only for 5 agents"
+
+        def attacker(i):
+            attacker_multiplier_increase = 0.1
+            attacker_speed_increase = 0.05
+            return Agent(
+                name=f"agent_blue_{i}",
+                shape=Sphere(radius=self.agent_size),
+                action_script=self.blue_controller.run if self.ai_blue_agents else None,
+                u_multiplier=[
+                    self.u_multiplier + attacker_multiplier_increase,
+                    self.u_multiplier + attacker_multiplier_increase,
+                ]
+                if not self.enable_shooting
+                else [
+                    self.u_multiplier + attacker_multiplier_increase,
+                    self.u_multiplier + attacker_multiplier_increase,
+                    self.u_rot_multiplier,
+                    self.u_shoot_multiplier,
+                ],
+                max_speed=self.max_speed + attacker_speed_increase,
+                dynamics=Holonomic()
+                if not self.enable_shooting
+                else HolonomicWithRotation(),
+                action_size=2 if not self.enable_shooting else 4,
+                color=(0.22, 0.49, 0.72),
+                alpha=1,
+            )
+
+        def defender(i):
+            defender_radius_increase = 0.005
+            return Agent(
+                name=f"agent_blue_{i}",
+                shape=Sphere(radius=self.agent_size + defender_radius_increase),
+                action_script=self.blue_controller.run if self.ai_blue_agents else None,
+                u_multiplier=[self.u_multiplier, self.u_multiplier]
+                if not self.enable_shooting
+                else [
+                    self.u_multiplier,
+                    self.u_multiplier,
+                    self.u_rot_multiplier,
+                    self.u_shoot_multiplier,
+                ],
+                max_speed=self.max_speed,
+                dynamics=Holonomic()
+                if not self.enable_shooting
+                else HolonomicWithRotation(),
+                action_size=2 if not self.enable_shooting else 4,
+                color=(0.22, 0.49, 0.72),
+                alpha=1,
+            )
+
+        def goal_keeper(i):
+            goalie_radius_increase = 0.01
+            goalie_speed_decrease = -0.1
+            goalie_multiplier_decrease = -0.05
+            return Agent(
+                name=f"agent_blue_{i}",
+                shape=Sphere(radius=self.agent_size + goalie_radius_increase),
+                action_script=self.blue_controller.run if self.ai_blue_agents else None,
+                u_multiplier=[
+                    self.u_multiplier + goalie_multiplier_decrease,
+                    self.u_multiplier + goalie_multiplier_decrease,
+                ]
+                if not self.enable_shooting
+                else [
+                    self.u_multiplier + goalie_multiplier_decrease,
+                    self.u_multiplier + goalie_multiplier_decrease,
+                    self.u_rot_multiplier,
+                    self.u_shoot_multiplier,
+                ],
+                max_speed=self.max_speed + goalie_speed_decrease,
+                dynamics=Holonomic()
+                if not self.enable_shooting
+                else HolonomicWithRotation(),
+                action_size=2 if not self.enable_shooting else 4,
+                color=(0.22, 0.49, 0.72),
+                alpha=1,
+            )
+
+        agents = [attacker(0), attacker(1), defender(2), defender(3), goal_keeper(4)]
+        return agents
+
     def reset_agents(self, env_index: int = None):
 
         if self.spawn_in_formation:
@@ -281,7 +373,7 @@ class Scenario(BaseScenario):
 
     def _spawn_formation(self, agents, blue, env_index):
         agent_index = 0
-        endpoint = -self.pitch_length / 2 * (1 if blue else -1)
+        endpoint = -(self.pitch_length / 2 + self.goal_depth) * (1 if blue else -1)
         for x in torch.linspace(
             0, endpoint, len(agents) // self.formation_agents_per_column + 3
         ):
@@ -2181,9 +2273,9 @@ if __name__ == "__main__":
     render_interactively(
         __file__,
         control_two_agents=False,
-        n_blue_agents=3,
-        n_red_agents=3,
-        ai_blue_agents=True,
+        n_blue_agents=5,
+        n_red_agents=0,
+        ai_blue_agents=False,
         ai_red_agents=True,
         dense_reward=True,
         ai_strength=(1.0, 1.0),
