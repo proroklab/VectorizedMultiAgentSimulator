@@ -66,6 +66,7 @@ class Scenario(BaseScenario):
                 dynamics=Forward(),
                 rotatable=True,
                 collide=False,
+                u_multiplier=0.8,
                 mass=self.agent_mass,
             )
             world.add_agent(agent)
