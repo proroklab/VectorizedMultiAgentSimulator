@@ -76,12 +76,13 @@ class Scenario(BaseScenario):
         self.n_red_agents = kwargs.pop("n_red_agents", 3)
         self.ai_red_agents = kwargs.pop("ai_red_agents", True)
         self.ai_blue_agents = kwargs.pop("ai_blue_agents", False)
-        self.physically_different = kwargs.pop("physically_different", False)
+        self.physically_different = kwargs.pop("physically_different", True)
 
         # Agent spawning
-        self.spawn_in_formation = kwargs.pop("spawn_in_formation", False)
+        self.spawn_in_formation = kwargs.pop("spawn_in_formation", True)
+        self.only_blue_formation = kwargs.pop("only_blue_formation", True)
         self.formation_agents_per_column = kwargs.pop("formation_agents_per_column", 2)
-        self.formation_noise = kwargs.pop("formation_noise", 0.1)
+        self.formation_noise = kwargs.pop("formation_noise", 0.2)
 
         # Ai config
         self.n_traj_points = kwargs.pop("n_traj_points", 0)
@@ -350,7 +351,8 @@ class Scenario(BaseScenario):
 
         if self.spawn_in_formation:
             self._spawn_formation(self.blue_agents, True, env_index)
-            self._spawn_formation(self.red_agents, False, env_index)
+            if not self.only_blue_formation:
+                self._spawn_formation(self.red_agents, False, env_index)
         else:
             for agent in self.blue_agents:
                 pos = self._get_random_spawn_position(blue=True, env_index=env_index)
@@ -358,6 +360,9 @@ class Scenario(BaseScenario):
                     pos,
                     batch_index=env_index,
                 )
+        if (
+            self.spawn_in_formation and self.only_blue_formation
+        ) or not self.spawn_in_formation:
             for agent in self.red_agents:
                 pos = self._get_random_spawn_position(blue=False, env_index=env_index)
                 agent.set_pos(
@@ -393,15 +398,23 @@ class Scenario(BaseScenario):
             ):
                 if y == -self.pitch_width / 2 or y == self.pitch_width / 2:
                     continue
+                pos = torch.tensor(
+                    [x, y], device=self.world.device, dtype=torch.float32
+                )
+                if env_index is None:
+                    pos = pos.expand(self.world.batch_dim, self.world.dim_p)
                 agents[agent_index].set_pos(
-                    torch.tensor([x, y], device=self.world.device, dtype=torch.float32)
-                    + torch.rand(
-                        (
-                            (self.world.dim_p,)
-                            if env_index is not None
-                            else (self.world.batch_dim, self.world.dim_p)
-                        ),
-                        device=self.world.device,
+                    pos
+                    + (
+                        torch.rand(
+                            (
+                                (self.world.dim_p,)
+                                if env_index is not None
+                                else (self.world.batch_dim, self.world.dim_p)
+                            ),
+                            device=self.world.device,
+                        )
+                        - 0.5
                     )
                     * self.formation_noise,
                     batch_index=env_index,
