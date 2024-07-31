@@ -267,11 +267,13 @@ class Scenario(BaseScenario):
         assert self.n_blue_agents == 5, "Physical differences only for 5 agents"
 
         def attacker(i):
+            attacker_shoot_multiplier_decrease = -0.2
             attacker_multiplier_increase = 0.1
             attacker_speed_increase = 0.05
+            attacker_radius_decrease = -0.005
             return Agent(
                 name=f"agent_blue_{i}",
-                shape=Sphere(radius=self.agent_size),
+                shape=Sphere(radius=self.agent_size + attacker_radius_decrease),
                 action_script=self.blue_controller.run if self.ai_blue_agents else None,
                 u_multiplier=[
                     self.u_multiplier + attacker_multiplier_increase,
@@ -282,7 +284,7 @@ class Scenario(BaseScenario):
                     self.u_multiplier + attacker_multiplier_increase,
                     self.u_multiplier + attacker_multiplier_increase,
                     self.u_rot_multiplier,
-                    self.u_shoot_multiplier,
+                    self.u_shoot_multiplier + attacker_shoot_multiplier_decrease,
                 ],
                 max_speed=self.max_speed + attacker_speed_increase,
                 dynamics=Holonomic()
@@ -294,10 +296,10 @@ class Scenario(BaseScenario):
             )
 
         def defender(i):
-            defender_radius_increase = 0.005
+
             return Agent(
                 name=f"agent_blue_{i}",
-                shape=Sphere(radius=self.agent_size + defender_radius_increase),
+                shape=Sphere(radius=self.agent_size),
                 action_script=self.blue_controller.run if self.ai_blue_agents else None,
                 u_multiplier=[self.u_multiplier, self.u_multiplier]
                 if not self.enable_shooting
@@ -317,6 +319,7 @@ class Scenario(BaseScenario):
             )
 
         def goal_keeper(i):
+            goalie_shoot_multiplier_increase = 0.2
             goalie_radius_increase = 0.01
             goalie_speed_decrease = -0.1
             goalie_multiplier_decrease = -0.05
@@ -332,7 +335,7 @@ class Scenario(BaseScenario):
                 else [
                     self.u_multiplier + goalie_multiplier_decrease,
                     self.u_multiplier + goalie_multiplier_decrease,
-                    self.u_rot_multiplier,
+                    self.u_rot_multiplier + goalie_shoot_multiplier_increase,
                     self.u_shoot_multiplier,
                 ],
                 max_speed=self.max_speed + goalie_speed_decrease,
