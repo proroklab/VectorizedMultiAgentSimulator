@@ -3,6 +3,7 @@
 #  All rights reserved.
 import importlib
 import os
+import typing
 import warnings
 from abc import ABC, abstractmethod
 from enum import Enum
@@ -11,6 +12,9 @@ from typing import Dict, List, Sequence, Tuple, Union
 import numpy as np
 import torch
 from torch import Tensor
+
+if typing.TYPE_CHECKING:
+    from vmas.simulator.rendering import Geom
 
 _has_matplotlib = importlib.util.find_spec("matplotlib") is not None
 
@@ -310,3 +314,49 @@ class ScenarioUtils:
                 )
             else:
                 raise ValueError(message)
+
+    @staticmethod
+    def render_agent_indices(scenario, env_index: int) -> "List[Geom]":
+        from vmas.simulator import rendering
+
+        aspect_r = scenario.viewer_size[X] / scenario.viewer_size[Y]
+        if aspect_r > 1:
+            dimensional_ratio = (aspect_r, 1)
+        else:
+            dimensional_ratio = (1, 1 / aspect_r)
+
+        geoms = []
+        for i, entity in enumerate(scenario.world.agents):
+            line = rendering.TextLine(
+                text=str(i),
+                font_size=15,
+                x=(
+                    (entity.state.pos[env_index, X] * scenario.viewer_size[X])
+                    / (scenario.viewer_zoom**2 * dimensional_ratio[X] * 2)
+                    + scenario.viewer_size[X] / 2
+                ),
+                y=(
+                    (entity.state.pos[env_index, Y] * scenario.viewer_size[Y])
+                    / (scenario.viewer_zoom**2 * dimensional_ratio[Y] * 2)
+                    + scenario.viewer_size[Y] / 2
+                ),
+            )
+            geoms.append(line)
+        return geoms
+
+    @staticmethod
+    def plot_entity_rotation(entity, env_index: int, length: float = 0.15) -> "Geom":
+        from vmas.simulator import rendering
+
+        color = entity.color
+        line = rendering.Line(
+            (0, 0),
+            (length, 0),
+            width=2,
+        )
+        xform = rendering.Transform()
+        xform.set_rotation(entity.state.rot[env_index])
+        xform.set_translation(*entity.state.pos[env_index])
+        line.add_attr(xform)
+        line.set_color(*color)
+        return line

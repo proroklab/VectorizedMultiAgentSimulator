@@ -1430,6 +1430,8 @@ class Scenario(BaseScenario):
             else self._get_background_geoms(self.background_entities[3:])
         )
 
+        geoms += ScenarioUtils.render_agent_indices(self, env_index)
+
         # Agent rotation and shooting
         if self.enable_shooting:
             for agent in self.blue_agents:
