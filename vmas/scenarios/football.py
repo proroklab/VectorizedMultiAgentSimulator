@@ -1430,7 +1430,9 @@ class Scenario(BaseScenario):
             else self._get_background_geoms(self.background_entities[3:])
         )
 
-        geoms += ScenarioUtils.render_agent_indices(self, env_index)
+        geoms += ScenarioUtils.render_agent_indices(
+            self, env_index, start_from=1, exclude=self.red_agents + [self.ball]
+        )
 
         # Agent rotation and shooting
         if self.enable_shooting:
@@ -2292,7 +2294,7 @@ if __name__ == "__main__":
         __file__,
         control_two_agents=False,
         n_blue_agents=5,
-        n_red_agents=0,
+        n_red_agents=5,
         ai_blue_agents=False,
         ai_red_agents=True,
         dense_reward=True,

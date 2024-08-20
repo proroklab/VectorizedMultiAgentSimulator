@@ -316,7 +316,9 @@ class ScenarioUtils:
                 raise ValueError(message)
 
     @staticmethod
-    def render_agent_indices(scenario, env_index: int) -> "List[Geom]":
+    def render_agent_indices(
+        scenario, env_index: int, start_from: int = 0, exclude: List = None
+    ) -> "List[Geom]":
         from vmas.simulator import rendering
 
         aspect_r = scenario.viewer_size[X] / scenario.viewer_size[Y]
@@ -327,6 +329,9 @@ class ScenarioUtils:
 
         geoms = []
         for i, entity in enumerate(scenario.world.agents):
+            if exclude is not None and entity in exclude:
+                continue
+            i = i + start_from
             line = rendering.TextLine(
                 text=str(i),
                 font_size=15,
