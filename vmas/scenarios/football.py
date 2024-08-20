@@ -5,6 +5,7 @@
 import typing
 from typing import List
 
+import numpy as np
 import torch
 from torch import Tensor
 
@@ -13,7 +14,14 @@ from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
 from vmas.simulator.dynamics.holonomic import Holonomic
 from vmas.simulator.dynamics.holonomic_with_rot import HolonomicWithRotation
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, ScenarioUtils, TorchUtils, X, Y
+from vmas.simulator.utils import (
+    Color,
+    ScenarioUtils,
+    TorchUtils,
+    X,
+    x_to_rgb_colormap,
+    Y,
+)
 
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
@@ -156,6 +164,7 @@ class Scenario(BaseScenario):
         return world
 
     def init_agents(self, world):
+        self.blue_color = (0.22, 0.49, 0.72)
         # Add agents
         self.red_controller = (
             AgentPolicy(
@@ -217,7 +226,7 @@ class Scenario(BaseScenario):
                     if not self.enable_shooting
                     else HolonomicWithRotation(),
                     action_size=2 if not self.enable_shooting else 4,
-                    color=(0.22, 0.49, 0.72),
+                    color=self.blue_color,
                     alpha=1,
                 )
                 world.add_agent(agent)
@@ -291,7 +300,7 @@ class Scenario(BaseScenario):
                 if not self.enable_shooting
                 else HolonomicWithRotation(),
                 action_size=2 if not self.enable_shooting else 4,
-                color=(0.22, 0.49, 0.72),
+                color=self.blue_color,
                 alpha=1,
             )
 
@@ -314,7 +323,7 @@ class Scenario(BaseScenario):
                 if not self.enable_shooting
                 else HolonomicWithRotation(),
                 action_size=2 if not self.enable_shooting else 4,
-                color=(0.22, 0.49, 0.72),
+                color=self.blue_color,
                 alpha=1,
             )
 
@@ -343,7 +352,7 @@ class Scenario(BaseScenario):
                 if not self.enable_shooting
                 else HolonomicWithRotation(),
                 action_size=2 if not self.enable_shooting else 4,
-                color=(0.22, 0.49, 0.72),
+                color=self.blue_color,
                 alpha=1,
             )
 
@@ -1484,7 +1493,7 @@ class Scenario(BaseScenario):
                 xform = rendering.Transform()
                 xform.set_translation(*agent.state.pos[env_index])
                 circle.add_attr(xform)
-                circle.set_color(*agent.color, alpha=0.2)
+                circle.set_color(*self.blue_color, alpha=0.2)
                 geoms.append(circle)
 
                 other_actions = self.alternative_actions[agent]
@@ -1497,8 +1506,17 @@ class Scenario(BaseScenario):
                         width=2,
                     )
                     if is_agent:
-                        line.set_color(*agent.color)
+                        line.set_color(*self.blue_color)
                     geoms.append(line)
+
+        if hasattr(self, "agent_behavioral_distances"):
+            colors = x_to_rgb_colormap(
+                np.array(list(self.agent_behavioral_distances.values())),
+                low=0,
+                high=self.max_distance if hasattr(self, "max_distance") else 1,
+            )[:, :-1]
+            for i, agent in enumerate(self.blue_agents):
+                agent.color = colors[i]
 
         if hasattr(self, "edge_radius") and self.ai_red_agents:
             # Communication lines
