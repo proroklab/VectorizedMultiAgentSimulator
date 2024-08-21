@@ -24,8 +24,8 @@ def angle_to_vector(angle):
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.n_agents = kwargs.pop("n_agents", 2)
-        self.agent_mass = kwargs.pop("agent_mass", 50)
-        self.sparse_rewards = kwargs.pop("sparse_rewards", False)
+        self.agent_mass = kwargs.pop("agent_mass", 200)
+        self.sparse_rewards = kwargs.pop("sparse_rewards", True)
 
         self.pos_shaping_factor = kwargs.pop("pos_shaping_factor", 0)
         self.rot_shaping_factor = kwargs.pop("rot_shaping_factor", 1)
@@ -36,6 +36,7 @@ class Scenario(BaseScenario):
 
         self.viewer_zoom = 1.5
         self.radius = 0.1
+        self.u_range = 1
 
         self.min_rot_dist = 0.95
 
@@ -60,6 +61,7 @@ class Scenario(BaseScenario):
                 dynamics=Static(),
                 collide=False,
                 action_size=1,
+                u_range=self.u_range,
             )
             world.add_agent(agent)
 
@@ -107,6 +109,18 @@ class Scenario(BaseScenario):
             batch_index=env_index,
         )
 
+        self.central_entity.set_rot(
+            torch.zeros(
+                (1, 1) if env_index is not None else (self.world.batch_dim, 1),
+                device=self.world.device,
+                dtype=torch.float32,
+            ).uniform_(
+                -torch.pi,
+                torch.pi,
+            ),
+            batch_index=env_index,
+        )
+
         _, pos, rot = self._get_central_entity()
 
         my_rot = angle_to_vector(rot)
@@ -135,23 +149,35 @@ class Scenario(BaseScenario):
 
     def reward(self, agent: Agent):
         is_first = agent == self.world.agents[0]
+        is_last = self.world.agents.index(agent) == self.n_agents - 1
 
         if is_first:
             _, pos, rot = self._get_central_entity()
-            #
-            # my_rot = angle_to_vector(rot)
-            # goal_rot = angle_to_vector(self.goal.state.rot)
-            # rot_dist = (goal_rot * my_rot).sum(-1)
-            # self.on_rot = rot_dist > self.min_rot_dist
-            # rot_shaping = -rot_dist * self.rot_shaping_factor
-            #
-            # if not self.sparse_rewards:
-            #     self.rot_rew = self.rot_shaping - rot_shaping
-            # else:
-            #     self.rot_rew = self.on_rot.float() * self.rot_shaping_factor
-            # self.rot_shaping = rot_shaping
 
-            self.rot_rew = rot * torch.sign(self.goal.state.rot)
+            my_rot = angle_to_vector(rot)
+            goal_rot = angle_to_vector(self.goal.state.rot)
+            rot_dist = (goal_rot * my_rot).sum(-1)
+            self.on_rot = rot_dist > self.min_rot_dist
+            rot_shaping = -rot_dist * self.rot_shaping_factor
+
+            if not self.sparse_rewards:
+                self.rot_rew = self.rot_shaping - rot_shaping
+            else:
+                self.rot_rew = self.on_rot.float() * self.rot_shaping_factor
+            self.rot_shaping = rot_shaping
+        if is_last:
+            self.goal.state.rot = torch.where(
+                self.on_rot.unsqueeze(-1),
+                torch.zeros(
+                    (self.world.batch_dim, 1),
+                    device=self.world.device,
+                    dtype=torch.float32,
+                ).uniform_(
+                    -torch.pi,
+                    torch.pi,
+                ),
+                self.goal.state.rot,
+            )
 
         return self.rot_rew
 
@@ -164,17 +190,16 @@ class Scenario(BaseScenario):
 
     def observation(self, agent: Agent):
         # get positions of all entities in this agent's reference frame
-        # entity, pos, rot = self._get_central_entity()
-        # rot = angle_to_vector(rot)
-        # goal_rot = angle_to_vector(self.goal.state.rot)
-        # return torch.cat(
-        #     [(goal_rot * rot).sum(-1, keepdim=True), rot, goal_rot],
-        #     dim=-1,
-        # )
-        return torch.sign(self.goal.state.rot)
+        entity, pos, rot = self._get_central_entity()
+        rot = angle_to_vector(rot)
+        goal_rot = angle_to_vector(self.goal.state.rot)
+        return torch.cat(
+            [(goal_rot * rot).sum(-1, keepdim=True), rot, goal_rot],
+            dim=-1,
+        )
 
-    def done(self):
-        return self.on_rot
+    # def done(self):
+    #     return self.on_rot
 
     def extra_render(self, env_index: int = 0) -> "List[Geom]":
         from vmas.simulator import rendering
