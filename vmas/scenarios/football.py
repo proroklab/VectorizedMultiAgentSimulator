@@ -1513,7 +1513,7 @@ class Scenario(BaseScenario):
             colors = x_to_rgb_colormap(
                 np.array(list(self.agent_behavioral_distances.values())),
                 low=0,
-                high=self.max_distance if hasattr(self, "max_distance") else 1,
+                high=1,
             )[:, :-1]
             for i, agent in enumerate(self.blue_agents):
                 agent.color = colors[i]
