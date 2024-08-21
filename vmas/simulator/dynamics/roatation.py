@@ -11,4 +11,4 @@ class Rotation(Dynamics):
         return 1
 
     def process_action(self):
-        self.agent.state.torque = self.agent.action.u[:, 0]
+        self.agent.state.torque = self.agent.action.u[:, 0].unsqueeze(-1)
