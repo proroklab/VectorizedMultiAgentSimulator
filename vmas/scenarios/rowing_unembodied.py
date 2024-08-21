@@ -24,7 +24,7 @@ def angle_to_vector(angle):
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.n_agents = kwargs.pop("n_agents", 2)
-        self.agent_mass = kwargs.pop("agent_mass", 200)
+        self.agent_mass = kwargs.pop("agent_mass", 100)
         self.sparse_rewards = kwargs.pop("sparse_rewards", True)
 
         self.pos_shaping_factor = kwargs.pop("pos_shaping_factor", 0)
@@ -76,7 +76,7 @@ class Scenario(BaseScenario):
             dynamics=Rotation(),
             color=Color.BLACK,
             action_script=entity_script,
-            mass=self.agent_mass * self.n_agents,
+            mass=self.agent_mass,
         )
         world.add_agent(self.central_entity)
 
@@ -144,7 +144,11 @@ class Scenario(BaseScenario):
             self.central_entity.action.u = self.central_entity.torque
         else:
             self.central_entity.torque += (
-                self.radius * agent.action.u * (1 if agent in self.left_agents else -1)
+                self.radius
+                * agent.action.u
+                * 2
+                / self.n_agents
+                * (1 if agent in self.left_agents else -1)
             )
 
     def reward(self, agent: Agent):
