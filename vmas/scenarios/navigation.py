@@ -24,8 +24,8 @@ class Scenario(BaseScenario):
         self.n_agents = kwargs.pop("n_agents", 4)
         self.collisions = kwargs.pop("collisions", True)
 
-        self.x_semidim = kwargs.pop('x_semidim', None)
-        self.y_semidim = kwargs.pop('y_semidim', None)
+        self.x_semidim = kwargs.pop("x_semidim", None)
+        self.y_semidim = kwargs.pop("y_semidim", None)
 
         self.agents_with_same_goal = kwargs.pop("agents_with_same_goal", 1)
         self.split_goals = kwargs.pop("split_goals", False)
@@ -61,7 +61,13 @@ class Scenario(BaseScenario):
             ), "Splitting the goals is allowed when the agents are even and half the team has the same goal"
 
         # Make world
-        world = World(batch_dim, device, substeps=2, x_semidim=self.x_semidim, y_semidim=self.y_semidim)
+        world = World(
+            batch_dim,
+            device,
+            substeps=2,
+            x_semidim=self.x_semidim,
+            y_semidim=self.y_semidim,
+        )
 
         known_colors = [
             (0.22, 0.49, 0.72),
