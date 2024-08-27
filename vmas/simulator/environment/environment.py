@@ -740,6 +740,51 @@ class Environment(TorchVectorizedObject):
                 pos[Y] + cam_range[Y],
             )
 
+        # Include boundaries in the rendering
+        from vmas.simulator import rendering
+        from vmas.simulator.rendering import Line
+        from vmas.simulator.utils import Color
+
+        # Check if the world dimensions are defined
+        if self.world.x_semidim is not None and self.world.y_semidim is not None:
+            # Get the radius of the agents
+            radius = self.agents[0].shape.radius
+
+            # Get the origin coordinates and dimensions for rendering
+            origin_x, origin_y = (
+                self.scenario.render_origin[X],
+                self.scenario.render_origin[Y],
+            )
+            # Extend the dimensions to account for the agent's radius
+            x_semi, y_semi = (
+                self.world.x_semidim + radius,
+                self.world.y_semidim + radius,
+            )
+
+            # Define the corner points of the boundary
+            corners = [
+                (origin_x - x_semi, origin_y + y_semi),  # top_left
+                (origin_x + x_semi, origin_y + y_semi),  # top_right
+                (origin_x + x_semi, origin_y - y_semi),  # bottom_right
+                (origin_x - x_semi, origin_y - y_semi),  # bottom_left
+            ]
+
+            # Set the color for the boundary lines
+            color = Color.BLACK.value
+            # Initialize a transformation (if needed for rendering)
+            xform = rendering.Transform()
+
+            # Create lines to form the boundary by connecting each corner to the next
+            for i in range(len(corners)):
+                start = corners[i]  # Current corner point
+                end = corners[
+                    (i + 1) % len(corners)
+                ]  # Next corner point, wraps around to the first point
+                line = Line(start, end, width=1)  # Create a line between two corners
+                line.add_attr(xform)  # Apply transformation to the line
+                line.set_color(*color)  # Set the line color
+                self.viewer.add_geom(line)  # Add the line to the viewer for rendering
+
         # Render
         self._set_agent_comm_messages(env_index)
 
