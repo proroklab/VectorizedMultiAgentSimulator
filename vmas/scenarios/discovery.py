@@ -23,6 +23,8 @@ class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.n_agents = kwargs.pop("n_agents", 5)
         self.n_targets = kwargs.pop("n_targets", 7)
+        self.x_semidim = kwargs.pop("x_semidim", 1)
+        self.y_semidim = kwargs.pop("y_semidim", 1)
         self._min_dist_between_entities = kwargs.pop("min_dist_between_entities", 0.2)
         self._lidar_range = kwargs.pop("lidar_range", 0.35)
         self._covering_range = kwargs.pop("covering_range", 0.25)
@@ -47,8 +49,8 @@ class Scenario(BaseScenario):
         world = World(
             batch_dim,
             device,
-            x_semidim=1,
-            y_semidim=1,
+            x_semidim=self.x_semidim,
+            y_semidim=self.y_semidim,
             collision_force=500,
             substeps=2,
             drag=0.25,
