@@ -24,8 +24,9 @@ class TestDiscovery:
         self.env.seed(0)
 
     @pytest.mark.parametrize("n_agents", [1, 4])
-    def test_heuristic(self, n_agents, n_steps=50, n_envs=4):
-        self.setup_env(n_agents=n_agents, n_envs=n_envs)
+    @pytest.mark.parametrize("agent_lidar", [True, False])
+    def test_heuristic(self, n_agents, agent_lidar, n_steps=50, n_envs=4):
+        self.setup_env(n_agents=n_agents, n_envs=n_envs, use_agent_lidar=agent_lidar)
         policy = discovery.HeuristicPolicy(True)
 
         obs = self.env.reset()
