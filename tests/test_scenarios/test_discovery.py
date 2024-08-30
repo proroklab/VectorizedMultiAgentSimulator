@@ -43,4 +43,3 @@ class TestDiscovery:
                 actions.append(action_agent)
 
             obs, new_rews, dones, _ = self.env.step(actions)
-            self.env.render()
