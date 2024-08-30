@@ -329,7 +329,7 @@ class HeuristicPolicy(BaseHeuristicPolicy):
         des_pos_target = current_pos + target_vec * 0.1
         des_pos[target_visible] = des_pos_target[target_visible]
 
-        if len(observation) > 19:
+        if observation.shape[-1] > 19:
             # Move away from other agents within visibility range
             lidar_agents = observation[:, 19:31]
             agent_visible = torch.any(lidar_agents < 0.15, dim=1)
