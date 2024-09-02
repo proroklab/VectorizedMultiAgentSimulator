@@ -26,13 +26,13 @@ class Scenario(BaseScenario):
 
         self.world_spawning_x = kwargs.pop(
             "world_spawning_x", 1
-        )  # X-coordinate limit for entity spawning
+        )  # X-coordinate limit for entities spawning
         self.world_spawning_y = kwargs.pop(
             "world_spawning_y", 1
-        )  # Y-coordinate limit for entity spawning
+        )  # Y-coordinate limit for entities spawning
         self.enforce_bounds = kwargs.pop(
             "enforce_bounds", False
-        )  # Unlimited world is False, else constrained based on world_spawning_x and world_spawning_y
+        )  # If False, the world is unlimited; else, constrained by world_spawning_x and world_spawning_y.
 
         self.agents_with_same_goal = kwargs.pop("agents_with_same_goal", 1)
         self.split_goals = kwargs.pop("split_goals", False)
