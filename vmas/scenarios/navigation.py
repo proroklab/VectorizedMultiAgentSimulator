@@ -29,10 +29,6 @@ class Scenario(BaseScenario):
         self.enforce_bounds = kwargs.pop("enforce_bounds", False)
 
         if self.enforce_bounds:
-            if self.world_spawning_x is None or self.world_spawning_y is None:
-                raise ValueError(
-                    "enforce_bounds is True, but one or both world_spawning variables are None."
-                )
             self.x_semidim = self.world_spawning_x
             self.y_semidim = self.world_spawning_y
         else:
