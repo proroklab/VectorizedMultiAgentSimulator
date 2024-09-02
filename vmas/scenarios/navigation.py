@@ -307,26 +307,6 @@ class Scenario(BaseScenario):
 
         return geoms
 
-    def set_spawning_bounds(self):
-        # Check for missing x_semidim or y_semidim when enforce_bounds is True
-        if self.enforce_bounds:
-            if self.x_semidim is None:
-                raise Warning(
-                    "enforce_bounds is active but x_semidim is None, spawning x-coordinates will default to -1 and 1."
-                )
-            if self.y_semidim is None:
-                raise Warning(
-                    "enforce_bounds is active but y_semidim is None, spawning y-coordinates will default to -1 and 1."
-                )
-
-        # Set world spawning boundaries
-        self.world_spawning_x = (
-            self.x_semidim if self.enforce_bounds and self.x_semidim is not None else 1
-        )
-        self.world_spawning_y = (
-            self.y_semidim if self.enforce_bounds and self.y_semidim is not None else 1
-        )
-
 
 class HeuristicPolicy(BaseHeuristicPolicy):
     def __init__(self, clf_epsilon=0.2, clf_slack=100.0, *args, **kwargs):
