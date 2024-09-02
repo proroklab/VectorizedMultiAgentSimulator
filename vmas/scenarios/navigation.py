@@ -49,15 +49,15 @@ class Scenario(BaseScenario):
         self.agent_collision_penalty = kwargs.pop("agent_collision_penalty", -1)
         ScenarioUtils.check_kwargs_consumed(kwargs)
 
+        self.min_distance_between_entities = self.agent_radius * 2 + 0.05
+        self.min_collision_distance = 0.005
+
         if self.enforce_bounds:
             self.x_semidim = self.world_spawning_x
             self.y_semidim = self.world_spawning_y
         else:
             self.x_semidim = None
             self.y_semidim = None
-
-        self.min_distance_between_entities = self.agent_radius * 2 + 0.05
-        self.min_collision_distance = 0.005
 
         assert 1 <= self.agents_with_same_goal <= self.n_agents
         if self.agents_with_same_goal > 1:
@@ -308,26 +308,6 @@ class Scenario(BaseScenario):
                     geoms.append(line)
 
         return geoms
-
-    def set_spawning_bounds(self):
-        # Check for missing x_semidim or y_semidim when enforce_bounds is True
-        if self.enforce_bounds:
-            if self.x_semidim is None:
-                raise Warning(
-                    "enforce_bounds is active but x_semidim is None, spawning x-coordinates will default to -1 and 1."
-                )
-            if self.y_semidim is None:
-                raise Warning(
-                    "enforce_bounds is active but y_semidim is None, spawning y-coordinates will default to -1 and 1."
-                )
-
-        # Set world spawning boundaries
-        self.world_spawning_x = (
-            self.x_semidim if self.enforce_bounds and self.x_semidim is not None else 1
-        )
-        self.world_spawning_y = (
-            self.y_semidim if self.enforce_bounds and self.y_semidim is not None else 1
-        )
 
 
 class HeuristicPolicy(BaseHeuristicPolicy):
