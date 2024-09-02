@@ -24,8 +24,20 @@ class Scenario(BaseScenario):
         self.n_agents = kwargs.pop("n_agents", 4)
         self.collisions = kwargs.pop("collisions", True)
 
-        self.x_semidim = kwargs.pop("x_semidim", None)
-        self.y_semidim = kwargs.pop("y_semidim", None)
+        self.world_spawning_x = kwargs.pop("world_spawning_x", 1)
+        self.world_spawning_y = kwargs.pop("world_spawning_y", 1)
+        self.enforce_bounds = kwargs.pop("enforce_bounds", False)
+
+        if self.enforce_bounds:
+            if self.world_spawning_x is None or self.world_spawning_y is None:
+                raise ValueError(
+                    "enforce_bounds is True, but one or both world_spawning variables are None."
+                )
+            self.x_semidim = self.world_spawning_x
+            self.y_semidim = self.world_spawning_y
+        else:
+            self.x_semidim = None
+            self.y_semidim = None
 
         self.agents_with_same_goal = kwargs.pop("agents_with_same_goal", 1)
         self.split_goals = kwargs.pop("split_goals", False)
@@ -43,8 +55,6 @@ class Scenario(BaseScenario):
         ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self.min_distance_between_entities = self.agent_radius * 2 + 0.05
-        self.world_semidim_x = 1 if self.x_semidim is None else self.x_semidim
-        self.world_semidim_y = 1 if self.y_semidim is None else self.y_semidim
         self.min_collision_distance = 0.005
 
         assert 1 <= self.agents_with_same_goal <= self.n_agents
@@ -136,8 +146,8 @@ class Scenario(BaseScenario):
             self.world,
             env_index,
             self.min_distance_between_entities,
-            (-self.world_semidim_x, self.world_semidim_x),
-            (-self.world_semidim_y, self.world_semidim_y),
+            (-self.world_spawning_x, self.world_spawning_x),
+            (-self.world_spawning_y, self.world_spawning_y),
         )
 
         occupied_positions = torch.stack(
@@ -153,8 +163,8 @@ class Scenario(BaseScenario):
                 env_index=env_index,
                 world=self.world,
                 min_dist_between_entities=self.min_distance_between_entities,
-                x_bounds=(-self.world_semidim_x, self.world_semidim_x),
-                y_bounds=(-self.world_semidim_y, self.world_semidim_y),
+                x_bounds=(-self.world_spawning_x, self.world_spawning_x),
+                y_bounds=(-self.world_spawning_y, self.world_spawning_y),
             )
             goal_poses.append(position.squeeze(1))
             occupied_positions = torch.cat([occupied_positions, position], dim=1)
@@ -296,6 +306,26 @@ class Scenario(BaseScenario):
                     geoms.append(line)
 
         return geoms
+
+    def set_spawning_bounds(self):
+        # Check for missing x_semidim or y_semidim when enforce_bounds is True
+        if self.enforce_bounds:
+            if self.x_semidim is None:
+                raise Warning(
+                    "enforce_bounds is active but x_semidim is None, spawning x-coordinates will default to -1 and 1."
+                )
+            if self.y_semidim is None:
+                raise Warning(
+                    "enforce_bounds is active but y_semidim is None, spawning y-coordinates will default to -1 and 1."
+                )
+
+        # Set world spawning boundaries
+        self.world_spawning_x = (
+            self.x_semidim if self.enforce_bounds and self.x_semidim is not None else 1
+        )
+        self.world_spawning_y = (
+            self.y_semidim if self.enforce_bounds and self.y_semidim is not None else 1
+        )
 
 
 class HeuristicPolicy(BaseHeuristicPolicy):
