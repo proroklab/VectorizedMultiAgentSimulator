@@ -24,20 +24,15 @@ class Scenario(BaseScenario):
         self.n_agents = kwargs.pop("n_agents", 4)
         self.collisions = kwargs.pop("collisions", True)
 
-        self.world_spawning_x = kwargs.pop("world_spawning_x", 1)
-        self.world_spawning_y = kwargs.pop("world_spawning_y", 1)
-        self.enforce_bounds = kwargs.pop("enforce_bounds", False)
-
-        if self.enforce_bounds:
-            if self.world_spawning_x is None or self.world_spawning_y is None:
-                raise ValueError(
-                    "enforce_bounds is True, but one or both world_spawning variables are None."
-                )
-            self.x_semidim = self.world_spawning_x
-            self.y_semidim = self.world_spawning_y
-        else:
-            self.x_semidim = None
-            self.y_semidim = None
+        self.world_spawning_x = kwargs.pop(
+            "world_spawning_x", 1
+        )  # X-coordinate limit for entity spawning
+        self.world_spawning_y = kwargs.pop(
+            "world_spawning_y", 1
+        )  # Y-coordinate limit for entity spawning
+        self.enforce_bounds = kwargs.pop(
+            "enforce_bounds", False
+        )  # Unlimited world is False, else constrained based on world_spawning_x and world_spawning_y
 
         self.agents_with_same_goal = kwargs.pop("agents_with_same_goal", 1)
         self.split_goals = kwargs.pop("split_goals", False)
@@ -53,6 +48,13 @@ class Scenario(BaseScenario):
 
         self.agent_collision_penalty = kwargs.pop("agent_collision_penalty", -1)
         ScenarioUtils.check_kwargs_consumed(kwargs)
+
+        if self.enforce_bounds:
+            self.x_semidim = self.world_spawning_x
+            self.y_semidim = self.world_spawning_y
+        else:
+            self.x_semidim = None
+            self.y_semidim = None
 
         self.min_distance_between_entities = self.agent_radius * 2 + 0.05
         self.min_collision_distance = 0.005
