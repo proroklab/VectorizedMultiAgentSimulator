@@ -92,6 +92,9 @@ class Scenario(BaseScenario):
         self.spawn_in_formation = kwargs.pop("spawn_in_formation", True)
         self.only_blue_formation = kwargs.pop("only_blue_formation", True)
         self.formation_agents_per_column = kwargs.pop("formation_agents_per_column", 2)
+        self.randomise_formation_indices = kwargs.pop(
+            "randomise_formation_indices", False
+        )
         self.formation_noise = kwargs.pop("formation_noise", 0.2)
 
         # Ai config
@@ -391,6 +394,9 @@ class Scenario(BaseScenario):
                 )
 
     def _spawn_formation(self, agents, blue, env_index):
+        if self.randomise_formation_indices:
+            order = torch.randperm(len(agents)).tolist()
+            agents = [agents[i] for i in order]
         agent_index = 0
         endpoint = -(self.pitch_length / 2 + self.goal_depth) * (1 if blue else -1)
         for x in torch.linspace(
