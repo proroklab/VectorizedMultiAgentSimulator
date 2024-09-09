@@ -49,6 +49,8 @@ class Scenario(BaseScenario):
         )
         self._sparse_reward_red = self._sparse_reward_blue.clone()
         self._render_field = True
+        self.min_agent_dist_to_ball_blue = None
+        self.min_agent_dist_to_ball_red = None
 
         self._reset_agent_range = torch.tensor(
             [self.pitch_length / 2, self.pitch_width],
@@ -485,10 +487,21 @@ class Scenario(BaseScenario):
             min_agent_dist_to_ball_blue = self.get_closest_agent_to_ball(
                 self.blue_agents, env_index
             )
+            if env_index is None:
+                self.min_agent_dist_to_ball_blue = min_agent_dist_to_ball_blue
+            else:
+                self.min_agent_dist_to_ball_blue[
+                    env_index
+                ] = min_agent_dist_to_ball_blue
         if not self.ai_red_agents:
             min_agent_dist_to_ball_red = self.get_closest_agent_to_ball(
                 self.red_agents, env_index
             )
+            if env_index is None:
+                self.min_agent_dist_to_ball_red = min_agent_dist_to_ball_red
+            else:
+                self.min_agent_dist_to_ball_red[env_index] = min_agent_dist_to_ball_red
+
         if env_index is None:
             if not self.ai_blue_agents:
                 self.ball.pos_shaping_blue = (
@@ -499,7 +512,8 @@ class Scenario(BaseScenario):
                     * self.pos_shaping_factor_ball_goal
                 )
                 self.ball.pos_shaping_agent_blue = (
-                    min_agent_dist_to_ball_blue * self.pos_shaping_factor_agent_ball
+                    self.min_agent_dist_to_ball_blue
+                    * self.pos_shaping_factor_agent_ball
                 )
             if not self.ai_red_agents:
                 self.ball.pos_shaping_red = (
@@ -511,7 +525,7 @@ class Scenario(BaseScenario):
                 )
 
                 self.ball.pos_shaping_agent_red = (
-                    min_agent_dist_to_ball_red * self.pos_shaping_factor_agent_ball
+                    self.min_agent_dist_to_ball_red * self.pos_shaping_factor_agent_ball
                 )
             if self.enable_shooting:
                 self.ball.kicking_action[:] = 0.0
@@ -524,7 +538,8 @@ class Scenario(BaseScenario):
                     * self.pos_shaping_factor_ball_goal
                 )
                 self.ball.pos_shaping_agent_blue[env_index] = (
-                    min_agent_dist_to_ball_blue * self.pos_shaping_factor_agent_ball
+                    self.min_agent_dist_to_ball_blue[env_index]
+                    * self.pos_shaping_factor_agent_ball
                 )
             if not self.ai_red_agents:
                 self.ball.pos_shaping_red[env_index] = (
@@ -535,7 +550,8 @@ class Scenario(BaseScenario):
                 )
 
                 self.ball.pos_shaping_agent_red[env_index] = (
-                    min_agent_dist_to_ball_red * self.pos_shaping_factor_agent_ball
+                    self.min_agent_dist_to_ball_red[env_index]
+                    * self.pos_shaping_factor_agent_ball
                 )
             if self.enable_shooting:
                 self.ball.kicking_action[env_index] = 0.0
@@ -1144,6 +1160,10 @@ class Scenario(BaseScenario):
         min_dist_to_ball = self.get_closest_agent_to_ball(
             team=self.blue_agents if blue else self.red_agents, env_index=None
         )
+        if blue:
+            self.min_agent_dist_to_ball_blue = min_dist_to_ball
+        else:
+            self.min_agent_dist_to_ball_red = min_dist_to_ball
         pos_shaping = min_dist_to_ball * self.pos_shaping_factor_agent_ball
 
         ball_moving = torch.linalg.vector_norm(self.ball.state.vel, dim=-1) > 1e-6
@@ -1414,9 +1434,26 @@ class Scenario(BaseScenario):
             self.reward(None)
         return self._done
 
+    def _compute_coverage(self, blue: bool, env_index=None):
+        team = self.blue_agents if blue else self.red_agents
+        pos = torch.stack(
+            [a.state.pos for a in team], dim=-2
+        )  # shape == (batch_dim, n_agents, 2)
+        avg_point = pos.mean(-2).unsqueeze(-2)
+        if isinstance(env_index, int):
+            pos = pos[env_index].unsqueeze(0)
+            avg_point = avg_point[env_index].unsqueeze(0)
+        dist = torch.cdist(pos, avg_point)
+        dist = dist.squeeze(-1)
+        max_dist = dist.max(dim=-1)[0]
+        if isinstance(env_index, int):
+            max_dist = max_dist.squeeze(0)
+        return max_dist
+
     def info(self, agent: Agent):
+
         blue = agent in self.blue_agents
-        return {
+        info = {
             "sparse_reward": self._sparse_reward_blue
             if blue
             else self._sparse_reward_red,
@@ -1426,7 +1463,26 @@ class Scenario(BaseScenario):
             "all_agent_ball_pos_rew": self.ball.pos_rew_agent_blue
             if blue
             else self.ball.pos_rew_agent_red,
+            "ball_pos": self.ball.state.pos,
+            "dist_ball_to_goal": (
+                self.ball.pos_shaping_blue if blue else self.ball.pos_shaping_red
+            )
+            / self.pos_shaping_factor_ball_goal,
         }
+        if blue and self.min_agent_dist_to_ball_blue is not None:
+            info["min_agent_dist_to_ball"] = self.min_agent_dist_to_ball_blue
+            info["touching_ball"] = (
+                self.min_agent_dist_to_ball_blue
+                <= self.agent_size + self.ball_size + 1e-2
+            )
+        elif not blue and self.min_agent_dist_to_ball_red is not None:
+            info["min_agent_dist_to_ball"] = self.min_agent_dist_to_ball_red
+            info["touching_ball"] = (
+                self.min_agent_dist_to_ball_red
+                <= self.agent_size + self.ball_size + 1e-2
+            )
+
+        return info
 
     def extra_render(self, env_index: int = 0) -> "List[Geom]":
         from vmas.simulator import rendering
