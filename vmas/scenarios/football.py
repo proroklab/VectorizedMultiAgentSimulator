@@ -2372,15 +2372,13 @@ class Splines:
 if __name__ == "__main__":
     render_interactively(
         __file__,
-        control_two_agents=False,
+        control_two_agents=True,
         n_blue_agents=5,
         n_red_agents=5,
         ai_blue_agents=False,
         ai_red_agents=True,
-        dense_reward=True,
-        ai_strength=(1.0, 1.0),
-        ai_decision_strength=(1.0, 0.5),
-        ai_precision_strength=(1.0, 1.0),
-        enable_shooting=False,
+        ai_strength=1.0,
+        ai_decision_strength=1.0,
+        ai_precision_strength=1.0,
         n_traj_points=8,
     )
