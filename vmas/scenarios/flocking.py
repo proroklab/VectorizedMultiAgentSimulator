@@ -20,7 +20,7 @@ class Scenario(BaseScenario):
         n_obstacles = kwargs.pop("n_obstacles", 5)
         self._min_dist_between_entities = kwargs.pop("min_dist_between_entities", 0.15)
 
-        self.n_lidar_rays = kwargs.pop("n_rays", 12)
+        self.n_lidar_rays = kwargs.pop("n_lidar_rays", 12)
 
         self.collision_reward = kwargs.pop("collision_reward", -0.1)
         self.dist_shaping_factor = kwargs.pop("dist_shaping_factor", 1)
