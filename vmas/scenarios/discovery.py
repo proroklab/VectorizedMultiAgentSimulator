@@ -30,13 +30,7 @@ class Scenario(BaseScenario):
         self._covering_range = kwargs.pop("covering_range", 0.25)
 
         self.use_agent_lidar = kwargs.pop("use_agent_lidar", False)
-        if self.use_agent_lidar:
-            self.n_lidar_rays_entities = kwargs.pop("n_lidar_rays_entities", 15)
-        else:
-            if "n_lidar_rays_entities" in kwargs:
-                raise ValueError(
-                    'Cannot set "n_lidar_rays_entities" when "use_agent_lidar" is False.'
-                )
+        self.n_lidar_rays_entities = kwargs.pop("n_lidar_rays_entities", 15)
         self.n_lidar_rays_agents = kwargs.pop("n_lidar_rays_agents", 12)
 
         self._agents_per_target = kwargs.pop("agents_per_target", 2)
