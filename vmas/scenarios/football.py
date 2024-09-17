@@ -86,10 +86,10 @@ class Scenario(BaseScenario):
         self.n_red_agents = kwargs.pop("n_red_agents", 3)
         self.ai_red_agents = kwargs.pop("ai_red_agents", True)
         self.ai_blue_agents = kwargs.pop("ai_blue_agents", False)
-        self.physically_different = kwargs.pop("physically_different", True)
+        self.physically_different = kwargs.pop("physically_different", False)
 
         # Agent spawning
-        self.spawn_in_formation = kwargs.pop("spawn_in_formation", True)
+        self.spawn_in_formation = kwargs.pop("spawn_in_formation", False)
         self.only_blue_formation = kwargs.pop("only_blue_formation", True)
         self.formation_agents_per_column = kwargs.pop("formation_agents_per_column", 2)
         self.randomise_formation_indices = kwargs.pop(
