@@ -24,7 +24,7 @@ def make_env(
     multidiscrete_actions: bool = False,
     clamp_actions: bool = False,
     grad_enabled: bool = False,
-    legacy_gym: bool = False,
+    legacy_gym: bool = True,
     **kwargs,
 ):
     """Create a vmas environment.

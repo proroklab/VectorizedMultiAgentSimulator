@@ -147,7 +147,7 @@ class Environment(TorchVectorizedObject):
         if dict_agent_names is None:
             dict_agent_names = self.dict_spaces
 
-        obs = rewards = infos = terminated = truncated = None
+        obs = rewards = infos = terminated = truncated = dones = None
 
         if get_observations:
             obs = {} if dict_agent_names else []
@@ -180,10 +180,15 @@ class Environment(TorchVectorizedObject):
                 else:
                     infos.append(info)
 
-        if get_dones:
-            terminated, truncated = self.get_termination()
+        if self.legacy_gym:
+            if get_dones:
+                dones = self.done()
+            result = [obs, rewards, dones, infos]
+        else:
+            if get_dones:
+                terminated, truncated = self.done()
+            result = [obs, rewards, terminated, truncated, infos]
 
-        result = [obs, rewards, terminated, truncated, infos]
         return [data for data in result if data is not None]
 
     def seed(self, seed=None):
@@ -267,29 +272,25 @@ class Environment(TorchVectorizedObject):
         self.scenario.post_step()
 
         self.steps += 1
-        obs, rewards, terminated, truncated, infos = self.get_from_scenario(
+
+        return self.get_from_scenario(
             get_observations=True,
             get_infos=True,
             get_rewards=True,
             get_dones=True,
         )
 
-        if self.legacy_gym:
-            dones = [
-                torch.logical_or(term, trunc)
-                for term, trunc in zip(terminated, truncated)
-            ]
-            return obs, rewards, dones, infos
-
-        return obs, rewards, terminated, truncated, infos
-
-    def get_termination(self):
+    def done(self):
         terminated = self.scenario.done().clone()
         if self.max_steps is not None:
             truncated = self.steps >= self.max_steps
         else:
             truncated = torch.zeros_like(terminated)
-        return terminated, truncated
+
+        if self.legacy_gym:
+            return torch.logical_or(terminated, truncated)
+        else:
+            return terminated, truncated
 
     def get_action_space(self):
         if self.legacy_gym:
