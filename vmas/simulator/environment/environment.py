@@ -8,7 +8,6 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
-from gym import spaces
 from torch import Tensor
 
 import vmas.simulator.utils
@@ -45,12 +44,12 @@ class Environment(TorchVectorizedObject):
         multidiscrete_actions: bool = False,
         clamp_actions: bool = False,
         grad_enabled: bool = False,
+        legacy_gym: bool = True,
+        render_mode: str = "human",
         **kwargs,
     ):
         if multidiscrete_actions:
-            assert (
-                not continuous_actions
-            ), "When asking for multidiscrete_actions, make sure continuous_actions=False"
+            assert not continuous_actions, "When asking for multidiscrete_actions, make sure continuous_actions=False"
 
         self.scenario = scenario
         self.num_envs = num_envs
@@ -64,8 +63,12 @@ class Environment(TorchVectorizedObject):
         self.dict_spaces = dict_spaces
         self.clamp_action = clamp_actions
         self.grad_enabled = grad_enabled
+        self.legacy_gym = legacy_gym
 
-        observations = self.reset(seed=seed)
+        if self.legacy_gym:
+            observations = self.reset(seed=seed)
+        else:
+            observations, _ = self.reset(seed=seed)
 
         # configure spaces
         self.multidiscrete_actions = multidiscrete_actions
@@ -77,6 +80,7 @@ class Environment(TorchVectorizedObject):
         self.headless = None
         self.visible_display = None
         self.text_lines = None
+        self.render_mode = render_mode
 
     def reset(
         self,
@@ -91,6 +95,9 @@ class Environment(TorchVectorizedObject):
         """
         if seed is not None:
             self.seed(seed)
+        if not self.legacy_gym:
+            # for gymnasium compatibility, return info
+            return_info = True
         # reset world
         self.scenario.env_reset_world_at(env_index=None)
         self.steps = torch.zeros(self.num_envs, device=self.device)
@@ -140,7 +147,7 @@ class Environment(TorchVectorizedObject):
         if dict_agent_names is None:
             dict_agent_names = self.dict_spaces
 
-        obs = rewards = infos = dones = None
+        obs = rewards = infos = terminated = truncated = None
 
         if get_observations:
             obs = {} if dict_agent_names else []
@@ -174,9 +181,9 @@ class Environment(TorchVectorizedObject):
                     infos.append(info)
 
         if get_dones:
-            dones = self.done()
+            terminated, truncated = self.get_termination()
 
-        result = [obs, rewards, dones, infos]
+        result = [obs, rewards, terminated, truncated, infos]
         return [data for data in result if data is not None]
 
     def seed(self, seed=None):
@@ -260,22 +267,36 @@ class Environment(TorchVectorizedObject):
         self.scenario.post_step()
 
         self.steps += 1
-        obs, rewards, dones, infos = self.get_from_scenario(
+        obs, rewards, terminated, truncated, infos = self.get_from_scenario(
             get_observations=True,
             get_infos=True,
             get_rewards=True,
             get_dones=True,
         )
 
-        return obs, rewards, dones, infos
+        if self.legacy_gym:
+            dones = [
+                torch.logical_or(term, trunc)
+                for term, trunc in zip(terminated, truncated)
+            ]
+            return obs, rewards, dones, infos
 
-    def done(self):
-        dones = self.scenario.done().clone()
+        return obs, rewards, terminated, truncated, infos
+
+    def get_termination(self):
+        terminated = self.scenario.done().clone()
         if self.max_steps is not None:
-            dones += self.steps >= self.max_steps
-        return dones
+            truncated = self.steps >= self.max_steps
+        else:
+            truncated = torch.zeros_like(terminated)
+        return terminated, truncated
 
     def get_action_space(self):
+        if self.legacy_gym:
+            from gym import spaces
+        else:
+            from gymnasium import spaces
+
         if not self.dict_spaces:
             return spaces.Tuple(
                 [self.get_agent_action_space(agent) for agent in self.agents]
@@ -289,6 +310,11 @@ class Environment(TorchVectorizedObject):
             )
 
     def get_observation_space(self, observations: Union[List, Dict]):
+        if self.legacy_gym:
+            from gym import spaces
+        else:
+            from gymnasium import spaces
+
         if not self.dict_spaces:
             return spaces.Tuple(
                 [
@@ -319,6 +345,11 @@ class Environment(TorchVectorizedObject):
             return 1
 
     def get_agent_action_space(self, agent: Agent):
+        if self.legacy_gym:
+            from gym import spaces
+        else:
+            from gymnasium import spaces
+
         if self.continuous_actions:
             return spaces.Box(
                 low=np.array(
@@ -350,6 +381,11 @@ class Environment(TorchVectorizedObject):
             )
 
     def get_agent_observation_space(self, agent: Agent, obs: AGENT_OBS_TYPE):
+        if self.legacy_gym:
+            from gym import spaces
+        else:
+            from gymnasium import spaces
+
         if isinstance(obs, Tensor):
             return spaces.Box(
                 low=-np.float32("inf"),
@@ -596,7 +632,7 @@ class Environment(TorchVectorizedObject):
 
     def render(
         self,
-        mode="human",
+        mode=None,
         env_index=0,
         agent_index_focus: int = None,
         visualize_when_rgb: bool = False,
@@ -640,6 +676,9 @@ class Environment(TorchVectorizedObject):
         :param plot_position_function_cmap_alpha: The alpha of the cmap in case plot_position_function outputs a single value
         :return: Rgb array or None, depending on the mode
         """
+        if mode is None:
+            mode = self.render_mode
+
         self._check_batch_index(env_index)
         assert (
             mode in self.metadata["render.modes"]
@@ -778,10 +817,13 @@ class Environment(TorchVectorizedObject):
         if plot_range is None:
             assert self.viewer.bounds is not None, "Set viewer bounds before plotting"
             x_min, x_max, y_min, y_max = self.viewer.bounds.tolist()
-            plot_range = [x_min - precision, x_max - precision], [
-                y_min - precision,
-                y_max + precision,
-            ]
+            plot_range = (
+                [x_min - precision, x_max - precision],
+                [
+                    y_min - precision,
+                    y_max + precision,
+                ],
+            )
 
         geom = render_function_util(
             f=f,

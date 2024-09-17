@@ -9,6 +9,7 @@ from vmas.simulator.environment.environment import Environment
 class Wrapper(Enum):
     RLLIB = 0
     GYM = 1
+    GYMNASIUM = 2
 
     def get_env(self, env: Environment):
         if self is self.RLLIB:
@@ -19,3 +20,7 @@ class Wrapper(Enum):
             from vmas.simulator.environment.gym import GymWrapper
 
             return GymWrapper(env)
+        elif self is self.GYMNASIUM:
+            from vmas.simulator.environment.gymnasium import GymnasiumWrapper
+
+            return GymnasiumWrapper(env)

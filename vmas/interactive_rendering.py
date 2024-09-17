@@ -10,6 +10,7 @@ You can move agents with the arrow keys
 If you have more than 1 agent, you can control another one with W,A,S,D
 and switch the agent with these controls using LSHIFT
 """
+
 from operator import add
 from typing import Dict, Union
 
@@ -345,6 +346,7 @@ def render_interactively(
             continuous_actions=True,
             wrapper=Wrapper.GYM,
             seed=0,
+            legacy_gym=True,
             # Environment specific variables
             **kwargs,
         ),

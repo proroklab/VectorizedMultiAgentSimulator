@@ -16,14 +16,15 @@ def make_env(
     device: DEVICE_TYPING = "cpu",
     continuous_actions: bool = True,
     wrapper: Optional[
-        Wrapper
-    ] = None,  # One of: None, vmas.Wrapper.RLLIB, and vmas.Wrapper.GYM
+        Union[Wrapper, str]
+    ] = None,  # One of: None, vmas.Wrapper.RLLIB, vmas.Wrapper.GYM, vmas.Wrapper.Gymnasium
     max_steps: Optional[int] = None,
     seed: Optional[int] = None,
     dict_spaces: bool = False,
     multidiscrete_actions: bool = False,
     clamp_actions: bool = False,
     grad_enabled: bool = False,
+    legacy_gym: bool = False,
     **kwargs,
 ):
     """Create a vmas environment.
@@ -72,6 +73,7 @@ def make_env(
         if not scenario.endswith(".py"):
             scenario += ".py"
         scenario = scenarios.load(scenario).Scenario()
+
     env = Environment(
         scenario,
         num_envs=num_envs,
@@ -83,7 +85,11 @@ def make_env(
         multidiscrete_actions=multidiscrete_actions,
         clamp_actions=clamp_actions,
         grad_enabled=grad_enabled,
+        legacy_gym=legacy_gym,
         **kwargs,
     )
+
+    if wrapper is not None and isinstance(wrapper, str):
+        wrapper = Wrapper[wrapper.upper()]
 
     return wrapper.get_env(env) if wrapper is not None else env

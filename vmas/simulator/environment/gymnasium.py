@@ -3,7 +3,7 @@
 #  All rights reserved.
 from typing import List, Optional
 
-import gym
+import gymnasium as gym
 import numpy as np
 import torch
 
@@ -11,7 +11,7 @@ from vmas.simulator.environment.environment import Environment
 from vmas.simulator.utils import extract_nested_with_index
 
 
-class GymWrapper(gym.Env):
+class GymnasiumWrapper(gym.Env):
     metadata = Environment.metadata
 
     def __init__(
@@ -20,12 +20,12 @@ class GymWrapper(gym.Env):
     ):
         assert (
             env.num_envs == 1
-        ), f"GymEnv wrapper is not vectorised, got env.num_envs: {env.num_envs}"
+        ), f"GymnasiumEnv wrapper is not vectorised, got env.num_envs: {env.num_envs}"
 
         self._env = env
         assert (
-            self._env.legacy_gym
-        ), "GymWrapper is only compatible with legacy gym environments"
+            not self._env.legacy_gym
+        ), "GymnasiumWrapper is not compatible with legacy gym environments"
         self.observation_space = self._env.observation_space
         self.action_space = self._env.action_space
 
@@ -36,9 +36,18 @@ class GymWrapper(gym.Env):
     def env(self):
         return self._env
 
+    def _compress_infos(self, infos):
+        info = {}
+        for i, info in enumerate(infos):
+            for k, v in info.items():
+                info[f"agent_{i}/{k}"] = v
+        return info
+
     def step(self, action):
         action = self._action_list_to_tensor(action)
-        obs, rews, dones, info = self._env.step(action)
+        obs, rews, terminated, truncated, info = self._env.step(action)
+        terminated = terminated[0].item()
+        truncated = truncated[0].item()
         if self._env.dict_spaces:
             for agent in obs.keys():
                 obs[agent] = extract_nested_with_index(obs[agent], index=0)
@@ -49,29 +58,29 @@ class GymWrapper(gym.Env):
                 obs[i] = extract_nested_with_index(obs[i], index=0)
                 info[i] = extract_nested_with_index(info[i], index=0)
                 rews[i] = rews[i][0].item()
-        return obs, rews, dones, info
+        return obs, rews, terminated, truncated, self._compress_infos(info)
 
     def reset(
         self,
         *,
         seed: Optional[int] = None,
-        return_info: bool = False,
         options: Optional[dict] = None,
     ):
         if seed is not None:
             self._env.seed(seed)
-        obs = self._env.reset_at(index=0)
+        obs, infos = self._env.reset_at(index=0, return_info=True)
+
         if self._env.dict_spaces:
             for agent in obs.keys():
                 obs[agent] = extract_nested_with_index(obs[agent], index=0)
         else:
             for i in range(self._env.n_agents):
                 obs[i] = extract_nested_with_index(obs[i], index=0)
-        return obs
+        return obs, self._compress_infos(infos)
 
     def render(
         self,
-        mode="human",
+        mode=None,
         agent_index_focus: Optional[int] = None,
         visualize_when_rgb: bool = False,
         **kwargs,

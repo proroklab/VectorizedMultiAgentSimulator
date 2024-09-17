@@ -28,7 +28,7 @@ Scenario creation is made simple and modular to incentivize contributions.
 VMAS simulates agents and landmarks of different shapes and supports rotations, elastic collisions, joints, and custom gravity.
 Holonomic motion models are used for the agents to simplify simulation. Custom sensors such as LIDARs are available and the simulator supports inter-agent communication.
 Vectorization in [PyTorch](https://pytorch.org/) allows VMAS to perform simulations in a batch, seamlessly scaling to tens of thousands of parallel environments on accelerated hardware.
-VMAS has an interface compatible with [OpenAI Gym](https://github.com/openai/gym), with [RLlib](https://docs.ray.io/en/latest/rllib/index.html), with [torchrl](https://github.com/pytorch/rl) and its MARL training library: [BenchMARL](https://github.com/facebookresearch/BenchMARL),
+VMAS has an interface compatible with [OpenAI Gym](https://github.com/openai/gym), with [Gymnasium](https://gymnasium.farama.org/), with [RLlib](https://docs.ray.io/en/latest/rllib/index.html), with [torchrl](https://github.com/pytorch/rl) and its MARL training library: [BenchMARL](https://github.com/facebookresearch/BenchMARL),
 enabling out-of-the-box integration with a wide range of RL algorithms. 
 The implementation is inspired by [OpenAI's MPE](https://github.com/openai/multiagent-particle-envs). 
 Alongside VMAS's scenarios, we port and vectorize all the scenarios in MPE.
@@ -120,7 +120,7 @@ pip install "ray[rllib]"==2.1.0 # We support versions "ray[rllib]<=2.2,>=1.13"
 pip install torchrl
 
 # Logging
-pip installl wandb 
+pip install wandb 
 
 # Rendering
 pip install opencv-python moviepy matplotlib
@@ -134,7 +134,7 @@ pip install pytest pyyaml pytest-instafail tqdm
 To use the simulator, simply create an environment by passing the name of the scenario
 you want (from the `scenarios` folder) to the `make_env` function.
 The function arguments are explained in the documentation. The function returns an environment
-object with the OpenAI gym interface:
+object with the Gymnasium interface:
 
 Here is an example:
 ```python
@@ -143,7 +143,7 @@ Here is an example:
         num_envs=32,
         device="cpu", # Or "cuda" for GPU
         continuous_actions=True,
-        wrapper=None,  # One of: None, vmas.Wrapper.RLLIB, and vmas.Wrapper.GYM
+        wrapper=None,  # One of: None, vmas.Wrapper.RLLIB or "rllib", and vmas.Wrapper.GYM or "gym", and vmas.Wrapper.GYMNASIUM or "gymnasium"
         max_steps=None, # Defines the horizon. None is infinite horizon.
         seed=None, # Seed of the environment
         dict_spaces=False, # By default tuple spaces are used with each element in the tuple being an agent.
@@ -153,6 +153,8 @@ Here is an example:
     )
 ```
 A further example that you can run is contained in `use_vmas_env.py` in the `examples` directory.
+
+To use an environment with the OpenAI Gym interface, give the additional `legacy_gym=True` argument.
 
 #### RLlib
 
@@ -176,7 +178,7 @@ on how to run MAPPO-IPPO-MADDPG-QMIX-VDN using the [VMAS wrapper](https://github
 
 ### Input and output spaces
 
-VMAS uses gym spaces for input and output spaces. 
+VMAS uses gymnasium (or gym if `legacy_gym=True`) spaces for input and output spaces. 
 By default, action and observation spaces are tuples:
 ```python
 spaces.Tuple(
@@ -235,7 +237,7 @@ Each format will work regardless of the fact that tuples or dictionary spaces ha
 - **Simple**: Complex vectorized physics engines exist (e.g., [Brax](https://github.com/google/brax)), but they do not scale efficiently when dealing with multiple agents. This defeats the computational speed goal set by vectorization. VMAS uses a simple custom 2D dynamics engine written in PyTorch to provide fast simulation. 
 - **General**: The core of VMAS is structured so that it can be used to implement general high-level multi-robot problems in 2D. It can support adversarial as well as cooperative scenarios. Holonomic point-robot simulation has been chosen to focus on general high-level problems, without learning low-level custom robot controls through MARL.
 - **Extensible**: VMAS is not just a simulator with a set of environments. It is a framework that can be used to create new multi-agent scenarios in a format that is usable by the whole MARL community. For this purpose, we have modularized the process of creating a task and introduced interactive rendering to debug it. You can define your own scenario in minutes. Have a look at the dedicated section in this document.
-- **Compatible**: VMAS has wrappers for [RLlib](https://docs.ray.io/en/latest/rllib/index.html), [torchrl](https://pytorch.org/rl/reference/generated/torchrl.envs.libs.vmas.VmasEnv.html), and [OpenAI Gym](https://github.com/openai/gym). RLlib and torchrl have a large number of already implemented RL algorithms.
+- **Compatible**: VMAS has wrappers for [RLlib](https://docs.ray.io/en/latest/rllib/index.html), [torchrl](https://pytorch.org/rl/reference/generated/torchrl.envs.libs.vmas.VmasEnv.html), [OpenAI Gym](https://github.com/openai/gym) and [Gymnasium](https://gymnasium.farama.org/). RLlib and torchrl have a large number of already implemented RL algorithms.
 Keep in mind that this interface is less efficient than the unwrapped version. For an example of wrapping, see the main of `make_env`.
 - **Tested**: Our scenarios come with tests which run a custom designed heuristic on each scenario.
 - **Entity shapes**: Our entities (agent and landmarks) can have different customizable shapes (spheres, boxes, lines).
