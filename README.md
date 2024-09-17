@@ -133,8 +133,7 @@ pip install pytest pyyaml pytest-instafail tqdm
 
 To use the simulator, simply create an environment by passing the name of the scenario
 you want (from the `scenarios` folder) to the `make_env` function.
-The function arguments are explained in the documentation. The function returns an environment
-object with the Gymnasium interface:
+The function arguments are explained in the documentation. The function returns an environment object with the OpenAI Gym interface:
 
 Here is an example:
 ```python
@@ -154,7 +153,7 @@ Here is an example:
 ```
 A further example that you can run is contained in `use_vmas_env.py` in the `examples` directory.
 
-To use an environment with the OpenAI Gym interface, give the additional `legacy_gym=True` argument.
+To use an environment with the Gymnasium interface, give the additional `legacy_gym=False` argument.
 
 #### RLlib
 
@@ -178,7 +177,7 @@ on how to run MAPPO-IPPO-MADDPG-QMIX-VDN using the [VMAS wrapper](https://github
 
 ### Input and output spaces
 
-VMAS uses gymnasium (or gym if `legacy_gym=True`) spaces for input and output spaces. 
+VMAS uses gym (or gymnasium if `legacy_gym=False`) spaces for input and output spaces. 
 By default, action and observation spaces are tuples:
 ```python
 spaces.Tuple(
