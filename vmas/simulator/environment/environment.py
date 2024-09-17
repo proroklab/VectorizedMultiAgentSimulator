@@ -77,6 +77,7 @@ class Environment(TorchVectorizedObject):
         self.headless = None
         self.visible_display = None
         self.text_lines = None
+        self.visualize_semidims = kwargs.pop("visualize_semidims", True)
 
     def reset(
         self,
@@ -741,6 +742,9 @@ class Environment(TorchVectorizedObject):
             )
 
         # Render
+        if self.visualize_semidims:
+            self.plot_boundary()
+
         self._set_agent_comm_messages(env_index)
 
         if plot_position_function is not None:
@@ -769,6 +773,55 @@ class Environment(TorchVectorizedObject):
 
         # render to display or array
         return self.viewer.render(return_rgb_array=mode == "rgb_array")
+
+    def plot_boundary(self):
+        # Include boundaries in the rendering
+        from vmas.simulator import rendering
+        from vmas.simulator.rendering import Line
+        from vmas.simulator.utils import Color
+
+        # Check boundary limits
+        if self.world.x_semidim is not None or self.world.y_semidim is not None:
+            # Get the origin coordinates
+            origin_x, origin_y = (0, 0)
+
+            infinite_value = np.infty
+
+            # set semidim variables
+            x_semi = (
+                self.world.x_semidim
+                if self.world.x_semidim is not None
+                else infinite_value
+            )
+            y_semi = (
+                self.world.y_semidim
+                if self.world.y_semidim is not None
+                else infinite_value
+            )
+
+            # define edges
+            boundary_edges = [
+                (origin_x - x_semi, origin_y + y_semi),  # top_left
+                (origin_x + x_semi, origin_y + y_semi),  # top_right
+                (origin_x + x_semi, origin_y - y_semi),  # bottom_right
+                (origin_x - x_semi, origin_y - y_semi),  # bottom_left
+            ]
+
+            # Set the color for the boundary lines
+            color = Color.GRAY.value
+            # Initialize a transformation
+            xform = rendering.Transform()
+
+            # Create lines to form the boundary by connecting each corner to the next
+            for i in range(len(boundary_edges)):
+                start = boundary_edges[i]  # Current corner point
+                end = boundary_edges[
+                    (i + 1) % len(boundary_edges)
+                ]  # Next corner point, wraps around to the first point
+                line = Line(start, end, width=0.5)  # Create a line between two corners
+                line.add_attr(xform)  # Apply transformation to the line
+                line.set_color(*color)  # Set the line color
+                self.viewer.add_geom(line)  # Add the line to the viewer for rendering
 
     def plot_function(
         self, f, precision, plot_range, cmap_range, cmap_alpha, cmap_name
