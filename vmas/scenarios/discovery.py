@@ -28,7 +28,11 @@ class Scenario(BaseScenario):
         self._min_dist_between_entities = kwargs.pop("min_dist_between_entities", 0.2)
         self._lidar_range = kwargs.pop("lidar_range", 0.35)
         self._covering_range = kwargs.pop("covering_range", 0.25)
+
         self.use_agent_lidar = kwargs.pop("use_agent_lidar", False)
+        self.n_lidar_rays_entities = kwargs.pop("n_lidar_rays_entities", 15)
+        self.n_lidar_rays_agents = kwargs.pop("n_lidar_rays_agents", 12)
+
         self._agents_per_target = kwargs.pop("agents_per_target", 2)
         self.targets_respawn = kwargs.pop("targets_respawn", True)
         self.shared_reward = kwargs.pop("shared_reward", False)
@@ -74,7 +78,7 @@ class Scenario(BaseScenario):
                     [
                         Lidar(
                             world,
-                            n_rays=15,
+                            n_rays=self.n_lidar_rays_entities,
                             max_range=self._lidar_range,
                             entity_filter=entity_filter_targets,
                             render_color=Color.GREEN,
@@ -86,7 +90,7 @@ class Scenario(BaseScenario):
                                 world,
                                 angle_start=0.05,
                                 angle_end=2 * torch.pi + 0.05,
-                                n_rays=12,
+                                n_rays=self.n_lidar_rays_agents,
                                 max_range=self._lidar_range,
                                 entity_filter=entity_filter_agents,
                                 render_color=Color.BLUE,

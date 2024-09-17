@@ -41,6 +41,7 @@ class Scenario(BaseScenario):
         self.lidar_range = kwargs.pop("lidar_range", 0.35)
         self.agent_radius = kwargs.pop("agent_radius", 0.1)
         self.comms_range = kwargs.pop("comms_range", 0)
+        self.n_lidar_rays = kwargs.pop("n_lidar_rays", 12)
 
         self.shared_rew = kwargs.pop("shared_rew", True)
         self.pos_shaping_factor = kwargs.pop("pos_shaping_factor", 1)
@@ -115,7 +116,7 @@ class Scenario(BaseScenario):
                     [
                         Lidar(
                             world,
-                            n_rays=12,
+                            n_rays=self.n_lidar_rays,
                             max_range=self.lidar_range,
                             entity_filter=entity_filter_agents,
                         ),
