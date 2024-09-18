@@ -819,7 +819,7 @@ class Environment(TorchVectorizedObject):
                 line = Line(start, end, width=0.7)  # Create a line between two corners
                 line.add_attr(xform)  # Apply transformation to the line
                 line.set_color(*color)  # Set the line color
-                self.viewer.add_geom(line)  # Add the line to the viewer for rendering
+                self.viewer.add_onetime(line)  # Add the line to the viewer for rendering
 
     def plot_function(
         self, f, precision, plot_range, cmap_range, cmap_alpha, cmap_name
