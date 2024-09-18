@@ -16,11 +16,11 @@ from operator import add
 from typing import Dict, Union
 
 import numpy as np
+import torch
 from torch import Tensor
 
 from vmas.make_env import make_env
-from vmas.simulator.environment import Wrapper
-from vmas.simulator.environment.gym import GymWrapper
+from vmas.simulator.environment import Environment
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import save_video
 
@@ -40,7 +40,7 @@ class InteractiveEnv:
 
     def __init__(
         self,
-        env: GymWrapper,
+        env: Environment,
         control_two_agents: bool = False,
         display_info: bool = True,
         save_render: bool = False,
@@ -51,9 +51,9 @@ class InteractiveEnv:
         # hard-coded keyboard events
         self.current_agent_index = 0
         self.current_agent_index2 = 1
-        self.n_agents = self.env.unwrapped().n_agents
-        self.agents = self.env.unwrapped().agents
-        self.continuous = self.env.unwrapped().continuous_actions
+        self.n_agents = self.env.n_agents
+        self.agents = self.env.agents
+        self.continuous = self.env.continuous_actions
         self.reset = False
         self.keys = np.array(
             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -76,10 +76,10 @@ class InteractiveEnv:
         self.text_lines = []
         self.font_size = 15
         self.env.render()
-        self.text_idx = len(self.env.unwrapped().text_lines)
+        self.text_idx = len(self.env.text_lines)
         self._init_text()
-        self.env.unwrapped().viewer.window.on_key_press = self._key_press
-        self.env.unwrapped().viewer.window.on_key_release = self._key_release
+        self.env.viewer.window.on_key_press = self._key_press
+        self.env.viewer.window.on_key_release = self._key_release
 
         self._cycle()
 
@@ -119,7 +119,17 @@ class InteractiveEnv:
                 ] = self.u2[
                     : self.agents[self.current_agent_index2].dynamics.needed_action_size
                 ]
-            obs, rew, done, info = self.env.step(action_list)
+
+            action_tensors = [
+                torch.tensor(
+                    act,
+                    device=self.env.device,
+                    dtype=torch.float32,
+                ).reshape(1, self.env.get_agent_action_size(agent))
+                for act, agent in zip(action_list, self.env.agents)
+            ]
+
+            obs, rew, done, info = self.env.step(action_tensors)
 
             if self.display_info and self.n_agents > 0:
                 # TODO: Determine number of lines of obs_str and render accordingly
@@ -139,7 +149,7 @@ class InteractiveEnv:
                 message = f"Done: {done}"
                 self._write_values(4, message)
 
-                message = f"Selected: {self.env.unwrapped().agents[self.current_agent_index].name}"
+                message = f"Selected: {self.env.agents[self.current_agent_index].name}"
                 self._write_values(5, message)
 
             frame = self.env.render(
@@ -159,7 +169,7 @@ class InteractiveEnv:
             text_line = rendering.TextLine(
                 y=(self.text_idx + i) * 40, font_size=self.font_size
             )
-            self.env.unwrapped().viewer.add_geom(text_line)
+            self.env.viewer.add_geom(text_line)
             self.text_lines.append(text_line)
 
     def _write_values(self, index: int, message: str):
@@ -345,7 +355,7 @@ def render_interactively(
             num_envs=1,
             device="cpu",
             continuous_actions=True,
-            wrapper=Wrapper.GYM,
+            wrapper=None,
             seed=0,
             # Environment specific variables
             **kwargs,

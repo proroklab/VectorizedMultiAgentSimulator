@@ -25,7 +25,7 @@ def make_env(
     clamp_actions: bool = False,
     grad_enabled: bool = False,
     terminated_truncated: bool = False,
-    wrapper_kwargs: dict = {},
+    wrapper_kwargs: Optional[dict] = None,
     **kwargs,
 ):
     """Create a vmas environment.
@@ -57,7 +57,7 @@ def make_env(
             be taken from the simulator output. Default is ``False``.
         terminated_truncated (bool, optional): Weather to use terminated and truncated flags in the output of the step method (or single done).
             Default is ``False``.
-        wrapper_kwargs (dict): Keyword arguments to pass to the wrapper class. Default is ``{}``.
+        wrapper_kwargs (dict, optional): Keyword arguments to pass to the wrapper class. Default is ``{}``.
 
         **kwargs (dict, optional): Keyword arguments to pass to the :class:`~vmas.simulator.scenario.BaseScenario` class.
 
@@ -96,5 +96,8 @@ def make_env(
 
     if wrapper is not None and isinstance(wrapper, str):
         wrapper = Wrapper[wrapper.upper()]
+
+    if wrapper_kwargs is None:
+        wrapper_kwargs = {}
 
     return wrapper.get_env(env, **wrapper_kwargs) if wrapper is not None else env

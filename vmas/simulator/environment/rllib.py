@@ -31,7 +31,6 @@ class VectorEnvWrapper(rllib.VectorEnv):
     def __init__(
         self,
         env: Environment,
-        **kwargs,
     ):
         self._env = env
         super().__init__(
