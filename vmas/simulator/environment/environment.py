@@ -78,7 +78,6 @@ class Environment(TorchVectorizedObject):
         self.visible_display = None
         self.text_lines = None
 
-
     def reset(
         self,
         seed: Optional[int] = None,
@@ -799,9 +798,9 @@ class Environment(TorchVectorizedObject):
 
             # define edges
             boundary_edges = [
-                (-x_semi, y_semi),   # top_left
-                (x_semi, y_semi),    # top_right
-                (x_semi, -y_semi),   # bottom_right
+                (-x_semi, y_semi),  # top_left
+                (x_semi, y_semi),  # top_right
+                (x_semi, -y_semi),  # bottom_right
                 (-x_semi, -y_semi),  # bottom_left
             ]
 
