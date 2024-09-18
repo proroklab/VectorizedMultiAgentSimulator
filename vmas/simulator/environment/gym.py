@@ -8,7 +8,7 @@ import numpy as np
 import torch
 
 from vmas.simulator.environment.environment import Environment
-from vmas.simulator.utils import extract_nested_with_index
+from vmas.simulator.utils import extract_nested_with_index, TorchUtils
 
 
 class GymWrapper(gym.Env):
@@ -34,7 +34,7 @@ class GymWrapper(gym.Env):
         return self._env
 
     def _ensure_obs_type(self, obs):
-        return obs.detach().cpu().numpy() if self.return_numpy else obs
+        return TorchUtils.to_numpy(obs) if self.return_numpy else obs
 
     @property
     def env(self):

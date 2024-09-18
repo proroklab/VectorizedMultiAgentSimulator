@@ -2,9 +2,8 @@
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 from typing import List, Optional
+import importlib
 
-import gym
-import gymnasium
 import numpy as np
 import torch
 
@@ -12,51 +11,16 @@ from vmas.simulator.environment.environment import Environment
 from vmas.simulator.utils import extract_nested_with_index
 
 
-def _convert_space(space: gym.Space) -> gymnasium.Space:
-    """Converts a gym space to a gymnasium space.
-
-    Args:
-        space: the gym space to convert
-
-    Returns:
-        The converted gymnasium space
-    """
-    if isinstance(space, gym.spaces.Discrete):
-        return gymnasium.spaces.Discrete(n=space.n)
-    elif isinstance(space, gym.spaces.Box):
-        return gymnasium.spaces.Box(
-            low=space.low, high=space.high, shape=space.shape, dtype=space.dtype
-        )
-    elif isinstance(space, gym.spaces.MultiDiscrete):
-        return gymnasium.spaces.MultiDiscrete(nvec=space.nvec)
-    elif isinstance(space, gym.spaces.MultiBinary):
-        return gymnasium.spaces.MultiBinary(n=space.n)
-    elif isinstance(space, gym.spaces.Tuple):
-        return gymnasium.spaces.Tuple(spaces=tuple(map(_convert_space, space.spaces)))
-    elif isinstance(space, gym.spaces.Dict):
-        return gymnasium.spaces.Dict(
-            spaces={k: _convert_space(v) for k, v in space.spaces.items()}
-        )
-    elif isinstance(space, gym.spaces.Sequence):
-        return gymnasium.spaces.Sequence(space=_convert_space(space.feature_space))
-    elif isinstance(space, gym.spaces.Graph):
-        return gymnasium.spaces.Graph(
-            node_space=_convert_space(space.node_space),  # type: ignore
-            edge_space=_convert_space(space.edge_space),  # type: ignore
-        )
-    elif isinstance(space, gym.spaces.Text):
-        return gymnasium.spaces.Text(
-            max_length=space.max_length,
-            min_length=space.min_length,
-            charset=space._char_str,
-        )
-    else:
-        raise NotImplementedError(
-            f"Cannot convert space of type {space}. Please upgrade your code to gymnasium."
-        )
+if importlib.util.find_spec("gymnasium") is not None:
+    import gymnasium as gym
+    from shimmy.openai_gym_compatibility import _convert_space
+else:
+    raise ImportError(
+        "Gymnasium is not installed. Please install it with `pip install gymnasium`."
+    )
 
 
-class GymnasiumWrapper(gymnasium.Env):
+class GymnasiumWrapper(gym.Env):
     metadata = Environment.metadata
 
     def __init__(

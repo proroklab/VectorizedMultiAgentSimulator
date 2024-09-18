@@ -25,8 +25,7 @@ def make_env(
     clamp_actions: bool = False,
     grad_enabled: bool = False,
     terminated_truncated: bool = False,
-    return_numpy: bool = False,
-    render_mode: str = "human",
+    wrapper_kwargs: dict = {},
     **kwargs,
 ):
     """Create a vmas environment.
@@ -58,9 +57,7 @@ def make_env(
             be taken from the simulator output. Default is ``False``.
         terminated_truncated (bool, optional): Weather to use terminated and truncated flags in the output of the step method (or single done).
             Default is ``False``.
-        return_numpy (bool, optional): Weather to return numpy arrays instead of torch tensors. This is only effective with the gym and gymnasium wrappers.
-            Default is ``False``.
-        render_mode (str, optional): Render mode for the gymnasium wrapper; not effective if no or other wrappers are used. Default is ``"human"``.
+        wrapper_kwargs (dict): Keyword arguments to pass to the wrapper class. Default is ``{}``.
 
         **kwargs (dict, optional): Keyword arguments to pass to the :class:`~vmas.simulator.scenario.BaseScenario` class.
 
@@ -100,8 +97,4 @@ def make_env(
     if wrapper is not None and isinstance(wrapper, str):
         wrapper = Wrapper[wrapper.upper()]
 
-    return (
-        wrapper.get_env(env, return_numpy=return_numpy, render_mode=render_mode)
-        if wrapper is not None
-        else env
-    )
+    return wrapper.get_env(env, **wrapper_kwargs) if wrapper is not None else env

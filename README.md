@@ -127,14 +127,18 @@ pip install vmas[render]
 # install testing dependencies
 pip install vmas[test]
 
-# install wandb logging dependencies
-pip install vmas[wandb]
-
-# install torchrl dependencies for training with BenchMARL
-pip install vmas[torchrl]
-
 # install all dependencies
 pip install vmas[all]
+```
+
+You can also install the following libraries for further functionality:
+
+```bash
+# install wandb for logging
+pip install wandb
+
+# can install torchrl for training with BenchMARL
+pip install torchrl
 ```
 
 ### Run 

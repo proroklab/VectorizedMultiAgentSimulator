@@ -2,16 +2,25 @@
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 from typing import Dict, List, Optional, Tuple
+import importlib
 
 import numpy as np
 import torch
 from numpy import ndarray
-from ray import rllib
-from ray.rllib.utils.typing import EnvActionType, EnvInfoDict, EnvObsType
+
 from torch import Tensor
 
 from vmas.simulator.environment.environment import Environment
 from vmas.simulator.utils import INFO_TYPE, OBS_TYPE, REWARD_TYPE, TorchUtils
+
+
+if importlib.util.find_spec("ray") is not None:
+    from ray import rllib
+    from ray.rllib.utils.typing import EnvActionType, EnvInfoDict, EnvObsType
+else:
+    raise ImportError(
+        "RLLib is not installed. Please install it with `pip install ray[rllib]`."
+    )
 
 
 class VectorEnvWrapper(rllib.VectorEnv):

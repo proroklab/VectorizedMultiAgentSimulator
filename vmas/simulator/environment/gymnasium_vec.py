@@ -2,62 +2,23 @@
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 from typing import List, Optional
+import importlib
 
-import gymnasium as gym
 import numpy as np
 import torch
 
 from vmas.simulator.environment.environment import Environment
-from vmas.simulator.environment.gymnasium import _convert_space
+from vmas.simulator.utils import TorchUtils
 
 
-def _get_vectorized_space(space: gym.Space, num_envs: int) -> gym.Space:
-    """Convert singleton gymnasium space to a vectorized gymnasium space.
-
-    Args:
-        space: the singleton gymnasium space
-        num_envs: the number of environments
-    Returns:
-        The vectorized gymnasium space
-    """
-    if isinstance(space, gym.spaces.Discrete):
-        return gym.spaces.MultiDiscrete(nvec=np.broadcast_to(space.n, (num_envs,)))
-    elif isinstance(space, gym.spaces.Box):
-        return gym.spaces.Box(
-            low=np.broadcast_to(space.low, (num_envs, *space.low.shape)),
-            high=np.broadcast_to(space.high, (num_envs, *space.high.shape)),
-            shape=(num_envs, *space.shape),
-            dtype=space.dtype,
-        )
-    elif isinstance(space, gym.spaces.MultiDiscrete):
-        return gym.spaces.MultiDiscrete(
-            nvec=np.broadcast_to(space.nvec, (num_envs, *space.shape))
-        )
-    elif isinstance(space, gym.spaces.MultiBinary):
-        return gym.spaces.MultiBinary(
-            n=np.broadcast_to(np.array(space.n, dtype=int), (num_envs,))
-        )
-    elif isinstance(space, gym.spaces.Tuple):
-        return gym.spaces.Tuple(
-            spaces=tuple(
-                map(lambda s: _get_vectorized_space(s, num_envs), space.spaces)
-            )
-        )
-    elif isinstance(space, gym.spaces.Dict):
-        return gym.spaces.Dict(
-            spaces={
-                k: _get_vectorized_space(v, num_envs) for k, v in space.spaces.items()
-            }
-        )
-    elif isinstance(space, gym.spaces.Graph):
-        return gym.spaces.Graph(
-            node_space=_get_vectorized_space(space.node_space, num_envs),
-            edge_space=_get_vectorized_space(space.edge_space, num_envs),
-        )
-    else:
-        raise NotImplementedError(
-            f"Cannot convert space of type {space}. Please upgrade your code to gymnasium."
-        )
+if importlib.util.find_spec("gymnasium") is not None:
+    import gymnasium as gym
+    from gymnasium.vector.utils import batch_space
+    from shimmy.openai_gym_compatibility import _convert_space
+else:
+    raise ImportError(
+        "Gymnasium is not installed. Please install it with `pip install gymnasium`."
+    )
 
 
 class GymnasiumVectorizedWrapper(gym.Env):
@@ -75,12 +36,10 @@ class GymnasiumVectorizedWrapper(gym.Env):
         assert self._env.terminated_truncated, "GymnasiumWrapper is only compatible with termination and truncation flags. Please set `terminated_truncated=True` in the VMAS environment."
         self.single_observation_space = _convert_space(self._env.observation_space)
         self.single_action_space = _convert_space(self._env.action_space)
-        self.observation_space = _get_vectorized_space(
-            self.single_observation_space, self._num_envs
+        self.observation_space = batch_space(
+            self.single_observation_space, n=self._num_envs
         )
-        self.action_space = _get_vectorized_space(
-            self.single_action_space, self._num_envs
-        )
+        self.action_space = batch_space(self.single_action_space, n=self._num_envs)
 
         self.return_numpy = return_numpy
         self.render_mode = render_mode
@@ -89,7 +48,7 @@ class GymnasiumVectorizedWrapper(gym.Env):
         return self._env
 
     def _ensure_tensor_type(self, tensor):
-        return tensor.detach().cpu().numpy() if self.return_numpy else tensor
+        return TorchUtils.to_numpy(tensor) if self.return_numpy else tensor
 
     @property
     def env(self):
