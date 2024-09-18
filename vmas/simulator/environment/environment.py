@@ -77,7 +77,7 @@ class Environment(TorchVectorizedObject):
         self.headless = None
         self.visible_display = None
         self.text_lines = None
-        self.visualize_semidims = kwargs.pop("visualize_semidims", True)
+
 
     def reset(
         self,
@@ -742,7 +742,7 @@ class Environment(TorchVectorizedObject):
             )
 
         # Render
-        if self.visualize_semidims:
+        if self.scenario.visualize_semidims:
             self.plot_boundary()
 
         self._set_agent_comm_messages(env_index)
@@ -782,10 +782,8 @@ class Environment(TorchVectorizedObject):
 
         # Check boundary limits
         if self.world.x_semidim is not None or self.world.y_semidim is not None:
-            # Get the origin coordinates
-            origin_x, origin_y = (0, 0)
 
-            infinite_value = np.infty
+            infinite_value = 1e7
 
             # set semidim variables
             x_semi = (
@@ -801,10 +799,10 @@ class Environment(TorchVectorizedObject):
 
             # define edges
             boundary_edges = [
-                (origin_x - x_semi, origin_y + y_semi),  # top_left
-                (origin_x + x_semi, origin_y + y_semi),  # top_right
-                (origin_x + x_semi, origin_y - y_semi),  # bottom_right
-                (origin_x - x_semi, origin_y - y_semi),  # bottom_left
+                (-x_semi, y_semi),   # top_left
+                (x_semi, y_semi),    # top_right
+                (x_semi, -y_semi),   # bottom_right
+                (-x_semi, -y_semi),  # bottom_left
             ]
 
             # Set the color for the boundary lines
@@ -818,7 +816,7 @@ class Environment(TorchVectorizedObject):
                 end = boundary_edges[
                     (i + 1) % len(boundary_edges)
                 ]  # Next corner point, wraps around to the first point
-                line = Line(start, end, width=0.5)  # Create a line between two corners
+                line = Line(start, end, width=0.7)  # Create a line between two corners
                 line.add_attr(xform)  # Apply transformation to the line
                 line.set_color(*color)  # Set the line color
                 self.viewer.add_geom(line)  # Add the line to the viewer for rendering
