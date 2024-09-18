@@ -17,20 +17,24 @@ class GymWrapper(gym.Env):
     def __init__(
         self,
         env: Environment,
+        return_numpy: bool = False,
+        **kwargs,
     ):
         assert (
             env.num_envs == 1
         ), f"GymEnv wrapper is not vectorised, got env.num_envs: {env.num_envs}"
 
         self._env = env
-        assert (
-            self._env.legacy_gym
-        ), "GymWrapper is only compatible with legacy gym environments"
+        assert not self._env.terminated_truncated, "GymWrapper is not only compatible with termination and truncation flags. Please set `terminated_truncated=False` in the VMAS environment."
         self.observation_space = self._env.observation_space
         self.action_space = self._env.action_space
+        self.return_numpy = return_numpy
 
     def unwrapped(self) -> Environment:
         return self._env
+
+    def _ensure_obs_type(self, obs):
+        return obs.detach().cpu().numpy() if self.return_numpy else obs
 
     @property
     def env(self):
@@ -38,18 +42,23 @@ class GymWrapper(gym.Env):
 
     def step(self, action):
         action = self._action_list_to_tensor(action)
-        obs, rews, dones, info = self._env.step(action)
+        obs, rews, done, info = self._env.step(action)
+        done = done[0].item()
         if self._env.dict_spaces:
             for agent in obs.keys():
-                obs[agent] = extract_nested_with_index(obs[agent], index=0)
+                obs[agent] = self._ensure_obs_type(
+                    extract_nested_with_index(obs[agent], index=0)
+                )
                 info[agent] = extract_nested_with_index(info[agent], index=0)
                 rews[agent] = rews[agent][0].item()
         else:
             for i in range(self._env.n_agents):
-                obs[i] = extract_nested_with_index(obs[i], index=0)
+                obs[i] = self._ensure_obs_type(
+                    extract_nested_with_index(obs[i], index=0)
+                )
                 info[i] = extract_nested_with_index(info[i], index=0)
                 rews[i] = rews[i][0].item()
-        return obs, rews, dones, info
+        return obs, rews, done, info
 
     def reset(
         self,
@@ -63,10 +72,14 @@ class GymWrapper(gym.Env):
         obs = self._env.reset_at(index=0)
         if self._env.dict_spaces:
             for agent in obs.keys():
-                obs[agent] = extract_nested_with_index(obs[agent], index=0)
+                obs[agent] = self._ensure_obs_type(
+                    extract_nested_with_index(obs[agent], index=0)
+                )
         else:
             for i in range(self._env.n_agents):
-                obs[i] = extract_nested_with_index(obs[i], index=0)
+                obs[i] = self._ensure_obs_type(
+                    extract_nested_with_index(obs[i], index=0)
+                )
         return obs
 
     def render(

@@ -11,6 +11,7 @@ If you have more than 1 agent, you can control another one with W,A,S,D
 and switch the agent with these controls using LSHIFT
 """
 
+from argparse import ArgumentParser, BooleanOptionalAction
 from operator import add
 from typing import Dict, Union
 
@@ -346,7 +347,6 @@ def render_interactively(
             continuous_actions=True,
             wrapper=Wrapper.GYM,
             seed=0,
-            legacy_gym=True,
             # Environment specific variables
             **kwargs,
         ),
@@ -359,6 +359,34 @@ def render_interactively(
     )
 
 
+def parse_args():
+    parser = ArgumentParser(description="Interactive rendering")
+    parser.add_argument(
+        "--scenario",
+        type=str,
+        default="waterfall",
+        help="Scenario to load. Can be the name of a file in `vmas.scenarios` folder or a :class:`~vmas.simulator.scenario.BaseScenario` class",
+    )
+    parser.add_argument(
+        "--control_two_agents",
+        action=BooleanOptionalAction,
+        default=True,
+        help="Whether to control two agents or just one",
+    )
+    parser.add_argument(
+        "--display_info",
+        action=BooleanOptionalAction,
+        default=True,
+        help="Whether to display on the screen the following info from the first controlled agent: name, reward, total reward, done, and observation",
+    )
+    parser.add_argument(
+        "--save_render",
+        action="store_true",
+        help="Whether to save a video of the render up to the first reset",
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
     # Use this script to interactively play with scenarios
     #
@@ -367,14 +395,11 @@ if __name__ == "__main__":
     # You can control agent actions with the arrow keys and M/N (left/right control the first action, up/down control the second, M/N controls the third)
     # If you have more than 1 agent, you can control another one with W,A,S,D and Q,E in the same way.
     # and switch the agent with these controls using LSHIFT
-
-    scenario_name = "waterfall"
-
-    # Scenario specific variables
+    args = parse_args()
 
     render_interactively(
-        scenario_name,
-        control_two_agents=True,
-        save_render=False,
-        display_info=True,
+        scenario=args.scenario,
+        control_two_agents=args.control_two_agents,
+        save_render=args.save_render,
+        display_info=args.display_info,
     )

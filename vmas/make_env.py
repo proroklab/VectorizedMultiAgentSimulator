@@ -24,7 +24,9 @@ def make_env(
     multidiscrete_actions: bool = False,
     clamp_actions: bool = False,
     grad_enabled: bool = False,
-    legacy_gym: bool = True,
+    terminated_truncated: bool = False,
+    return_numpy: bool = False,
+    render_mode: str = "human",
     **kwargs,
 ):
     """Create a vmas environment.
@@ -54,6 +56,12 @@ def make_env(
             an error when ``continuous_actions==True`` and actions are out of bounds,
         grad_enabled (bool, optional): If ``True`` the simulator will not call ``detach()`` on input actions and gradients can
             be taken from the simulator output. Default is ``False``.
+        terminated_truncated (bool, optional): Weather to use terminated and truncated flags in the output of the step method (or single done).
+            Default is ``False``.
+        return_numpy (bool, optional): Weather to return numpy arrays instead of torch tensors. This is only effective with the gym and gymnasium wrappers.
+            Default is ``False``.
+        render_mode (str, optional): Render mode for the gymnasium wrapper; not effective if no or other wrappers are used. Default is ``"human"``.
+
         **kwargs (dict, optional): Keyword arguments to pass to the :class:`~vmas.simulator.scenario.BaseScenario` class.
 
     Examples:
@@ -85,11 +93,15 @@ def make_env(
         multidiscrete_actions=multidiscrete_actions,
         clamp_actions=clamp_actions,
         grad_enabled=grad_enabled,
-        legacy_gym=legacy_gym,
+        terminated_truncated=terminated_truncated,
         **kwargs,
     )
 
     if wrapper is not None and isinstance(wrapper, str):
         wrapper = Wrapper[wrapper.upper()]
 
-    return wrapper.get_env(env) if wrapper is not None else env
+    return (
+        wrapper.get_env(env, return_numpy=return_numpy, render_mode=render_mode)
+        if wrapper is not None
+        else env
+    )

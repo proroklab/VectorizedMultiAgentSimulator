@@ -2,5 +2,5 @@ numpy
 torch
 pyglet<=1.5.27
 gym
-gymnasium
 six
+cvxpylayers

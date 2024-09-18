@@ -6,6 +6,7 @@ import random
 from ctypes import byref
 from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 
+from gym import spaces
 import numpy as np
 import torch
 from torch import Tensor
@@ -44,8 +45,7 @@ class Environment(TorchVectorizedObject):
         multidiscrete_actions: bool = False,
         clamp_actions: bool = False,
         grad_enabled: bool = False,
-        legacy_gym: bool = True,
-        render_mode: str = "human",
+        terminated_truncated: bool = False,
         **kwargs,
     ):
         if multidiscrete_actions:
@@ -63,12 +63,9 @@ class Environment(TorchVectorizedObject):
         self.dict_spaces = dict_spaces
         self.clamp_action = clamp_actions
         self.grad_enabled = grad_enabled
-        self.legacy_gym = legacy_gym
+        self.terminated_truncated = terminated_truncated
 
-        if self.legacy_gym:
-            observations = self.reset(seed=seed)
-        else:
-            observations, _ = self.reset(seed=seed)
+        observations = self.reset(seed=seed)
 
         # configure spaces
         self.multidiscrete_actions = multidiscrete_actions
@@ -80,7 +77,6 @@ class Environment(TorchVectorizedObject):
         self.headless = None
         self.visible_display = None
         self.text_lines = None
-        self.render_mode = render_mode
 
     def reset(
         self,
@@ -95,9 +91,6 @@ class Environment(TorchVectorizedObject):
         """
         if seed is not None:
             self.seed(seed)
-        if not self.legacy_gym:
-            # for gymnasium compatibility, return info
-            return_info = True
         # reset world
         self.scenario.env_reset_world_at(env_index=None)
         self.steps = torch.zeros(self.num_envs, device=self.device)
@@ -180,14 +173,14 @@ class Environment(TorchVectorizedObject):
                 else:
                     infos.append(info)
 
-        if self.legacy_gym:
-            if get_dones:
-                dones = self.done()
-            result = [obs, rewards, dones, infos]
-        else:
+        if self.terminated_truncated:
             if get_dones:
                 terminated, truncated = self.done()
             result = [obs, rewards, terminated, truncated, infos]
+        else:
+            if get_dones:
+                dones = self.done()
+            result = [obs, rewards, dones, infos]
 
         return [data for data in result if data is not None]
 
@@ -287,17 +280,12 @@ class Environment(TorchVectorizedObject):
         else:
             truncated = torch.zeros_like(terminated)
 
-        if self.legacy_gym:
-            return torch.logical_or(terminated, truncated)
-        else:
+        if self.terminated_truncated:
             return terminated, truncated
+        else:
+            return terminated + truncated
 
     def get_action_space(self):
-        if self.legacy_gym:
-            from gym import spaces
-        else:
-            from gymnasium import spaces
-
         if not self.dict_spaces:
             return spaces.Tuple(
                 [self.get_agent_action_space(agent) for agent in self.agents]
@@ -311,11 +299,6 @@ class Environment(TorchVectorizedObject):
             )
 
     def get_observation_space(self, observations: Union[List, Dict]):
-        if self.legacy_gym:
-            from gym import spaces
-        else:
-            from gymnasium import spaces
-
         if not self.dict_spaces:
             return spaces.Tuple(
                 [
@@ -346,11 +329,6 @@ class Environment(TorchVectorizedObject):
             return 1
 
     def get_agent_action_space(self, agent: Agent):
-        if self.legacy_gym:
-            from gym import spaces
-        else:
-            from gymnasium import spaces
-
         if self.continuous_actions:
             return spaces.Box(
                 low=np.array(
@@ -382,11 +360,6 @@ class Environment(TorchVectorizedObject):
             )
 
     def get_agent_observation_space(self, agent: Agent, obs: AGENT_OBS_TYPE):
-        if self.legacy_gym:
-            from gym import spaces
-        else:
-            from gymnasium import spaces
-
         if isinstance(obs, Tensor):
             return spaces.Box(
                 low=-np.float32("inf"),
@@ -633,7 +606,7 @@ class Environment(TorchVectorizedObject):
 
     def render(
         self,
-        mode=None,
+        mode="human",
         env_index=0,
         agent_index_focus: int = None,
         visualize_when_rgb: bool = False,
@@ -677,9 +650,6 @@ class Environment(TorchVectorizedObject):
         :param plot_position_function_cmap_alpha: The alpha of the cmap in case plot_position_function outputs a single value
         :return: Rgb array or None, depending on the mode
         """
-        if mode is None:
-            mode = self.render_mode
-
         self._check_batch_index(env_index)
         assert (
             mode in self.metadata["render.modes"]

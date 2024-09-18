@@ -3,52 +3,56 @@
 #  All rights reserved.
 from typing import List, Optional
 
-import gym
-import gymnasium
+import gymnasium as gym
 import numpy as np
 import torch
 
 from vmas.simulator.environment.environment import Environment
-from vmas.simulator.utils import extract_nested_with_index
+from vmas.simulator.environment.gymnasium import _convert_space
 
 
-def _convert_space(space: gym.Space) -> gymnasium.Space:
-    """Converts a gym space to a gymnasium space.
+def _get_vectorized_space(space: gym.Space, num_envs: int) -> gym.Space:
+    """Convert singleton gymnasium space to a vectorized gymnasium space.
 
     Args:
-        space: the gym space to convert
-
+        space: the singleton gymnasium space
+        num_envs: the number of environments
     Returns:
-        The converted gymnasium space
+        The vectorized gymnasium space
     """
     if isinstance(space, gym.spaces.Discrete):
-        return gymnasium.spaces.Discrete(n=space.n)
+        return gym.spaces.MultiDiscrete(nvec=np.broadcast_to(space.n, (num_envs,)))
     elif isinstance(space, gym.spaces.Box):
-        return gymnasium.spaces.Box(
-            low=space.low, high=space.high, shape=space.shape, dtype=space.dtype
+        return gym.spaces.Box(
+            low=np.broadcast_to(space.low, (num_envs, *space.low.shape)),
+            high=np.broadcast_to(space.high, (num_envs, *space.high.shape)),
+            shape=(num_envs, *space.shape),
+            dtype=space.dtype,
         )
     elif isinstance(space, gym.spaces.MultiDiscrete):
-        return gymnasium.spaces.MultiDiscrete(nvec=space.nvec)
+        return gym.spaces.MultiDiscrete(
+            nvec=np.broadcast_to(space.nvec, (num_envs, *space.shape))
+        )
     elif isinstance(space, gym.spaces.MultiBinary):
-        return gymnasium.spaces.MultiBinary(n=space.n)
+        return gym.spaces.MultiBinary(
+            n=np.broadcast_to(np.array(space.n, dtype=int), (num_envs,))
+        )
     elif isinstance(space, gym.spaces.Tuple):
-        return gymnasium.spaces.Tuple(spaces=tuple(map(_convert_space, space.spaces)))
+        return gym.spaces.Tuple(
+            spaces=tuple(
+                map(lambda s: _get_vectorized_space(s, num_envs), space.spaces)
+            )
+        )
     elif isinstance(space, gym.spaces.Dict):
-        return gymnasium.spaces.Dict(
-            spaces={k: _convert_space(v) for k, v in space.spaces.items()}
+        return gym.spaces.Dict(
+            spaces={
+                k: _get_vectorized_space(v, num_envs) for k, v in space.spaces.items()
+            }
         )
-    elif isinstance(space, gym.spaces.Sequence):
-        return gymnasium.spaces.Sequence(space=_convert_space(space.feature_space))
     elif isinstance(space, gym.spaces.Graph):
-        return gymnasium.spaces.Graph(
-            node_space=_convert_space(space.node_space),  # type: ignore
-            edge_space=_convert_space(space.edge_space),  # type: ignore
-        )
-    elif isinstance(space, gym.spaces.Text):
-        return gymnasium.spaces.Text(
-            max_length=space.max_length,
-            min_length=space.min_length,
-            charset=space._char_str,
+        return gym.spaces.Graph(
+            node_space=_get_vectorized_space(space.node_space, num_envs),
+            edge_space=_get_vectorized_space(space.edge_space, num_envs),
         )
     else:
         raise NotImplementedError(
@@ -56,7 +60,7 @@ def _convert_space(space: gym.Space) -> gymnasium.Space:
         )
 
 
-class GymnasiumWrapper(gymnasium.Env):
+class GymnasiumVectorizedWrapper(gym.Env):
     metadata = Environment.metadata
 
     def __init__(
@@ -66,22 +70,26 @@ class GymnasiumWrapper(gymnasium.Env):
         render_mode: str = "human",
         **kwargs,
     ):
-        assert (
-            env.num_envs == 1
-        ), "GymnasiumEnv wrapper only supports singleton VMAS environment! For vectorized environments, use vectorized wrapper with `wrapper=gymnasium_vec`."
-
         self._env = env
+        self._num_envs = self._env.num_envs
         assert self._env.terminated_truncated, "GymnasiumWrapper is only compatible with termination and truncation flags. Please set `terminated_truncated=True` in the VMAS environment."
-        self.observation_space = _convert_space(self._env.observation_space)
-        self.action_space = _convert_space(self._env.action_space)
+        self.single_observation_space = _convert_space(self._env.observation_space)
+        self.single_action_space = _convert_space(self._env.action_space)
+        self.observation_space = _get_vectorized_space(
+            self.single_observation_space, self._num_envs
+        )
+        self.action_space = _get_vectorized_space(
+            self.single_action_space, self._num_envs
+        )
+
         self.return_numpy = return_numpy
         self.render_mode = render_mode
 
     def unwrapped(self) -> Environment:
         return self._env
 
-    def _ensure_obs_type(self, obs):
-        return obs.detach().cpu().numpy() if self.return_numpy else obs
+    def _ensure_tensor_type(self, tensor):
+        return tensor.detach().cpu().numpy() if self.return_numpy else tensor
 
     @property
     def env(self):
@@ -97,22 +105,18 @@ class GymnasiumWrapper(gymnasium.Env):
     def step(self, action):
         action = self._action_list_to_tensor(action)
         obs, rews, terminated, truncated, info = self._env.step(action)
-        terminated = terminated[0].item()
-        truncated = truncated[0].item()
         if self._env.dict_spaces:
             for agent in obs.keys():
-                obs[agent] = self._ensure_obs_type(
-                    extract_nested_with_index(obs[agent], index=0)
-                )
-                info[agent] = extract_nested_with_index(info[agent], index=0)
-                rews[agent] = rews[agent][0].item()
+                obs[agent] = self._ensure_tensor_type(obs[agent])
+                info[agent] = info[agent]
+                rews[agent] = self._ensure_tensor_type(rews[agent])
         else:
             for i in range(self._env.n_agents):
-                obs[i] = self._ensure_obs_type(
-                    extract_nested_with_index(obs[i], index=0)
-                )
-                info[i] = extract_nested_with_index(info[i], index=0)
-                rews[i] = rews[i][0].item()
+                obs[i] = self._ensure_tensor_type(obs[i])
+                info[i] = info[i]
+                rews[i] = self._ensure_tensor_type(rews[i])
+        terminated = self._ensure_tensor_type(terminated)
+        truncated = self._ensure_tensor_type(truncated)
         return obs, rews, terminated, truncated, self._compress_infos(info)
 
     def reset(
@@ -127,14 +131,10 @@ class GymnasiumWrapper(gymnasium.Env):
 
         if self._env.dict_spaces:
             for agent in obs.keys():
-                obs[agent] = self._ensure_obs_type(
-                    extract_nested_with_index(obs[agent], index=0)
-                )
+                obs[agent] = self._ensure_tensor_type(obs[agent])
         else:
             for i in range(self._env.n_agents):
-                obs[i] = self._ensure_obs_type(
-                    extract_nested_with_index(obs[i], index=0)
-                )
+                obs[i] = self._ensure_tensor_type(obs[i])
         return obs, self._compress_infos(infos)
 
     def render(
@@ -159,7 +159,7 @@ class GymnasiumWrapper(gymnasium.Env):
         for agent in self._env.agents:
             actions.append(
                 torch.zeros(
-                    1,
+                    self._num_envs,
                     self._env.get_agent_action_size(agent),
                     device=self._env.device,
                     dtype=torch.float32,
@@ -168,16 +168,19 @@ class GymnasiumWrapper(gymnasium.Env):
 
         for i in range(self._env.n_agents):
             act = torch.tensor(list_in[i], dtype=torch.float32, device=self._env.device)
-            if len(act.shape) == 0:
+            assert (
+                act.shape[0] == self._num_envs
+            ), f"Action of agent {i} is supposed to be a vector of shape ({self._num_envs}, ...)"
+            if len(act.shape) == 1:
                 assert (
                     self._env.get_agent_action_size(self._env.agents[i]) == 1
-                ), f"Action of agent {i} is supposed to be an scalar int"
+                ), f"Action of agent {i} is supposed to be an vector of shape ({self.n_num_envs},)."
             else:
-                assert len(act.shape) == 1 and act.shape[
-                    0
+                assert len(act.shape) == 2 and act.shape[
+                    1
                 ] == self._env.get_agent_action_size(self._env.agents[i]), (
                     f"Action of agent {i} hase wrong shape: "
                     f"expected {self._env.get_agent_action_size(self._env.agents[i])}, got {act.shape[0]}"
                 )
-            actions[i][0] = act
+            actions[i] = act
         return actions

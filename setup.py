@@ -29,6 +29,14 @@ setup(
     author="Matteo Bettini",
     author_email="mb2389@cl.cam.ac.uk",
     packages=find_packages(),
-    install_requires=["numpy", "torch", "pyglet<=1.5.27", "gym", "gymnasium", "six"],
+    install_requires=["numpy", "torch", "pyglet<=1.5.27", "gym", "six", "cvxpylayers"],
+    extras_require={
+        "gymnasium": ["gymnasium"],
+        "rllib": ["ray[rllib]<=2.2"],
+        "torchrl": ["torchrl"],
+        "wandb": ["wandb"],
+        "render": ["opencv-python", "moviepy", "matplotlib", "opencv-python"],
+        "test": ["pytest", "pytest-instafail", "pyyaml", "tqdm"],
+    },
     include_package_data=True,
 )

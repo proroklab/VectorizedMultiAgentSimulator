@@ -113,27 +113,35 @@ git clone https://github.com/proroklab/VectorizedMultiAgentSimulator.git
 cd VectorizedMultiAgentSimulator
 pip install -e .
 ```
-By default, vmas has only the core requirements. Here are some optional packages you may want to install:
+By default, vmas has only the core requirements. To install further dependencies to enable training with [Gymnasium](https://gymnasium.farama.org/) wrappers, [RLLib](https://docs.ray.io/en/latest/rllib/index.html) wrappers, for rendering, and testing, you may want to install these further options:
 ```bash
-# Training
-pip install "ray[rllib]"==2.1.0 # We support versions "ray[rllib]<=2.2,>=1.13"
-pip install torchrl
+# install gymnasium for gymnasium wrapper
+pip install vmas[gymnasium]
 
-# Logging
-pip install wandb 
+# install rllib for rllib wrapper
+pip install vmas[rllib]
 
-# Rendering
-pip install opencv-python moviepy matplotlib
+# install rendering dependencies
+pip install vmas[render]
 
-# Tests
-pip install pytest pyyaml pytest-instafail tqdm
+# install testing dependencies
+pip install vmas[test]
+
+# install wandb logging dependencies
+pip install vmas[wandb]
+
+# install torchrl dependencies for training with BenchMARL
+pip install vmas[torchrl]
+
+# install all dependencies
+pip install vmas[all]
 ```
 
 ### Run 
 
 To use the simulator, simply create an environment by passing the name of the scenario
 you want (from the `scenarios` folder) to the `make_env` function.
-The function arguments are explained in the documentation. The function returns an environment object with the OpenAI Gym interface:
+The function arguments are explained in the documentation. The function returns an environment object with the VMAS interface:
 
 Here is an example:
 ```python
@@ -142,18 +150,19 @@ Here is an example:
         num_envs=32,
         device="cpu", # Or "cuda" for GPU
         continuous_actions=True,
-        wrapper=None,  # One of: None, vmas.Wrapper.RLLIB or "rllib", and vmas.Wrapper.GYM or "gym", and vmas.Wrapper.GYMNASIUM or "gymnasium"
+        wrapper=None,  # One of: None, "rllib", "gym", "gymnasium", "gymnasium_vec"
         max_steps=None, # Defines the horizon. None is infinite horizon.
         seed=None, # Seed of the environment
         dict_spaces=False, # By default tuple spaces are used with each element in the tuple being an agent.
         # If dict_spaces=True, the spaces will become Dict with each key being the agent's name
         grad_enabled=False, # If grad_enabled the simulator is differentiable and gradients can flow from output to input
+        terminated_truncated=False, # If terminated_truncated the simulator will return separate `terminated` and `truncated` flags in the `done()` and `step()` functions instead of a single `done` flag
         **kwargs # Additional arguments you want to pass to the scenario initialization
     )
 ```
 A further example that you can run is contained in `use_vmas_env.py` in the `examples` directory.
 
-To use an environment with the Gymnasium interface, give the additional `legacy_gym=False` argument.
+With the `terminated_truncated` flag set to `True`, the simulator will return separate `terminated` and `truncated` flags in the `done()` and `step()` functions instead of a single `done` flag. This is useful when you want to know if the environment is done because the episode has ended or because the maximum episode length/ timestep horizon has been reached. See [the Gymnasium documentation](https://gymnasium.farama.org/tutorials/gymnasium_basics/handling_time_limits/) for more details on this.
 
 #### RLlib
 
@@ -177,7 +186,7 @@ on how to run MAPPO-IPPO-MADDPG-QMIX-VDN using the [VMAS wrapper](https://github
 
 ### Input and output spaces
 
-VMAS uses gym (or gymnasium if `legacy_gym=False`) spaces for input and output spaces. 
+VMAS uses gym spaces for input and output spaces. 
 By default, action and observation spaces are tuples:
 ```python
 spaces.Tuple(
