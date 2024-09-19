@@ -775,7 +775,6 @@ class Environment(TorchVectorizedObject):
 
     def plot_boundary(self):
         # Include boundaries in the rendering
-        from vmas.simulator import rendering
         from vmas.simulator.rendering import Line
         from vmas.simulator.utils import Color
 
