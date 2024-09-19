@@ -814,7 +814,6 @@ class Environment(TorchVectorizedObject):
                     (i + 1) % len(boundary_edges)
                 ]  # Next corner point, wraps around to the first point
                 line = Line(start, end, width=0.7)  # Create a line between two corners
-                line.add_attr(xform)  # Apply transformation to the line
                 line.set_color(*color)  # Set the line color
                 self.viewer.add_onetime(line)  # Add the line to the viewer for rendering
 
