@@ -782,7 +782,7 @@ class Environment(TorchVectorizedObject):
         # Check boundary limits
         if self.world.x_semidim is not None or self.world.y_semidim is not None:
 
-            infinite_value = 1e7
+            infinite_value = 100
 
             # set semidim variables
             x_semi = (
