@@ -806,8 +806,6 @@ class Environment(TorchVectorizedObject):
 
             # Set the color for the boundary lines
             color = Color.GRAY.value
-            # Initialize a transformation
-            xform = rendering.Transform()
 
             # Create lines to form the boundary by connecting each corner to the next
             for i in range(len(boundary_edges)):
