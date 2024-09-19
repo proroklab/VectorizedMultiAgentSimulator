@@ -57,7 +57,7 @@ class BaseScenario(ABC):
         self.grid_spacing = 0.1
         """If :class:`~plot_grid`, the distance between lines in the background grid. This can be changed in the :class:`~make_world` function. """
         self.visualize_semidims = True
-        """If :class:`~plot_grid`, boundaries are displayed if dimension-limited environment. This can be changed in the :class:`~make_world` function. """
+        """Whether to display boundaries in dimension-limited environment. This can be changed in the :class:`~make_world` function. """
 
     @property
     def world(self):
