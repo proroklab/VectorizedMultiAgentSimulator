@@ -7,11 +7,12 @@ import importlib
 import numpy as np
 
 from vmas.simulator.environment.environment import Environment
-from vmas.simulator.environment.base import VMASBaseWrapper
+from vmas.simulator.environment.gym.base import BaseGymWrapper
 
 
 if importlib.util.find_spec("gymnasium") is not None:
     import gymnasium as gym
+    from gymnasium.vector.utils import batch_space
     from shimmy.openai_gym_compatibility import _convert_space
 else:
     raise ImportError(
@@ -19,7 +20,7 @@ else:
     )
 
 
-class GymnasiumWrapper(gym.Env, VMASBaseWrapper):
+class GymnasiumVectorizedWrapper(gym.Env, BaseGymWrapper):
     metadata = Environment.metadata
 
     def __init__(
@@ -28,14 +29,15 @@ class GymnasiumWrapper(gym.Env, VMASBaseWrapper):
         return_numpy: bool = True,
         render_mode: str = "human",
     ):
-        super().__init__(env, return_numpy=return_numpy, vectorized=False)
-        assert (
-            env.num_envs == 1
-        ), "GymnasiumEnv wrapper only supports singleton VMAS environment! For vectorized environments, use vectorized wrapper with `wrapper=gymnasium_vec`."
-
+        super().__init__(env, return_numpy=return_numpy, vectorized=True)
+        self._num_envs = self._env.num_envs
         assert self._env.terminated_truncated, "GymnasiumWrapper is only compatible with termination and truncation flags. Please set `terminated_truncated=True` in the VMAS environment."
-        self.observation_space = _convert_space(self._env.observation_space)
-        self.action_space = _convert_space(self._env.action_space)
+        self.single_observation_space = _convert_space(self._env.observation_space)
+        self.single_action_space = _convert_space(self._env.action_space)
+        self.observation_space = batch_space(
+            self.single_observation_space, n=self._num_envs
+        )
+        self.action_space = batch_space(self.single_action_space, n=self._num_envs)
         self.render_mode = render_mode
 
     @property
@@ -64,7 +66,7 @@ class GymnasiumWrapper(gym.Env, VMASBaseWrapper):
     ):
         if seed is not None:
             self._env.seed(seed)
-        obs, info = self._env.reset_at(index=0, return_info=True)
+        obs, info = self._env.reset(return_info=True)
         env_data = self._convert_env_data(obs=obs, info=info)
         return env_data.obs, env_data.info
 
@@ -76,7 +78,6 @@ class GymnasiumWrapper(gym.Env, VMASBaseWrapper):
     ) -> Optional[np.ndarray]:
         return self._env.render(
             mode=self.render_mode,
-            env_index=0,
             agent_index_focus=agent_index_focus,
             visualize_when_rgb=visualize_when_rgb,
             **kwargs,

@@ -7,10 +7,10 @@ import gym
 import numpy as np
 
 from vmas.simulator.environment.environment import Environment
-from vmas.simulator.environment.base import VMASBaseWrapper
+from vmas.simulator.environment.gym.base import BaseGymWrapper
 
 
-class GymWrapper(gym.Env, VMASBaseWrapper):
+class GymWrapper(gym.Env, BaseGymWrapper):
     metadata = Environment.metadata
 
     def __init__(

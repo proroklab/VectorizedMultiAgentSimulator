@@ -18,15 +18,15 @@ class Wrapper(Enum):
 
             return VectorEnvWrapper(env, **kwargs)
         elif self is self.GYM:
-            from vmas.simulator.environment.gym import GymWrapper
+            from vmas.simulator.environment.gym.gym import GymWrapper
 
             return GymWrapper(env, **kwargs)
         elif self is self.GYMNASIUM:
-            from vmas.simulator.environment.gymnasium import GymnasiumWrapper
+            from vmas.simulator.environment.gym.gymnasium import GymnasiumWrapper
 
             return GymnasiumWrapper(env, **kwargs)
         elif self is self.GYMNASIUM_VEC:
-            from vmas.simulator.environment.gymnasium_vec import (
+            from vmas.simulator.environment.gym.gymnasium_vec import (
                 GymnasiumVectorizedWrapper,
             )
 

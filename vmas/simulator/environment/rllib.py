@@ -19,7 +19,7 @@ if importlib.util.find_spec("ray") is not None:
     from ray.rllib.utils.typing import EnvActionType, EnvInfoDict, EnvObsType
 else:
     raise ImportError(
-        "RLLib is not installed. Please install it with `pip install ray[rllib]`."
+        "RLLib is not installed. Please install it with `pip install ray[rllib]<=2.2`."
     )
 
 
