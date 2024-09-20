@@ -776,11 +776,10 @@ class Environment(TorchVectorizedObject):
     def plot_boundary(self):
 
         # include boundaries in the rendering
-        from vmas.simulator.rendering import Line
-        from vmas.simulator.utils import Color
-
         # check if the environment is dimension-limited
         if self.world.x_semidim is not None or self.world.y_semidim is not None:
+            from vmas.simulator.rendering import Line
+            from vmas.simulator.utils import Color
             # set a big value for the cases where the environment is dimension-limited only in one coordinate
             infinite_value = 100
 
