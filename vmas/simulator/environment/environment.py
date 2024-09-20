@@ -6,9 +6,10 @@ import random
 from ctypes import byref
 from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 
-from gym import spaces
 import numpy as np
 import torch
+
+from gym import spaces
 from torch import Tensor
 
 import vmas.simulator.utils
@@ -49,7 +50,9 @@ class Environment(TorchVectorizedObject):
         **kwargs,
     ):
         if multidiscrete_actions:
-            assert not continuous_actions, "When asking for multidiscrete_actions, make sure continuous_actions=False"
+            assert (
+                not continuous_actions
+            ), "When asking for multidiscrete_actions, make sure continuous_actions=False"
 
         self.scenario = scenario
         self.num_envs = num_envs

@@ -1,8 +1,8 @@
 #  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-from typing import Dict, List, Optional, Tuple
 import importlib
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch

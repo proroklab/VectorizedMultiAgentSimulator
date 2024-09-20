@@ -17,7 +17,7 @@ def make_env(
     continuous_actions: bool = True,
     wrapper: Optional[
         Union[Wrapper, str]
-    ] = None,  # One of: None, vmas.Wrapper.RLLIB, vmas.Wrapper.GYM, vmas.Wrapper.Gymnasium
+    ] = None,  # One of: None, "rllib", "gym", "gymnasium", "gymnasium_vec"
     max_steps: Optional[int] = None,
     seed: Optional[int] = None,
     dict_spaces: bool = False,
@@ -58,7 +58,6 @@ def make_env(
         terminated_truncated (bool, optional): Weather to use terminated and truncated flags in the output of the step method (or single done).
             Default is ``False``.
         wrapper_kwargs (dict, optional): Keyword arguments to pass to the wrapper class. Default is ``{}``.
-
         **kwargs (dict, optional): Keyword arguments to pass to the :class:`~vmas.simulator.scenario.BaseScenario` class.
 
     Examples:

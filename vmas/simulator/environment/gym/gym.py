@@ -23,7 +23,9 @@ class GymWrapper(gym.Env, BaseGymWrapper):
             env.num_envs == 1
         ), f"GymEnv wrapper is not vectorised, got env.num_envs: {env.num_envs}"
 
-        assert not self._env.terminated_truncated, "GymWrapper is not compatible with termination and truncation flags. Please set `terminated_truncated=False` in the VMAS environment."
+        assert (
+            not self._env.terminated_truncated
+        ), "GymWrapper is not compatible with termination and truncation flags. Please set `terminated_truncated=False` in the VMAS environment."
         self.observation_space = self._env.observation_space
         self.action_space = self._env.action_space
 

@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import gym
 import numpy as np
 import pytest
@@ -9,13 +7,20 @@ from vmas import make_env
 from vmas.simulator.environment import Environment
 
 
-def scenario_names():
-    scenarios = []
-    scenarios_folder = Path(__file__).parent.parent.parent / "vmas" / "scenarios"
-    for path in scenarios_folder.iterdir():
-        if path.is_file() and path.suffix == ".py" and not path.name.startswith("__"):
-            scenarios.append(path.stem)
-    return scenarios
+TEST_SCENARIOS = [
+    "balance",
+    "discovery",
+    "dispersion",
+    "football",
+    "give_way",
+    "joint_passage",
+    "navigation",
+    "passage",
+    "reverse_transport",
+    "road_traffic",
+    "transport",
+    "waterfall",
+]
 
 
 def _check_obs_type(obss, obs_shapes, dict_space, return_numpy):
@@ -37,7 +42,7 @@ def _check_obs_type(obss, obs_shapes, dict_space, return_numpy):
             assert o.shape == shape, f"Expected shape {shape}, got {o.shape}"
 
 
-@pytest.mark.parametrize("scenario", scenario_names())
+@pytest.mark.parametrize("scenario", TEST_SCENARIOS)
 @pytest.mark.parametrize("return_numpy", [True, False])
 @pytest.mark.parametrize("continuous_actions", [True, False])
 @pytest.mark.parametrize("dict_space", [True, False])

@@ -1,8 +1,8 @@
 #  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
-from typing import Optional
 import importlib
+from typing import Optional
 
 import numpy as np
 
@@ -31,7 +31,9 @@ class GymnasiumVectorizedWrapper(gym.Env, BaseGymWrapper):
     ):
         super().__init__(env, return_numpy=return_numpy, vectorized=True)
         self._num_envs = self._env.num_envs
-        assert self._env.terminated_truncated, "GymnasiumWrapper is only compatible with termination and truncation flags. Please set `terminated_truncated=True` in the VMAS environment."
+        assert (
+            self._env.terminated_truncated
+        ), "GymnasiumWrapper is only compatible with termination and truncation flags. Please set `terminated_truncated=True` in the VMAS environment."
         self.single_observation_space = _convert_space(self._env.observation_space)
         self.single_action_space = _convert_space(self._env.action_space)
         self.observation_space = batch_space(

@@ -16,11 +16,10 @@ from operator import add
 from typing import Dict, Union
 
 import numpy as np
-import torch
 from torch import Tensor
 
 from vmas.make_env import make_env
-from vmas.simulator.environment import Environment
+from vmas.simulator.environment.gym import GymWrapper
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import save_video
 
@@ -40,7 +39,7 @@ class InteractiveEnv:
 
     def __init__(
         self,
-        env: Environment,
+        env: GymWrapper,
         control_two_agents: bool = False,
         display_info: bool = True,
         save_render: bool = False,

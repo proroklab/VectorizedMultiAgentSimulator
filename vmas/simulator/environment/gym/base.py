@@ -5,8 +5,9 @@ from typing import List, Optional
 import numpy as np
 import torch
 
-from vmas.simulator.utils import TorchUtils, extract_nested_with_index
 from vmas.simulator.environment import Environment
+
+from vmas.simulator.utils import extract_nested_with_index, TorchUtils
 
 
 EnvData = namedtuple(
@@ -32,26 +33,19 @@ class BaseGymWrapper(ABC):
         if not self.vectorized:
             data = extract_nested_with_index(data, index=0)
             if item:
-                return data.cpu().item()
+                return data.item()
         return self._maybe_to_numpy(data)
 
     def _compress_infos(self, infos):
-        compressed_info = {}
-        if isinstance(infos, list):
+        if isinstance(infos, dict):
+            return infos
+        elif isinstance(infos, list):
             base_keys = [f"agent_{i+1}" for i in range(len(infos))]
-            values = infos
-        elif isinstance(infos, dict):
-            base_keys = list(infos.keys())
-            values = list(infos.values())
+            return {base_key: info for base_key, info in zip(base_keys, infos)}
         else:
             raise ValueError(
                 f"Expected list or dictionary for infos but got {type(infos)}"
             )
-
-        for base_key, info in zip(base_keys, values):
-            for k, v in info.items():
-                compressed_info[f"{base_key}/{k}"] = v
-        return compressed_info
 
     def _convert_env_data(
         self, obs=None, rews=None, info=None, terminated=None, truncated=None, done=None
@@ -98,12 +92,14 @@ class BaseGymWrapper(ABC):
             len(list_in) == self._env.n_agents
         ), f"Expecting actions for {self._env.n_agents} agents, got {len(list_in)} actions"
 
+        dtype = torch.float32 if self._env.continuous_actions else torch.long
+
         return [
-            torch.tensor(act, device=self._env.device, dtype=torch.float32).reshape(
+            torch.tensor(act, device=self._env.device, dtype=dtype).reshape(
                 self._env.num_envs, self._env.get_agent_action_size(agent)
             )
             if not isinstance(act, torch.Tensor)
-            else act.to(dtype=torch.float32, device=self._env.device).reshape(
+            else act.to(dtype=dtype, device=self._env.device).reshape(
                 self._env.num_envs, self._env.get_agent_action_size(agent)
             )
             for agent, act in zip(self._env.agents, list_in)

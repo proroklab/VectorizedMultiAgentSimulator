@@ -1,12 +1,12 @@
-import pytest
-
 import gymnasium as gym
+import pytest
 from vmas import make_env
 from vmas.simulator.environment import Environment
-from .test_gym_wrapper import scenario_names, _check_obs_type
+
+from .test_gym_wrapper import _check_obs_type, TEST_SCENARIOS
 
 
-@pytest.mark.parametrize("scenario", scenario_names())
+@pytest.mark.parametrize("scenario", TEST_SCENARIOS)
 @pytest.mark.parametrize("return_numpy", [True, False])
 @pytest.mark.parametrize("continuous_actions", [True, False])
 @pytest.mark.parametrize("dict_space", [True, False])
