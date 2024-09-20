@@ -1,9 +1,13 @@
+#  Copyright (c) 2024.
+#  ProrokLab (https://www.proroklab.org/)
+#  All rights reserved.
+
 import gymnasium as gym
 import pytest
 from vmas import make_env
 from vmas.simulator.environment import Environment
 
-from .test_gym_wrapper import _check_obs_type, TEST_SCENARIOS
+from test_wrappers.test_gym_wrapper import _check_obs_type, TEST_SCENARIOS
 
 
 @pytest.mark.parametrize("scenario", TEST_SCENARIOS)
