@@ -57,6 +57,7 @@ class Scenario(BaseScenario):
 
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.init_params(batch_dim, device, **kwargs)
+        self.visualize_semidims = False
         world = self.init_world(batch_dim, device)
         self.init_agents(world)
         return world

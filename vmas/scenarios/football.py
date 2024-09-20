@@ -17,6 +17,7 @@ from vmas.simulator.utils import Color, ScenarioUtils, X, Y
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.init_params(**kwargs)
+        self.visualize_semidims = False
         world = self.init_world(batch_dim, device)
         self.init_agents(world)
         self.init_ball(world)

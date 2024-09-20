@@ -26,6 +26,8 @@ class Scenario(BaseScenario):
         self.passage_width = 0.2
         self.passage_length = 0.103
 
+        self.visualize_semidims = False
+
         # Make world
         world = World(batch_dim, device, x_semidim=1, y_semidim=1)
         # Add agents
