@@ -26,6 +26,8 @@ class Scenario(BaseScenario):
         self.respawn_at_catch = kwargs.pop("respawn_at_catch", False)
         ScenarioUtils.check_kwargs_consumed(kwargs)
 
+        self.visualize_semidims = False
+
         world = World(
             batch_dim=batch_dim,
             device=device,
