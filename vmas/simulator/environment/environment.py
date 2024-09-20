@@ -774,23 +774,32 @@ class Environment(TorchVectorizedObject):
         return self.viewer.render(return_rgb_array=mode == "rgb_array")
 
     def plot_boundary(self):
-
-        # include boundaries in the rendering
-        # check if the environment is dimension-limited
+        # include boundaries in the rendering if the environment is dimension-limited
         if self.world.x_semidim is not None or self.world.y_semidim is not None:
             from vmas.simulator.rendering import Line
             from vmas.simulator.utils import Color
+
             # set a big value for the cases where the environment is dimension-limited only in one coordinate
             infinite_value = 100
 
-            x_semi = self.world.x_semidim if self.world.x_semidim else infinite_value
-            y_semi = self.world.y_semidim if self.world.y_semidim else infinite_value
+            x_semi = (
+                self.world.x_semidim
+                if self.world.x_semidim is not None
+                else infinite_value
+            )
+            y_semi = (
+                self.world.y_semidim
+                if self.world.y_semidim is not None
+                else infinite_value
+            )
 
             # set the color for the boundary line
             color = Color.GRAY.value
 
             # Define boundary points based on whether world semidims are provided
-            if (self.world.x_semidim and self.world.y_semidim) or self.world.x_semidim:
+            if (
+                self.world.x_semidim is not None and self.world.y_semidim is not None
+            ) or self.world.y_semidim is not None:
                 boundary_points = [
                     (-x_semi, y_semi),
                     (x_semi, y_semi),
@@ -800,16 +809,21 @@ class Environment(TorchVectorizedObject):
             else:
                 boundary_points = [
                     (-x_semi, y_semi),
+                    (-x_semi, -y_semi),
                     (x_semi, y_semi),
                     (x_semi, -y_semi),
-                    (-x_semi, -y_semi),
                 ]
 
             # Create lines by connecting points
             for i in range(
                 0,
                 len(boundary_points),
-                1 if (self.world.x_semidim and self.world.y_semidim) else 2,
+                1
+                if (
+                    self.world.x_semidim is not None
+                    and self.world.y_semidim is not None
+                )
+                else 2,
             ):
                 start = boundary_points[i]
                 end = boundary_points[(i + 1) % len(boundary_points)]
