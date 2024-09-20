@@ -15,9 +15,7 @@ def make_env(
     num_envs: int,
     device: DEVICE_TYPING = "cpu",
     continuous_actions: bool = True,
-    wrapper: Optional[
-        Union[Wrapper, str]
-    ] = None,  # One of: None, "rllib", "gym", "gymnasium", "gymnasium_vec"
+    wrapper: Optional[Union[Wrapper, str]] = None,
     max_steps: Optional[int] = None,
     seed: Optional[int] = None,
     dict_spaces: bool = False,
@@ -40,10 +38,10 @@ def make_env(
             will be placed on this device. Default is ``"cpu"``,
         continuous_actions (bool, optional): Whether to use continuous actions. If ``False``, actions
             will be discrete. The number of actions and their size will depend on the chosen scenario. Default is ``True``,
-        wrapper (:class:`~vmas.simulator.environment.Wrapper`, optional): Wrapper class to use. For example can be Wrapper.RLLIB.
-            Default is ``None``,
+        wrapper (Union[Wrapper, str], optional): Wrapper class to use. For example, it can be
+            ``"rllib"``, ``"gym"``, ``"gymnasium"``, ``"gymnasium_vec"``. Default is ``None``.
         max_steps (int, optional): Horizon of the task. Defaults to ``None`` (infinite horizon). Each VMAS scenario can
-            be terminating or not. If ``max_steps`` is specified,
+            be terminating or not. If ``max_steps`` is specified
             the scenario is also terminated whenever this horizon is reached,
         seed (int, optional): Seed for the environment. Defaults to ``None``,
         dict_spaces (bool, optional):  Weather to use dictionaries spaces with format ``{"agent_name": tensor, ...}``

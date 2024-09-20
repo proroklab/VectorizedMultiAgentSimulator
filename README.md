@@ -158,13 +158,17 @@ Here is an example:
         dict_spaces=False, # By default tuple spaces are used with each element in the tuple being an agent.
         # If dict_spaces=True, the spaces will become Dict with each key being the agent's name
         grad_enabled=False, # If grad_enabled the simulator is differentiable and gradients can flow from output to input
-        terminated_truncated=False, # If terminated_truncated the simulator will return separate `terminated` and `truncated` flags in the `done()` and `step()` functions instead of a single `done` flag
+        terminated_truncated=False, # If terminated_truncated the simulator will return separate `terminated` and `truncated` flags in the `done()`, `step()`, and `get_from_scenario()` functions instead of a single `done` flag
         **kwargs # Additional arguments you want to pass to the scenario initialization
     )
 ```
 A further example that you can run is contained in `use_vmas_env.py` in the `examples` directory.
 
-With the `terminated_truncated` flag set to `True`, the simulator will return separate `terminated` and `truncated` flags in the `done()` and `step()` functions instead of a single `done` flag. This is useful when you want to know if the environment is done because the episode has ended or because the maximum episode length/ timestep horizon has been reached. See [the Gymnasium documentation](https://gymnasium.farama.org/tutorials/gymnasium_basics/handling_time_limits/) for more details on this.
+With the `terminated_truncated` flag set to `True`, the simulator will return separate `terminated` and `truncated` flags
+in the `done()`, `step()`, and `get_from_scenario()` functions instead of a single `done` flag.
+This is useful when you want to know if the environment is done because the episode has ended or
+because the maximum episode length/ timestep horizon has been reached. 
+See [the Gymnasium documentation](https://gymnasium.farama.org/tutorials/gymnasium_basics/handling_time_limits/) for more details on this.
 
 #### RLlib
 
