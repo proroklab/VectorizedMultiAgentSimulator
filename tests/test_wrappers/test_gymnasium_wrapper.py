@@ -42,9 +42,9 @@ def test_gymnasium_wrapper(
         assert isinstance(
             env.action_space, gym.spaces.Dict
         ), "Expected Dict action space"
-        obs_shapes = [
-            obs_space.shape for obs_space in env.observation_space.spaces.values()
-        ]
+        obs_shapes = {
+            k: obs_space.shape for k, obs_space in env.observation_space.spaces.items()
+        }
     else:
         assert isinstance(
             env.observation_space, gym.spaces.Tuple

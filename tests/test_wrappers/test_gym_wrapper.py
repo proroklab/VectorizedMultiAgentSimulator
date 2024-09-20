@@ -29,18 +29,33 @@ def _check_obs_type(obss, obs_shapes, dict_space, return_numpy):
         assert isinstance(
             obss, dict
         ), f"Expected dictionary of observations, got {type(obss)}"
-        obss = list(obss.values())
+        for k, obs in obss.items():
+            obs_shape = obs_shapes[k]
+            assert (
+                obs.shape == obs_shape
+            ), f"Expected shape {obs_shape}, got {obs.shape}"
+            if return_numpy:
+                assert isinstance(
+                    obs, np.ndarray
+                ), f"Expected numpy array, got {type(obs)}"
+            else:
+                assert isinstance(
+                    obs, Tensor
+                ), f"Expected torch tensor, got {type(obs)}"
     else:
         assert isinstance(
             obss, list
         ), f"Expected list of observations, got {type(obss)}"
-    for o, shape in zip(obss, obs_shapes):
-        if return_numpy:
-            assert isinstance(o, np.ndarray), f"Expected numpy array, got {type(o)}"
-            assert o.shape == shape, f"Expected shape {shape}, got {o.shape}"
-        else:
-            assert isinstance(o, Tensor), f"Expected torch tensor, got {type(o)}"
-            assert o.shape == shape, f"Expected shape {shape}, got {o.shape}"
+        for obs, shape in zip(obss, obs_shapes):
+            assert obs.shape == shape, f"Expected shape {shape}, got {obs.shape}"
+            if return_numpy:
+                assert isinstance(
+                    obs, np.ndarray
+                ), f"Expected numpy array, got {type(obs)}"
+            else:
+                assert isinstance(
+                    obs, Tensor
+                ), f"Expected torch tensor, got {type(obs)}"
 
 
 @pytest.mark.parametrize("scenario", TEST_SCENARIOS)
@@ -74,9 +89,9 @@ def test_gym_wrapper(
         assert isinstance(
             env.action_space, gym.spaces.Dict
         ), "Expected Dict action space"
-        obs_shapes = [
-            obs_space.shape for obs_space in env.observation_space.spaces.values()
-        ]
+        obs_shapes = {
+            k: obs_space.shape for k, obs_space in env.observation_space.spaces.items()
+        }
     else:
         assert isinstance(
             env.observation_space, gym.spaces.Tuple
