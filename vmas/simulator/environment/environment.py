@@ -791,19 +791,12 @@ class Environment(TorchVectorizedObject):
             color = Color.GRAY.value
 
             # Define boundary points based on whether world semidims are provided
-            if self.world.x_semidim is not None and self.world.y_semidim is not None:
+            if (self.world.x_semidim and self.world.y_semidim) or self.world.x_semidim:
                 boundary_points = [
                     (-x_semi, y_semi),
                     (x_semi, y_semi),
                     (x_semi, -y_semi),
                     (-x_semi, -y_semi),
-                ]
-            elif self.world.x_semidim is not None:
-                boundary_points = [
-                    (-x_semi, y_semi),
-                    (-x_semi, -y_semi),
-                    (x_semi, y_semi),
-                    (x_semi, -y_semi),
                 ]
             else:
                 boundary_points = [
