@@ -774,47 +774,59 @@ class Environment(TorchVectorizedObject):
         return self.viewer.render(return_rgb_array=mode == "rgb_array")
 
     def plot_boundary(self):
-        # Include boundaries in the rendering
+
+        # include boundaries in the rendering
         from vmas.simulator.rendering import Line
         from vmas.simulator.utils import Color
 
-        # Check boundary limits
+        # check if the environment is dimension-limited
         if self.world.x_semidim is not None or self.world.y_semidim is not None:
-
+            # set a big value for the cases where the environment is dimension-limited only in one coordinate
             infinite_value = 100
 
-            # set semidim variables
-            x_semi = (
-                self.world.x_semidim
-                if self.world.x_semidim is not None
-                else infinite_value
-            )
-            y_semi = (
-                self.world.y_semidim
-                if self.world.y_semidim is not None
-                else infinite_value
-            )
+            x_semi = self.world.x_semidim if self.world.x_semidim else infinite_value
+            y_semi = self.world.y_semidim if self.world.y_semidim else infinite_value
 
-            # define edges
-            boundary_edges = [
-                (-x_semi, y_semi),  # top_left
-                (x_semi, y_semi),  # top_right
-                (x_semi, -y_semi),  # bottom_right
-                (-x_semi, -y_semi),  # bottom_left
-            ]
-
-            # Set the color for the boundary lines
+            # set the color for the boundary line
             color = Color.GRAY.value
 
-            # Create lines to form the boundary by connecting each corner to the next
-            for i in range(len(boundary_edges)):
-                start = boundary_edges[i]  # Current corner point
-                end = boundary_edges[
-                    (i + 1) % len(boundary_edges)
-                ]  # Next corner point, wraps around to the first point
-                line = Line(start, end, width=0.7)  # Create a line between two corners
-                line.set_color(*color)  # Set the line color
-                self.viewer.add_onetime(line)  # Add the line to the viewer for rendering
+            # Define boundary points based on whether world semidims are provided
+            if self.world.x_semidim is not None and self.world.y_semidim is not None:
+                boundary_points = [
+                    (-x_semi, y_semi),
+                    (x_semi, y_semi),
+                    (x_semi, -y_semi),
+                    (-x_semi, -y_semi),
+                ]
+            elif self.world.x_semidim is not None:
+                boundary_points = [
+                    (-x_semi, y_semi),
+                    (-x_semi, -y_semi),
+                    (x_semi, y_semi),
+                    (x_semi, -y_semi),
+                ]
+            elif self.world.y_semidim is not None:
+                boundary_points = [
+                    (-x_semi, y_semi),
+                    (x_semi, y_semi),
+                    (x_semi, -y_semi),
+                    (-x_semi, -y_semi),
+                ]
+            else:
+                # impossible case
+                boundary_points = []
+
+            # Create lines by connecting points
+            for i in range(
+                0,
+                len(boundary_points),
+                1 if (self.world.x_semidim and self.world.y_semidim) else 2,
+            ):
+                start = boundary_points[i]
+                end = boundary_points[(i + 1) % len(boundary_points)]
+                line = Line(start, end, width=0.7)
+                line.set_color(*color)
+                self.viewer.add_onetime(line)
 
     def plot_function(
         self, f, precision, plot_range, cmap_range, cmap_alpha, cmap_name
