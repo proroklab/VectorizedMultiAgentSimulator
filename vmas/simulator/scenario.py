@@ -56,6 +56,8 @@ class BaseScenario(ABC):
         """Whether to plot a grid in the scenario rendering background. This can be changed in the :class:`~make_world` function. """
         self.grid_spacing = 0.1
         """If :class:`~plot_grid`, the distance between lines in the background grid. This can be changed in the :class:`~make_world` function. """
+        self.visualize_semidims = True
+        """Whether to display boundaries in dimension-limited environment. This can be changed in the :class:`~make_world` function. """
 
     @property
     def world(self):
