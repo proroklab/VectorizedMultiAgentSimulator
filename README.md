@@ -115,7 +115,7 @@ pip install -e .
 ```
 By default, vmas has only the core requirements. To install further dependencies to enable training with [Gymnasium](https://gymnasium.farama.org/) wrappers, [RLLib](https://docs.ray.io/en/latest/rllib/index.html) wrappers, for rendering, and testing, you may want to install these further options:
 ```bash
-# install gymnasium for gymnasium wrapper
+# install gymnasium for gymnasium wrappers
 pip install vmas[gymnasium]
 
 # install rllib for rllib wrapper
@@ -131,14 +131,12 @@ pip install vmas[test]
 pip install vmas[all]
 ```
 
-You can also install the following libraries for further functionality:
+You can also install the following training libraries:
 
 ```bash
-# install wandb for logging
-pip install wandb
-
-# can install torchrl for training with BenchMARL
-pip install torchrl
+pip install benchmarl # For training in BenchMARL
+pip install torchrl # For training in TorchRL
+pip install "ray[rllib]"==2.1.0 # For training in RLlib. We support versions "ray[rllib]<=2.2,>=1.13"
 ```
 
 ### Run 
