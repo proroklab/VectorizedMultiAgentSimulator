@@ -812,9 +812,6 @@ class Environment(TorchVectorizedObject):
                     (x_semi, -y_semi),
                     (-x_semi, -y_semi),
                 ]
-            else:
-                # impossible case
-                boundary_points = []
 
             # Create lines by connecting points
             for i in range(
