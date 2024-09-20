@@ -10,12 +10,13 @@ from vmas.simulator.environment.environment import Environment
 from vmas.simulator.environment.gym.base import BaseGymWrapper
 
 
-if (
-    importlib.util.find_spec("gymnasium") is not None
-    and importlib.util.find_spec("shimmy") is not None
-):
+if importlib.util.find_spec("gymnasium") is not None:
     import gymnasium as gym
     from shimmy.openai_gym_compatibility import _convert_space
+else:
+    raise ImportError(
+        "Gymnasium is not installed. Please install it with `pip install gymnasium`."
+    )
 
 
 class GymnasiumWrapper(gym.Env, BaseGymWrapper):
