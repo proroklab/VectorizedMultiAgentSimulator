@@ -1,3 +1,7 @@
+#  Copyright (c) 2024.
+#  ProrokLab (https://www.proroklab.org/)
+#  All rights reserved.
+
 from abc import ABC, abstractmethod
 from collections import namedtuple
 from typing import List, Optional
@@ -40,8 +44,7 @@ class BaseGymWrapper(ABC):
         if isinstance(infos, dict):
             return infos
         elif isinstance(infos, list):
-            base_keys = [f"agent_{i+1}" for i in range(len(infos))]
-            return {base_key: info for base_key, info in zip(base_keys, infos)}
+            return {self._env.agents[i].name: info for i, info in enumerate(infos)}
         else:
             raise ValueError(
                 f"Expected list or dictionary for infos but got {type(infos)}"

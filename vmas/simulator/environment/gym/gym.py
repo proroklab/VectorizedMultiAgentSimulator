@@ -29,6 +29,7 @@ class GymWrapper(gym.Env, BaseGymWrapper):
         self.observation_space = self._env.observation_space
         self.action_space = self._env.action_space
 
+    @property
     def unwrapped(self) -> Environment:
         return self._env
 

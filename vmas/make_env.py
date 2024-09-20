@@ -41,7 +41,7 @@ def make_env(
         wrapper (Union[Wrapper, str], optional): Wrapper class to use. For example, it can be
             ``"rllib"``, ``"gym"``, ``"gymnasium"``, ``"gymnasium_vec"``. Default is ``None``.
         max_steps (int, optional): Horizon of the task. Defaults to ``None`` (infinite horizon). Each VMAS scenario can
-            be terminating or not. If ``max_steps`` is specified
+            be terminating or not. If ``max_steps`` is specified,
             the scenario is also terminated whenever this horizon is reached,
         seed (int, optional): Seed for the environment. Defaults to ``None``,
         dict_spaces (bool, optional):  Weather to use dictionaries spaces with format ``{"agent_name": tensor, ...}``

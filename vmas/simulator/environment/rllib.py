@@ -32,6 +32,10 @@ class VectorEnvWrapper(rllib.VectorEnv):
         self,
         env: Environment,
     ):
+        assert (
+            not env.terminated_truncated
+        ), "Rllib wrapper is not compatible with termination and truncation flags. Please set `terminated_truncated=False` in the VMAS environment."
+
         self._env = env
         super().__init__(
             observation_space=self._env.observation_space,
