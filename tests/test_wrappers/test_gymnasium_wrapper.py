@@ -65,7 +65,10 @@ def test_gymnasium_wrapper(
     ), f"Expected info to be a dictionary but got {type(info)}"
 
     for _ in range(max_steps):
-        actions = env.unwrapped.get_random_actions()
+        actions = [
+            env.unwrapped.get_random_action(agent).numpy()
+            for agent in env.unwrapped.agents
+        ]
         obss, rews, terminated, truncated, info = env.step(actions)
         _check_obs_type(obss, obs_shapes, dict_space, return_numpy=return_numpy)
 
