@@ -805,7 +805,7 @@ class Environment(TorchVectorizedObject):
                     (x_semi, y_semi),
                     (x_semi, -y_semi),
                 ]
-            elif self.world.y_semidim is not None:
+            else:
                 boundary_points = [
                     (-x_semi, y_semi),
                     (x_semi, y_semi),
