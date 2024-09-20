@@ -8,6 +8,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
+
 from gym import spaces
 from torch import Tensor
 
@@ -45,6 +46,7 @@ class Environment(TorchVectorizedObject):
         multidiscrete_actions: bool = False,
         clamp_actions: bool = False,
         grad_enabled: bool = False,
+        terminated_truncated: bool = False,
         **kwargs,
     ):
         if multidiscrete_actions:
@@ -64,6 +66,7 @@ class Environment(TorchVectorizedObject):
         self.dict_spaces = dict_spaces
         self.clamp_action = clamp_actions
         self.grad_enabled = grad_enabled
+        self.terminated_truncated = terminated_truncated
 
         observations = self.reset(seed=seed)
 
@@ -140,7 +143,7 @@ class Environment(TorchVectorizedObject):
         if dict_agent_names is None:
             dict_agent_names = self.dict_spaces
 
-        obs = rewards = infos = dones = None
+        obs = rewards = infos = terminated = truncated = dones = None
 
         if get_observations:
             obs = {} if dict_agent_names else []
@@ -173,10 +176,15 @@ class Environment(TorchVectorizedObject):
                 else:
                     infos.append(info)
 
-        if get_dones:
-            dones = self.done()
+        if self.terminated_truncated:
+            if get_dones:
+                terminated, truncated = self.done()
+            result = [obs, rewards, terminated, truncated, infos]
+        else:
+            if get_dones:
+                dones = self.done()
+            result = [obs, rewards, dones, infos]
 
-        result = [obs, rewards, dones, infos]
         return [data for data in result if data is not None]
 
     def seed(self, seed=None):
@@ -260,20 +268,25 @@ class Environment(TorchVectorizedObject):
         self.scenario.post_step()
 
         self.steps += 1
-        obs, rewards, dones, infos = self.get_from_scenario(
+
+        return self.get_from_scenario(
             get_observations=True,
             get_infos=True,
             get_rewards=True,
             get_dones=True,
         )
 
-        return obs, rewards, dones, infos
-
     def done(self):
-        dones = self.scenario.done().clone()
+        terminated = self.scenario.done().clone()
         if self.max_steps is not None:
-            dones += self.steps >= self.max_steps
-        return dones
+            truncated = self.steps >= self.max_steps
+        else:
+            truncated = torch.zeros_like(terminated)
+
+        if self.terminated_truncated:
+            return terminated, truncated
+        else:
+            return terminated + truncated
 
     def get_action_space(self):
         if not self.dict_spaces:
@@ -839,10 +852,13 @@ class Environment(TorchVectorizedObject):
         if plot_range is None:
             assert self.viewer.bounds is not None, "Set viewer bounds before plotting"
             x_min, x_max, y_min, y_max = self.viewer.bounds.tolist()
-            plot_range = [x_min - precision, x_max - precision], [
-                y_min - precision,
-                y_max + precision,
-            ]
+            plot_range = (
+                [x_min - precision, x_max - precision],
+                [
+                    y_min - precision,
+                    y_max + precision,
+                ],
+            )
 
         geom = render_function_util(
             f=f,

@@ -2,7 +2,6 @@
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import math
-import os
 import random
 import sys
 from pathlib import Path
@@ -18,13 +17,9 @@ from vmas.examples.use_vmas_env import use_vmas_env
 def scenario_names():
     scenarios = []
     scenarios_folder = Path(__file__).parent.parent / "vmas" / "scenarios"
-    for _, _, filenames in os.walk(scenarios_folder):
-        scenarios += filenames
-    scenarios = [
-        scenario.split(".")[0]
-        for scenario in scenarios
-        if scenario.endswith(".py") and not scenario.startswith("__")
-    ]
+    for path in scenarios_folder.glob("**/*.py"):
+        if path.is_file() and not path.name.startswith("__"):
+            scenarios.append(path.stem)
     return scenarios
 
 
