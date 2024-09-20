@@ -50,9 +50,9 @@ class InteractiveEnv:
         # hard-coded keyboard events
         self.current_agent_index = 0
         self.current_agent_index2 = 1
-        self.n_agents = self.env.unwrapped.n_agents
-        self.agents = self.env.unwrapped.agents
-        self.continuous = self.env.unwrapped.continuous_actions
+        self.n_agents = self.env.unwrapped().n_agents
+        self.agents = self.env.unwrapped().agents
+        self.continuous = self.env.unwrapped().continuous_actions
         self.reset = False
         self.keys = np.array(
             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -75,10 +75,10 @@ class InteractiveEnv:
         self.text_lines = []
         self.font_size = 15
         self.env.render()
-        self.text_idx = len(self.env.unwrapped.text_lines)
+        self.text_idx = len(self.env.unwrapped().text_lines)
         self._init_text()
-        self.env.unwrapped.viewer.window.on_key_press = self._key_press
-        self.env.unwrapped.viewer.window.on_key_release = self._key_release
+        self.env.unwrapped().viewer.window.on_key_press = self._key_press
+        self.env.unwrapped().viewer.window.on_key_release = self._key_release
 
         self._cycle()
 
@@ -96,7 +96,7 @@ class InteractiveEnv:
                     save_video(
                         self.render_name,
                         self.frame_list,
-                        fps=1 / self.env.unwrapped.env.world.dt,
+                        fps=1 / self.env.unwrapped().world.dt,
                     )
                 self.env.reset()
                 self.reset = False
@@ -139,7 +139,7 @@ class InteractiveEnv:
                 message = f"Done: {done}"
                 self._write_values(4, message)
 
-                message = f"Selected: {self.env.unwrapped.agents[self.current_agent_index].name}"
+                message = f"Selected: {self.env.unwrapped().agents[self.current_agent_index].name}"
                 self._write_values(5, message)
 
             frame = self.env.render(
@@ -159,7 +159,7 @@ class InteractiveEnv:
             text_line = rendering.TextLine(
                 y=(self.text_idx + i) * 40, font_size=self.font_size
             )
-            self.env.unwrapped.viewer.add_geom(text_line)
+            self.env.unwrapped().viewer.add_geom(text_line)
             self.text_lines.append(text_line)
 
     def _write_values(self, index: int, message: str):
@@ -294,10 +294,8 @@ class InteractiveEnv:
 
     @staticmethod
     def format_obs(obs):
-        if isinstance(obs, Tensor):
-            return list(np.around(obs.cpu().tolist(), decimals=2))
-        elif isinstance(obs, np.ndarray):
-            return [f"{round(val, 2):.2f}" for val in obs.tolist()]
+        if isinstance(obs, (Tensor, np.ndarray)):
+            return list(np.around(obs.tolist(), decimals=2))
         elif isinstance(obs, Dict):
             return {key: InteractiveEnv.format_obs(value) for key, value in obs.items()}
         else:
@@ -349,6 +347,7 @@ def render_interactively(
             continuous_actions=True,
             wrapper="gym",
             seed=0,
+            wrapper_kwargs={"return_numpy": False},
             # Environment specific variables
             **kwargs,
         ),
