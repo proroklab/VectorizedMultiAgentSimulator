@@ -278,14 +278,19 @@ class Environment(TorchVectorizedObject):
 
     def done(self):
         terminated = self.scenario.done().clone()
+
         if self.max_steps is not None:
             truncated = self.steps >= self.max_steps
         else:
-            truncated = torch.zeros_like(terminated)
+            truncated = None
 
         if self.terminated_truncated:
+            if truncated is None:
+                truncated = torch.zeros_like(terminated)
             return terminated, truncated
         else:
+            if truncated is None:
+                return terminated
             return terminated + truncated
 
     def get_action_space(self):
