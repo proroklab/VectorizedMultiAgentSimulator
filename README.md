@@ -7,14 +7,14 @@
 [![Python](https://img.shields.io/badge/python-3.8%20%7C%203.9%20%7C%203.10%20%7C%203.11-blue.svg)](https://www.python.org/downloads/)
 [![GitHub license](https://img.shields.io/badge/license-GPLv3.0-blue.svg)](https://github.com/proroklab/VectorizedMultiAgentSimulator/blob/main/LICENSE)
 [![arXiv](https://img.shields.io/badge/arXiv-2207.03530-b31b1b.svg)](https://arxiv.org/abs/2207.03530)
-
+[![Discord Shield](https://dcbadge.vercel.app/api/server/dg8txxDW5t?style=flat)](https://discord.gg/dg8txxDW5t)
 
 <p align="center">
 <img src="https://github.com/matteobettini/vmas-media/blob/main/media/VMAS_scenarios.gif?raw=true" alt="drawing"/>  
 </p>
 
 > [!NOTE]  
-> We have just released [BenchMARL](https://github.com/facebookresearch/BenchMARL), a benchmarking library where you 
+> We have released [BenchMARL](https://github.com/facebookresearch/BenchMARL), a benchmarking library where you 
 > can train VMAS tasks using TorchRL!
 > Check out [how easy it is to use it.](https://colab.research.google.com/github/facebookresearch/BenchMARL/blob/main/notebooks/run.ipynb)
 
