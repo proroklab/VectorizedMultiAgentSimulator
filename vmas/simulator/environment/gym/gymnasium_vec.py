@@ -2,6 +2,8 @@
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import importlib
+
+import warnings
 from typing import Optional
 
 import numpy as np
@@ -44,6 +46,12 @@ class GymnasiumVectorizedWrapper(gym.Env, BaseGymWrapper):
         )
         self.action_space = batch_space(self.single_action_space, n=self._num_envs)
         self.render_mode = render_mode
+        warnings.warn(
+            "The Gymnasium Vector wrapper currently does not have auto-resets or support partial resets."
+            "We warn you that by using this class, individual environments will not be reset when they are done and you"
+            "will only have access to global resets. We strongly suggest using the VMAS API unless your scenario does not implement"
+            "the `done` function and thus all sub-environments are done at the same time."
+        )
 
     @property
     def unwrapped(self) -> Environment:
