@@ -4,3 +4,5 @@ torch
 pyglet<=1.5.27
 gym
 six
+sphinx-gallery
+memory_profiler
