@@ -21,7 +21,7 @@ from vmas.simulator.utils import Color, ScenarioUtils
 class Scenario(BaseScenario):
     """
     This scenario originally comes from the paper "Xu et al. - 2024 - A Sample Efficient and Generalizable Multi-Agent Reinforcement Learning Framework
-    for Motion Planning" (http://dx.doi.org/10.13140/RG.2.2.24505.17769, see also its GitHub repo https://github.com/cas-lab-munich/generalizable-marl/tree/1.0.0),
+    for Motion Planning" (https://arxiv.org/abs/2408.07644, see also its GitHub repo https://github.com/bassamlab/SigmaRL),
     which aims to design an MARL framework with efficient observation design to enable fast training and to empower agents the ability to generalize
     to unseen scenarios.
 
