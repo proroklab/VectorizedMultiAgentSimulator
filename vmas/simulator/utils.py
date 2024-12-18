@@ -234,8 +234,8 @@ class ScenarioUtils:
         world,
         env_index: int,
         min_dist_between_entities: float,
-        x_bounds: Tuple[int, int],
-        y_bounds: Tuple[int, int],
+        x_bounds: Tuple[float, float],
+        y_bounds: Tuple[float, float],
         occupied_positions: Tensor = None,
         disable_warn: bool = False,
     ):
