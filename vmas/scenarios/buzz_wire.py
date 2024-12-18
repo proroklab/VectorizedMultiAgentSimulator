@@ -10,15 +10,16 @@ from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, Line, Sphere, World
 from vmas.simulator.joints import Joint
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color
+from vmas.simulator.utils import Color, ScenarioUtils
 
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.random_start_angle = kwargs.get("random_start_angle", True)
-        self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 1)
-        self.collision_reward = kwargs.get("collision_reward", -10)
-        self.max_speed_1 = kwargs.get("max_speed_1", None)  # 0.05
+        self.random_start_angle = kwargs.pop("random_start_angle", True)
+        self.pos_shaping_factor = kwargs.pop("pos_shaping_factor", 1)
+        self.collision_reward = kwargs.pop("collision_reward", -10)
+        self.max_speed_1 = kwargs.pop("max_speed_1", None)  # 0.05
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self.pos_shaping_factor = 1
 

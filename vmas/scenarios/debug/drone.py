@@ -26,7 +26,8 @@ class Scenario(BaseScenario):
         You can control the three input torques using left/right arrows, up/down arrows, and m/n.
         """
         self.plot_grid = True
-        self.n_agents = kwargs.get("n_agents", 2)
+        self.n_agents = kwargs.pop("n_agents", 2)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         # Make world
         world = World(batch_dim, device, substeps=10)

@@ -17,11 +17,12 @@ DEFAULT_ENERGY_COEFF = 0.02
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        n_agents = kwargs.get("n_agents", 4)
-        self.energy_coeff = kwargs.get(
+        n_agents = kwargs.pop("n_agents", 4)
+        self.energy_coeff = kwargs.pop(
             "energy_coeff", DEFAULT_ENERGY_COEFF
         )  # Weight of team energy penalty
-        self.start_same_point = kwargs.get("start_same_point", False)
+        self.start_same_point = kwargs.pop("start_same_point", False)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
         self.agent_radius = 0.05
         self.goal_radius = 0.03
 

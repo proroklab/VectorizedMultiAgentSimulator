@@ -10,6 +10,8 @@ You can move agents with the arrow keys
 If you have more than 1 agent, you can control another one with W,A,S,D
 and switch the agent with these controls using LSHIFT
 """
+
+from argparse import ArgumentParser, BooleanOptionalAction
 from operator import add
 from typing import Dict, Union
 
@@ -17,7 +19,6 @@ import numpy as np
 from torch import Tensor
 
 from vmas.make_env import make_env
-from vmas.simulator.environment import Wrapper
 from vmas.simulator.environment.gym import GymWrapper
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.utils import save_video
@@ -49,9 +50,9 @@ class InteractiveEnv:
         # hard-coded keyboard events
         self.current_agent_index = 0
         self.current_agent_index2 = 1
-        self.n_agents = self.env.unwrapped().n_agents
-        self.agents = self.env.unwrapped().agents
-        self.continuous = self.env.unwrapped().continuous_actions
+        self.n_agents = self.env.unwrapped.n_agents
+        self.agents = self.env.unwrapped.agents
+        self.continuous = self.env.unwrapped.continuous_actions
         self.reset = False
         self.keys = np.array(
             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -74,10 +75,10 @@ class InteractiveEnv:
         self.text_lines = []
         self.font_size = 15
         self.env.render()
-        self.text_idx = len(self.env.unwrapped().text_lines)
+        self.text_idx = len(self.env.unwrapped.text_lines)
         self._init_text()
-        self.env.unwrapped().viewer.window.on_key_press = self._key_press
-        self.env.unwrapped().viewer.window.on_key_release = self._key_release
+        self.env.unwrapped.viewer.window.on_key_press = self._key_press
+        self.env.unwrapped.viewer.window.on_key_release = self._key_release
 
         self._cycle()
 
@@ -95,24 +96,32 @@ class InteractiveEnv:
                     save_video(
                         self.render_name,
                         self.frame_list,
-                        fps=1 / self.env.env.world.dt,
+                        fps=1 / self.env.unwrapped.world.dt,
                     )
                 self.env.reset()
                 self.reset = False
                 total_rew = [0] * self.n_agents
 
-            action_list = [[0.0] * agent.action_size for agent in self.agents]
-            action_list[self.current_agent_index] = self.u[
-                : self.agents[self.current_agent_index].action_size
-            ]
+            if self.n_agents > 0:
+                action_list = [[0.0] * agent.action_size for agent in self.agents]
+                action_list[self.current_agent_index][
+                    : self.agents[self.current_agent_index].dynamics.needed_action_size
+                ] = self.u[
+                    : self.agents[self.current_agent_index].dynamics.needed_action_size
+                ]
+            else:
+                action_list = []
 
             if self.n_agents > 1 and self.control_two_agents:
-                action_list[self.current_agent_index2] = self.u2[
-                    : self.agents[self.current_agent_index2].action_size
+                action_list[self.current_agent_index2][
+                    : self.agents[self.current_agent_index2].dynamics.needed_action_size
+                ] = self.u2[
+                    : self.agents[self.current_agent_index2].dynamics.needed_action_size
                 ]
+
             obs, rew, done, info = self.env.step(action_list)
 
-            if self.display_info:
+            if self.display_info and self.n_agents > 0:
                 # TODO: Determine number of lines of obs_str and render accordingly
                 obs_str = str(InteractiveEnv.format_obs(obs[self.current_agent_index]))
                 message = f"\t\t{obs_str[len(obs_str) // 2:]}"
@@ -130,7 +139,7 @@ class InteractiveEnv:
                 message = f"Done: {done}"
                 self._write_values(4, message)
 
-                message = f"Selected: {self.env.unwrapped().agents[self.current_agent_index].name}"
+                message = f"Selected: {self.env.unwrapped.agents[self.current_agent_index].name}"
                 self._write_values(5, message)
 
             frame = self.env.render(
@@ -150,7 +159,7 @@ class InteractiveEnv:
             text_line = rendering.TextLine(
                 y=(self.text_idx + i) * 40, font_size=self.font_size
             )
-            self.env.unwrapped().viewer.add_geom(text_line)
+            self.env.unwrapped.viewer.add_geom(text_line)
             self.text_lines.append(text_line)
 
     def _write_values(self, index: int, message: str):
@@ -285,8 +294,8 @@ class InteractiveEnv:
 
     @staticmethod
     def format_obs(obs):
-        if isinstance(obs, Tensor):
-            return list(np.around(obs.cpu().tolist(), decimals=2))
+        if isinstance(obs, (Tensor, np.ndarray)):
+            return list(np.around(obs.tolist(), decimals=2))
         elif isinstance(obs, Dict):
             return {key: InteractiveEnv.format_obs(value) for key, value in obs.items()}
         else:
@@ -336,8 +345,9 @@ def render_interactively(
             num_envs=1,
             device="cpu",
             continuous_actions=True,
-            wrapper=Wrapper.GYM,
+            wrapper="gym",
             seed=0,
+            wrapper_kwargs={"return_numpy": False},
             # Environment specific variables
             **kwargs,
         ),
@@ -350,6 +360,34 @@ def render_interactively(
     )
 
 
+def parse_args():
+    parser = ArgumentParser(description="Interactive rendering")
+    parser.add_argument(
+        "--scenario",
+        type=str,
+        default="waterfall",
+        help="Scenario to load. Can be the name of a file in `vmas.scenarios` folder or a :class:`~vmas.simulator.scenario.BaseScenario` class",
+    )
+    parser.add_argument(
+        "--control_two_agents",
+        action=BooleanOptionalAction,
+        default=True,
+        help="Whether to control two agents or just one",
+    )
+    parser.add_argument(
+        "--display_info",
+        action=BooleanOptionalAction,
+        default=True,
+        help="Whether to display on the screen the following info from the first controlled agent: name, reward, total reward, done, and observation",
+    )
+    parser.add_argument(
+        "--save_render",
+        action="store_true",
+        help="Whether to save a video of the render up to the first reset",
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
     # Use this script to interactively play with scenarios
     #
@@ -358,14 +396,11 @@ if __name__ == "__main__":
     # You can control agent actions with the arrow keys and M/N (left/right control the first action, up/down control the second, M/N controls the third)
     # If you have more than 1 agent, you can control another one with W,A,S,D and Q,E in the same way.
     # and switch the agent with these controls using LSHIFT
-
-    scenario_name = "waterfall"
-
-    # Scenario specific variables
+    args = parse_args()
 
     render_interactively(
-        scenario_name,
-        control_two_agents=True,
-        save_render=False,
-        display_info=True,
+        scenario=args.scenario,
+        control_two_agents=args.control_two_agents,
+        save_render=args.save_render,
+        display_info=args.display_info,
     )

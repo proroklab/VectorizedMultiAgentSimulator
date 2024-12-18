@@ -1,12 +1,14 @@
 #  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
+import math
 import random
 from ctypes import byref
 from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
+
 from gym import spaces
 from torch import Tensor
 
@@ -19,7 +21,6 @@ from vmas.simulator.utils import (
     DEVICE_TYPING,
     override,
     TorchUtils,
-    VIEWER_MIN_ZOOM,
     X,
     Y,
 )
@@ -45,6 +46,7 @@ class Environment(TorchVectorizedObject):
         multidiscrete_actions: bool = False,
         clamp_actions: bool = False,
         grad_enabled: bool = False,
+        terminated_truncated: bool = False,
         **kwargs,
     ):
         if multidiscrete_actions:
@@ -64,13 +66,14 @@ class Environment(TorchVectorizedObject):
         self.dict_spaces = dict_spaces
         self.clamp_action = clamp_actions
         self.grad_enabled = grad_enabled
+        self.terminated_truncated = terminated_truncated
 
-        self.reset(seed=seed)
+        observations = self.reset(seed=seed)
 
         # configure spaces
         self.multidiscrete_actions = multidiscrete_actions
         self.action_space = self.get_action_space()
-        self.observation_space = self.get_observation_space()
+        self.observation_space = self.get_observation_space(observations)
 
         # rendering
         self.viewer = None
@@ -140,7 +143,7 @@ class Environment(TorchVectorizedObject):
         if dict_agent_names is None:
             dict_agent_names = self.dict_spaces
 
-        obs = rewards = infos = dones = None
+        obs = rewards = infos = terminated = truncated = dones = None
 
         if get_observations:
             obs = {} if dict_agent_names else []
@@ -149,14 +152,15 @@ class Environment(TorchVectorizedObject):
         if get_infos:
             infos = {} if dict_agent_names else []
 
-        for agent in self.agents:
-            if get_rewards:
+        if get_rewards:
+            for agent in self.agents:
                 reward = self.scenario.reward(agent).clone()
                 if dict_agent_names:
                     rewards.update({agent.name: reward})
                 else:
                     rewards.append(reward)
-            if get_observations:
+        if get_observations:
+            for agent in self.agents:
                 observation = TorchUtils.recursive_clone(
                     self.scenario.observation(agent)
                 )
@@ -164,17 +168,23 @@ class Environment(TorchVectorizedObject):
                     obs.update({agent.name: observation})
                 else:
                     obs.append(observation)
-            if get_infos:
+        if get_infos:
+            for agent in self.agents:
                 info = TorchUtils.recursive_clone(self.scenario.info(agent))
                 if dict_agent_names:
                     infos.update({agent.name: info})
                 else:
                     infos.append(info)
 
-        if get_dones:
-            dones = self.done()
+        if self.terminated_truncated:
+            if get_dones:
+                terminated, truncated = self.done()
+            result = [obs, rewards, terminated, truncated, infos]
+        else:
+            if get_dones:
+                dones = self.done()
+            result = [obs, rewards, dones, infos]
 
-        result = [obs, rewards, dones, infos]
         return [data for data in result if data is not None]
 
     def seed(self, seed=None):
@@ -253,23 +263,35 @@ class Environment(TorchVectorizedObject):
             self.scenario.env_process_action(agent)
 
         # advance world state
+        self.scenario.pre_step()
         self.world.step()
+        self.scenario.post_step()
 
         self.steps += 1
-        obs, rewards, dones, infos = self.get_from_scenario(
+
+        return self.get_from_scenario(
             get_observations=True,
             get_infos=True,
             get_rewards=True,
             get_dones=True,
         )
 
-        return obs, rewards, dones, infos
-
     def done(self):
-        dones = self.scenario.done().clone()
+        terminated = self.scenario.done().clone()
+
         if self.max_steps is not None:
-            dones += self.steps >= self.max_steps
-        return dones
+            truncated = self.steps >= self.max_steps
+        else:
+            truncated = None
+
+        if self.terminated_truncated:
+            if truncated is None:
+                truncated = torch.zeros_like(terminated)
+            return terminated, truncated
+        else:
+            if truncated is None:
+                return terminated
+            return terminated + truncated
 
     def get_action_space(self):
         if not self.dict_spaces:
@@ -284,21 +306,19 @@ class Environment(TorchVectorizedObject):
                 }
             )
 
-    def get_observation_space(self):
+    def get_observation_space(self, observations: Union[List, Dict]):
         if not self.dict_spaces:
             return spaces.Tuple(
                 [
-                    self.get_agent_observation_space(
-                        agent, self.scenario.observation(agent)
-                    )
-                    for agent in self.agents
+                    self.get_agent_observation_space(agent, observations[i])
+                    for i, agent in enumerate(self.agents)
                 ]
             )
         else:
             return spaces.Dict(
                 {
                     agent.name: self.get_agent_observation_space(
-                        agent, self.scenario.observation(agent)
+                        agent, observations[agent.name]
                     )
                     for agent in self.agents
                 }
@@ -333,13 +353,13 @@ class Environment(TorchVectorizedObject):
                 dtype=np.float32,
             )
         elif self.multidiscrete_actions:
-            actions = [3] * agent.action_size + (
+            actions = agent.discrete_action_nvec + (
                 [self.world.dim_c] if not agent.silent and self.world.dim_c != 0 else []
             )
             return spaces.MultiDiscrete(actions)
         else:
             return spaces.Discrete(
-                3**agent.action_size
+                math.prod(agent.discrete_action_nvec)
                 * (
                     self.world.dim_c
                     if not agent.silent and self.world.dim_c != 0
@@ -352,7 +372,7 @@ class Environment(TorchVectorizedObject):
             return spaces.Box(
                 low=-np.float32("inf"),
                 high=np.float32("inf"),
-                shape=(len(obs[0]),),
+                shape=obs.shape[1:],
                 dtype=np.float32,
             )
         elif isinstance(obs, Dict):
@@ -405,12 +425,25 @@ class Environment(TorchVectorizedObject):
                     )
             action = torch.stack(actions, dim=-1)
         else:
-            action = torch.randint(
-                low=0,
-                high=self.get_agent_action_space(agent).n,
-                size=(agent.batch_dim,),
-                device=agent.device,
-            )
+            action_space = self.get_agent_action_space(agent)
+            if self.multidiscrete_actions:
+                actions = [
+                    torch.randint(
+                        low=0,
+                        high=action_space.nvec[action_index],
+                        size=(agent.batch_dim,),
+                        device=agent.device,
+                    )
+                    for action_index in range(action_space.shape[0])
+                ]
+                action = torch.stack(actions, dim=-1)
+            else:
+                action = torch.randint(
+                    low=0,
+                    high=action_space.n,
+                    size=(agent.batch_dim,),
+                    device=agent.device,
+                )
         return action
 
     def get_random_actions(self) -> Sequence[torch.Tensor]:
@@ -489,41 +522,49 @@ class Environment(TorchVectorizedObject):
             if not self.multidiscrete_actions:
                 # This bit of code translates the discrete action (taken from a space that
                 # is the cartesian product of all action spaces) into a multi discrete action.
-                # For example, if agent.action_size=4, it will mean that the agent will have
-                # 4 actions each with 3 possibilities (stay, decrement, increment).
-                # The env will have a space Discrete(3**4).
-                # This code will translate the action (with shape [n_envs,1] and range [0,3**4)) to an
-                # action with shape [n_envs,4] and range [0,3).
-                n_actions = self.get_agent_action_space(agent).n
-                action_range = torch.arange(n_actions, device=self.device).expand(
-                    self.world.batch_dim, n_actions
+                # This is done by iteratively taking the modulo of the action and dividing by the
+                # number of actions in the current action space, which treats the action as if
+                # it was the "flat index" of the multi-discrete actions. E.g. if we have
+                # nvec = [3,2], action 0 corresponds to the actions [0,0],
+                # action 1 corresponds to the action [0,1], action 2 corresponds
+                # to the action [1,0], action 3 corresponds to the action [1,1], etc.
+                flat_action = action.squeeze(-1)
+                actions = []
+                nvec = list(agent.discrete_action_nvec) + (
+                    [self.world.dim_c]
+                    if not agent.silent and self.world.dim_c != 0
+                    else []
                 )
-                physical_action = action
-                action_range = torch.where(action_range == physical_action, 1.0, 0.0)
-                action_range = action_range.view(
-                    (self.world.batch_dim,)
-                    + (3,) * agent.action_size
-                    + (self.world.dim_c,)
-                    * (1 if not agent.silent and self.world.dim_c != 0 else 0)
-                )
-                action = action_range.nonzero()[:, 1:]
+                for i in range(len(nvec)):
+                    n = math.prod(nvec[i + 1 :])
+                    actions.append(flat_action // n)
+                    flat_action = flat_action % n
+                action = torch.stack(actions, dim=-1)
 
             # Now we have an action with shape [n_envs, action_size+comms_actions]
-            for _ in range(agent.action_size):
-                physical_action = action[:, action_index].unsqueeze(-1)
+            for n in agent.discrete_action_nvec:
+                physical_action = action[:, action_index]
                 self._check_discrete_action(
-                    physical_action,
+                    physical_action.unsqueeze(-1),
                     low=0,
-                    high=3,
+                    high=n,
                     type="physical",
                 )
-
-                arr1 = physical_action == 1
-                arr2 = physical_action == 2
-
-                disc_action_value = agent.action.u_range_tensor[action_index]
-                agent.action.u[:, action_index] -= disc_action_value * arr1.squeeze(-1)
-                agent.action.u[:, action_index] += disc_action_value * arr2.squeeze(-1)
+                u_max = agent.action.u_range_tensor[action_index]
+                # For odd n we want the first action to always map to u=0, so
+                # we swap 0 values with the middle value, and shift the first
+                # half of the remaining values by -1.
+                if n % 2 != 0:
+                    stay = physical_action == 0
+                    decrement = (physical_action > 0) & (physical_action <= n // 2)
+                    physical_action[stay] = n // 2
+                    physical_action[decrement] -= 1
+                # We know u must be in [-u_max, u_max], and we know action is
+                # in [0, n-1]. Conversion steps: [0, n-1] -> [0, 1] -> [0, 2*u_max] -> [-u_max, u_max]
+                # E.g. action 0 -> -u_max, action n-1 -> u_max, action 1 -> -u_max + 2*u_max/(n-1)
+                agent.action.u[:, action_index] = (physical_action / (n - 1)) * (
+                    2 * u_max
+                ) - u_max
 
                 action_index += 1
 
@@ -664,7 +705,9 @@ class Environment(TorchVectorizedObject):
 
             self._init_rendering()
 
-        zoom = max(VIEWER_MIN_ZOOM, self.scenario.viewer_zoom)
+        if self.scenario.viewer_zoom <= 0:
+            raise ValueError("Scenario viewer zoom must be > 0")
+        zoom = self.scenario.viewer_zoom
 
         if aspect_ratio < 1:
             cam_range = torch.tensor([zoom, zoom / aspect_ratio], device=self.device)
@@ -683,8 +726,12 @@ class Environment(TorchVectorizedObject):
             viewer_size_fit = (
                 torch.stack(
                     [
-                        torch.max(torch.abs(all_poses[:, X])),
-                        torch.max(torch.abs(all_poses[:, Y])),
+                        torch.max(
+                            torch.abs(all_poses[:, X] - self.scenario.render_origin[X])
+                        ),
+                        torch.max(
+                            torch.abs(all_poses[:, Y] - self.scenario.render_origin[Y])
+                        ),
                     ]
                 )
                 + 2 * max_agent_radius
@@ -696,10 +743,10 @@ class Environment(TorchVectorizedObject):
             )
             cam_range *= torch.max(viewer_size)
             self.viewer.set_bounds(
-                -cam_range[X],
-                cam_range[X],
-                -cam_range[Y],
-                cam_range[Y],
+                -cam_range[X] + self.scenario.render_origin[X],
+                cam_range[X] + self.scenario.render_origin[X],
+                -cam_range[Y] + self.scenario.render_origin[Y],
+                cam_range[Y] + self.scenario.render_origin[Y],
             )
         else:
             # update bounds to center around agent
@@ -712,6 +759,9 @@ class Environment(TorchVectorizedObject):
             )
 
         # Render
+        if self.scenario.visualize_semidims:
+            self.plot_boundary()
+
         self._set_agent_comm_messages(env_index)
 
         if plot_position_function is not None:
@@ -741,6 +791,64 @@ class Environment(TorchVectorizedObject):
         # render to display or array
         return self.viewer.render(return_rgb_array=mode == "rgb_array")
 
+    def plot_boundary(self):
+        # include boundaries in the rendering if the environment is dimension-limited
+        if self.world.x_semidim is not None or self.world.y_semidim is not None:
+            from vmas.simulator.rendering import Line
+            from vmas.simulator.utils import Color
+
+            # set a big value for the cases where the environment is dimension-limited only in one coordinate
+            infinite_value = 100
+
+            x_semi = (
+                self.world.x_semidim
+                if self.world.x_semidim is not None
+                else infinite_value
+            )
+            y_semi = (
+                self.world.y_semidim
+                if self.world.y_semidim is not None
+                else infinite_value
+            )
+
+            # set the color for the boundary line
+            color = Color.GRAY.value
+
+            # Define boundary points based on whether world semidims are provided
+            if (
+                self.world.x_semidim is not None and self.world.y_semidim is not None
+            ) or self.world.y_semidim is not None:
+                boundary_points = [
+                    (-x_semi, y_semi),
+                    (x_semi, y_semi),
+                    (x_semi, -y_semi),
+                    (-x_semi, -y_semi),
+                ]
+            else:
+                boundary_points = [
+                    (-x_semi, y_semi),
+                    (-x_semi, -y_semi),
+                    (x_semi, y_semi),
+                    (x_semi, -y_semi),
+                ]
+
+            # Create lines by connecting points
+            for i in range(
+                0,
+                len(boundary_points),
+                1
+                if (
+                    self.world.x_semidim is not None
+                    and self.world.y_semidim is not None
+                )
+                else 2,
+            ):
+                start = boundary_points[i]
+                end = boundary_points[(i + 1) % len(boundary_points)]
+                line = Line(start, end, width=0.7)
+                line.set_color(*color)
+                self.viewer.add_onetime(line)
+
     def plot_function(
         self, f, precision, plot_range, cmap_range, cmap_alpha, cmap_name
     ):
@@ -749,10 +857,13 @@ class Environment(TorchVectorizedObject):
         if plot_range is None:
             assert self.viewer.bounds is not None, "Set viewer bounds before plotting"
             x_min, x_max, y_min, y_max = self.viewer.bounds.tolist()
-            plot_range = [x_min - precision, x_max - precision], [
-                y_min - precision,
-                y_max + precision,
-            ]
+            plot_range = (
+                [x_min - precision, x_max - precision],
+                [
+                    y_min - precision,
+                    y_max + precision,
+                ],
+            )
 
         geom = render_function_util(
             f=f,

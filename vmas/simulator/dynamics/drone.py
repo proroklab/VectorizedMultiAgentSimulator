@@ -55,19 +55,68 @@ class Drone(Dynamics):
     def zero_grad(self):
         self.drone_state = self.drone_state.detach()
 
+    def f(self, state, thrust_command, torque_command):
+        phi = state[:, 0]
+        theta = state[:, 1]
+        psi = state[:, 2]
+        p = state[:, 3]
+        q = state[:, 4]
+        r = state[:, 5]
+        x_dot = state[:, 6]
+        y_dot = state[:, 7]
+        z_dot = state[:, 8]
+
+        c_phi = torch.cos(phi)
+        s_phi = torch.sin(phi)
+        c_theta = torch.cos(theta)
+        s_theta = torch.sin(theta)
+        c_psi = torch.cos(psi)
+        s_psi = torch.sin(psi)
+
+        # Postion Dynamics
+        x_ddot = (
+            (c_phi * s_theta * c_psi + s_phi * s_psi) * thrust_command / self.agent.mass
+        )
+        y_ddot = (
+            (c_phi * s_theta * s_psi - s_phi * c_psi) * thrust_command / self.agent.mass
+        )
+        z_ddot = (c_phi * c_theta) * thrust_command / self.agent.mass - self.g
+        # Angular velocity dynamics
+        p_dot = (torque_command[:, 0] - (self.I_yy - self.I_zz) * q * r) / self.I_xx
+        q_dot = (torque_command[:, 1] - (self.I_zz - self.I_xx) * p * r) / self.I_yy
+        r_dot = (torque_command[:, 2] - (self.I_xx - self.I_yy) * p * q) / self.I_zz
+
+        return torch.stack(
+            [
+                p,
+                q,
+                r,
+                p_dot,
+                q_dot,
+                r_dot,
+                x_ddot,
+                y_ddot,
+                z_ddot,
+                x_dot,
+                y_dot,
+                z_dot,
+            ],
+            dim=-1,
+        )
+
     def needs_reset(self) -> Tensor:
         # Constraint roll and pitch within +-30 degrees
         return torch.any(self.drone_state[:, :2].abs() > 30 * (torch.pi / 180), dim=-1)
 
-    def euler(self, f, state):
-        return state + self.dt * f(state)
+    def euler(self, state, thrust, torque):
+        return self.dt * self.f(state, thrust, torque)
 
-    def runge_kutta(self, f, state):
-        k1 = f(state)
-        k2 = f(state + self.dt * k1 / 2)
-        k3 = f(state + self.dt * k2 / 2)
-        k4 = f(state + self.dt * k3)
-        return state + (self.dt / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
+    def runge_kutta(self, state, thrust, torque):
+        k1 = self.f(state, thrust, torque)
+        k2 = self.f(state + self.dt * k1 / 2, thrust, torque)
+        k3 = self.f(state + self.dt * k2 / 2, thrust, torque)
+        k4 = self.f(state + self.dt * k3, thrust, torque)
+        return (self.dt / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
 
     @property
     def needed_action_size(self) -> int:
@@ -84,75 +133,31 @@ class Drone(Dynamics):
         self.drone_state[:, 10] = self.agent.state.pos[:, 1]  # y
         self.drone_state[:, 2] = self.agent.state.rot[:, 0]  # psi (yaw)
 
-        def f(state):
-            phi = state[:, 0]
-            theta = state[:, 1]
-            psi = state[:, 2]
-            p = state[:, 3]
-            q = state[:, 4]
-            r = state[:, 5]
-            x_dot = state[:, 6]
-            y_dot = state[:, 7]
-            z_dot = state[:, 8]
-
-            c_phi = torch.cos(phi)
-            s_phi = torch.sin(phi)
-            c_theta = torch.cos(theta)
-            s_theta = torch.sin(theta)
-            c_psi = torch.cos(psi)
-            s_psi = torch.sin(psi)
-
-            # Postion Dynamics
-            x_ddot = (
-                (c_phi * s_theta * c_psi + s_phi * s_psi) * thrust / self.agent.mass
-            )
-            y_ddot = (
-                (c_phi * s_theta * s_psi - s_phi * c_psi) * thrust / self.agent.mass
-            )
-            z_ddot = (c_phi * c_theta) * thrust / self.agent.mass - self.g
-            # Angular velocity dynamics
-            p_dot = (torque[:, 0] - (self.I_yy - self.I_zz) * q * r) / self.I_xx
-            q_dot = (torque[:, 1] - (self.I_zz - self.I_xx) * p * r) / self.I_yy
-            r_dot = (torque[:, 2] - (self.I_xx - self.I_yy) * p * q) / self.I_zz
-
-            return torch.stack(
-                [
-                    p,
-                    q,
-                    r,
-                    p_dot,
-                    q_dot,
-                    r_dot,
-                    x_ddot,
-                    y_ddot,
-                    z_ddot,
-                    x_dot,
-                    y_dot,
-                    z_dot,
-                ],
-                dim=-1,
-            )
-
         if self.integration == "euler":
-            new_drone_state = self.euler(f, self.drone_state)
+            delta_state = self.euler(self.drone_state, thrust, torque)
         else:
-            new_drone_state = self.runge_kutta(f, self.drone_state)
+            delta_state = self.runge_kutta(self.drone_state, thrust, torque)
 
         # Calculate the change in state
-        delta_state = new_drone_state - self.drone_state
-        self.drone_state = new_drone_state
+        self.drone_state = self.drone_state + delta_state
+
+        v_cur_x = self.agent.state.vel[:, 0]  # Current velocity in x-direction
+        v_cur_y = self.agent.state.vel[:, 1]  # Current velocity in y-direction
+        v_cur_angular = self.agent.state.ang_vel[:, 0]  # Current angular velocity
 
         # Calculate the accelerations required to achieve the change in state
-        acceleration_x = delta_state[:, 6] / self.dt
-        acceleration_y = delta_state[:, 7] / self.dt
-        angular_acceleration = delta_state[:, 5] / self.dt
+        acceleration_x = (delta_state[:, 6] - v_cur_x * self.dt) / self.dt**2
+        acceleration_y = (delta_state[:, 7] - v_cur_y * self.dt) / self.dt**2
+        acceleration_angular = (
+            delta_state[:, 5] - v_cur_angular * self.dt
+        ) / self.dt**2
 
         # Calculate the forces required for the linear accelerations
         force_x = self.agent.mass * acceleration_x
         force_y = self.agent.mass * acceleration_y
 
         # Calculate the torque required for the angular acceleration
-        torque_yaw = self.agent.moment_of_inertia * angular_acceleration
+        torque_yaw = self.agent.moment_of_inertia * acceleration_angular
 
         # Update the physical force and torque required for the user inputs
         self.agent.state.force[:, vmas.simulator.utils.X] = force_x

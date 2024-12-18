@@ -7,14 +7,19 @@ import torch
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
 from vmas.simulator.scenario import BaseScenario
+
+from vmas.simulator.sensors import Lidar
 from vmas.simulator.utils import Color, ScenarioUtils
 
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.n_agents = kwargs.get("n_agents", 15)
-        self.n_lines = kwargs.get("n_lines", 15)
-        self.n_boxes = kwargs.get("n_boxes", 15)
+        self.n_agents = kwargs.pop("n_agents", 15)
+        self.n_lines = kwargs.pop("n_lines", 15)
+        self.n_boxes = kwargs.pop("n_boxes", 15)
+        self.lidar = kwargs.pop("lidar", False)
+        self.vectorized_lidar = kwargs.pop("vectorized_lidar", True)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self.agent_radius = 0.05
         self.line_length = 0.3
@@ -42,6 +47,7 @@ class Scenario(BaseScenario):
                 shape=Sphere(radius=self.agent_radius),
                 u_multiplier=0.7,
                 rotatable=True,
+                sensors=[Lidar(world, n_rays=16, max_range=0.5)] if self.lidar else [],
             )
             world.add_agent(agent)
 
@@ -84,7 +90,11 @@ class Scenario(BaseScenario):
         return torch.zeros(self.world.batch_dim, device=self.world.device)
 
     def observation(self, agent: Agent):
-        return torch.zeros(self.world.batch_dim, 1, device=self.world.device)
+        return (
+            torch.zeros(self.world.batch_dim, 1, device=self.world.device)
+            if not self.lidar
+            else agent.sensors[0].measure(vectorized=self.vectorized_lidar)
+        )
 
 
 if __name__ == "__main__":

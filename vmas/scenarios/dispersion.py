@@ -7,17 +7,18 @@ import torch
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, Sphere, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color
+from vmas.simulator.utils import Color, ScenarioUtils
 
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        n_agents = kwargs.get("n_agents", 4)
-        self.share_reward = kwargs.get("share_reward", False)
-        self.penalise_by_time = kwargs.get("penalise_by_time", False)
-        self.food_radius = kwargs.get("food_radius", 0.05)
-        self.pos_range = kwargs.get("pos_range", 1.0)
-        n_food = kwargs.get("n_food", n_agents)
+        n_agents = kwargs.pop("n_agents", 4)
+        self.share_reward = kwargs.pop("share_reward", False)
+        self.penalise_by_time = kwargs.pop("penalise_by_time", False)
+        self.food_radius = kwargs.pop("food_radius", 0.05)
+        self.pos_range = kwargs.pop("pos_range", 1.0)
+        n_food = kwargs.pop("n_food", n_agents)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         # Make world
         world = World(

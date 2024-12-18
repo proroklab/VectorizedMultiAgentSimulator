@@ -10,15 +10,16 @@ from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, Sphere, World
 from vmas.simulator.joints import Joint
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, JOINT_FORCE, X
+from vmas.simulator.utils import Color, JOINT_FORCE, ScenarioUtils, X
 
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 0)
-        self.speed_shaping_factor = kwargs.get("speed_shaping_factor", 1)
-        self.dist_shaping_factor = kwargs.get("dist_shaping_factor", 0)
-        self.joints = kwargs.get("joints", True)
+        self.pos_shaping_factor = kwargs.pop("pos_shaping_factor", 0)
+        self.speed_shaping_factor = kwargs.pop("speed_shaping_factor", 1)
+        self.dist_shaping_factor = kwargs.pop("dist_shaping_factor", 0)
+        self.joints = kwargs.pop("joints", True)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self.n_agents = 2
 

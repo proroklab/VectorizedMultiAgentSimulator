@@ -2,6 +2,9 @@
 VMAS
 ====
 
+.. discord_button::
+   https://discord.gg/dg8txxDW5t
+
 .. figure:: https://raw.githubusercontent.com/matteobettini/vmas-media/master/media/vmas_scenarios_more.gif
    :align: center
 

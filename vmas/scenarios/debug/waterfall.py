@@ -8,13 +8,14 @@ from vmas import render_interactively
 from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
 from vmas.simulator.joints import Joint
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color
+from vmas.simulator.utils import Color, ScenarioUtils
 
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.n_agents = kwargs.get("n_agents", 5)
-        self.with_joints = kwargs.get("joints", True)
+        self.n_agents = kwargs.pop("n_agents", 5)
+        self.with_joints = kwargs.pop("joints", True)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self.agent_dist = 0.1
         self.agent_radius = 0.04
@@ -68,8 +69,8 @@ class Scenario(BaseScenario):
                 anchor_a=(1, 0),
                 anchor_b=(-1, 0),
                 dist=self.agent_dist,
-                rotate_a=True,
-                rotate_b=True,
+                rotate_a=False,
+                rotate_b=False,
                 collidable=True,
                 width=0,
                 mass=1,

@@ -11,21 +11,22 @@ from vmas import render_interactively
 from vmas.simulator.controllers.velocity_controller import VelocityController
 from vmas.simulator.core import Agent, Landmark, Sphere, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, TorchUtils
+from vmas.simulator.utils import Color, ScenarioUtils, TorchUtils
 
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        self.u_range = kwargs.get("u_range", 1)
-        self.a_range = kwargs.get("a_range", 1)
-        self.obs_noise = kwargs.get("obs_noise", 0.0)
-        self.dt_delay = kwargs.get("dt_delay", 0)
-        self.min_input_norm = kwargs.get("min_input_norm", 0.08)
-        self.linear_friction = kwargs.get("linear_friction", 0.1)
+        self.u_range = kwargs.pop("u_range", 1)
+        self.a_range = kwargs.pop("a_range", 1)
+        self.obs_noise = kwargs.pop("obs_noise", 0.0)
+        self.dt_delay = kwargs.pop("dt_delay", 0)
+        self.min_input_norm = kwargs.pop("min_input_norm", 0.08)
+        self.linear_friction = kwargs.pop("linear_friction", 0.1)
 
-        self.pos_shaping_factor = kwargs.get("pos_shaping_factor", 1.0)
-        self.time_rew_coeff = kwargs.get("time_rew_coeff", -0.01)
-        self.energy_reward_coeff = kwargs.get("energy_rew_coeff", 0.0)
+        self.pos_shaping_factor = kwargs.pop("pos_shaping_factor", 1.0)
+        self.time_rew_coeff = kwargs.pop("time_rew_coeff", -0.01)
+        self.energy_reward_coeff = kwargs.pop("energy_rew_coeff", 0.0)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self.viewer_size = (1600, 700)
         self.viewer_zoom = 2

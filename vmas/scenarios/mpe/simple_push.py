@@ -7,10 +7,12 @@ import torch
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, World
 from vmas.simulator.scenario import BaseScenario
+from vmas.simulator.utils import ScenarioUtils
 
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
+        ScenarioUtils.check_kwargs_consumed(kwargs)
         world = World(
             batch_dim=batch_dim,
             device=device,

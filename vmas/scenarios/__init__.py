@@ -12,7 +12,7 @@ def load(name: str):
     for dirpath, _, filenames in os.walk(osp.dirname(__file__)):
         if pathname is None:
             for filename in filenames:
-                if name == filename or name == str(Path(dirpath) / Path(filename)):
+                if name == filename or Path(name) == Path(dirpath) / Path(filename):
                     pathname = os.path.join(dirpath, filename)
                     break
     assert pathname is not None, f"{name} scenario not found."

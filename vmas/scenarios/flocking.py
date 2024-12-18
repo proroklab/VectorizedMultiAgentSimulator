@@ -16,12 +16,15 @@ from vmas.simulator.utils import Color, ScenarioUtils, X, Y
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        n_agents = kwargs.get("n_agents", 4)
-        n_obstacles = kwargs.get("n_obstacles", 5)
-        self._min_dist_between_entities = kwargs.get("min_dist_between_entities", 0.15)
+        n_agents = kwargs.pop("n_agents", 4)
+        n_obstacles = kwargs.pop("n_obstacles", 5)
+        self._min_dist_between_entities = kwargs.pop("min_dist_between_entities", 0.15)
 
-        self.collision_reward = kwargs.get("collision_reward", -0.1)
-        self.dist_shaping_factor = kwargs.get("dist_shaping_factor", 1)
+        self.n_lidar_rays = kwargs.pop("n_lidar_rays", 12)
+
+        self.collision_reward = kwargs.pop("collision_reward", -0.1)
+        self.dist_shaping_factor = kwargs.pop("dist_shaping_factor", 1)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self.plot_grid = True
         self.desired_distance = 0.1
@@ -50,7 +53,7 @@ class Scenario(BaseScenario):
                 sensors=[
                     Lidar(
                         world,
-                        n_rays=12,
+                        n_rays=self.n_lidar_rays,
                         max_range=0.2,
                         entity_filter=goal_entity_filter,
                     )

@@ -59,7 +59,7 @@ try:
 except ImportError:
     raise ImportError(
         "Error occurred while running `from pyglet.gl import *`, HINT: make sure you have OpenGL installed. "
-        "On Ubuntu, you can run 'apt-get install python-opengl'. If you're running on a server, you may need a "
+        "On Ubuntu, you can run 'apt-get install python3-opengl'. If you're running on a server, you may need a "
         "virtual frame buffer; something like this should work:"
         "'xvfb-run -s \"-screen 0 1400x900x24\" python <your_script.py>'"
     )
@@ -520,11 +520,19 @@ def render_function_util(
     return geom
 
 
-def make_circle(radius=10, res=30, filled=True):
+def make_circle(radius=10, res=30, filled=True, angle=2 * math.pi):
+    return make_ellipse(
+        radius_x=radius, radius_y=radius, res=res, filled=filled, angle=angle
+    )
+
+
+def make_ellipse(radius_x=10, radius_y=5, res=30, filled=True, angle=2 * math.pi):
     points = []
     for i in range(res):
-        ang = 2 * math.pi * i / res
-        points.append((math.cos(ang) * radius, math.sin(ang) * radius))
+        ang = -angle / 2 + angle * i / res
+        points.append((math.cos(ang) * radius_x, math.sin(ang) * radius_y))
+    if angle % (2 * math.pi) != 0:
+        points.append((0, 0))
     if filled:
         return FilledPolygon(points)
     else:

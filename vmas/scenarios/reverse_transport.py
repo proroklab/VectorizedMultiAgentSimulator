@@ -8,15 +8,16 @@ import torch
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Box, Landmark, Sphere, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color
+from vmas.simulator.utils import Color, ScenarioUtils
 
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        n_agents = kwargs.get("n_agents", 4)
-        self.package_width = kwargs.get("package_width", 0.6)
-        self.package_length = kwargs.get("package_length", 0.6)
-        self.package_mass = kwargs.get("package_mass", 50)
+        n_agents = kwargs.pop("n_agents", 4)
+        self.package_width = kwargs.pop("package_width", 0.6)
+        self.package_length = kwargs.pop("package_length", 0.6)
+        self.package_mass = kwargs.pop("package_mass", 50)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self.shaping_factor = 100
 

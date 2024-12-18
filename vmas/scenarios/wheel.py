@@ -8,15 +8,16 @@ from vmas import render_interactively
 from vmas.simulator.core import Agent, Landmark, Line, Sphere, World
 from vmas.simulator.heuristic_policy import BaseHeuristicPolicy
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, TorchUtils
+from vmas.simulator.utils import Color, ScenarioUtils, TorchUtils
 
 
 class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
-        n_agents = kwargs.get("n_agents", 4)
-        self.line_length = kwargs.get("line_length", 2)
-        line_mass = kwargs.get("line_mass", 30)
-        self.desired_velocity = kwargs.get("desired_velocity", 0.05)
+        n_agents = kwargs.pop("n_agents", 4)
+        self.line_length = kwargs.pop("line_length", 2)
+        line_mass = kwargs.pop("line_mass", 30)
+        self.desired_velocity = kwargs.pop("desired_velocity", 0.05)
+        ScenarioUtils.check_kwargs_consumed(kwargs)
 
         # Make world
         world = World(batch_dim, device)
