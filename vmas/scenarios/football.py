@@ -130,7 +130,7 @@ class Scenario(BaseScenario):
         world = self.init_world(batch_dim, device)
         self.init_agents(world)
         self.init_ball(world)
-        self.init_background(world)
+        self.init_background()
         self.init_walls(world)
         self.init_goals(world)
         self.init_traj_pts(world)
@@ -196,6 +196,7 @@ class Scenario(BaseScenario):
 
     def init_agents(self, world):
         self.blue_color = (0.22, 0.49, 0.72)
+        self.red_color = (0.89, 0.10, 0.11)
         # Add agents
         self.red_controller = (
             AgentPolicy(
@@ -284,7 +285,7 @@ class Scenario(BaseScenario):
                 if not self.enable_shooting or self.ai_red_agents
                 else HolonomicWithRotation(),
                 action_size=2 if not self.enable_shooting or self.ai_red_agents else 4,
-                color=(0.89, 0.10, 0.11),
+                color=self.red_color,
                 alpha=1,
             )
             world.add_agent(agent)
@@ -604,7 +605,7 @@ class Scenario(BaseScenario):
 
         return min_dist
 
-    def init_background(self, world):
+    def init_background(self):
         # Add landmarks
         self.background = Landmark(
             name="Background",
@@ -1065,6 +1066,7 @@ class Scenario(BaseScenario):
                     ..., 2
                 ]  # Red agents have the action rotation flipped
 
+        # You can shoot the ball only if you hae that action, are the closest to the ball, and the ball is within range and angle
         if self.enable_shooting and agent.action_script is None:
             agents_exclude_ball = [a for a in self.world.agents if a is not self.ball]
             if self._agents_rel_pos_to_ball is None:
@@ -1521,6 +1523,7 @@ class Scenario(BaseScenario):
         from vmas.simulator.rendering import Geom
 
         # Background
+        # You can disable background rendering in case you are plotting the a function on the field
         geoms: List[Geom] = (
             self._get_background_geoms(self.background_entities)
             if self._render_field
