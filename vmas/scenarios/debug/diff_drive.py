@@ -11,7 +11,7 @@ from vmas.simulator.core import Agent, World
 from vmas.simulator.dynamics.diff_drive import DiffDrive
 from vmas.simulator.dynamics.holonomic_with_rot import HolonomicWithRotation
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, ScenarioUtils
+from vmas.simulator.utils import ScenarioUtils
 
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
@@ -88,24 +88,14 @@ class Scenario(BaseScenario):
         )
 
     def extra_render(self, env_index: int = 0) -> "List[Geom]":
-        from vmas.simulator import rendering
 
         geoms: List[Geom] = []
 
         # Agent rotation
         for agent in self.world.agents:
-            color = Color.BLACK.value
-            line = rendering.Line(
-                (0, 0),
-                (0.1, 0),
-                width=1,
+            geoms.append(
+                ScenarioUtils.plot_entity_rotation(agent, env_index, length=0.1)
             )
-            xform = rendering.Transform()
-            xform.set_rotation(agent.state.rot[env_index])
-            xform.set_translation(*agent.state.pos[env_index])
-            line.add_attr(xform)
-            line.set_color(*color)
-            geoms.append(line)
 
         return geoms
 
