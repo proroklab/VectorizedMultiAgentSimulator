@@ -5,7 +5,6 @@
 import typing
 from typing import List
 
-import numpy as np
 import torch
 from torch import Tensor
 
@@ -14,14 +13,7 @@ from vmas.simulator.core import Agent, Box, Landmark, Line, Sphere, World
 from vmas.simulator.dynamics.holonomic import Holonomic
 from vmas.simulator.dynamics.holonomic_with_rot import HolonomicWithRotation
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import (
-    Color,
-    ScenarioUtils,
-    TorchUtils,
-    X,
-    x_to_rgb_colormap,
-    Y,
-)
+from vmas.simulator.utils import Color, ScenarioUtils, TorchUtils, X, Y
 
 if typing.TYPE_CHECKING:
     from vmas.simulator.rendering import Geom
@@ -1569,66 +1561,6 @@ class Scenario(BaseScenario):
                 line.add_attr(xform)
                 line.set_color(*color, alpha=agent._alpha)
                 geoms.append(line)
-
-        if (
-            hasattr(self, "alternative_actions")
-            and hasattr(self, "agents_uncertanties")
-            and not self.enable_shooting
-        ):
-            for index, agent in enumerate(self.blue_agents):
-                uncertanty = self.agents_uncertanties[agent]
-                circle = rendering.make_ellipse(
-                    uncertanty[X] / 10,
-                    uncertanty[Y] / 10,
-                )
-                xform = rendering.Transform()
-                xform.set_translation(*agent.state.pos[env_index])
-                circle.add_attr(xform)
-                circle.set_color(*self.blue_color, alpha=0.2)
-                geoms.append(circle)
-
-                other_actions = self.alternative_actions[agent]
-                for i, action in enumerate(other_actions):
-                    is_agent = index == i
-                    line = rendering.Line(
-                        agent.state.pos[env_index],
-                        agent.state.pos[env_index]
-                        + action * 10 * agent.shape.circumscribed_radius(),
-                        width=2,
-                    )
-                    if is_agent:
-                        line.set_color(*self.blue_color)
-                    geoms.append(line)
-
-        if hasattr(self, "agent_behavioral_distances"):
-            colors = x_to_rgb_colormap(
-                np.array(list(self.agent_behavioral_distances.values())),
-                low=0,
-                high=1,
-            )[:, :-1]
-            for i, agent in enumerate(self.blue_agents):
-                agent.color = colors[i]
-
-        if hasattr(self, "edge_radius") and self.ai_red_agents:
-            # Communication lines
-            for i, agent1 in enumerate(self.blue_agents):
-                for j, agent2 in enumerate(self.blue_agents):
-                    if j <= i:
-                        continue
-                    agent_dist = torch.linalg.vector_norm(
-                        agent1.state.pos - agent2.state.pos, dim=-1
-                    )
-                    if agent_dist[env_index] <= self.edge_radius:
-                        color = Color.BLACK.value
-                        line = rendering.Line(
-                            (agent1.state.pos[env_index]),
-                            (agent2.state.pos[env_index]),
-                            width=1,
-                        )
-                        xform = rendering.Transform()
-                        line.add_attr(xform)
-                        line.set_color(*color)
-                        geoms.append(line)
 
         return geoms
 
