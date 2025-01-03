@@ -1,4 +1,4 @@
-#  Copyright (c) 2024.
+#  Copyright (c) 2024-2025.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -10,7 +10,7 @@ from torch_geometric.nn import SoftmaxAggregation
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Box, Landmark, Sphere, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, ScenarioUtils
+from vmas.simulator.utils import Color, ScenarioUtils, X, Y
 
 if typing.TYPE_CHECKING:
     pass
@@ -42,7 +42,7 @@ class Square:
 
 def get_aggregation_function(name, device):
     if name == "softmax":
-        return SoftmaxAggregation(t=1, learn=True).to(device)
+        return SoftmaxAggregation(t=0, learn=True).to(device)
     elif name == "max":
         return agg_max
     elif name == "mean":
@@ -62,7 +62,7 @@ class Scenario(BaseScenario):
         self.n_adversaries = kwargs.pop("n_adversaries", 0)
         self.spawn_agents_in_same_pos = kwargs.pop("spawn_agents_in_same_pos", True)
 
-        self.n_flags = kwargs.pop("n_flags", 2)
+        self.n_flags = kwargs.pop("n_flags", self.n_agents)
         self.n_adversary_flags = kwargs.pop("n_adversary_flags", 0)
 
         self.world_spawning_x = kwargs.pop("world_spawning_x", 1)
@@ -71,12 +71,15 @@ class Scenario(BaseScenario):
 
         self.agent_radius = kwargs.pop("agent_radius", 0.05)
 
+        # One of: "distance", "deltas", "percentage"
+        self.reward_type = kwargs.pop("reward_type", "distance")
+
         self.pos_shaping_factor = kwargs.pop("pos_shaping_factor", 1)
         self.flag_capture_reward = kwargs.pop("flag_capture_reward", 0)
         self.flag_drop_reward = kwargs.pop("flag_drop_reward", 0)
         self.flag_return_reward = kwargs.pop("flag_return_reward", 0)
 
-        self.gen_agg_type_task = kwargs.pop("gen_agg_type_task", "max")
+        self.gen_agg_type_task = kwargs.pop("gen_agg_type_task", "min")
         self.gen_agg_type_agent = kwargs.pop("gen_agg_type_agent", "max")
 
         self.task_agg = get_aggregation_function(self.gen_agg_type_task, device)
@@ -84,14 +87,24 @@ class Scenario(BaseScenario):
 
         ScenarioUtils.check_kwargs_consumed(kwargs)
 
-        self.min_distance_between_entities = self.agent_radius * 2 + 0.05
+        self.min_distance_between_agents = self.agent_radius * 2 + 0.05
+        self.min_distance_between_flags = 1
+        self.map_inflate_radius = 0.2
+
         self.min_collision_distance = 0.005
+
+        self.x_map_bound = (
+            self.world_spawning_x + self.base_width + self.map_inflate_radius
+        )
+        self.y_map_bound = self.world_spawning_y + self.map_inflate_radius
 
         # Make world
         world = World(
             batch_dim,
             device,
             substeps=2,
+            #  self.x_map_bound,
+            #  self.y_map_bound,
         )
 
         self.flag_distances = None
@@ -160,7 +173,7 @@ class Scenario(BaseScenario):
                 self.blue_agents,
                 self.world,
                 env_index,
-                self.min_distance_between_entities,
+                self.min_distance_between_agents,
                 (-self.world_spawning_x - self.base_width, -self.world_spawning_x),
                 (-self.world_spawning_y, self.world_spawning_y),
             )
@@ -169,28 +182,56 @@ class Scenario(BaseScenario):
             self.blue_flags,
             self.world,
             env_index,
-            self.min_distance_between_entities,
+            self.min_distance_between_flags,
             (self.world_spawning_x, self.world_spawning_x + self.base_width),
             (-self.world_spawning_y, self.world_spawning_y),
         )
         if env_index is None:
             self.flag_distances = self._get_distance_to_flags(env_index)
+            self.initial_flag_distances = self.flag_distances.clone()
         else:
             self.flag_distances[env_index] = self._get_distance_to_flags(env_index)
+            self.initial_flag_distances[env_index] = self.flag_distances[env_index]
 
     def reward(self, agent: Agent):
         is_first = agent == self.world.agents[0]
 
         if is_first:
             flag_distances = self._get_distance_to_flags()
-            self.flag_rews = (
+            self.flag_shaping = (
                 self.flag_distances - flag_distances
             ) * self.pos_shaping_factor
-            self.flag_distances = flag_distances
+            self.flag_percentage = -(
+                (flag_distances / self.initial_flag_distances) ** 2
+            )
+            self.flag_distances = flag_distances.detach()
 
-        task_matrix = self.agent_agg(-self.flag_distances, dim=-2).squeeze(-2)
+            if self.reward_type == "distance":
+                self.matrix = -self.flag_distances
+            elif self.reward_type == "deltas":
+                self.matrix = self.flag_shaping
+            elif self.reward_type == "percentage":
+                self.matrix = self.flag_percentage
+            else:
+                raise AssertionError
+            self.matrix[self.flag_distances < self.agent_radius] += 10
+
+        task_matrix = self.agent_agg(self.matrix, dim=-2).squeeze(-2)
         self.rew = self.task_agg(task_matrix, dim=-1).squeeze(-1)
-        return self.rew
+        assert not self.rew.isnan().any()
+        return self.rew + self._out_of_bounds_penalty(agent)
+
+    def _out_of_bounds_penalty(self, agent: Agent):
+        return torch.where(
+            (agent.state.pos[:, X] < -self.x_map_bound)
+            + (agent.state.pos[:, X] > self.x_map_bound)
+            + (agent.state.pos[:, Y] < -self.y_map_bound)
+            + (agent.state.pos[:, Y] > self.y_map_bound),
+            -10,
+            torch.zeros(
+                self.world.batch_dim, device=self.world.device, dtype=torch.float32
+            ),
+        )
 
     def _get_distance_to_flags(self, env_index: typing.Optional[int] = None):
         if env_index is None:
@@ -226,12 +267,22 @@ class Scenario(BaseScenario):
 
         return torch.cat(
             [
-                agent.state.pos,
                 agent.state.vel,
             ]
             + flag_poses,
             dim=-1,
         )
+
+    def extra_render(self, env_index: int = 0):
+        from vmas.simulator.rendering import get_boundary
+
+        # Function
+        geoms = get_boundary(
+            x_semidim=self.x_map_bound,
+            y_semidim=self.y_map_bound,
+        )
+
+        return geoms
 
 
 if __name__ == "__main__":

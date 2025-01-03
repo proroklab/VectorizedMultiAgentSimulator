@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2024.
+#  Copyright (c) 2022-2025.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import math
@@ -759,8 +759,14 @@ class Environment(TorchVectorizedObject):
             )
 
         # Render
-        if self.scenario.visualize_semidims:
-            self.plot_boundary()
+        if self.scenario.visualize_semidims and (
+            self.world.x_semidim is not None or self.world.y_semidim is not None
+        ):
+            from vmas.simulator.rendering import get_boundary
+
+            self.viewer.add_onetime_list(
+                get_boundary(self.world.x_semidim, self.world.y_semidim)
+            )
 
         self._set_agent_comm_messages(env_index)
 
@@ -790,64 +796,6 @@ class Environment(TorchVectorizedObject):
 
         # render to display or array
         return self.viewer.render(return_rgb_array=mode == "rgb_array")
-
-    def plot_boundary(self):
-        # include boundaries in the rendering if the environment is dimension-limited
-        if self.world.x_semidim is not None or self.world.y_semidim is not None:
-            from vmas.simulator.rendering import Line
-            from vmas.simulator.utils import Color
-
-            # set a big value for the cases where the environment is dimension-limited only in one coordinate
-            infinite_value = 100
-
-            x_semi = (
-                self.world.x_semidim
-                if self.world.x_semidim is not None
-                else infinite_value
-            )
-            y_semi = (
-                self.world.y_semidim
-                if self.world.y_semidim is not None
-                else infinite_value
-            )
-
-            # set the color for the boundary line
-            color = Color.GRAY.value
-
-            # Define boundary points based on whether world semidims are provided
-            if (
-                self.world.x_semidim is not None and self.world.y_semidim is not None
-            ) or self.world.y_semidim is not None:
-                boundary_points = [
-                    (-x_semi, y_semi),
-                    (x_semi, y_semi),
-                    (x_semi, -y_semi),
-                    (-x_semi, -y_semi),
-                ]
-            else:
-                boundary_points = [
-                    (-x_semi, y_semi),
-                    (-x_semi, -y_semi),
-                    (x_semi, y_semi),
-                    (x_semi, -y_semi),
-                ]
-
-            # Create lines by connecting points
-            for i in range(
-                0,
-                len(boundary_points),
-                1
-                if (
-                    self.world.x_semidim is not None
-                    and self.world.y_semidim is not None
-                )
-                else 2,
-            ):
-                start = boundary_points[i]
-                end = boundary_points[(i + 1) % len(boundary_points)]
-                line = Line(start, end, width=0.7)
-                line.set_color(*color)
-                self.viewer.add_onetime(line)
 
     def plot_function(
         self, f, precision, plot_range, cmap_range, cmap_alpha, cmap_name

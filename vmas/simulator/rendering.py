@@ -2,7 +2,7 @@
 2D rendering framework
 """
 
-#  Copyright (c) 2022-2024.
+#  Copyright (c) 2022-2025.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -12,7 +12,7 @@ import math
 import os
 import sys
 from itertools import chain
-from typing import Callable, Optional, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 
 import numpy as np
 import pyglet
@@ -518,6 +518,53 @@ def render_function_util(
     geom = Image(img, x=x_min, y=y_min, scale=precision)
 
     return geom
+
+
+def get_boundary(x_semidim: float, y_semidim: float) -> List[Geom]:
+
+    # include boundaries in the rendering if the environment is dimension-limited
+    if x_semidim is not None or y_semidim is not None:
+        from vmas.simulator.rendering import Line
+        from vmas.simulator.utils import Color
+
+        # set a big value for the cases where the environment is dimension-limited only in one coordinate
+        infinite_value = 100
+
+        x_semi = x_semidim if x_semidim is not None else infinite_value
+        y_semi = y_semidim if y_semidim is not None else infinite_value
+
+        # set the color for the boundary line
+        color = Color.GRAY.value
+
+        # Define boundary points based on whether world semidims are provided
+        if (x_semidim is not None and y_semidim is not None) or y_semidim is not None:
+            boundary_points = [
+                (-x_semi, y_semi),
+                (x_semi, y_semi),
+                (x_semi, -y_semi),
+                (-x_semi, -y_semi),
+            ]
+        else:
+            boundary_points = [
+                (-x_semi, y_semi),
+                (-x_semi, -y_semi),
+                (x_semi, y_semi),
+                (x_semi, -y_semi),
+            ]
+
+        # Create lines by connecting points
+        geoms = []
+        for i in range(
+            0,
+            len(boundary_points),
+            1 if (x_semidim is not None and y_semidim is not None) else 2,
+        ):
+            start = boundary_points[i]
+            end = boundary_points[(i + 1) % len(boundary_points)]
+            line = Line(start, end, width=0.7)
+            line.set_color(*color)
+            geoms.append(line)
+        return geoms
 
 
 def make_circle(radius=10, res=30, filled=True, angle=2 * math.pi):

@@ -40,7 +40,7 @@ class Square:
 
 def get_aggregation_function(name, device):
     if name == "softmax":
-        return SoftmaxAggregation(t=1, learn=True).to(device)
+        return SoftmaxAggregation(t=0, learn=True).to(device)
     elif name == "max":
         return agg_max
     elif name == "mean":
