@@ -62,7 +62,7 @@ class Scenario(BaseScenario):
         self.n_adversaries = kwargs.pop("n_adversaries", 0)
         self.spawn_agents_in_same_pos = kwargs.pop("spawn_agents_in_same_pos", True)
 
-        self.n_flags = kwargs.pop("n_flags", self.n_agents)
+        self.n_flags = kwargs.pop("n_flags", 2)
         self.n_adversary_flags = kwargs.pop("n_adversary_flags", 0)
 
         self.world_spawning_x = kwargs.pop("world_spawning_x", 1)
@@ -72,7 +72,7 @@ class Scenario(BaseScenario):
         self.agent_radius = kwargs.pop("agent_radius", 0.05)
 
         # One of: "distance", "deltas", "percentage"
-        self.reward_type = kwargs.pop("reward_type", "distance")
+        self.reward_type = kwargs.pop("reward_type", "percentage")
 
         self.pos_shaping_factor = kwargs.pop("pos_shaping_factor", 1)
         self.flag_capture_reward = kwargs.pop("flag_capture_reward", 0)
@@ -103,8 +103,8 @@ class Scenario(BaseScenario):
             batch_dim,
             device,
             substeps=2,
-            #  self.x_map_bound,
-            #  self.y_map_bound,
+            x_semidim=self.x_map_bound,
+            y_semidim=self.y_map_bound,
         )
 
         self.flag_distances = None
@@ -197,29 +197,29 @@ class Scenario(BaseScenario):
         is_first = agent == self.world.agents[0]
 
         if is_first:
-            flag_distances = self._get_distance_to_flags()
+            flag_distances = self._get_distance_to_flags()  # batch, n_agents, n_flags
             self.flag_shaping = (
                 self.flag_distances - flag_distances
             ) * self.pos_shaping_factor
-            self.flag_percentage = -(
-                (flag_distances / self.initial_flag_distances) ** 2
-            )
+            sum_distances = flag_distances.sum(dim=-1, keepdim=True)
+            self.flag_percentage = -flag_distances / sum_distances
             self.flag_distances = flag_distances.detach()
 
             if self.reward_type == "distance":
-                self.matrix = -self.flag_distances
+                self.matrix = -self.flag_distances / 10
             elif self.reward_type == "deltas":
                 self.matrix = self.flag_shaping
             elif self.reward_type == "percentage":
-                self.matrix = self.flag_percentage
+                self.matrix = self.flag_percentage / 10
             else:
                 raise AssertionError
-            self.matrix[self.flag_distances < self.agent_radius] += 10
+            self.matrix[
+                self.flag_distances < self.agent_radius
+            ] += self.flag_capture_reward
 
         task_matrix = self.agent_agg(self.matrix, dim=-2).squeeze(-2)
         self.rew = self.task_agg(task_matrix, dim=-1).squeeze(-1)
-        assert not self.rew.isnan().any()
-        return self.rew + self._out_of_bounds_penalty(agent)
+        return self.rew
 
     def _out_of_bounds_penalty(self, agent: Agent):
         return torch.where(
@@ -267,6 +267,7 @@ class Scenario(BaseScenario):
 
         return torch.cat(
             [
+                agent.state.pos,
                 agent.state.vel,
             ]
             + flag_poses,
