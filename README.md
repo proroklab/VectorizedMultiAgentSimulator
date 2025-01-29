@@ -7,14 +7,14 @@
 [![Python](https://img.shields.io/badge/python-3.8%20%7C%203.9%20%7C%203.10%20%7C%203.11-blue.svg)](https://www.python.org/downloads/)
 [![GitHub license](https://img.shields.io/badge/license-GPLv3.0-blue.svg)](https://github.com/proroklab/VectorizedMultiAgentSimulator/blob/main/LICENSE)
 [![arXiv](https://img.shields.io/badge/arXiv-2207.03530-b31b1b.svg)](https://arxiv.org/abs/2207.03530)
-
+[![Discord Shield](https://dcbadge.vercel.app/api/server/dg8txxDW5t?style=flat)](https://discord.gg/dg8txxDW5t)
 
 <p align="center">
 <img src="https://github.com/matteobettini/vmas-media/blob/main/media/VMAS_scenarios.gif?raw=true" alt="drawing"/>  
 </p>
 
 > [!NOTE]  
-> We have just released [BenchMARL](https://github.com/facebookresearch/BenchMARL), a benchmarking library where you 
+> We have released [BenchMARL](https://github.com/facebookresearch/BenchMARL), a benchmarking library where you 
 > can train VMAS tasks using TorchRL!
 > Check out [how easy it is to use it.](https://colab.research.google.com/github/facebookresearch/BenchMARL/blob/main/notebooks/run.ipynb)
 
@@ -28,7 +28,7 @@ Scenario creation is made simple and modular to incentivize contributions.
 VMAS simulates agents and landmarks of different shapes and supports rotations, elastic collisions, joints, and custom gravity.
 Holonomic motion models are used for the agents to simplify simulation. Custom sensors such as LIDARs are available and the simulator supports inter-agent communication.
 Vectorization in [PyTorch](https://pytorch.org/) allows VMAS to perform simulations in a batch, seamlessly scaling to tens of thousands of parallel environments on accelerated hardware.
-VMAS has an interface compatible with [OpenAI Gym](https://github.com/openai/gym), with [RLlib](https://docs.ray.io/en/latest/rllib/index.html), with [torchrl](https://github.com/pytorch/rl) and its MARL training library: [BenchMARL](https://github.com/facebookresearch/BenchMARL),
+VMAS has an interface compatible with [OpenAI Gym](https://github.com/openai/gym), with [Gymnasium](https://gymnasium.farama.org/), with [RLlib](https://docs.ray.io/en/latest/rllib/index.html), with [torchrl](https://github.com/pytorch/rl) and its MARL training library: [BenchMARL](https://github.com/facebookresearch/BenchMARL),
 enabling out-of-the-box integration with a wide range of RL algorithms. 
 The implementation is inspired by [OpenAI's MPE](https://github.com/openai/multiagent-particle-envs). 
 Alongside VMAS's scenarios, we port and vectorize all the scenarios in MPE.
@@ -113,28 +113,37 @@ git clone https://github.com/proroklab/VectorizedMultiAgentSimulator.git
 cd VectorizedMultiAgentSimulator
 pip install -e .
 ```
-By default, vmas has only the core requirements. Here are some optional packages you may want to install:
+By default, vmas has only the core requirements. To install further dependencies to enable training with [Gymnasium](https://gymnasium.farama.org/) wrappers, [RLLib](https://docs.ray.io/en/latest/rllib/index.html) wrappers, for rendering, and testing, you may want to install these further options:
 ```bash
-# Training
-pip install "ray[rllib]"==2.1.0 # We support versions "ray[rllib]<=2.2,>=1.13"
-pip install torchrl
+# install gymnasium for gymnasium wrappers
+pip install vmas[gymnasium]
 
-# Logging
-pip installl wandb 
+# install rllib for rllib wrapper
+pip install vmas[rllib]
 
-# Rendering
-pip install opencv-python moviepy matplotlib
+# install rendering dependencies
+pip install vmas[render]
 
-# Tests
-pip install pytest pyyaml pytest-instafail tqdm
+# install testing dependencies
+pip install vmas[test]
+
+# install all dependencies
+pip install vmas[all]
+```
+
+You can also install the following training libraries:
+
+```bash
+pip install benchmarl # For training in BenchMARL
+pip install torchrl # For training in TorchRL
+pip install "ray[rllib]"==2.1.0 # For training in RLlib. We support versions "ray[rllib]<=2.2,>=1.13"
 ```
 
 ### Run 
 
 To use the simulator, simply create an environment by passing the name of the scenario
 you want (from the `scenarios` folder) to the `make_env` function.
-The function arguments are explained in the documentation. The function returns an environment
-object with the OpenAI gym interface:
+The function arguments are explained in the documentation. The function returns an environment object with the VMAS interface:
 
 Here is an example:
 ```python
@@ -143,16 +152,23 @@ Here is an example:
         num_envs=32,
         device="cpu", # Or "cuda" for GPU
         continuous_actions=True,
-        wrapper=None,  # One of: None, vmas.Wrapper.RLLIB, and vmas.Wrapper.GYM
+        wrapper=None,  # One of: None, "rllib", "gym", "gymnasium", "gymnasium_vec"
         max_steps=None, # Defines the horizon. None is infinite horizon.
         seed=None, # Seed of the environment
         dict_spaces=False, # By default tuple spaces are used with each element in the tuple being an agent.
         # If dict_spaces=True, the spaces will become Dict with each key being the agent's name
         grad_enabled=False, # If grad_enabled the simulator is differentiable and gradients can flow from output to input
+        terminated_truncated=False, # If terminated_truncated the simulator will return separate `terminated` and `truncated` flags in the `done()`, `step()`, and `get_from_scenario()` functions instead of a single `done` flag
         **kwargs # Additional arguments you want to pass to the scenario initialization
     )
 ```
 A further example that you can run is contained in `use_vmas_env.py` in the `examples` directory.
+
+With the `terminated_truncated` flag set to `True`, the simulator will return separate `terminated` and `truncated` flags
+in the `done()`, `step()`, and `get_from_scenario()` functions instead of a single `done` flag.
+This is useful when you want to know if the environment is done because the episode has ended or
+because the maximum episode length/ timestep horizon has been reached. 
+See [the Gymnasium documentation](https://gymnasium.farama.org/tutorials/gymnasium_basics/handling_time_limits/) for more details on this.
 
 #### RLlib
 
@@ -235,7 +251,7 @@ Each format will work regardless of the fact that tuples or dictionary spaces ha
 - **Simple**: Complex vectorized physics engines exist (e.g., [Brax](https://github.com/google/brax)), but they do not scale efficiently when dealing with multiple agents. This defeats the computational speed goal set by vectorization. VMAS uses a simple custom 2D dynamics engine written in PyTorch to provide fast simulation. 
 - **General**: The core of VMAS is structured so that it can be used to implement general high-level multi-robot problems in 2D. It can support adversarial as well as cooperative scenarios. Holonomic point-robot simulation has been chosen to focus on general high-level problems, without learning low-level custom robot controls through MARL.
 - **Extensible**: VMAS is not just a simulator with a set of environments. It is a framework that can be used to create new multi-agent scenarios in a format that is usable by the whole MARL community. For this purpose, we have modularized the process of creating a task and introduced interactive rendering to debug it. You can define your own scenario in minutes. Have a look at the dedicated section in this document.
-- **Compatible**: VMAS has wrappers for [RLlib](https://docs.ray.io/en/latest/rllib/index.html), [torchrl](https://pytorch.org/rl/reference/generated/torchrl.envs.libs.vmas.VmasEnv.html), and [OpenAI Gym](https://github.com/openai/gym). RLlib and torchrl have a large number of already implemented RL algorithms.
+- **Compatible**: VMAS has wrappers for [RLlib](https://docs.ray.io/en/latest/rllib/index.html), [torchrl](https://pytorch.org/rl/reference/generated/torchrl.envs.libs.vmas.VmasEnv.html), [OpenAI Gym](https://github.com/openai/gym) and [Gymnasium](https://gymnasium.farama.org/). RLlib and torchrl have a large number of already implemented RL algorithms.
 Keep in mind that this interface is less efficient than the unwrapped version. For an example of wrapping, see the main of `make_env`.
 - **Tested**: Our scenarios come with tests which run a custom designed heuristic on each scenario.
 - **Entity shapes**: Our entities (agent and landmarks) can have different customizable shapes (spheres, boxes, lines).
@@ -345,7 +361,8 @@ To create a fake screen you need to have `Xvfb` installed.
 | **<p align="center">joint_passage_size</p>** <br/> <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/joint_passage_size.gif?raw=true"/> | **<p align="center">flocking</p>** <br/> <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/flocking.gif?raw=true"/>             | **<p align="center">discovery</p>** <br/> <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/discovery.gif?raw=true"/>                       | 
 | **<p align="center">joint_passage</p>** <br/> <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/joint_passage.gif?raw=true"/>           | **<p align="center">ball_passage</p>** <br/> <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/ball_passage.gif?raw=true"/>     | **<p align="center">ball_trajectory</p>** <br/> <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/ball_trajectory.gif?raw=true"/>           |
 | **<p align="center">buzz_wire</p>** <br/> <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/buzz_wire.gif?raw=true"/>                   | **<p align="center">multi_give_way</p>** <br/> <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/multi_give_way.gif?raw=true"/> | **<p align="center">navigation</p>** <br/> <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/navigation.gif?raw=true"/>                     |
-| **<p align="center">sampling</p>** <br/> <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/sampling.gif?raw=true"/>                     | **<p align="center">wind_flocking</p>** <br/> <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/wind_flocking.gif?raw=true"/>   | **<p align="center">road_traffic</p>** <br/> <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/road_traffic_cpm_lab.gif?raw=true"/>                         |
+| **<p align="center">sampling</p>** <br/> <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/sampling.gif?raw=true"/>                     | **<p align="center">wind_flocking</p>** <br/> <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/wind_flocking.gif?raw=true"/>   | **<p align="center">road_traffic</p>** <br/> <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/road_traffic_cpm_lab.gif?raw=true"/>         |
+
 #### Main scenarios
 
 | Env name                | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | GIF                                                                                                                                            |
@@ -370,7 +387,7 @@ To create a fake screen you need to have `Xvfb` installed.
 | `navigation.py`         | Randomly spawned agents need to navigate to their goal. Collisions can be turned on and agents can use LIDARs to avoid running into each other. Rewards can be shared or individual. Apart from position, velocity, and lidar readings, each agent can be set up to observe just the relative distance to its goal, or its relative distance to *all* goals (in this case the task needs heterogeneous behavior to be solved). The scenario can also be set up so that multiple agents share the same goal.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/navigation.gif?raw=true" alt="drawing" width="300"/>           |
 | `sampling.py`           | `n_agents` are spawned randomly in a workspace with an underlying gaussian density function composed of `n_gaussians` modes. Agents need to collect samples by moving in this field. The field is discretized to a grid and once an agent visits a cell its sample is collected without replacement and given as reward to the whole team (or just to the agent if `shared_rew=False`). Agents can use a lidar to sens each other. Apart from lidar, position and velocity observations, each agent observes the values of samples in the 3x3 grid around it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/sampling.gif?raw=true" alt="drawing" width="300"/>             |
 | `wind_flocking.py`      | Two agents need to flock at a specified distance northwards. They are rewarded for their distance and the alignment of their velocity vectors to the reference. The scenario presents wind from north to south. The agents present physical heterogeneity: the smaller one has some aerodynamical properties and can shield the bigger one from wind, thus optimizing the flocking performance. Thus, the optimal solution to this task consists in the agents performing heterogeneous wind shielding. See the [SND paper](https://matteobettini.github.io/publication/system-neural-diversity-measuring-behavioral-heterogeneity-in-multi-agent-learning/) for more info.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/wind_flocking.gif?raw=true" alt="drawing" width="300"/>        |
-| `road_traffic.py`       | This scenario provides a MARL benchmark for Connected and Automated Vehicles (CAVs) using a High-Definition (HD) map from the Cyber-Physical Mobility Lab ([CPM Lab](https://cpm.embedded.rwth-aachen.de/)), an open-source testbed for CAVs. The map features an eight-lane intersection and a loop-shaped highway with multiple merge-in and -outs, offering a range of challenging traffic conditions. Forty loop-shaped reference paths are predefined, allowing for simulations with infinite durations. You can initialize up to 100 agents, with a default number of 20. In the event of collisions during training, the scenario reinitializes all agents, randomly assigning them new reference paths, initial positions, and speeds. This setup is designed to simulate the unpredictability of real-world driving. Besides, the observations are designed to promote sample efficiency and generalization (i.e., agents' ability to generalize to unseen scenarios). In addition, both ego view and bird's-eye view are implemented; partial observation is also supported to simulate partially observable Markov Decision Processes. See [this paper](http://dx.doi.org/10.13140/RG.2.2.24505.17769) for more info. | <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/road_traffic_cpm_lab.gif?raw=true" alt="drawing" width="300"/> |
+| `road_traffic.py`       | This scenario provides a MARL benchmark for Connected and Automated Vehicles (CAVs) using a High-Definition (HD) map from the Cyber-Physical Mobility Lab ([CPM Lab](https://cpm.embedded.rwth-aachen.de/)), an open-source testbed for CAVs. The map features an eight-lane intersection and a loop-shaped highway with multiple merge-in and -outs, offering a range of challenging traffic conditions. Forty loop-shaped reference paths are predefined, allowing for simulations with infinite durations. You can initialize up to 100 agents, with a default number of 20. In the event of collisions during training, the scenario reinitializes all agents, randomly assigning them new reference paths, initial positions, and speeds. This setup is designed to simulate the unpredictability of real-world driving. Besides, the observations are designed to promote sample efficiency and generalization (i.e., agents' ability to generalize to unseen scenarios). In addition, both ego view and bird's-eye view are implemented; partial observation is also supported to simulate partially observable Markov Decision Processes. See [this paper](https://arxiv.org/abs/2408.07644) for more info. | <img src="https://github.com/matteobettini/vmas-media/blob/main/media/scenarios/road_traffic_cpm_lab.gif?raw=true" alt="drawing" width="300"/> |
 
 #### Debug scenarios
 

@@ -26,6 +26,8 @@ class Scenario(BaseScenario):
         self.shaping_factor = 100
         self.fall_reward = -10
 
+        self.visualize_semidims = False
+
         # Make world
         world = World(batch_dim, device, gravity=(0.0, -0.05), y_semidim=1)
         # Add agents

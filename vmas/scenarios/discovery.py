@@ -23,9 +23,16 @@ class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.n_agents = kwargs.pop("n_agents", 5)
         self.n_targets = kwargs.pop("n_targets", 7)
+        self.x_semidim = kwargs.pop("x_semidim", 1)
+        self.y_semidim = kwargs.pop("y_semidim", 1)
         self._min_dist_between_entities = kwargs.pop("min_dist_between_entities", 0.2)
         self._lidar_range = kwargs.pop("lidar_range", 0.35)
         self._covering_range = kwargs.pop("covering_range", 0.25)
+
+        self.use_agent_lidar = kwargs.pop("use_agent_lidar", False)
+        self.n_lidar_rays_entities = kwargs.pop("n_lidar_rays_entities", 15)
+        self.n_lidar_rays_agents = kwargs.pop("n_lidar_rays_agents", 12)
+
         self._agents_per_target = kwargs.pop("agents_per_target", 2)
         self.targets_respawn = kwargs.pop("targets_respawn", True)
         self.shared_reward = kwargs.pop("shared_reward", False)
@@ -47,17 +54,17 @@ class Scenario(BaseScenario):
         world = World(
             batch_dim,
             device,
-            x_semidim=1,
-            y_semidim=1,
+            x_semidim=self.x_semidim,
+            y_semidim=self.y_semidim,
             collision_force=500,
             substeps=2,
             drag=0.25,
         )
 
         # Add agents
-        # entity_filter_agents: Callable[[Entity], bool] = lambda e: e.name.startswith(
-        #     "agent"
-        # )
+        entity_filter_agents: Callable[[Entity], bool] = lambda e: e.name.startswith(
+            "agent"
+        )
         entity_filter_targets: Callable[[Entity], bool] = lambda e: e.name.startswith(
             "target"
         )
@@ -67,24 +74,32 @@ class Scenario(BaseScenario):
                 name=f"agent_{i}",
                 collide=True,
                 shape=Sphere(radius=self.agent_radius),
-                sensors=[
-                    # Lidar(
-                    #     world,
-                    #     angle_start=0.05,
-                    #     angle_end=2 * torch.pi + 0.05,
-                    #     n_rays=12,
-                    #     max_range=self._lidar_range,
-                    #     entity_filter=entity_filter_agents,
-                    #     render_color=Color.BLUE,
-                    # ),
-                    Lidar(
-                        world,
-                        n_rays=15,
-                        max_range=self._lidar_range,
-                        entity_filter=entity_filter_targets,
-                        render_color=Color.GREEN,
-                    ),
-                ],
+                sensors=(
+                    [
+                        Lidar(
+                            world,
+                            n_rays=self.n_lidar_rays_entities,
+                            max_range=self._lidar_range,
+                            entity_filter=entity_filter_targets,
+                            render_color=Color.GREEN,
+                        )
+                    ]
+                    + (
+                        [
+                            Lidar(
+                                world,
+                                angle_start=0.05,
+                                angle_end=2 * torch.pi + 0.05,
+                                n_rays=self.n_lidar_rays_agents,
+                                max_range=self._lidar_range,
+                                entity_filter=entity_filter_agents,
+                                render_color=Color.BLUE,
+                            )
+                        ]
+                        if self.use_agent_lidar
+                        else []
+                    )
+                ),
             )
             agent.collision_rew = torch.zeros(batch_dim, device=device)
             agent.covering_reward = agent.collision_rew.clone()
@@ -228,15 +243,9 @@ class Scenario(BaseScenario):
 
     def observation(self, agent: Agent):
         lidar_1_measures = agent.sensors[0].measure()
-        # lidar_2_measures = agent.sensors[1].measure()
         return torch.cat(
-            [
-                agent.state.pos,
-                agent.state.vel,
-                agent.state.pos,
-                lidar_1_measures,
-                # lidar_2_measures,
-            ],
+            [agent.state.pos, agent.state.vel, lidar_1_measures]
+            + ([agent.sensors[1].measure()] if self.use_agent_lidar else []),
             dim=-1,
         )
 
@@ -315,23 +324,24 @@ class HeuristicPolicy(BaseHeuristicPolicy):
         closest_point_on_circ_normal *= 0.1
         des_pos = closest_point_on_circ + closest_point_on_circ_normal
 
-        # Move away from other agents within visibility range
-        lidar_agents = observation[:, 4:16]
-        agent_visible = torch.any(lidar_agents < 0.15, dim=1)
-        _, agent_dir_index = torch.min(lidar_agents, dim=1)
-        agent_dir = agent_dir_index / lidar_agents.shape[1] * 2 * torch.pi
-        agent_vec = torch.stack([torch.cos(agent_dir), torch.sin(agent_dir)], dim=1)
-        des_pos_agent = current_pos - agent_vec * 0.1
-        des_pos[agent_visible] = des_pos_agent[agent_visible]
-
         # Move towards targets within visibility range
-        lidar_targets = observation[:, 16:28]
+        lidar_targets = observation[:, 4:19]
         target_visible = torch.any(lidar_targets < 0.3, dim=1)
         _, target_dir_index = torch.min(lidar_targets, dim=1)
         target_dir = target_dir_index / lidar_targets.shape[1] * 2 * torch.pi
         target_vec = torch.stack([torch.cos(target_dir), torch.sin(target_dir)], dim=1)
         des_pos_target = current_pos + target_vec * 0.1
         des_pos[target_visible] = des_pos_target[target_visible]
+
+        if observation.shape[-1] > 19:
+            # Move away from other agents within visibility range
+            lidar_agents = observation[:, 19:31]
+            agent_visible = torch.any(lidar_agents < 0.15, dim=1)
+            _, agent_dir_index = torch.min(lidar_agents, dim=1)
+            agent_dir = agent_dir_index / lidar_agents.shape[1] * 2 * torch.pi
+            agent_vec = torch.stack([torch.cos(agent_dir), torch.sin(agent_dir)], dim=1)
+            des_pos_agent = current_pos - agent_vec * 0.1
+            des_pos[agent_visible] = des_pos_agent[agent_visible]
 
         action = torch.clamp(
             (des_pos - current_pos) * 10,

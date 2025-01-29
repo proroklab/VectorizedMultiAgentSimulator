@@ -24,6 +24,16 @@ class Scenario(BaseScenario):
         self.n_agents = kwargs.pop("n_agents", 4)
         self.collisions = kwargs.pop("collisions", True)
 
+        self.world_spawning_x = kwargs.pop(
+            "world_spawning_x", 1
+        )  # X-coordinate limit for entities spawning
+        self.world_spawning_y = kwargs.pop(
+            "world_spawning_y", 1
+        )  # Y-coordinate limit for entities spawning
+        self.enforce_bounds = kwargs.pop(
+            "enforce_bounds", False
+        )  # If False, the world is unlimited; else, constrained by world_spawning_x and world_spawning_y.
+
         self.agents_with_same_goal = kwargs.pop("agents_with_same_goal", 1)
         self.split_goals = kwargs.pop("split_goals", False)
         self.observe_all_goals = kwargs.pop("observe_all_goals", False)
@@ -31,6 +41,7 @@ class Scenario(BaseScenario):
         self.lidar_range = kwargs.pop("lidar_range", 0.35)
         self.agent_radius = kwargs.pop("agent_radius", 0.1)
         self.comms_range = kwargs.pop("comms_range", 0)
+        self.n_lidar_rays = kwargs.pop("n_lidar_rays", 12)
 
         self.shared_rew = kwargs.pop("shared_rew", True)
         self.pos_shaping_factor = kwargs.pop("pos_shaping_factor", 1)
@@ -40,8 +51,14 @@ class Scenario(BaseScenario):
         ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self.min_distance_between_entities = self.agent_radius * 2 + 0.05
-        self.world_semidim = 1
         self.min_collision_distance = 0.005
+
+        if self.enforce_bounds:
+            self.x_semidim = self.world_spawning_x
+            self.y_semidim = self.world_spawning_y
+        else:
+            self.x_semidim = None
+            self.y_semidim = None
 
         assert 1 <= self.agents_with_same_goal <= self.n_agents
         if self.agents_with_same_goal > 1:
@@ -58,7 +75,13 @@ class Scenario(BaseScenario):
             ), "Splitting the goals is allowed when the agents are even and half the team has the same goal"
 
         # Make world
-        world = World(batch_dim, device, substeps=2)
+        world = World(
+            batch_dim,
+            device,
+            substeps=2,
+            x_semidim=self.x_semidim,
+            y_semidim=self.y_semidim,
+        )
 
         known_colors = [
             (0.22, 0.49, 0.72),
@@ -93,7 +116,7 @@ class Scenario(BaseScenario):
                     [
                         Lidar(
                             world,
-                            n_rays=12,
+                            n_rays=self.n_lidar_rays,
                             max_range=self.lidar_range,
                             entity_filter=entity_filter_agents,
                         ),
@@ -126,8 +149,8 @@ class Scenario(BaseScenario):
             self.world,
             env_index,
             self.min_distance_between_entities,
-            (-self.world_semidim, self.world_semidim),
-            (-self.world_semidim, self.world_semidim),
+            (-self.world_spawning_x, self.world_spawning_x),
+            (-self.world_spawning_y, self.world_spawning_y),
         )
 
         occupied_positions = torch.stack(
@@ -143,8 +166,8 @@ class Scenario(BaseScenario):
                 env_index=env_index,
                 world=self.world,
                 min_dist_between_entities=self.min_distance_between_entities,
-                x_bounds=(-self.world_semidim, self.world_semidim),
-                y_bounds=(-self.world_semidim, self.world_semidim),
+                x_bounds=(-self.world_spawning_x, self.world_spawning_x),
+                y_bounds=(-self.world_spawning_y, self.world_spawning_y),
             )
             goal_poses.append(position.squeeze(1))
             occupied_positions = torch.cat([occupied_positions, position], dim=1)

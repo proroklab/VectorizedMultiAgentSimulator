@@ -73,6 +73,7 @@ class Scenario(BaseScenario):
         assert self.n_passages == 3 or self.n_passages == 4
 
         self.plot_grid = False
+        self.visualize_semidims = False
 
         # Make world
         world = World(

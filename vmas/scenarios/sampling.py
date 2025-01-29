@@ -43,6 +43,7 @@ class Scenario(BaseScenario):
         assert len(self.covs) == self.n_gaussians
 
         self.plot_grid = False
+        self.visualize_semidims = False
         self.n_x_cells = int((2 * self.xdim) / self.grid_spacing)
         self.n_y_cells = int((2 * self.ydim) / self.grid_spacing)
         self.max_pdf = torch.zeros((batch_dim,), device=device, dtype=torch.float32)

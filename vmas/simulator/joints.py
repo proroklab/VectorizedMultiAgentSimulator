@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from typing import List, Tuple, TYPE_CHECKING
+from typing import List, Optional, Tuple, TYPE_CHECKING
 
 import torch
 
@@ -30,6 +30,8 @@ class Joint(vmas.simulator.utils.Observer):
         collidable: bool = False,
         width: float = 0.0,
         mass: float = 1.0,
+        fixed_rotation_a: Optional[float] = None,
+        fixed_rotation_b: Optional[float] = None,
     ):
         assert entity_a != entity_b, "Cannot join same entity"
         for anchor in (anchor_a, anchor_b):
@@ -40,11 +42,27 @@ class Joint(vmas.simulator.utils.Observer):
         if dist == 0:
             assert not collidable, "Cannot have collidable joint with dist 0"
             assert width == 0, "Cannot have width for joint with dist 0"
+            assert (
+                fixed_rotation_a == fixed_rotation_b
+            ), "If dist is 0, fixed_rotation_a and fixed_rotation_b should be the same"
+        if fixed_rotation_a is not None:
+            assert (
+                not rotate_a
+            ), "If you provide a fixed rotation for a, rotate_a should be False"
+        if fixed_rotation_b is not None:
+            assert (
+                not rotate_b
+            ), "If you provide a fixed rotation for b, rotate_b should be False"
+
         if width > 0:
             assert collidable
 
         self.entity_a = entity_a
         self.entity_b = entity_b
+        self.rotate_a = rotate_a
+        self.rotate_b = rotate_b
+        self.fixed_rotation_a = fixed_rotation_a
+        self.fixed_rotation_b = fixed_rotation_b
         self.landmark = None
         self.joint_constraints = []
 
@@ -57,6 +75,7 @@ class Joint(vmas.simulator.utils.Observer):
                     anchor_b=anchor_b,
                     dist=dist,
                     rotate=rotate_a and rotate_b,
+                    fixed_rotation=fixed_rotation_a,  # or b, it is the same
                 ),
             )
         else:
@@ -85,6 +104,7 @@ class Joint(vmas.simulator.utils.Observer):
                     anchor_b=anchor_a,
                     dist=0.0,
                     rotate=rotate_a,
+                    fixed_rotation=fixed_rotation_a,
                 ),
                 JointConstraint(
                     self.landmark,
@@ -93,6 +113,7 @@ class Joint(vmas.simulator.utils.Observer):
                     anchor_b=anchor_b,
                     dist=0.0,
                     rotate=rotate_b,
+                    fixed_rotation=fixed_rotation_b,
                 ),
             ]
 
@@ -104,13 +125,22 @@ class Joint(vmas.simulator.utils.Observer):
             (pos_a + pos_b) / 2,
             batch_index=None,
         )
+
+        angle = torch.atan2(
+            pos_b[:, vmas.simulator.utils.Y] - pos_a[:, vmas.simulator.utils.Y],
+            pos_b[:, vmas.simulator.utils.X] - pos_a[:, vmas.simulator.utils.X],
+        ).unsqueeze(-1)
+
         self.landmark.set_rot(
-            torch.atan2(
-                pos_b[:, vmas.simulator.utils.Y] - pos_a[:, vmas.simulator.utils.Y],
-                pos_b[:, vmas.simulator.utils.X] - pos_a[:, vmas.simulator.utils.X],
-            ).unsqueeze(-1),
+            angle,
             batch_index=None,
         )
+
+        # If we do not allow rotation, and we did not provide a fixed rotation value, we infer it
+        if not self.rotate_a and self.fixed_rotation_a is None:
+            self.joint_constraints[0].fixed_rotation = angle - self.entity_a.state.rot
+        if not self.rotate_b and self.fixed_rotation_b is None:
+            self.joint_constraints[1].fixed_rotation = angle - self.entity_b.state.rot
 
 
 # Private class: do not instantiate directly
@@ -127,6 +157,7 @@ class JointConstraint:
         anchor_b: Tuple[float, float] = (0.0, 0.0),
         dist: float = 0.0,
         rotate: bool = True,
+        fixed_rotation: Optional[float] = None,
     ):
         assert entity_a != entity_b, "Cannot join same entity"
         for anchor in (anchor_a, anchor_b):
@@ -134,12 +165,20 @@ class JointConstraint:
                 max(anchor) <= 1 and min(anchor) >= -1
             ), f"Joint anchor points should be between -1 and 1, got {anchor}"
         assert dist >= 0, f"Joint dist must be >= 0, got {dist}"
+        if fixed_rotation is not None:
+            assert not rotate, "If fixed rotation is provided, rotate should be False"
+        if rotate:
+            assert (
+                fixed_rotation is None
+            ), "If you provide a fixed rotation, rotate should be False"
+            fixed_rotation = 0.0
 
         self.entity_a = entity_a
         self.entity_b = entity_b
         self.anchor_a = anchor_a
         self.anchor_b = anchor_b
         self.dist = dist
+        self.fixed_rotation = fixed_rotation
         self.rotate = rotate
         self._delta_anchor_tensor_map = {}
 

@@ -65,6 +65,8 @@ class Scenario(BaseScenario):
         ScenarioUtils.check_kwargs_consumed(kwargs)
 
         self.plot_grid = True
+        self.visualize_semidims = False
+
         # Make world
         world = World(
             batch_dim,
