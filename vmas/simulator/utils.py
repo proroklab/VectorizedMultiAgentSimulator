@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2024.
+#  Copyright (c) 2022-2025.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import importlib
@@ -54,8 +54,10 @@ class Color(Enum):
     WHITE = (0.75, 0.75, 0.75)
     GRAY = (0.25, 0.25, 0.25)
     BLACK = (0.15, 0.15, 0.15)
-    ORANGE = (1, 0.5, 0.1)
-    PINK = (1.0, 0.2, 0.9)
+    ORANGE = (1.00, 0.50, 0)
+    PINK = (0.97, 0.51, 0.75)
+    PURPLE = (0.60, 0.31, 0.64)
+    YELLOW = (0.87, 0.87, 0)
 
 
 def override(cls):
