@@ -1,8 +1,9 @@
-#  Copyright (c) 2022-2024.
+#  Copyright (c) 2022-2025.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import importlib
 import os
+import typing
 import warnings
 from abc import ABC, abstractmethod
 from enum import Enum
@@ -11,6 +12,9 @@ from typing import Dict, List, Sequence, Tuple, Union
 import numpy as np
 import torch
 from torch import Tensor
+
+if typing.TYPE_CHECKING:
+    from vmas.simulator.rendering import Geom
 
 _has_matplotlib = importlib.util.find_spec("matplotlib") is not None
 
@@ -50,6 +54,10 @@ class Color(Enum):
     WHITE = (0.75, 0.75, 0.75)
     GRAY = (0.25, 0.25, 0.25)
     BLACK = (0.15, 0.15, 0.15)
+    ORANGE = (1.00, 0.50, 0)
+    PINK = (0.97, 0.51, 0.75)
+    PURPLE = (0.60, 0.31, 0.64)
+    YELLOW = (0.87, 0.87, 0)
 
 
 def override(cls):
@@ -319,3 +327,54 @@ class ScenarioUtils:
                 )
             else:
                 raise ValueError(message)
+
+    @staticmethod
+    def render_agent_indices(
+        scenario, env_index: int, start_from: int = 0, exclude: List = None
+    ) -> "List[Geom]":
+        from vmas.simulator import rendering
+
+        aspect_r = scenario.viewer_size[X] / scenario.viewer_size[Y]
+        if aspect_r > 1:
+            dimensional_ratio = (aspect_r, 1)
+        else:
+            dimensional_ratio = (1, 1 / aspect_r)
+
+        geoms = []
+        for i, entity in enumerate(scenario.world.agents):
+            if exclude is not None and entity in exclude:
+                continue
+            i = i + start_from
+            line = rendering.TextLine(
+                text=str(i),
+                font_size=15,
+                x=(
+                    (entity.state.pos[env_index, X] * scenario.viewer_size[X])
+                    / (scenario.viewer_zoom**2 * dimensional_ratio[X] * 2)
+                    + scenario.viewer_size[X] / 2
+                ),
+                y=(
+                    (entity.state.pos[env_index, Y] * scenario.viewer_size[Y])
+                    / (scenario.viewer_zoom**2 * dimensional_ratio[Y] * 2)
+                    + scenario.viewer_size[Y] / 2
+                ),
+            )
+            geoms.append(line)
+        return geoms
+
+    @staticmethod
+    def plot_entity_rotation(entity, env_index: int, length: float = 0.15) -> "Geom":
+        from vmas.simulator import rendering
+
+        color = entity.color
+        line = rendering.Line(
+            (0, 0),
+            (length, 0),
+            width=2,
+        )
+        xform = rendering.Transform()
+        xform.set_rotation(entity.state.rot[env_index])
+        xform.set_translation(*entity.state.pos[env_index])
+        line.add_attr(xform)
+        line.set_color(*color)
+        return line
