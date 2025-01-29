@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2024.
+#  Copyright (c) 2022-2025.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import typing
@@ -297,7 +297,7 @@ class BaseScenario(ABC):
         """
         raise NotImplementedError()
 
-    def done(self):
+    def done(self) -> Tensor:
         """This function computes the done flag for each env in a vectorized way.
 
         The returned tensor should contain the ``done`` for all envs and should have
