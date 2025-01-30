@@ -26,13 +26,13 @@ class Scenario(BaseScenario):
     def make_world(self, batch_dim: int, device: torch.device, **kwargs):
         self.plot_grid = False
 
-        self.n_agents_holonomic = kwargs.pop("n_agents_holonomic", 1)
+        self.n_agents_holonomic = kwargs.pop("n_agents_holonomic", 2)
         self.n_agents_diff_drive = kwargs.pop("n_agents_diff_drive", 1)
         self.n_agents_car = kwargs.pop("n_agents_car", 1)
         self.n_agents = (
             self.n_agents_holonomic + self.n_agents_diff_drive + self.n_agents_car
         )
-        self.n_obstacles = kwargs.pop("n_obstacles", 5)
+        self.n_obstacles = kwargs.pop("n_obstacles", 2)
 
         self.world_spawning_x = kwargs.pop(
             "world_spawning_x", 1
@@ -41,7 +41,7 @@ class Scenario(BaseScenario):
             "world_spawning_y", 1
         )  # Y-coordinate limit for entities spawning
 
-        self.observe_all_goals = kwargs.pop("observe_all_goals", False)
+        self.comms_rendering_range = kwargs.pop("comms_rendering_range", 1)
         self.lidar_range = kwargs.pop("lidar_range", 0.3)
         self.n_lidar_rays = kwargs.pop("n_lidar_rays", 12)
 
@@ -84,17 +84,15 @@ class Scenario(BaseScenario):
                 else colors[i - len(known_colors)]
             )
 
-            def lidar_collidable_filter(e):
-                return e.collide
-
             sensors = [
                 Lidar(
                     world,
                     n_rays=self.n_lidar_rays,
                     max_range=self.lidar_range,
-                    entity_filter=lidar_collidable_filter,
+                    entity_filter=lambda e: isinstance(e, Agent),
                 )
             ]
+
             if i < self.n_agents_holonomic:
                 agent = Agent(
                     name=f"holonomic_{i}",
@@ -120,7 +118,7 @@ class Scenario(BaseScenario):
                     dynamics=DiffDrive(world),
                 )
             else:
-                max_steering_angle = torch.pi / 3
+                max_steering_angle = torch.pi / 4
                 width = self.agent_radius
                 agent = Agent(
                     name=f"car_{i-self.n_agents_holonomic-self.n_agents_diff_drive}",
@@ -251,16 +249,12 @@ class Scenario(BaseScenario):
         return agent.pos_rew
 
     def observation(self, agent: Agent):
-        goal_poses = []
-        if self.observe_all_goals:
-            for a in self.world.agents:
-                goal_poses.append(agent.state.pos - a.goal.state.pos)
-        else:
-            goal_poses.append(agent.state.pos - agent.goal.state.pos)
 
         return {
             "obs": torch.cat(
-                goal_poses + [agent.sensors[0]._max_range - agent.sensors[0].measure()],
+                [agent.state.pos - agent.goal.state.pos]
+                + [agent.state.pos - obstacle.state.pos for obstacle in self.obstacles]
+                + [sensor._max_range - sensor.measure() for sensor in agent.sensors],
                 dim=-1,
             ),
             "pos": agent.state.pos,
@@ -286,15 +280,39 @@ class Scenario(BaseScenario):
         return {
             "pos_rew": self.pos_rew if self.shared_rew else agent.pos_rew,
             "final_rew": self.final_rew,
-            "agent_collisions": agent.agent_collision_rew,
+            "agent_collision_rew": agent.agent_collision_rew,
         }
 
     def extra_render(self, env_index: int = 0) -> "List[Geom]":
-        return [
+        from vmas.simulator import rendering
+
+        geoms = [
             ScenarioUtils.plot_entity_rotation(agent, env_index)
             for agent in self.world.agents
             if not isinstance(agent.dynamics, Holonomic)
         ]
+
+        # Communication lines
+        if self.comms_rendering_range > 0:
+            for i, agent1 in enumerate(self.world.agents):
+                for j, agent2 in enumerate(self.world.agents):
+                    if j <= i:
+                        continue
+                    agent_dist = torch.linalg.vector_norm(
+                        agent1.state.pos - agent2.state.pos, dim=-1
+                    )
+                    if agent_dist[env_index] <= self.comms_rendering_range:
+                        color = Color.BLACK.value
+                        line = rendering.Line(
+                            (agent1.state.pos[env_index]),
+                            (agent2.state.pos[env_index]),
+                            width=1,
+                        )
+                        xform = rendering.Transform()
+                        line.add_attr(xform)
+                        line.set_color(*color)
+                        geoms.append(line)
+        return geoms
 
 
 if __name__ == "__main__":
