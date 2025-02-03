@@ -59,7 +59,7 @@ class Scenario(BaseScenario):
         )  # Y-coordinate limit for entities spawning
 
         self.comms_rendering_range = kwargs.pop(
-            "comms_rendering_range", 0
+            "comms_rendering_range", 1
         )  # Used for rendering communication lines between agents (just visual)
         self.lidar_range = kwargs.pop("lidar_range", 0.3)  # Range of the LIDAR sensor
         self.n_lidar_rays = kwargs.pop(
@@ -360,9 +360,9 @@ class Scenario(BaseScenario):
             ScenarioUtils.plot_entity_rotation(agent, env_index)
             for agent in self.world.agents
             if not isinstance(agent.dynamics, Holonomic)
-        ]
+        ]  # Plot the rotation for non-holonomic agents
 
-        # Communication lines
+        # Plot communication lines
         if self.comms_rendering_range > 0:
             for i, agent1 in enumerate(self.world.agents):
                 for j, agent2 in enumerate(self.world.agents):
@@ -378,8 +378,6 @@ class Scenario(BaseScenario):
                             (agent2.state.pos[env_index]),
                             width=1,
                         )
-                        xform = rendering.Transform()
-                        line.add_attr(xform)
                         line.set_color(*color)
                         geoms.append(line)
         return geoms
