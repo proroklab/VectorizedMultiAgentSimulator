@@ -10,7 +10,8 @@ from torch_geometric.nn import SoftmaxAggregation
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Box, Landmark, Sphere, World
 from vmas.simulator.scenario import BaseScenario
-from vmas.simulator.utils import Color, ScenarioUtils, X, Y
+from vmas.simulator.sensors import Lidar
+from vmas.simulator.utils import AGENT_INFO_TYPE, Color, ScenarioUtils
 
 if typing.TYPE_CHECKING:
     pass
@@ -60,10 +61,9 @@ class Scenario(BaseScenario):
         self.plot_grid = False
         self.n_agents = kwargs.pop("n_agents", 2)
         self.n_adversaries = kwargs.pop("n_adversaries", 0)
-        self.spawn_agents_in_same_pos = kwargs.pop("spawn_agents_in_same_pos", True)
+        self.spawn_agents_in_same_pos = kwargs.pop("spawn_agents_in_same_pos", False)
 
         self.n_flags = kwargs.pop("n_flags", 2)
-        self.n_adversary_flags = kwargs.pop("n_adversary_flags", 0)
 
         self.world_spawning_x = kwargs.pop("world_spawning_x", 1)
         self.world_spawning_y = kwargs.pop("world_spawning_y", 1)
@@ -71,13 +71,14 @@ class Scenario(BaseScenario):
 
         self.agent_radius = kwargs.pop("agent_radius", 0.05)
 
+        self.use_lidar = kwargs.pop("use_lidar", True)
+        self.lidar_range = kwargs.pop("lidar_range", 0.35)
+
         # One of: "distance", "deltas", "percentage"
         self.reward_type = kwargs.pop("reward_type", "percentage")
 
         self.pos_shaping_factor = kwargs.pop("pos_shaping_factor", 1)
-        self.flag_capture_reward = kwargs.pop("flag_capture_reward", 0)
-        self.flag_drop_reward = kwargs.pop("flag_drop_reward", 0)
-        self.flag_return_reward = kwargs.pop("flag_return_reward", 0)
+        self.flag_capture_reward = kwargs.pop("flag_capture_reward", 0.01)
 
         self.gen_agg_type_task = kwargs.pop("gen_agg_type_task", "min")
         self.gen_agg_type_agent = kwargs.pop("gen_agg_type_agent", "max")
@@ -86,6 +87,8 @@ class Scenario(BaseScenario):
         self.agent_agg = get_aggregation_function(self.gen_agg_type_agent, device)
 
         ScenarioUtils.check_kwargs_consumed(kwargs)
+
+        assert not (self.spawn_agents_in_same_pos and self.use_lidar)
 
         self.min_distance_between_agents = self.agent_radius * 2 + 0.05
         self.min_distance_between_flags = 1
@@ -108,6 +111,7 @@ class Scenario(BaseScenario):
         )
 
         self.flag_distances = None
+        self.final_rew = torch.zeros(batch_dim, device=device)
 
         self.blue_agents = []
         # Add agents
@@ -115,10 +119,22 @@ class Scenario(BaseScenario):
             # Constraint: all agents have same action range and multiplier
             agent = Agent(
                 name=f"agent_{i}",
-                collide=False,
+                collide=self.use_lidar,
                 color=Color.BLUE,
                 shape=Sphere(radius=self.agent_radius),
                 render_action=True,
+                sensors=(
+                    [
+                        Lidar(
+                            world,
+                            n_rays=12,
+                            max_range=self.lidar_range,
+                            entity_filter=lambda e: isinstance(e, Agent),
+                        ),
+                    ]
+                    if self.use_lidar
+                    else None
+                ),
             )
             self.blue_agents.append(agent)
             world.add_agent(agent)
@@ -213,25 +229,16 @@ class Scenario(BaseScenario):
                 self.matrix = self.flag_percentage / 10
             else:
                 raise AssertionError
-            self.matrix[
-                self.flag_distances < self.agent_radius
-            ] += self.flag_capture_reward
+
+            self.on_goals = (
+                -torch.max(-flag_distances, dim=-2)[0].min(dim=-1)[0]
+                < self.agent_radius
+            )
+            self.final_rew = self.on_goals * self.flag_capture_reward
 
         task_matrix = self.agent_agg(self.matrix, dim=-2).squeeze(-2)
         self.rew = self.task_agg(task_matrix, dim=-1).squeeze(-1)
-        return self.rew
-
-    def _out_of_bounds_penalty(self, agent: Agent):
-        return torch.where(
-            (agent.state.pos[:, X] < -self.x_map_bound)
-            + (agent.state.pos[:, X] > self.x_map_bound)
-            + (agent.state.pos[:, Y] < -self.y_map_bound)
-            + (agent.state.pos[:, Y] > self.y_map_bound),
-            -10,
-            torch.zeros(
-                self.world.batch_dim, device=self.world.device, dtype=torch.float32
-            ),
-        )
+        return self.rew + self.final_rew
 
     def _get_distance_to_flags(self, env_index: typing.Optional[int] = None):
         if env_index is None:
@@ -270,20 +277,19 @@ class Scenario(BaseScenario):
                 agent.state.pos,
                 agent.state.vel,
             ]
-            + flag_poses,
+            + flag_poses
+            + (
+                [agent.sensors[0]._max_range - agent.sensors[0].measure()]
+                if self.use_lidar
+                else []
+            ),  # maybe use rel pos directly
             dim=-1,
         )
 
-    def extra_render(self, env_index: int = 0):
-        from vmas.simulator.rendering import get_boundary
-
-        # Function
-        geoms = get_boundary(
-            x_semidim=self.x_map_bound,
-            y_semidim=self.y_map_bound,
-        )
-
-        return geoms
+    def info(self, agent: Agent) -> AGENT_INFO_TYPE:
+        return {
+            "final_rew": self.final_rew,
+        }
 
 
 if __name__ == "__main__":
