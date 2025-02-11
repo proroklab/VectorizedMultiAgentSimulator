@@ -1,4 +1,4 @@
-#  Copyright (c) 2024.
+#  Copyright (c) 2024-2025.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 from typing import Dict, List
@@ -58,9 +58,10 @@ class Scenario(BaseScenario):
         self.n_agents = kwargs.pop("n_agents", 2)
         self.task_rewards = kwargs.pop("task_rewards", [1.0, 1.0])
         self.n_tasks = len(self.task_rewards)
+        self.discrete_actions = kwargs.pop("discrete_actions", False)
 
-        self.gen_agg_type_task = kwargs.pop("gen_agg_type_task", "softmax")
-        self.gen_agg_type_agent = kwargs.pop("gen_agg_type_agent", "softmax")
+        self.gen_agg_type_task = kwargs.pop("gen_agg_type_task", "min")
+        self.gen_agg_type_agent = kwargs.pop("gen_agg_type_agent", "max")
 
         self.task_agg = get_aggregation_function(self.gen_agg_type_task, device)
         self.agent_agg = get_aggregation_function(self.gen_agg_type_agent, device)
@@ -79,9 +80,9 @@ class Scenario(BaseScenario):
             agent = Agent(
                 name=f"agent_{i}",
                 collide=False,
-                action_size=1,
-                discrete_action_nvec=[self.n_tasks + 1],
-                u_range=self.n_tasks / 2,
+                action_size=1 if self.discrete_actions else self.n_tasks,
+                discrete_action_nvec=[self.n_tasks] if self.discrete_actions else None,
+                u_range=(self.n_tasks - 1) / 2,
                 dynamics=Static(),
             )
             world.add_agent(agent)
@@ -112,9 +113,15 @@ class Scenario(BaseScenario):
 
     def process_action(self, agent: Agent):
         # Actions are integers
-        agent.discrete_action = (
-            (agent.action.u + agent.action.u_range).squeeze(-1).to(torch.int)
-        )
+        if self.discrete_actions:
+            agent.discrete_action = (
+                (agent.action.u + agent.action.u_range).squeeze(-1).to(torch.int)
+            )
+        else:
+            agent.continuous_actions = (agent.action.u + agent.action.u_range) / (
+                agent.action.u + agent.action.u_range
+            ).sum(dim=-1, keepdim=True)
+
         agent.action.u = torch.zeros(
             (self.world.batch_dim, agent.dynamics.needed_action_size),
             device=self.world.device,
@@ -133,9 +140,15 @@ class Scenario(BaseScenario):
             )
             for i, a in enumerate(self.world.agents):
                 for j in range(self.n_tasks):
-                    reward_matrix[:, i, j] = self.task_rewards[j] * (
-                        a.discrete_action == j
-                    )
+                    if self.discrete_actions:
+                        reward_matrix[:, i, j] = self.task_rewards[j] * (
+                            a.discrete_action == j
+                        )
+                    else:
+                        reward_matrix[:, i, j] = (
+                            self.task_rewards[j] * a.continuous_actions[:, j]
+                        )
+
             task_matrix = self.agent_agg(reward_matrix, dim=-2).squeeze(-2)
             self.rew = self.task_agg(task_matrix, dim=-1).squeeze(-1)
 
