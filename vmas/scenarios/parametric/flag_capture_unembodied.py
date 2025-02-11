@@ -30,14 +30,6 @@ def agg_sum(x, dim):
     return x.sum(dim=dim, keepdim=True)
 
 
-class Square:
-    def forward(self, x):
-        return (x + 1e-7) ** 2
-
-    def inverse(self, x):
-        return (x.abs() + 1e-7).sqrt()
-
-
 def get_aggregation_function(name, device):
     if name == "softmax":
         return SoftmaxAggregation(t=0, learn=True).to(device)
