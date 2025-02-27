@@ -60,6 +60,11 @@ Watch the talk at DARS 2022 about VMAS.
 
 [![VMAS Video](https://img.youtube.com/vi/boViBY7Woqg/0.jpg)](https://www.youtube.com/watch?v=boViBY7Woqg)
 </p>
+Watch the lecture on creating a custom scenario in VMAS and training it in BenchMARL.
+<p align="center">
+
+[![VMAS Video](https://img.youtube.com/vi/mIb1uGeRJsg/0.jpg)](https://www.youtube.com/watch?v=mIb1uGeRJsg)
+</p>
 
 ## Table of contents
 - [VectorizedMultiAgentSimulator (VMAS)](#vectorizedmultiagentsimulator-vmas)
