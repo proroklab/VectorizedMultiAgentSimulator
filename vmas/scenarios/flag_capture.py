@@ -2,16 +2,19 @@
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
+
 import typing
 
 import torch
+from torch import Tensor
+from torch.nn import Parameter
 from torch_geometric.nn import SoftmaxAggregation
 
 from vmas import render_interactively
 from vmas.simulator.core import Agent, Box, Landmark, Sphere, World
 from vmas.simulator.scenario import BaseScenario
 from vmas.simulator.sensors import Lidar
-from vmas.simulator.utils import AGENT_INFO_TYPE, Color, ScenarioUtils
+from vmas.simulator.utils import AGENT_INFO_TYPE, Color, ScenarioUtils, X
 
 if typing.TYPE_CHECKING:
     pass
@@ -33,12 +36,88 @@ def agg_sum(x, dim):
     return x.sum(dim=dim, keepdim=True)
 
 
+def agg_logsumexp(x, dim):
+    return torch.logsumexp(x, dim=dim, keepdim=True)
+
+
 class Square:
     def forward(self, x):
         return (x + 1e-7) ** 2
 
     def inverse(self, x):
         return (x.abs() + 1e-7).sqrt()
+
+
+class PowerMeanAggregation(torch.nn.Module):
+    def __init__(self, p: float = 1.0, learn: bool = False):
+        super().__init__()
+
+        self._init_p = p
+        self.learn = learn
+
+        self.p = Parameter(torch.empty(1)) if learn else p
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        if isinstance(self.p, Tensor):
+            self.p.data.fill_(self._init_p)
+
+    def forward(self, x, dim: int = -2) -> Tensor:
+
+        p = self.p + 1e-2
+        x = x.pow(p)
+        x = x.mean(dim=dim, keepdim=True)
+        x = x.pow(1.0 / p)
+
+        return x
+
+
+def tanh_squash(x, low, high):
+    tanh_x = torch.tanh(x)
+    scale = (high - low) / 2
+    add = (high + low) / 2
+    return tanh_x * scale + add
+
+
+def tanh_unsquash(x, low, high):
+    scale = (high - low) / 2
+    add = (high + low) / 2
+    return torch.atanh((x - add) / scale)
+
+
+class PowerSumAggregation(torch.nn.Module):
+    def __init__(self, t: float, low, high, device, learn: bool = True):
+        super().__init__()
+
+        self.low = torch.tensor(low, device=device)
+        self.high = torch.tensor(high, device=device)
+        self._init_inner_t = tanh_unsquash(t, self.low, self.high)
+        if not learn:
+            self._init_inner_t.requires_grad_(False)
+
+        self.learn = learn
+        self.dist = torch.distributions.Normal(loc=0, scale=1)
+
+        self._inner_t = (
+            Parameter(torch.empty(1, device=device)) if learn else self._init_inner_t
+        )
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        if isinstance(self._inner_t, Tensor):
+            self._inner_t.data.fill_(self._init_inner_t)
+
+    @property
+    def t(self):
+        return tanh_squash(self._inner_t, self.low, self.high).clamp(
+            min=self.low + 1e-1, max=self.high - 1e-1
+        )
+
+    def forward(self, x, dim: int = -2) -> Tensor:
+        x = x.pow(self.t)
+        x = x.sum(dim=dim, keepdim=True)
+
+        return x
 
 
 def get_aggregation_function(name, device):
@@ -52,6 +131,12 @@ def get_aggregation_function(name, device):
         return agg_min
     elif name == "sum":
         return agg_sum
+    elif name == "powersum":
+        return PowerSumAggregation(t=1, learn=True, low=0.3, high=6, device=device)
+    elif name == "powersum_04":
+        return PowerSumAggregation(t=0.4, learn=False, low=0.3, high=6, device=device)
+    elif name == "powersum_5":
+        return PowerSumAggregation(t=5, learn=False, low=0.3, high=6, device=device)
     else:
         raise AssertionError
 
@@ -71,7 +156,7 @@ class Scenario(BaseScenario):
 
         self.agent_radius = kwargs.pop("agent_radius", 0.05)
 
-        self.use_lidar = kwargs.pop("use_lidar", True)
+        self.use_lidar = kwargs.pop("use_lidar", False)
         self.lidar_range = kwargs.pop("lidar_range", 0.35)
 
         # One of: "distance", "deltas", "percentage"
@@ -79,9 +164,10 @@ class Scenario(BaseScenario):
 
         self.pos_shaping_factor = kwargs.pop("pos_shaping_factor", 1)
         self.flag_capture_reward = kwargs.pop("flag_capture_reward", 0.01)
+        self.reach_flag_line_rew = kwargs.pop("reach_flag_line_rew", False)
 
-        self.gen_agg_type_task = kwargs.pop("gen_agg_type_task", "min")
-        self.gen_agg_type_agent = kwargs.pop("gen_agg_type_agent", "max")
+        self.gen_agg_type_task = kwargs.pop("gen_agg_type_task", "mean")
+        self.gen_agg_type_agent = kwargs.pop("gen_agg_type_agent", "mean")
 
         self.task_agg = get_aggregation_function(self.gen_agg_type_task, device)
         self.agent_agg = get_aggregation_function(self.gen_agg_type_agent, device)
@@ -91,7 +177,7 @@ class Scenario(BaseScenario):
         assert not (self.spawn_agents_in_same_pos and self.use_lidar)
 
         self.min_distance_between_agents = self.agent_radius * 2 + 0.05
-        self.min_distance_between_flags = 1
+        self.min_distance_between_flags = 0.8
         self.map_inflate_radius = 0.2
 
         self.min_collision_distance = 0.005
@@ -199,7 +285,10 @@ class Scenario(BaseScenario):
             self.world,
             env_index,
             self.min_distance_between_flags,
-            (self.world_spawning_x, self.world_spawning_x + self.base_width),
+            (
+                self.world_spawning_x + self.base_width / 2,
+                self.world_spawning_x + self.base_width / 2,
+            ),
             (-self.world_spawning_y, self.world_spawning_y),
         )
         if env_index is None:
@@ -226,7 +315,7 @@ class Scenario(BaseScenario):
             elif self.reward_type == "deltas":
                 self.matrix = self.flag_shaping
             elif self.reward_type == "percentage":
-                self.matrix = self.flag_percentage / 10
+                self.matrix = self.flag_percentage
             else:
                 raise AssertionError
 
@@ -236,9 +325,35 @@ class Scenario(BaseScenario):
             )
             self.final_rew = self.on_goals * self.flag_capture_reward
 
-        task_matrix = self.agent_agg(self.matrix, dim=-2).squeeze(-2)
-        self.rew = self.task_agg(task_matrix, dim=-1).squeeze(-1)
-        return self.rew + self.final_rew
+        if self.gen_agg_type_agent.startswith("powersum"):
+            task_matrix = (
+                self.agent_agg(1 + self.matrix, dim=-2).squeeze(-2) / 2
+            ) - 1  # Output between -1 and 0
+        else:
+            task_matrix = self.agent_agg(self.matrix, dim=-2).squeeze(-2)
+
+        if self.gen_agg_type_task.startswith("powersum"):
+            self.rew = (
+                self.task_agg(1 + task_matrix, dim=-1).squeeze(-1) / 2
+            ) - 1  # Output between -1 and 0
+        else:
+            self.rew = self.task_agg(task_matrix, dim=-1).squeeze(-1)
+
+        if self.reach_flag_line_rew:
+            flag_line_rew = (
+                -(
+                    (
+                        agent.state.pos[:, X]
+                        - (self.world_spawning_x + self.base_width / 2)
+                    )
+                    ** 2
+                )
+                / 50
+            )
+        else:
+            flag_line_rew = 0
+
+        return self.rew / 10 + self.final_rew + flag_line_rew
 
     def _get_distance_to_flags(self, env_index: typing.Optional[int] = None):
         if env_index is None:

@@ -4,6 +4,8 @@
 from typing import Dict, List
 
 import torch
+from torch import Tensor
+from torch.nn import Parameter
 
 from torch_geometric.nn import SoftmaxAggregation
 
@@ -30,6 +32,51 @@ def agg_sum(x, dim):
     return x.sum(dim=dim, keepdim=True)
 
 
+def tanh_squash(x, low, high):
+    tanh_x = torch.tanh(x)
+    scale = (high - low) / 2
+    add = (high + low) / 2
+    return tanh_x * scale + add
+
+
+def tanh_unsquash(x, low, high):
+    scale = (high - low) / 2
+    add = (high + low) / 2
+    return torch.atanh((x - add) / scale)
+
+
+class PowerSumAggregation(torch.nn.Module):
+    def __init__(self, t: float, low, high, device, learn: bool = True):
+        super().__init__()
+
+        self.low = torch.tensor(low, device=device)
+        self.high = torch.tensor(high, device=device)
+        self._init_inner_t = tanh_unsquash(t, self.low, self.high)
+
+        self.learn = learn
+        self.dist = torch.distributions.Normal(loc=0, scale=1)
+
+        self._inner_t = (
+            Parameter(torch.empty(1, device=device)) if learn else self._init_inner_t
+        )
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        if isinstance(self._inner_t, Tensor):
+            self._inner_t.data.fill_(self._init_inner_t)
+
+    @property
+    def t(self):
+        return tanh_squash(self._inner_t, self.low, self.high)
+
+    def forward(self, x, dim: int = -2) -> Tensor:
+
+        x = x.pow(self.t)
+        x = x.sum(dim=dim, keepdim=True)
+
+        return x
+
+
 def get_aggregation_function(name, device):
     if name == "softmax":
         return SoftmaxAggregation(t=0, learn=True).to(device)
@@ -41,6 +88,8 @@ def get_aggregation_function(name, device):
         return agg_min
     elif name == "sum":
         return agg_sum
+    elif name == "powersum":
+        return PowerSumAggregation(t=1, learn=True, low=0.5, high=5, device=device)
     else:
         raise AssertionError
 
@@ -53,7 +102,7 @@ class Scenario(BaseScenario):
         self.discrete_actions = kwargs.pop("discrete_actions", False)
 
         self.gen_agg_type_task = kwargs.pop("gen_agg_type_task", "min")
-        self.gen_agg_type_agent = kwargs.pop("gen_agg_type_agent", "max")
+        self.gen_agg_type_agent = kwargs.pop("gen_agg_type_agent", "powersum")
 
         self.task_agg = get_aggregation_function(self.gen_agg_type_task, device)
         self.agent_agg = get_aggregation_function(self.gen_agg_type_agent, device)
