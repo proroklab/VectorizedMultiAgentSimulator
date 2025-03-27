@@ -1,6 +1,8 @@
-#  Copyright (c) 2022-2024.
+#  Copyright (c) 2022-2025.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
+import contextlib
+import functools
 import math
 import random
 from ctypes import byref
@@ -26,13 +28,51 @@ from vmas.simulator.utils import (
 )
 
 
-# environment for all agents in the multiagent world
-# currently code assumes that no agents will be created/destroyed at runtime!
+@contextlib.contextmanager
+def local_seed(vmas_random_state):
+    torch_state = torch.random.get_rng_state()
+    np_state = np.random.get_state()
+    py_state = random.getstate()
+
+    torch.random.set_rng_state(vmas_random_state[0])
+    np.random.set_state(vmas_random_state[1])
+    random.setstate(vmas_random_state[2])
+    yield
+    vmas_random_state[0] = torch.random.get_rng_state()
+    vmas_random_state[1] = np.random.get_state()
+    vmas_random_state[2] = random.getstate()
+
+    torch.random.set_rng_state(torch_state)
+    np.random.set_state(np_state)
+    random.setstate(py_state)
+
+
+def apply_local_seed(cls):
+    """Applies the local seed to all the functions."""
+    for attr_name, attr_value in cls.__dict__.items():
+        if callable(attr_value):
+            wrapped = attr_value  # Keep reference to original method
+
+            @functools.wraps(wrapped)
+            def wrapper(self, *args, _wrapped=wrapped, **kwargs):
+                with local_seed(cls.vmas_random_state):
+                    return _wrapped(self, *args, **kwargs)
+
+            setattr(cls, attr_name, wrapper)
+    return cls
+
+
+@apply_local_seed
 class Environment(TorchVectorizedObject):
     metadata = {
         "render.modes": ["human", "rgb_array"],
         "runtime.vectorized": True,
     }
+    vmas_random_state = [
+        torch.random.get_rng_state(),
+        np.random.get_state(),
+        random.getstate(),
+    ]
 
     def __init__(
         self,
