@@ -47,6 +47,10 @@ def local_seed(vmas_random_state):
 
 
 class Environment(TorchVectorizedObject):
+    """
+    The VMAS environment
+    """
+
     metadata = {
         "render.modes": ["human", "rgb_array"],
         "runtime.vectorized": True,
@@ -320,16 +324,15 @@ class Environment(TorchVectorizedObject):
     @local_seed(vmas_random_state)
     def step(self, actions: Union[List, Dict]):
         """Performs a vectorized step on all sub environments using `actions`.
+
         Args:
-            actions: Is a list on len 'self.n_agents' of which each element is a torch.Tensor of shape
-            '(self.num_envs, action_size_of_agent)'.
+            actions: Is a list on len 'self.n_agents' of which each element is a torch.Tensor of shape '(self.num_envs, action_size_of_agent)'.
+
         Returns:
-            obs: List on len 'self.n_agents' of which each element is a torch.Tensor
-                 of shape '(self.num_envs, obs_size_of_agent)'
+            obs: List on len 'self.n_agents' of which each element is a torch.Tensor of shape '(self.num_envs, obs_size_of_agent)'
             rewards: List on len 'self.n_agents' of which each element is a torch.Tensor of shape '(self.num_envs)'
             dones: Tensor of len 'self.num_envs' of which each element is a bool
-            infos : List on len 'self.n_agents' of which each element is a dictionary for which each key is a metric
-                    and the value is a tensor of shape '(self.num_envs, metric_size_per_agent)'
+            infos: List on len 'self.n_agents' of which each element is a dictionary for which each key is a metric and the value is a tensor of shape '(self.num_envs, metric_size_per_agent)'
 
         Examples:
             >>> import vmas
@@ -345,6 +348,7 @@ class Environment(TorchVectorizedObject):
             >>> obs = env.reset()
             >>> for _ in range(10):
             ...     obs, rews, dones, info = env.step(env.get_random_actions())
+
         """
         if isinstance(actions, Dict):
             actions_dict = actions
@@ -578,7 +582,7 @@ class Environment(TorchVectorizedObject):
         return action
 
     def get_random_actions(self) -> Sequence[torch.Tensor]:
-        """Returns random actions for all agents that you can feed to :class:`step`
+        """Returns random actions for all agents that you can feed to :meth:`step`
 
         Returns:
             Sequence[torch.tensor]: the random actions for the agents
@@ -767,6 +771,7 @@ class Environment(TorchVectorizedObject):
         Render function for environment using pyglet
 
         On servers use mode="rgb_array" and set
+
         ```
         export DISPLAY=':99.0'
         Xvfb :99 -screen 0 1400x900x24 > /dev/null 2>&1 &
@@ -774,8 +779,7 @@ class Environment(TorchVectorizedObject):
 
         :param mode: One of human or rgb_array
         :param env_index: Index of the environment to render
-        :param agent_index_focus: If specified the camera will stay on the agent with this index.
-                                  If None, the camera will stay in the center and zoom out to contain all agents
+        :param agent_index_focus: If specified the camera will stay on the agent with this index. If None, the camera will stay in the center and zoom out to contain all agents
         :param visualize_when_rgb: Also run human visualization when mode=="rgb_array"
         :param plot_position_function: A function to plot under the rendering.
         The function takes a numpy array with shape (n_points, 2), which represents a set of x,y values to evaluate f over and plot it
@@ -789,6 +793,7 @@ class Environment(TorchVectorizedObject):
         :param plot_position_function_cmap_range: The range of the cmap in case plot_position_function outputs a single value
         :param plot_position_function_cmap_alpha: The alpha of the cmap in case plot_position_function outputs a single value
         :return: Rgb array or None, depending on the mode
+
         """
         self._check_batch_index(env_index)
         assert (
