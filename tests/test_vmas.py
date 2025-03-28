@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2025.
+#  Copyright (c) 2022-2024.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import math
