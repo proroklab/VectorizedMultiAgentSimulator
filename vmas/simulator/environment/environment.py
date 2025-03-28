@@ -2,7 +2,6 @@
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 import contextlib
-import functools
 import math
 import random
 from ctypes import byref
@@ -47,22 +46,6 @@ def local_seed(vmas_random_state):
     random.setstate(py_state)
 
 
-def apply_local_seed(cls):
-    """Applies the local seed to all the functions."""
-    for attr_name, attr_value in cls.__dict__.items():
-        if callable(attr_value):
-            wrapped = attr_value  # Keep reference to original method
-
-            @functools.wraps(wrapped)
-            def wrapper(self, *args, _wrapped=wrapped, **kwargs):
-                with local_seed(cls.vmas_random_state):
-                    return _wrapped(self, *args, **kwargs)
-
-            setattr(cls, attr_name, wrapper)
-    return cls
-
-
-@apply_local_seed
 class Environment(TorchVectorizedObject):
     metadata = {
         "render.modes": ["human", "rgb_array"],
@@ -74,6 +57,7 @@ class Environment(TorchVectorizedObject):
         random.getstate(),
     ]
 
+    @local_seed(vmas_random_state)
     def __init__(
         self,
         scenario: BaseScenario,
@@ -108,7 +92,7 @@ class Environment(TorchVectorizedObject):
         self.grad_enabled = grad_enabled
         self.terminated_truncated = terminated_truncated
 
-        observations = self.reset(seed=seed)
+        observations = self._reset(seed=seed)
 
         # configure spaces
         self.multidiscrete_actions = multidiscrete_actions
@@ -121,6 +105,7 @@ class Environment(TorchVectorizedObject):
         self.visible_display = None
         self.text_lines = None
 
+    @local_seed(vmas_random_state)
     def reset(
         self,
         seed: Optional[int] = None,
@@ -132,13 +117,104 @@ class Environment(TorchVectorizedObject):
         Resets the environment in a vectorized way
         Returns observations for all envs and agents
         """
+        return self._reset(
+            seed=seed,
+            return_observations=return_observations,
+            return_info=return_info,
+            return_dones=return_dones,
+        )
+
+    @local_seed(vmas_random_state)
+    def reset_at(
+        self,
+        index: int,
+        return_observations: bool = True,
+        return_info: bool = False,
+        return_dones: bool = False,
+    ):
+        """
+        Resets the environment at index
+        Returns observations for all agents in that environment
+        """
+        return self._reset_at(
+            index=index,
+            return_observations=return_observations,
+            return_info=return_info,
+            return_dones=return_dones,
+        )
+
+    @local_seed(vmas_random_state)
+    def get_from_scenario(
+        self,
+        get_observations: bool,
+        get_rewards: bool,
+        get_infos: bool,
+        get_dones: bool,
+        dict_agent_names: Optional[bool] = None,
+    ):
+        """
+        Get the environment data from the scenario
+
+        Args:
+            get_observations (bool): whether to return the observations
+            get_rewards (bool): whether to return the rewards
+            get_infos (bool): whether to return the infos
+            get_dones (bool): whether to return the dones
+            dict_agent_names (bool, optional): whether to return the information in a dictionary with agent names as keys
+                or in a list
+
+        Returns:
+            The agents' data
+
+        """
+        return self._get_from_scenario(
+            get_observations=get_observations,
+            get_rewards=get_rewards,
+            get_infos=get_infos,
+            get_dones=get_dones,
+            dict_agent_names=dict_agent_names,
+        )
+
+    @local_seed(vmas_random_state)
+    def seed(self, seed=None):
+        """
+        Sets the seed for the environment
+        Args:
+            seed (int, optional): Seed for the environment. Defaults to None.
+
+        """
+        return self._seed(seed=seed)
+
+    @local_seed(vmas_random_state)
+    def done(self):
+        """
+        Get the done flags for the scenario.
+
+        Returns:
+            Either terminated, truncated (if self.terminated_truncated==True) or terminated + truncated (if self.terminated_truncated==False)
+
+        """
+        return self._done()
+
+    def _reset(
+        self,
+        seed: Optional[int] = None,
+        return_observations: bool = True,
+        return_info: bool = False,
+        return_dones: bool = False,
+    ):
+        """
+        Resets the environment in a vectorized way
+        Returns observations for all envs and agents
+        """
+
         if seed is not None:
-            self.seed(seed)
+            self._seed(seed)
         # reset world
         self.scenario.env_reset_world_at(env_index=None)
         self.steps = torch.zeros(self.num_envs, device=self.device)
 
-        result = self.get_from_scenario(
+        result = self._get_from_scenario(
             get_observations=return_observations,
             get_infos=return_info,
             get_rewards=False,
@@ -146,7 +222,7 @@ class Environment(TorchVectorizedObject):
         )
         return result[0] if result and len(result) == 1 else result
 
-    def reset_at(
+    def _reset_at(
         self,
         index: int,
         return_observations: bool = True,
@@ -161,7 +237,7 @@ class Environment(TorchVectorizedObject):
         self.scenario.env_reset_world_at(index)
         self.steps[index] = 0
 
-        result = self.get_from_scenario(
+        result = self._get_from_scenario(
             get_observations=return_observations,
             get_infos=return_info,
             get_rewards=False,
@@ -170,7 +246,7 @@ class Environment(TorchVectorizedObject):
 
         return result[0] if result and len(result) == 1 else result
 
-    def get_from_scenario(
+    def _get_from_scenario(
         self,
         get_observations: bool,
         get_rewards: bool,
@@ -218,16 +294,22 @@ class Environment(TorchVectorizedObject):
 
         if self.terminated_truncated:
             if get_dones:
-                terminated, truncated = self.done()
+                terminated, truncated = self._done()
             result = [obs, rewards, terminated, truncated, infos]
         else:
             if get_dones:
-                dones = self.done()
+                dones = self._done()
             result = [obs, rewards, dones, infos]
 
         return [data for data in result if data is not None]
 
-    def seed(self, seed=None):
+    def _seed(self, seed=None):
+        """
+        Sets the seed for the environment
+        Args:
+            seed (int, optional): Seed for the environment. Defaults to None.
+
+        """
         if seed is None:
             seed = 0
         torch.manual_seed(seed)
@@ -235,6 +317,7 @@ class Environment(TorchVectorizedObject):
         random.seed(seed)
         return [seed]
 
+    @local_seed(vmas_random_state)
     def step(self, actions: Union[List, Dict]):
         """Performs a vectorized step on all sub environments using `actions`.
         Args:
@@ -309,14 +392,21 @@ class Environment(TorchVectorizedObject):
 
         self.steps += 1
 
-        return self.get_from_scenario(
+        return self._get_from_scenario(
             get_observations=True,
             get_infos=True,
             get_rewards=True,
             get_dones=True,
         )
 
-    def done(self):
+    def _done(self):
+        """
+        Get the done flags for the scenario.
+
+        Returns:
+            Either terminated, truncated (if self.terminated_truncated==True) or terminated + truncated (if self.terminated_truncated==False)
+
+        """
         terminated = self.scenario.done().clone()
 
         if self.max_steps is not None:
@@ -427,6 +517,7 @@ class Environment(TorchVectorizedObject):
                 f"Invalid type of observation {obs} for agent {agent.name}"
             )
 
+    @local_seed(vmas_random_state)
     def get_random_action(self, agent: Agent) -> torch.Tensor:
         """Returns a random action for the given agent.
 
@@ -652,6 +743,7 @@ class Environment(TorchVectorizedObject):
                 )
                 agent.action.c += noise
 
+    @local_seed(vmas_random_state)
     def render(
         self,
         mode="human",
