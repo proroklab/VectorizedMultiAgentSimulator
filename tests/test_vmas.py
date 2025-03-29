@@ -302,3 +302,21 @@ def test_vmas_differentiable(scenario, n_steps=10, n_envs=10):
 
     loss = obs[-1].mean() + rews[-1].mean()
     grad = torch.autograd.grad(loss, first_action)
+
+
+def test_seeding():
+    env = make_env(scenario="balance", num_envs=2, seed=0)
+    env.seed(0)
+    random_obs = env.reset()[0][0, 0]
+    env.seed(0)
+    assert random_obs == env.reset()[0][0, 0]
+    env.seed(0)
+    torch.manual_seed(1)
+    assert random_obs == env.reset()[0][0, 0]
+
+    torch.manual_seed(0)
+    random_obs = torch.randn(1)
+    torch.manual_seed(0)
+    env.seed(1)
+    env.reset()
+    assert random_obs == torch.randn(1)
