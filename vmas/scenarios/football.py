@@ -1,4 +1,4 @@
-#  Copyright (c) 2022-2024.
+#  Copyright (c) 2022-2025.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -1091,7 +1091,9 @@ class Scenario(BaseScenario):
             shoot_force = torch.zeros(
                 self.world.batch_dim, 2, device=self.world.device, dtype=torch.float32
             )
-            shoot_force[..., X] = agent.action.u[..., -1] + self.u_shoot_multiplier
+            shoot_force[..., X] = (
+                agent.action.u[..., -1] * 2.67 * self.u_shoot_multiplier
+            )
             shoot_force = TorchUtils.rotate_vector(shoot_force, agent.state.rot)
             agent.shoot_force = shoot_force
             shoot_force = torch.where(
