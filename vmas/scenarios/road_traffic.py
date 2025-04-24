@@ -745,7 +745,11 @@ class Scenario(BaseScenario):
 
         self.distances = Distances(
             agents=torch.zeros(
-                batch_dim, self.n_agents, self.n_agents, dtype=torch.float32
+                batch_dim,
+                self.n_agents,
+                self.n_agents,
+                device=device,
+                dtype=torch.float32,
             ),
             left_boundaries=torch.zeros(
                 (batch_dim, self.n_agents, 1 + 4), device=device, dtype=torch.float32
