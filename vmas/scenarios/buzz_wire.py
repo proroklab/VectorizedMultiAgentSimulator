@@ -21,8 +21,6 @@ class Scenario(BaseScenario):
         self.max_speed_1 = kwargs.pop("max_speed_1", None)  # 0.05
         ScenarioUtils.check_kwargs_consumed(kwargs)
 
-        self.pos_shaping_factor = 1
-
         self.n_agents = 2
 
         self.wall_length = 2
