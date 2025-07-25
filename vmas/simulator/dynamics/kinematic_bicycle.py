@@ -1,4 +1,4 @@
-#  Copyright (c) 2023-2024.
+#  Copyright (c) 2023-2025.
 #  ProrokLab (https://www.proroklab.org/)
 #  All rights reserved.
 
@@ -71,8 +71,6 @@ class KinematicBicycle(Dynamics):
     def process_action(self):
         # Extracts the velocity and steering angle from the agent's actions and convert them to physical force and torque
         v_command = self.agent.action.u[:, 0]
-        # Ensure speed is within bounds
-        v_command = torch.clamp(v_command, -self.agent.max_speed, self.agent.max_speed)
         steering_command = self.agent.action.u[:, 1]
         # Ensure steering angle is within bounds
         steering_command = torch.clamp(
