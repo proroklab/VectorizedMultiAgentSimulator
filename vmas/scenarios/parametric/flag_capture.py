@@ -123,6 +123,10 @@ class PowerSumAggregation(torch.nn.Module):
 def get_aggregation_function(name, device):
     if name == "softmax":
         return SoftmaxAggregation(t=0, learn=True).to(device)
+    elif name == "softmax_5":
+        return SoftmaxAggregation(t=5, learn=True).to(device)
+    elif name == "softmax_-5":
+        return SoftmaxAggregation(t=-5, learn=True).to(device)
     elif name == "max":
         return agg_max
     elif name == "mean":
