@@ -2233,16 +2233,27 @@ class AgentPolicy:
         return value
 
     def get_wall_separations(self, pos):
-        top_wall_dist = -pos[:, Y] + self.world.pitch_width / 2
-        bottom_wall_dist = pos[:, Y] + self.world.pitch_width / 2
-        left_wall_dist = pos[:, X] + self.world.pitch_length / 2
-        right_wall_dist = -pos[:, X] + self.world.pitch_length / 2
+        top_wall_dist = -pos[..., Y] + self.world.pitch_width / 2
+        bottom_wall_dist = pos[..., Y] + self.world.pitch_width / 2
+        left_wall_dist = pos[..., X] + self.world.pitch_length / 2
+        right_wall_dist = -pos[..., X] + self.world.pitch_length / 2
         vertical_wall_disp = torch.zeros(pos.shape, device=self.world.device)
-        vertical_wall_disp[:, Y] = torch.minimum(top_wall_dist, bottom_wall_dist)
-        vertical_wall_disp[bottom_wall_dist < top_wall_dist, Y] *= -1
+        vertical_wall_disp[..., Y] = torch.minimum(top_wall_dist, bottom_wall_dist)
         horizontal_wall_disp = torch.zeros(pos.shape, device=self.world.device)
-        horizontal_wall_disp[:, X] = torch.minimum(left_wall_dist, right_wall_dist)
-        horizontal_wall_disp[left_wall_dist < right_wall_dist, X] *= -1
+        horizontal_wall_disp[..., X] = torch.minimum(left_wall_dist, right_wall_dist)
+
+        shape = vertical_wall_disp.shape
+        vertical_wall_disp = vertical_wall_disp.view(shape[0] * shape[1], 2)
+        mask = (bottom_wall_dist < top_wall_dist).view(shape[0] * shape[1])
+        vertical_wall_disp[mask, Y] *= -1
+        vertical_wall_disp = vertical_wall_disp.view(*shape)
+
+        shape = horizontal_wall_disp.shape
+        horizontal_wall_disp = horizontal_wall_disp.view(shape[0] * shape[1], 2)
+        mask = (left_wall_dist < right_wall_dist).view(shape[0] * shape[1])
+        horizontal_wall_disp[mask, X] *= -1
+        horizontal_wall_disp = horizontal_wall_disp.view(*shape)
+
         return torch.stack([vertical_wall_disp, horizontal_wall_disp], dim=-2)
 
     def get_separations(
