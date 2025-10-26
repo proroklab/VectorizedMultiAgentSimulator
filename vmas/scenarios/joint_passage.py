@@ -73,7 +73,7 @@ class Scenario(BaseScenario):
             device,
             x_semidim=1,
             y_semidim=1,
-            substeps=7 if not self.asym_package else 10,
+            substeps=2,  # 7 if not self.asym_package else 10,
             joint_force=900 if self.asym_package else 400,
             collision_force=2500 if self.asym_package else 1500,
             drag=0.25 if not self.asym_package else 0.15,
@@ -460,8 +460,7 @@ class Scenario(BaseScenario):
                         ] += self.collision_reward
                 for wall in self.walls:
                     self.collision_rew[
-                        self.world.get_distance(a, wall)
-                        <= self.min_collision_distance
+                        self.world.get_distance(a, wall) <= self.min_collision_distance
                     ] += self.collision_reward
 
             # Joint collisions
