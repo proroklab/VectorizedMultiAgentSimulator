@@ -458,11 +458,10 @@ class Scenario(BaseScenario):
                             self.world.get_distance(a, passage)
                             <= self.min_collision_distance
                         ] += self.collision_reward
-                    for wall in self.walls:
-                        self.collision_rew[
-                            self.world.get_distance(a, wall)
-                            <= self.min_collision_distance
-                        ] += self.collision_reward
+                for wall in self.walls:
+                    self.collision_rew[
+                        self.world.get_distance(a, wall) <= self.min_collision_distance
+                    ] += self.collision_reward
 
             # Joint collisions
             for p in self.passages:
