@@ -19,7 +19,7 @@ __all__ = [
     "mpe_scenarios",
 ]
 
-__version__ = "1.5.1"
+__version__ = "1.5.2"
 
 scenarios = sorted(
     [
