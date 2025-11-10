@@ -4,9 +4,10 @@ Scenario:
 adversary to goal. Adversary is rewarded for its distance to the goal.
 """
 
-#  Copyright (c) 2022-2024.
-#  ProrokLab (https://www.proroklab.org/)
-#  All rights reserved.
+#  Copyright (c) ProrokLab.
+#
+#  This source code is licensed under the license found in the
+#  LICENSE file in the root directory of this source tree.
 
 import torch
 

@@ -1,6 +1,7 @@
-#  Copyright (c) 2022-2025.
-#  ProrokLab (https://www.proroklab.org/)
-#  All rights reserved.
+#  Copyright (c) ProrokLab.
+#
+#  This source code is licensed under the license found in the
+#  LICENSE file in the root directory of this source tree.
 
 from vmas.interactive_rendering import render_interactively
 from vmas.make_env import make_env
