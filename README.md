@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/python-3.8%20%7C%203.9%20%7C%203.10%20%7C%203.11-blue.svg)](https://www.python.org/downloads/)
 [![GitHub license](https://img.shields.io/badge/license-GPLv3.0-blue.svg)](https://github.com/proroklab/VectorizedMultiAgentSimulator/blob/main/LICENSE)
 [![arXiv](https://img.shields.io/badge/arXiv-2207.03530-b31b1b.svg)](https://arxiv.org/abs/2207.03530)
-[![Discord Shield](https://dcbadge.vercel.app/api/server/dg8txxDW5t?style=flat)](https://discord.gg/dg8txxDW5t)
+[![Discord Shield](https://dcbadge.limes.pink/api/server/https://discord.gg/dg8txxDW5t)](https://discord.gg/dg8txxDW5t)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/proroklab/VectorizedMultiAgentSimulator/blob/main/notebooks/Simulation_and_training_in_VMAS_and_BenchMARL.ipynb)
 
 <p align="center">
