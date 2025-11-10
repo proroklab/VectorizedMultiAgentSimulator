@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Copyright (c) ProrokLab.
+  ~
+  ~ This source code is licensed under the license found in the
+  ~ LICENSE file in the root directory of this source tree.
+  -->
+
 <commonRoad affiliation="Lehrstuhl Informatik 11 - Embedded Software - RWTH Aachen University, Aachen, Germany"
             author="Bingyi Su"
             benchmarkID="C-ZAM_AC-1_1_T-1"
