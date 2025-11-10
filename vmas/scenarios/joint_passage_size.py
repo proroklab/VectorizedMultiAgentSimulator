@@ -454,11 +454,10 @@ class Scenario(BaseScenario):
                                 self.world.get_distance(a, passage)
                                 <= self.min_collision_distance
                             ] += self.collision_reward
-                    for wall in self.walls:
-                        self.collision_rew[
-                            self.world.get_distance(a, wall)
-                            <= self.min_collision_distance
-                        ] += self.collision_reward
+                for wall in self.walls:
+                    self.collision_rew[
+                        self.world.get_distance(a, wall) <= self.min_collision_distance
+                    ] += self.collision_reward
 
             # Energy reward
             if self.energy_reward_coeff != 0:
