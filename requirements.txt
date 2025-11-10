@@ -2,5 +2,5 @@ numpy
 torch
 pyglet<=1.5.27
 gym
-gym-notices==0.0.8"
+gym-notices==0.0.8
 six
