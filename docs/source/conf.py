@@ -30,12 +30,32 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.intersphinx",
     "sphinx.ext.viewcode",
+    "sphinx_gallery.gen_gallery",
     "patch",
 ]
 
 add_module_names = False
 autodoc_member_order = "bysource"
 toc_object_entries = False
+
+sphinx_gallery_conf = {
+    "examples_dirs": [
+        "../../tutorials",
+        "../../tutorials/environment",
+        "../../tutorials/scenario",
+        "../../tutorials/simulator",
+    ],  # path to your example scripts
+    "gallery_dirs": [
+        "generated/tutorials",
+        "generated/tutorials/environment",
+        "generated/tutorials/scenario",
+        "generated/tutorials/simulator",
+    ],  # path to where to save gallery generated output
+    "doc_module": ("vmas",),
+    "filename_pattern": ".*",  # files to parse
+    # "notebook_images": "reference/generated/tutorials/media/",  # images to parse
+    "show_memory": True,
+}
 
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3/", None),
