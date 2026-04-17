@@ -948,7 +948,8 @@ class Scenario(BaseScenario):
             if (
                 (self.parameters.map_type == "2")
                 and (
-                    torch.rand(1) < self.initial_state_buffer.probability_use_recording
+                    torch.rand(1, device=self.world.device)
+                    < self.initial_state_buffer.probability_use_recording
                 )
                 and (self.initial_state_buffer.valid_size >= 1)
             ):
@@ -1113,6 +1114,7 @@ class Scenario(BaseScenario):
             agents[i_agent].set_pos(initial_state[i_agent, 0:2], batch_index=env_i)
             agents[i_agent].set_rot(initial_state[i_agent, 2], batch_index=env_i)
             agents[i_agent].set_vel(initial_state[i_agent, 3:5], batch_index=env_i)
+            return ref_path, path_id
         else:
             is_feasible_initial_position_found = False
             # Ramdomly generate initial states for each agent
@@ -2300,7 +2302,7 @@ class Scenario(BaseScenario):
         is_collision_with_lanelets = self.collisions.with_lanelets.any(dim=-1)
 
         if self.parameters.map_type == "2":  # Record into the initial state buffer
-            if torch.rand(1) > (
+            if torch.rand(1, device=self.world.device) > (
                 1 - self.initial_state_buffer.probability_record
             ):  # Only a certain probability to record
                 for env_collide in torch.where(is_collision_with_agents)[0]:
